@@ -158,12 +158,12 @@ Controller components drive *where* an entity wants to move; style components
 define *how* it gets there. Any controller pairs with any style.
 
 **Controller components** (who decides the destination):
-- [ ] `InputMovement` — reads input bindings each tick; converts pressed directions into movement requests (deferred — WASD drives FreeMovement directly from game code for now)
-- [ ] `AIMovement` — driven by pathfinding / behavior system; pushes movement requests programmatically (Phase 30)
+- [ ] `InputMovement` — reads input bindings each tick; converts pressed directions into movement requests (struct declared in `Movement.h`, no system yet — demos read WASD in game code and drive the style component directly; system lands in **Phase 22H**)
+- [ ] `AIMovement` — driven by pathfinding / behavior system; pushes movement requests programmatically (struct declared, no system yet — Phase 30, on the intent path built in Phase 22H)
 
 **Style components** (how the entity actually moves):
 - [x] `SmoothTileMovement` — lerps from tile center to tile center; plays a walk animation mid-transit; next input queued but not consumed until landing
-- [ ] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; useful for puzzle / grid games
+- [ ] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; useful for puzzle / grid games (empty placeholder struct declared, no system yet — **Phase 22H**)
 - [x] `FreeMovement` — pixel-perfect world-space velocity; not tile-aligned; intended for live-combat sections where precise sub-tile positioning matters
 
 **Usage examples:**
@@ -257,22 +257,22 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Engine default collision layers (`Default`, `Player`, `NPC`, `Enemy`, `Wall`, `Prop`, `Pickup`, `Projectile`, `Trigger`); user layers extensible from bit 9 upward
 - [x] Debug draw — runtime `PhysicsDebugDraw` flag (kinematic green / static red); toggled from a dev key binding in demo, from the editor IPC channel in Phase 40. **Not** a player-facing setting.
 
-### Phase 22B — `FreeMovement` collision
-- [ ] `PendingMove` component + `FreeMovementIntegrateSystem` writes desired delta into it
-- [ ] `CollisionResolutionSystem` — swept resolution, slide along contact normal, one re-sweep
-- [ ] `Layer` / `Mask` filtering applied in narrowphase
-- [ ] Demo: player can't walk through trees / rocks; slides cleanly along walls
+### Phase 22B — `FreeMovement` collision ✓
+- [x] `PendingMove` component + `FreeMovementIntegrateSystem` writes desired delta into it
+- [x] `CollisionResolutionSystem` — swept resolution, slide along contact normal, one re-sweep
+- [x] `Layer` / `Mask` filtering applied in narrowphase
+- [x] Demo: player can't walk through trees / rocks; slides cleanly along walls
 
-### Phase 22C — Tile movement collision
-- [ ] `PhysicsWorld::QueryTileBlocked(entity, targetTile)` for the plan-then-commit flow
-- [ ] `TileMovementPlanSystem` integrates `SmoothTileMovement` (and `SnapTileMovement` when added) with the query before a tile transition is committed
-- [ ] Demo: tile-style player can't enter solid tiles; queued-input-during-transit semantics preserved
+### Phase 22C — Tile movement collision ✓
+- [x] `PhysicsWorld::QueryTileBlocked(entity, targetTile)` for the plan-then-commit flow
+- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` with the query before a tile transition is committed (`SnapTileMovement` hooks in when that style gets a system)
+- [x] Demo: tile-style player can't enter solid tiles; queued-input-during-transit semantics preserved
 
-### Phase 22D — Directional collision (arcs)
-- [ ] `DirectionArc` type (`{ centerDeg, halfWidthDeg }`) + preset library (`AllDirections`, `Vertical`, `Horizontal`, `NorthOnly`, ...)
-- [ ] Narrowphase emits a contact direction; arc check filters blocking contacts. Arcs evaluated in the collider's **local frame** so they rotate with the body
-- [ ] `TileDef.BlockedFrom` field (vector of arcs); tile-loader / atlas-spec support
-- [ ] Demo: tree blocks top/bottom approaches but allows walking under from the sides; verify off-axis approach behaviour for free movement
+### Phase 22D — Directional collision (arcs) ✓
+- [x] `DirectionArc` type (`{ centerDeg, halfWidthDeg }`) + preset library (`AllDirections`, `Vertical`, `Horizontal`, `NorthOnly`, ...)
+- [x] Narrowphase emits a contact direction; arc check filters blocking contacts. Arcs evaluated in the collider's **local frame** so they rotate with the body
+- [x] `TileDef.BlockedFrom` field (vector of arcs); tile-loader / atlas-spec support
+- [x] Demos: `ArcDemo` (free movement — bush `Horizontal()`, one-way platform `SouthOnly()`, tree as offset stump collider) and `TileMoveArcDemo` (tile movement — canopy/trunk tree pair, bush, `NorthOnly()` cliff strip)
 
 ### Phase 22E — Rotated colliders (OBB)
 - [ ] OBB↔OBB narrowphase (SAT) and OBB↔Circle (transform-into-local)
@@ -286,9 +286,21 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Demo: door / warp-tile trigger teleports the player on enter
 
 ### Phase 22G — Polish & integration
+*Parked: two of three items wait on Phase 24 (Event Bus) and Phase 40 (editor). Execution order after 22F is **22H**, then the partial-move item here; the rest closes out when its dependency lands.*
 - [ ] Optional `SmoothTileMovement.AllowPartialMove` — sub-tile stop policy for the rare scenes that want it
 - [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`, `Trigger.Entered`, `Trigger.Exited`) — wired when Phase 24 lands; callback API is the integration surface until then
 - [ ] Editor integration (Phase 40) — collider authoring panel, live preview, directional-arc arrows on the canvas
+
+### Phase 22H — Movement controllers
+*Replaces the hand-rolled WASD blocks copy-pasted across the demos with the controller → style pipeline designed in Phase 16 (`docs/ecs.md` "Movement"). Lands after 22F; does not wait on 22G.*
+- [ ] `InputMovementSystem` — reads `InputMovement` actions and writes intent into whichever style is present: `FreeMovement.Velocity` (diagonals normalized) or `SmoothTileMovement.QueuedDir` (cardinal-only)
+- [ ] Defined two-key tie-break for tile styles (e.g. most-recently-pressed axis wins) — replaces the demos' "dominant axis" check, which always picks X for digital input
+- [ ] Resolve `InputMovement.Speed` unit ambiguity (px/s vs tiles/s) — style components own their speed, or split the field
+- [ ] Expose the resolved move direction on the entity so game code (facing, animation selection) reads intent instead of polling keys
+- [ ] `SnapTileMoveSystem` — plan-then-commit via `PhysicsWorld::QueryTileBlocked`, instant `Transform2D` write + broadphase refresh; needs a step / key-repeat interval so a held key isn't one tile per tick
+- [ ] Intent path shared so `AIMovementSystem` (Phase 30) plugs in without touching the style systems
+- [ ] Migrate `PhysicsDemo`, `ArcDemo`, `TileMoveDemo`, `TileMoveArcDemo`, `WorldDemo` to `InputMovement`; snap-movement demo (or a style toggle in `TileMoveDemo`)
+- [ ] Update `docs/ecs.md` built-in system table (currently lists `SmoothTileMoveSystem` as deferred and omits the 22B/22C collision systems)
 
 ---
 

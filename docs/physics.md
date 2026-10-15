@@ -703,6 +703,9 @@ runnable / verifiable state:
 - [ ] Door / warp-tile demo: trigger entity teleports the player.
 
 ### Phase 22G — Polish & integration
+Parked behind Phase 24 (Event Bus) and Phase 40 (editor). After 22F, work
+moves to 22H (movement controllers, tracked in `BLUEPRINT.md`); the
+partial-move item below can land any time.
 - [ ] Optional sub-tile partial-move policy (`SmoothTileMovement.AllowPartialMove`).
 - [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`,
       `Trigger.Entered`, `Trigger.Exited`) — wired live when Phase 24 lands; until
@@ -713,10 +716,24 @@ runnable / verifiable state:
 
 ## Open Questions for Implementation
 
-1. **Default arc half-widths.** The presets (`Vertical`, `Horizontal`,
-   `NorthOnly`, ...) currently default to ±60° per arc, leaving ±30° "lanes"
-   on the unblocked sides. This is the single biggest gameplay-feel knob in
-   the system — too narrow and characters slip past obstacles; too wide and
-   off-axis approaches feel sticky. Locking in concrete numbers needs
-   playtesting once Phase 22D demos are runnable. Until then ±60° is the
-   working default.
+1. **Default arc half-widths.** The two-sided presets (`Vertical`,
+   `Horizontal`) default to ±60° per arc; the one-sided presets (`NorthOnly`,
+   ...) default to ±90° (a clean half-plane). Every preset takes the
+   half-width as a parameter, and per-collider / per-tile arcs can set any
+   value, so the knob is already authorable per prop — the editor (Phase 40)
+   only needs to expose it.
+
+   **The width is inert for box-vs-box contacts.** The arc check consumes
+   `Sweep::Result.Normal`, and the slab method (axis-aligned box vs
+   axis-aligned box — the common case, and every collider in the 22D demos)
+   always reports a pure face normal (N/S/E/W). Any half-width strictly
+   between 0° and 90° therefore behaves identically there; a diagonal
+   approach blocks or passes based solely on which face it touches. The
+   width only matters on the substep path, where the normal is the
+   obstacle-center→mover-center vector: circle colliders today, rotated boxes
+   after 22E.
+
+   Tuning (and any project-wide default — which would belong in project
+   config, not player `Settings`) is deferred until 22E lands and angled
+   normals are common enough to playtest. Until then ±60° stays as the
+   working default. To feel it now, give a demo player a `Circle` collider.
