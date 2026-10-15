@@ -412,11 +412,11 @@ namespace
     std::vector<EntityPair> GatherBlockingPairs(PhysicsWorld& physics, NormalMap& normals)
     {
         std::vector<EntityPair> pairs;
-        for (const PhysicsWorld::ContactReport& r : physics.ContactReports()) {
-            const bool       moverFirst = r.Mover.Index < r.Other.Index;
-            const EntityPair pair       = moverFirst ? EntityPair{ r.Mover, r.Other } : EntityPair{ r.Other, r.Mover };
+        for (const auto& [Mover, Other, Normal] : physics.ContactReports()) {
+            const bool       moverFirst = Mover.Index < Other.Index;
+            const EntityPair pair       = moverFirst ? EntityPair { .A = Mover, .B = Other } : EntityPair{ .A = Other, .B = Mover };
             pairs.push_back(pair);
-            normals.try_emplace(pair, moverFirst ? r.Normal : r.Normal * -1.0f);
+            normals.try_emplace(pair, moverFirst ? Normal : Normal * -1.0f);
         }
         physics.ContactReports().clear();
 

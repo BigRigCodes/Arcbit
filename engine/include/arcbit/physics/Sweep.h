@@ -26,8 +26,10 @@ struct Result
 // Closed-form swept test for two axis-aligned boxes when one moves.
 // `moving` is the mover's current world AABB (assumed not already overlapping
 // `stationary` past tangency); `delta` is the displacement to test in world
-// pixels. Tangent / edge contact at t==0 is reported as Hit with ToI==0,
-// matching the `<=` convention used by Narrowphase.
+// pixels. Boxes already touching at t==0 (within float noise) report a Hit
+// with ToI==0 and the touching face's normal only when `delta` pushes into
+// that face; moving away from or along it is not a hit, so a mover resting
+// against a box can leave or slide.
 [[nodiscard]] Result MovingAABBvsAABB(const AABB& moving, Vec2 delta,
                                       const AABB& stationary) noexcept;
 

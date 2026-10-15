@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace Arcbit::Sweep
 {
@@ -68,11 +69,52 @@ namespace
         }
         return true;
     }
+
+    // Boxes closer than this (gap or overlap, in px) count as touching. Covers
+    // the float noise left by `position + delta * ToI` after a resolved hit.
+    constexpr f32 TouchTolerance = 1e-3f;
+
+    // Contact rule for boxes already touching at t = 0 — the normal state of
+    // a mover the resolver stopped against a face last tick. Only motion
+    // *into* the touching face is a hit; moving away or sliding along it is
+    // free. Without this, the slab math reports ToI = 0 for every direction
+    // and a box mover touching a box can never leave it.
+    //
+    // Returns nullopt when the boxes aren't in touching contact (separated, or
+    // genuinely overlapping — the general slab path handles both).
+    std::optional<Result> TouchingContact(const AABB& m, const Vec2 delta, const AABB& s) noexcept
+    {
+        const f32 overlapX = std::min(m.Max.X - s.Min.X, s.Max.X - m.Min.X);
+        const f32 overlapY = std::min(m.Max.Y - s.Min.Y, s.Max.Y - m.Min.Y);
+        if (overlapX < -TouchTolerance || overlapY < -TouchTolerance) return std::nullopt; // separated
+        if (std::min(overlapX, overlapY) > TouchTolerance) return std::nullopt;           // inside
+
+        // Outward normals of the faces in contact (from s toward m).
+        const Vec2 nX       = { m.Center().X >= s.Center().X ? 1.0f : -1.0f, 0.0f };
+        const Vec2 nY       = { 0.0f, m.Center().Y >= s.Center().Y ? 1.0f : -1.0f };
+        const bool touchX   = overlapX <= TouchTolerance;
+        const bool touchY   = overlapY <= TouchTolerance;
+        const bool intoX    = Dot(delta, nX) < 0.0f;
+        const bool intoY    = Dot(delta, nY) < 0.0f;
+
+        // Corner contact: only a move into both faces is blocked. Report the
+        // axis with less motion, so the slide keeps the dominant direction.
+        if (touchX && touchY) {
+            if (!intoX || !intoY) return Result{};
+            return Result{ .ToI = 0.0f, .Normal = std::abs(delta.X) < std::abs(delta.Y) ? nX : nY, .Hit = true };
+        }
+        const Vec2 n    = touchX ? nX : nY;
+        const bool into = touchX ? intoX : intoY;
+        if (!into) return Result{};
+        return Result{ .ToI = 0.0f, .Normal = n, .Hit = true };
+    }
 } // anonymous namespace
 
 Result MovingAABBvsAABB(const AABB& moving, const Vec2 delta,
                         const AABB& stationary) noexcept
 {
+    if (const std::optional<Result> touch = TouchingContact(moving, delta, stationary)) return *touch;
+
     f32 tEnterX = 0, tExitX = 0;
     f32 tEnterY = 0, tExitY = 0;
     if (!AxisSlab(moving.Min.X, moving.Max.X,
@@ -249,13 +291,37 @@ void SelfTest()
         ARCBIT_ASSERT(r.ToI == 1.0f, "Sweep::SelfTest: ToI should be 1.0 on miss");
     }
 
-    // Tangent at start: edges already touching. Convention: counts as Hit at ToI=0.
+    // Tangent at start: edges already touching. Moving into the face is a Hit
+    // at ToI=0 with the face normal; moving away or along the face is free.
     {
         constexpr AABB mover      = AABB::FromCenterHalfExtents({0.0f, 0.0f}, {5.0f, 5.0f});
         constexpr AABB stationary = AABB::FromCenterHalfExtents({10.0f, 0.0f}, {5.0f, 5.0f});
         const Result   r          = MovingAABBvsAABB(mover, {1.0f, 0.0f}, stationary);
         ARCBIT_ASSERT(r.Hit, "Sweep::SelfTest: tangent contact missed");
         ARCBIT_ASSERT(r.ToI == 0.0f, "Sweep::SelfTest: tangent contact should be ToI=0");
+        ARCBIT_ASSERT(r.Normal.X < 0.0f, "Sweep::SelfTest: tangent contact normal wrong");
+
+        ARCBIT_ASSERT(!MovingAABBvsAABB(mover, {-1.0f, 0.0f}, stationary).Hit,
+                      "Sweep::SelfTest: moving away from a touching box was blocked");
+        ARCBIT_ASSERT(!MovingAABBvsAABB(mover, {0.0f, 3.0f}, stationary).Hit,
+                      "Sweep::SelfTest: sliding along a touching face was blocked");
+
+        // Same, with the float noise a resolved hit leaves behind.
+        constexpr AABB nudgedIn  = AABB::FromCenterHalfExtents({0.00001f, 0.0f}, {5.0f, 5.0f});
+        constexpr AABB nudgedOut = AABB::FromCenterHalfExtents({-0.00001f, 0.0f}, {5.0f, 5.0f});
+        ARCBIT_ASSERT(!MovingAABBvsAABB(nudgedIn, {-1.0f, 0.0f}, stationary).Hit,
+                      "Sweep::SelfTest: micro-overlap trapped a mover moving away");
+        ARCBIT_ASSERT(!MovingAABBvsAABB(nudgedOut, {0.0f, -3.0f}, stationary).Hit,
+                      "Sweep::SelfTest: micro-gap blocked sliding along the face");
+        ARCBIT_ASSERT(MovingAABBvsAABB(nudgedOut, {1.0f, 0.0f}, stationary).Hit,
+                      "Sweep::SelfTest: micro-gap let the mover push into the face");
+
+        // Corner-to-corner: only a move into both faces is blocked.
+        constexpr AABB corner = AABB::FromCenterHalfExtents({10.0f, 10.0f}, {5.0f, 5.0f});
+        ARCBIT_ASSERT(!MovingAABBvsAABB(mover, {1.0f, 0.0f}, corner).Hit,
+                      "Sweep::SelfTest: grazing past a touching corner was blocked");
+        ARCBIT_ASSERT(MovingAABBvsAABB(mover, {1.0f, 1.0f}, corner).Hit,
+                      "Sweep::SelfTest: moving into a touching corner was not blocked");
     }
 
     // Glancing: mover travels along X but stationary is offset on Y → no overlap.
