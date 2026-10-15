@@ -2,6 +2,7 @@
 #include <arcbit/app/Window.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/physics/ContactTracker.h>
 #include <arcbit/physics/DirectionArc.h>
 #include <arcbit/physics/Narrowphase.h>
 #include <arcbit/physics/PhysicsWorld.h>
@@ -31,13 +32,15 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     LOG_INFO(Engine, "Arcbit starting");
 
     #ifdef ARCBIT_DEBUG
-    // Cheap startup sanity checks on physics data structures.
+    // Cheap startup sanity checks on core data structures (ECS storage, physics).
     // Stripped from release builds along with all assertions.
+    World::SelfTest();
     SpatialHash::SelfTest();
     PhysicsWorld::SelfTest();
     Narrowphase::SelfTest();
     Sweep::SelfTest();
     DirectionArcSelfTest();
+    ContactTracker::SelfTest();
     #endif
 
     // Seed Settings with config defaults so that GraphicsSettings has sensible

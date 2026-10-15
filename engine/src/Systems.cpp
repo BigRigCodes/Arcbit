@@ -3,6 +3,7 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/physics/PhysicsCallbacks.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/physics/Sweep.h>
 #include <arcbit/render/RenderThread.h>
@@ -48,8 +49,15 @@ namespace
                          toDestroy.push_back(e);
                  });
 
-            for (const Entity e : toDestroy)
+            // Unregister colliders first — a destroyed entity's broadphase
+            // record would otherwise keep blocking tile movers and
+            // overlapping triggers.
+            PhysicsWorld& physics = scene.GetPhysics();
+            for (const Entity e : toDestroy) {
+                if (const PhysicsWorld::ColliderId id = physics.FindColliderForEntity(e); id != PhysicsWorld::InvalidId)
+                    physics.UnregisterCollider(id);
                 scene.GetWorld().DestroyEntity(e);
+            }
         });
     }
 
@@ -105,22 +113,26 @@ namespace
     // Sweep one mover against every entity collider returned by the broadphase
     // and every greedy-meshed tile rect overlapping the swept AABB. Returns
     // the earliest non-trigger contact (or {ToI=1,Hit=false} if nothing hits).
+    // When that contact is another entity, it is reported to PhysicsWorld for
+    // the ContactEvents system (22F).
     Sweep::Result SweepBroadphaseHits(
+        const Entity                                 mover,
         const Collider2D&                            col,
         const Vec2                                   origin,
         const Vec2                                   delta,
         const PhysicsWorld::ColliderId               selfId,
-        const PhysicsWorld&                          physics,
+        PhysicsWorld&                                physics,
         World&                                       ecsWorld,
         const std::vector<PhysicsWorld::ColliderId>& entityHits,
         const std::vector<TileColliderRect>&         tileHits)
     {
         Sweep::Result best{};
+        Entity        bestOther = Entity::Invalid();
 
         for (const PhysicsWorld::ColliderId otherId : entityHits) {
             if (otherId == selfId) continue;
             const auto& rec = physics.GetRecord(otherId);
-            if (!rec.Active || rec.IsTrigger) continue; // triggers never block (events land in 22F)
+            if (!rec.Active || rec.IsTrigger) continue; // triggers never block (TriggerCallback instead)
             if (!LayersPair(col.Layer, col.Mask, rec.Layer, rec.Mask)) continue;
 
             const Collider2D* otherCol = ecsWorld.GetComponent<Collider2D>(rec.Owner);
@@ -137,7 +149,10 @@ namespace
             // when the mover is inside the obstacle (e.g. walked through a
             // pass-through arc).
             if (!IsContactBlocked(rec.BlockedFrom, r.Normal, rec.Rotation)) continue;
-            if (r.ToI < best.ToI) best = r;
+            if (r.ToI < best.ToI) {
+                best      = r;
+                bestOther = rec.Owner;
+            }
         }
 
         for (const TileColliderRect& rect : tileHits) {
@@ -153,8 +168,12 @@ namespace
             if (!r.Hit) continue;
             // Tile rects are axis-aligned (greedy mesh); pass rotation 0.
             if (!IsContactBlocked(rect.BlockedFrom, r.Normal, 0.0f)) continue;
-            if (r.ToI < best.ToI) best = r;
+            if (r.ToI < best.ToI) {
+                best      = r;
+                bestOther = Entity::Invalid(); // tile hits aren't reported
+            }
         }
+        if (best.Hit && bestOther.IsValid()) physics.ReportContact(mover, bestOther, best.Normal);
         return best;
     }
 
@@ -200,7 +219,7 @@ namespace
                         const AABB swept = SweptAABB(curr, delta);
                         physics.QueryAABB(swept, entityHits);
                         physics.QueryTileColliders(swept, tileHits);
-                        Sweep::Result hit = SweepBroadphaseHits(col, t.Position, delta,
+                        Sweep::Result hit = SweepBroadphaseHits(e, col, t.Position, delta,
                                                                 selfId, physics, ecsWorld,
                                                                 entityHits, tileHits);
 
@@ -222,7 +241,7 @@ namespace
                                 physics.QueryAABB(slideSwept, entityHits);
                                 physics.QueryTileColliders(slideSwept, tileHits);
                                 const Sweep::Result hit2 = SweepBroadphaseHits(
-                                    col, finalPos, slide, selfId, physics, ecsWorld,
+                                    e, col, finalPos, slide, selfId, physics, ecsWorld,
                                     entityHits, tileHits);
                                 finalPos.X += slide.X * hit2.ToI;
                                 finalPos.Y += slide.Y * hit2.ToI;
@@ -264,7 +283,11 @@ namespace
         };
 
         stm.HasQueued = false;
-        if (col && physics.QueryTileBlocked(e, *col, origin, target)) return false;
+        PhysicsWorld::BlockingHit hit;
+        if (col && physics.QueryTileBlocked(e, *col, origin, target, &hit)) {
+            if (hit.Other.IsValid()) physics.ReportContact(e, hit.Other, hit.Normal);
+            return false;
+        }
 
         stm.OriginWorld = origin;
         stm.TargetWorld = target;
@@ -318,6 +341,121 @@ namespace
                                 physics.UpdateCollider(id, *col, t.Position);
                         }
                     });
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // ContactEvents system helpers (22F)
+    // ---------------------------------------------------------------------
+
+    // A blocking contact survives a tick without a fresh hit while the two
+    // shapes stay within this many pixels — a mover that stops against a wall
+    // is no longer sweeping into it but is still touching it.
+    constexpr f32 ContactSkin = 1.0f;
+
+    // Destroyed and Disabled entities don't take part in contacts. Dropping
+    // their pairs before the diff makes an existing contact Exit.
+    bool Participates(World& world, const Entity e)
+    {
+        return world.IsValid(e) && world.GetComponent<Disabled>(e) == nullptr;
+    }
+
+    void DropNonParticipants(World& world, std::vector<EntityPair>& pairs)
+    {
+        std::erase_if(pairs, [&](const EntityPair& p) {
+            return !Participates(world, p.A) || !Participates(world, p.B);
+        });
+    }
+
+    // Call one callback slot of `Component` on `self`, if present. The
+    // std::function is copied before the call: a callback that adds or removes
+    // components moves the entity's archetype storage, which would leave a
+    // reference into the component dangling mid-call.
+    template<typename Component, typename Fn, typename... Args>
+    void InvokeCallback(World& world, const Entity self, Fn Component::* slot, const Args&... args)
+    {
+        if (!world.IsValid(self)) return;
+        const Component* cb = world.GetComponent<Component>(self);
+        if (!cb || !(cb->*slot)) return;
+        const Fn fn = cb->*slot;
+        fn(self, args...);
+    }
+
+    void DispatchTriggerEvents(World& world, const ContactTracker::Events& ev)
+    {
+        const auto both = [&](const EntityPair& p, auto slot) {
+            InvokeCallback(world, p.A, slot, p.B);
+            InvokeCallback(world, p.B, slot, p.A);
+        };
+        for (const EntityPair& p : ev.Entered) both(p, &TriggerCallback::OnEnter);
+        for (const EntityPair& p : ev.Stayed) both(p, &TriggerCallback::OnStay);
+        for (const EntityPair& p : ev.Exited) both(p, &TriggerCallback::OnExit);
+    }
+
+    void UpdateTriggerContacts(PhysicsWorld& physics, World& ecs)
+    {
+        std::vector<EntityPair> overlaps;
+        physics.CollectTriggerOverlaps(overlaps);
+        DropNonParticipants(ecs, overlaps);
+
+        ContactTracker::Events events;
+        physics.TriggerContacts().Update(overlaps, events);
+        DispatchTriggerEvents(ecs, events);
+    }
+
+    using NormalMap = std::unordered_map<EntityPair, Vec2, EntityPairHash>;
+
+    // This tick's blocking pairs: fresh hits reported by the movers, plus
+    // already-active pairs still within ContactSkin. Pairs are ordered by
+    // entity index so A-hits-B and B-hits-A are one contact; `normals` holds
+    // each fresh pair's normal, flipped as needed to point from B toward A.
+    std::vector<EntityPair> GatherBlockingPairs(PhysicsWorld& physics, NormalMap& normals)
+    {
+        std::vector<EntityPair> pairs;
+        for (const PhysicsWorld::ContactReport& r : physics.ContactReports()) {
+            const bool       moverFirst = r.Mover.Index < r.Other.Index;
+            const EntityPair pair       = moverFirst ? EntityPair{ r.Mover, r.Other } : EntityPair{ r.Other, r.Mover };
+            pairs.push_back(pair);
+            normals.try_emplace(pair, moverFirst ? r.Normal : r.Normal * -1.0f);
+        }
+        physics.ContactReports().clear();
+
+        for (const EntityPair& p : physics.BlockingContacts().Active())
+            if (physics.IsTouching(p.A, p.B, ContactSkin)) pairs.push_back(p);
+        return pairs;
+    }
+
+    void UpdateBlockingContacts(PhysicsWorld& physics, World& ecs)
+    {
+        NormalMap               normals;
+        std::vector<EntityPair> pairs = GatherBlockingPairs(physics, normals);
+        DropNonParticipants(ecs, pairs);
+
+        ContactTracker::Events events;
+        physics.BlockingContacts().Update(pairs, events);
+        for (const EntityPair& p : events.Entered) {
+            const auto it = normals.find(p);
+            const Vec2 n  = it != normals.end() ? it->second : Vec2{};
+            InvokeCallback(ecs, p.A, &CollisionCallback::OnEnter, p.B, n);
+            InvokeCallback(ecs, p.B, &CollisionCallback::OnEnter, p.A, n * -1.0f);
+        }
+        for (const EntityPair& p : events.Exited) {
+            InvokeCallback(ecs, p.A, &CollisionCallback::OnExit, p.B);
+            InvokeCallback(ecs, p.B, &CollisionCallback::OnExit, p.A);
+        }
+    }
+
+    // Runs after every movement system so contacts reflect final positions,
+    // whichever movement style (or teleport) put the entity there. Each pass
+    // finishes detection before any callback runs, so callbacks may mutate the
+    // world; a trigger callback that teleports a mover is seen by the
+    // blocking pass only through the skin check, which is the desired result
+    // (teleporting away ends the contact).
+    void RegisterContactEventsSystem(World& world)
+    {
+        world.RegisterSystem("ContactEvents", [](Scene& scene, f32 /*dt*/) {
+            UpdateTriggerContacts(scene.GetPhysics(), scene.GetWorld());
+            UpdateBlockingContacts(scene.GetPhysics(), scene.GetWorld());
         });
     }
 
@@ -762,6 +900,7 @@ void RegisterBuiltinSystems(World& world)
     RegisterFreeMovementSystem(world);          // writes PendingMove
     RegisterSmoothTileMoveSystem(world);        // writes Transform directly (joins PendingMove in 22C)
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
+    RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
     RegisterCameraFollowSystem(world);
     RegisterAnimatorStateMachineSystem(world); // evaluates transitions, updates Animator clip
     RegisterAnimatorSystem(world);             // advances frames, fires events, writes UV

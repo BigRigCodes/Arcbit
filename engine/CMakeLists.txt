@@ -42,6 +42,7 @@ add_library(arcbit-engine STATIC
     src/Narrowphase.cpp
     src/Sweep.cpp
     src/DirectionArc.cpp
+    src/ContactTracker.cpp
 )
 
 target_include_directories(arcbit-engine

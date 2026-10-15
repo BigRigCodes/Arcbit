@@ -5,6 +5,7 @@
 #include <arcbit/ecs/World.h>
 #include <arcbit/physics/AABB.h>
 #include <arcbit/physics/Collider2D.h>
+#include <arcbit/physics/ContactTracker.h>
 #include <arcbit/physics/DirectionArc.h>
 #include <arcbit/physics/SpatialHash.h>
 #include <arcbit/physics/TileColliderRect.h>
@@ -116,8 +117,51 @@ public:
     // Other entities are tested with their exact cached shape (box, rotated
     // box, or circle — see ColliderRecord). Layer/Mask pair check + IsTrigger
     // filter applied before the swept test runs.
+    //
+    // When `hit` is non-null and the move is blocked, it receives the first
+    // blocker found (Other is Entity::Invalid() for a tile collider) and the
+    // contact normal (pointing toward the mover).
+    struct BlockingHit
+    {
+        Entity Other  = Entity::Invalid();
+        Vec2   Normal = {};
+    };
     [[nodiscard]] bool QueryTileBlocked(Entity mover, const Collider2D& col,
-                                        Vec2   originWorld, Vec2 targetWorld) const noexcept;
+                                        Vec2   originWorld, Vec2 targetWorld,
+                                        BlockingHit* hit = nullptr) const noexcept;
+
+    // True when the cached shapes of `a` and `b` overlap with `a` grown by
+    // `skin` on every side — i.e. they touch or sit within `skin` pixels.
+    // Keeps a blocking contact alive after the mover stops sweeping into it.
+    // False if either entity has no registered collider.
+    [[nodiscard]] bool IsTouching(Entity a, Entity b, f32 skin) const noexcept;
+
+    // Blocking hits reported by movers this tick (resolver + tile movement),
+    // consumed by the ContactEvents system. Normal points from Other toward
+    // Mover. Entity-vs-entity only — tile hits are not reported.
+    struct ContactReport
+    {
+        Entity Mover  = Entity::Invalid();
+        Entity Other  = Entity::Invalid();
+        Vec2   Normal = {};
+    };
+    void ReportContact(const Entity mover, const Entity other, const Vec2 normal)
+    {
+        _contactReports.push_back({ mover, other, normal });
+    }
+    [[nodiscard]] std::vector<ContactReport>& ContactReports() noexcept { return _contactReports; }
+
+    // Trigger overlap pass (22F). Clears `out`, then appends (trigger, other)
+    // for every non-trigger collider whose exact shape overlaps an active
+    // trigger and passes the Layer/Mask pair check. Trigger-vs-trigger pairs
+    // and tile colliders are never reported. Reads only the record cache, so
+    // positions are as of each collider's last Register/UpdateCollider.
+    void CollectTriggerOverlaps(std::vector<EntityPair>& out) const;
+
+    // Per-scene contact state, driven by the built-in ContactEvents system
+    // (Systems.cpp): trigger overlaps, and blocking contacts between entities.
+    [[nodiscard]] ContactTracker& TriggerContacts() noexcept { return _triggerContacts; }
+    [[nodiscard]] ContactTracker& BlockingContacts() noexcept { return _blockingContacts; }
 
     // Tilemap pointer for the (future) tile-synthesized collider path. Non-owning;
     // the Scene owns the tilemap and outlives the PhysicsWorld.
@@ -175,6 +219,9 @@ private:
     std::vector<ColliderRecord>         _colliders;
     std::vector<ColliderId>             _freeList;
     std::unordered_map<u64, ColliderId> _entityToCollider; // packed entity → id; one collider per entity
+    ContactTracker                      _triggerContacts;
+    ContactTracker                      _blockingContacts;
+    std::vector<ContactReport>          _contactReports;
     TileMap*                            _tilemap   = nullptr;
     bool                                _debugDraw = false;
 };

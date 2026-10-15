@@ -163,7 +163,8 @@ namespace
 } // anonymous namespace
 
 bool PhysicsWorld::QueryTileBlocked(const Entity      mover, const Collider2D& col,
-                                    const Vec2        originWorld, const Vec2  targetWorld) const noexcept
+                                    const Vec2        originWorld, const Vec2  targetWorld,
+                                    BlockingHit*      hit) const noexcept
 {
     const Vec2 delta = {targetWorld.X - originWorld.X, targetWorld.Y - originWorld.Y};
     if (delta.X == 0.0f && delta.Y == 0.0f) return false; // zero-length move can't hit anything new
@@ -201,6 +202,7 @@ bool PhysicsWorld::QueryTileBlocked(const Entity      mover, const Collider2D& c
         const Sweep::Result r = Sweep::SweepAgainst(col, originWorld, delta, obstacle, obstaclePos);
         if (!r.Hit) continue;
         if (!IsContactBlocked(rec.BlockedFrom, r.Normal, rec.Rotation)) continue;
+        if (hit) *hit = { rec.Owner, r.Normal };
         return true;
     }
 
@@ -219,10 +221,45 @@ bool PhysicsWorld::QueryTileBlocked(const Entity      mover, const Collider2D& c
         // Tile rects don't carry rotation (greedy mesh is axis-aligned), so
         // pass 0 — local frame == world frame.
         if (!IsContactBlocked(rect.BlockedFrom, r.Normal, 0.0f)) continue;
+        if (hit) *hit = { Entity::Invalid(), r.Normal };
         return true;
     }
 
     return false;
+}
+
+void PhysicsWorld::CollectTriggerOverlaps(std::vector<EntityPair>& out) const
+{
+    out.clear();
+    std::vector<ColliderId> hits;
+    for (const ColliderRecord& trigger : _colliders) {
+        if (!trigger.Active || !trigger.IsTrigger) continue;
+
+        const Collider2D triggerShape = ObstacleFromRecord(trigger);
+        QueryAABB(trigger.WorldAABB, hits);
+        for (const ColliderId id : hits) {
+            const ColliderRecord& other = _colliders[id];
+            if (!other.Active || other.IsTrigger) continue; // also skips the trigger itself
+            if (!LayersPair(trigger.Layer, trigger.Mask, other.Layer, other.Mask)) continue;
+            if (!Narrowphase::Overlap(triggerShape, trigger.Position, ObstacleFromRecord(other), other.Position))
+                continue;
+            out.push_back({ trigger.Owner, other.Owner });
+        }
+    }
+}
+
+bool PhysicsWorld::IsTouching(const Entity a, const Entity b, const f32 skin) const noexcept
+{
+    const ColliderId idA = FindColliderForEntity(a);
+    const ColliderId idB = FindColliderForEntity(b);
+    if (idA == InvalidId || idB == InvalidId) return false;
+
+    const ColliderRecord& recA  = _colliders[idA];
+    const ColliderRecord& recB  = _colliders[idB];
+    Collider2D            grown = ObstacleFromRecord(recA);
+    grown.HalfExtents           = { grown.HalfExtents.X + skin, grown.HalfExtents.Y + skin };
+    grown.Radius               += skin;
+    return Narrowphase::Overlap(grown, recA.Position, ObstacleFromRecord(recB), recB.Position);
 }
 
 usize PhysicsWorld::ColliderCount() const noexcept { return _colliders.size() - _freeList.size(); }
@@ -376,6 +413,51 @@ AABB PhysicsWorld::ComputeWorldAABB(const Collider2D& collider, const Vec2 world
     };
     return AABB::FromCenterHalfExtents(center, boundHalf);
 }
+
+#ifdef ARCBIT_DEBUG
+namespace
+{
+    // CollectTriggerOverlaps: overlap reported as (trigger, other); masked-out
+    // movers, other triggers, and non-overlapping movers are not.
+    void TriggerOverlapSelfTest()
+    {
+        PhysicsWorld pw(32.0f);
+
+        const Collider2D zone{ .HalfExtents = { 16.0f, 16.0f }, .Kind = BodyKind::Static, .Layer = CollisionLayers::Trigger,
+                               .Mask = CollisionLayers::Player, .IsTrigger = true };
+        const Collider2D player{ .HalfExtents = { 4.0f, 4.0f }, .Layer = CollisionLayers::Player };
+        const Collider2D npc{ .HalfExtents = { 4.0f, 4.0f }, .Layer = CollisionLayers::NPC };
+
+        const Entity zoneE{ .Index = 30 }, inside{ .Index = 31 }, masked{ .Index = 32 };
+        const Entity outside{ .Index = 33 }, otherZone{ .Index = 34 };
+        pw.RegisterCollider(zoneE, zone, { 0.0f, 0.0f });
+        pw.RegisterCollider(inside, player, { 10.0f, 0.0f });
+        pw.RegisterCollider(masked, npc, { -10.0f, 0.0f });
+        pw.RegisterCollider(outside, player, { 60.0f, 0.0f });
+        pw.RegisterCollider(otherZone, zone, { 8.0f, 8.0f });
+
+        std::vector<EntityPair> pairs;
+        pw.CollectTriggerOverlaps(pairs);
+        ARCBIT_ASSERT(pairs.size() == 2, "TriggerOverlap: expected exactly the player inside each zone");
+        ARCBIT_ASSERT(std::ranges::find(pairs, EntityPair{ zoneE, inside }) != pairs.end(),
+                      "TriggerOverlap: missed (trigger, player) pair");
+        ARCBIT_ASSERT(std::ranges::find(pairs, EntityPair{ otherZone, inside }) != pairs.end(),
+                      "TriggerOverlap: second zone missed the player");
+
+        // IsTouching: 0.5 px apart is within a 1 px skin, 2 px apart is not.
+        const Entity nearE{ .Index = 35 }, farE{ .Index = 36 };
+        pw.RegisterCollider(nearE, player, { 18.5f, 100.0f });
+        pw.RegisterCollider(farE, player, { 30.0f, 100.0f });
+        const Entity anchor{ .Index = 37 };
+        pw.RegisterCollider(anchor, player, { 10.0f, 100.0f });
+        ARCBIT_ASSERT(pw.IsTouching(anchor, nearE, 1.0f), "IsTouching: 0.5 px gap should be within a 1 px skin");
+        ARCBIT_ASSERT(!pw.IsTouching(anchor, farE, 1.0f), "IsTouching: 12 px gap reported as touching");
+        ARCBIT_ASSERT(!pw.IsTouching(anchor, Entity{ .Index = 99 }, 1.0f), "IsTouching: unregistered entity reported");
+
+        LOG_DEBUG(Engine, "PhysicsWorld::SelfTest: trigger overlaps passed");
+    }
+} // anonymous namespace
+#endif
 
 // ---------------------------------------------------------------------------
 // SelfTest — register / query / move / unregister roundtrip, debug builds only.
@@ -691,12 +773,15 @@ void PhysicsWorld::SelfTest()
                       "QueryTileBlocked: test setup — path should cross the plank's bounding AABB");
         ARCBIT_ASSERT(!pw.QueryTileBlocked(moverEntity, moverCol, { 110.0f, -26.0f }, { 130.0f, -26.0f }),
                       "QueryTileBlocked: rotated plank blocked through its empty bounding-AABB corner");
-        ARCBIT_ASSERT(pw.QueryTileBlocked(moverEntity, moverCol, { 100.0f, -20.0f }, { 100.0f, 20.0f }),
+        PhysicsWorld::BlockingHit hit;
+        ARCBIT_ASSERT(pw.QueryTileBlocked(moverEntity, moverCol, { 100.0f, -20.0f }, { 100.0f, 20.0f }, &hit),
                       "QueryTileBlocked: step across a rotated plank not blocked");
+        ARCBIT_ASSERT(hit.Other == plankEntity, "QueryTileBlocked: BlockingHit did not name the blocker");
 
         LOG_DEBUG(Engine, "PhysicsWorld::SelfTest: rotated QueryTileBlocked passed");
     }
 
+    TriggerOverlapSelfTest();
     LOG_DEBUG(Engine, "PhysicsWorld::SelfTest passed");
     #endif
 }

@@ -688,18 +688,18 @@ runnable / verifiable state:
 - [x] Tree demo: walk under from sides, blocked top/bottom; verify smooth
       behaviour at off-axis approach angles for free movement.
 
-### Phase 22E — Rotated colliders (OBB)
+### Phase 22E — Rotated colliders (OBB) ✓
 - [x] OBB↔OBB narrowphase (SAT) + OBB↔Circle (transform-into-local).
 - [x] OBB sweep — for Phase 22 ship a substepping fallback (split sweep into
       N small AABB-of-OBB-bounds steps); promote to a true OBB sweep only if
       profiling demands it. Rotation is rare.
-- [ ] Demo: rotated chest blocks correctly; spinning hazard rotates its
+- [x] Demo: rotated chest blocks correctly; spinning hazard rotates its
       directional arc with it.
 
 ### Phase 22F — Triggers & events
-- [ ] `IsTrigger` flag on `Collider2D`.
-- [ ] `TriggerCallback` / `CollisionCallback` ECS components.
-- [ ] Enter/Exit detection (per-pair persistent set, diff each tick).
+- [x] `IsTrigger` flag on `Collider2D`.
+- [x] `TriggerCallback` / `CollisionCallback` ECS components.
+- [x] Enter/Exit detection (per-pair persistent set, diff each tick).
 - [ ] Door / warp-tile demo: trigger entity teleports the player.
 
 ### Phase 22G — Polish & integration

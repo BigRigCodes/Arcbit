@@ -7,6 +7,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 ## Phase 0: Foundation
 - [x] CMake project structure (root, core, engine, game, backends/vulkan)
 - [x] vcpkg manifest + CMakePresets (SDL3, spdlog, VMA)
+- [ ] **Unit test project** — *scheduled after Phase 22F, before 22H.* `tests/` CMake target (doctest or Catch2 via vcpkg) wired into CTest; headless (no window / render device). Migrate the debug-only startup `*SelfTest()` functions (SpatialHash, PhysicsWorld, Narrowphase, Sweep, DirectionArc) into real test cases, then cover new code test-first — starting with 22H's movement controllers
 
 ---
 
@@ -274,19 +275,19 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] `TileDef.BlockedFrom` field (vector of arcs); tile-loader / atlas-spec support
 - [x] Demos: `ArcDemo` (free movement — bush `Horizontal()`, one-way platform `SouthOnly()`, tree as offset stump collider) and `TileMoveArcDemo` (tile movement — canopy/trunk tree pair, bush, `NorthOnly()` cliff strip)
 
-### Phase 22E — Rotated colliders (OBB)
+### Phase 22E — Rotated colliders (OBB) ✓
 - [x] OBB↔OBB narrowphase (SAT) and OBB↔Circle (transform-into-local)
 - [x] OBB sweep — substepping fallback for Phase 22 (split into N small AABB-of-OBB-bounds steps); promote to true OBB sweep only if profiling demands. Rotation is rare.
-- [ ] Demo: rotated chest blocks correctly; rotating prop carries its directional arc with it
+- [x] Demo (`ObbDemo`): diagonal wall slide, rotated chest, thin plank, spinning gate whose directional arc rotates with it
 
 ### Phase 22F — Triggers & events
-- [ ] `IsTrigger` flag on `Collider2D`
-- [ ] `TriggerCallback` and `CollisionCallback` ECS components
-- [ ] Per-pair persistent set diffed each tick → `OnEnter` / `OnExit` (and `OnStay` for triggers only)
+- [x] `IsTrigger` flag on `Collider2D`
+- [x] `TriggerCallback` and `CollisionCallback` ECS components
+- [x] Per-pair persistent set diffed each tick → `OnEnter` / `OnExit` (and `OnStay` for triggers only)
 - [ ] Demo: door / warp-tile trigger teleports the player on enter
 
 ### Phase 22G — Polish & integration
-*Parked: two of three items wait on Phase 24 (Event Bus) and Phase 40 (editor). Execution order after 22F is **22H**, then the partial-move item here; the rest closes out when its dependency lands.*
+*Parked: two of three items wait on Phase 24 (Event Bus) and Phase 40 (editor). Execution order after 22F is the **unit test project** (Phase 0), then **22H**, then the partial-move item here; the rest closes out when its dependency lands.*
 - [ ] Optional `SmoothTileMovement.AllowPartialMove` — sub-tile stop policy for the rare scenes that want it
 - [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`, `Trigger.Entered`, `Trigger.Exited`) — wired when Phase 24 lands; callback API is the integration surface until then
 - [ ] Editor integration (Phase 40) — collider authoring panel, live preview, directional-arc arrows on the canvas
