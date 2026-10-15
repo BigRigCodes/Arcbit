@@ -46,18 +46,26 @@ public:
     // Per-collider state cached by the broadphase. Owner is the ECS entity that
     // registered the collider; WorldAABB is the cached bounding AABB used to
     // remove the collider from the spatial hash on Update/Unregister; the
-    // remaining fields are copies of Collider2D fields needed for resolver
-    // filtering without a component lookup. Active==false means the slot is
-    // vacant (free-list candidate).
+    // remaining fields are copies of Collider2D fields (plus the world
+    // Position it was registered at) so ECS-free queries such as
+    // QueryTileBlocked can rebuild the exact shape and filter without a
+    // component lookup. Active==false means the slot is vacant (free-list
+    // candidate).
     //
     // Cache invariant: any mutation to a Collider2D's cached fields requires
     // a UpdateCollider call to refresh this record. Position / Rotation /
     // HalfExtents / Radius changes already require it (they affect WorldAABB);
-    // Layer / Mask / IsTrigger / BlockedFrom changes are equally subject.
+    // Shape / Offset / Layer / Mask / IsTrigger / BlockedFrom changes are
+    // equally subject.
     struct ColliderRecord
     {
         Entity                    Owner       = Entity::Invalid();
         AABB                      WorldAABB   = {};
+        Vec2                      Position    = {};
+        ColliderShape             Shape       = ColliderShape::Box;
+        Vec2                      Offset      = {};
+        Vec2                      HalfExtents = {};
+        f32                       Radius      = 0.0f;
         BodyKind                  Kind        = BodyKind::Kinematic;
         u32                       Layer       = 0;
         u32                       Mask        = 0;
@@ -105,10 +113,9 @@ public:
     // ECS-free). The mover's broadphase entry is found via
     // FindColliderForEntity and self-filtered out of the results.
     //
-    // Other entities are tested using their *cached broadphase AABB* as the
-    // obstacle shape — slightly conservative when the obstacle is a circle
-    // or rotated box (matches the OBB fallback documented for 22B). Layer/Mask
-    // pair check + IsTrigger filter applied before the swept test runs.
+    // Other entities are tested with their exact cached shape (box, rotated
+    // box, or circle — see ColliderRecord). Layer/Mask pair check + IsTrigger
+    // filter applied before the swept test runs.
     [[nodiscard]] bool QueryTileBlocked(Entity mover, const Collider2D& col,
                                         Vec2   originWorld, Vec2 targetWorld) const noexcept;
 

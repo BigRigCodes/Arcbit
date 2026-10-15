@@ -275,8 +275,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Demos: `ArcDemo` (free movement — bush `Horizontal()`, one-way platform `SouthOnly()`, tree as offset stump collider) and `TileMoveArcDemo` (tile movement — canopy/trunk tree pair, bush, `NorthOnly()` cliff strip)
 
 ### Phase 22E — Rotated colliders (OBB)
-- [ ] OBB↔OBB narrowphase (SAT) and OBB↔Circle (transform-into-local)
-- [ ] OBB sweep — substepping fallback for Phase 22 (split into N small AABB-of-OBB-bounds steps); promote to true OBB sweep only if profiling demands. Rotation is rare.
+- [x] OBB↔OBB narrowphase (SAT) and OBB↔Circle (transform-into-local)
+- [x] OBB sweep — substepping fallback for Phase 22 (split into N small AABB-of-OBB-bounds steps); promote to true OBB sweep only if profiling demands. Rotation is rare.
 - [ ] Demo: rotated chest blocks correctly; rotating prop carries its directional arc with it
 
 ### Phase 22F — Triggers & events

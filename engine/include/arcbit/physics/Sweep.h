@@ -31,19 +31,22 @@ struct Result
 [[nodiscard]] Result MovingAABBvsAABB(const AABB& moving, Vec2 delta,
                                       const AABB& stationary) noexcept;
 
-// Sub-step fallback for shape combinations involving circles (and, until 22E,
-// rotated boxes). Splits the delta into N steps, returns the earliest step at
-// which the boolean narrowphase fires. The reported ToI is the fraction *just
+// Sub-step fallback for shape combinations involving circles or rotated
+// boxes. Splits the delta into N steps, returns the earliest step at which
+// the boolean narrowphase fires. The reported ToI is the fraction *just
 // before* the first overlap step — a small gap that's tolerable for character
-// movement at the speeds we expect. `substeps` should be >= 4; the resolver
-// passes 8.
+// movement at the speeds we expect. The normal is the penetration axis at the
+// overlapping step (Narrowphase::ComputeContact), i.e. the face that was
+// crossed. `substeps` should be >= 4; SweepAgainst picks 8–64 based on the
+// move length vs. the thinnest shape feature.
 [[nodiscard]] Result Substep(const Collider2D& mover, Vec2 origin, Vec2 delta,
                              const Collider2D& other, Vec2 otherPos,
                              u32               substeps) noexcept;
 
 // Dispatcher: slab method when both shapes are axis-aligned boxes, sub-step
-// otherwise. Single entry point for the resolver — algorithm choice stays
-// internal so we can swap implementations later without touching call sites.
+// (adaptive count) otherwise. Single entry point for the resolver — algorithm
+// choice stays internal so we can swap implementations later without
+// touching call sites.
 [[nodiscard]] Result SweepAgainst(const Collider2D& mover, Vec2 origin, Vec2 delta,
                                   const Collider2D& other, Vec2 otherPos) noexcept;
 

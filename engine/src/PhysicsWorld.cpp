@@ -3,6 +3,7 @@
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/physics/Narrowphase.h>
+#include <arcbit/physics/OBB.h>
 #include <arcbit/physics/Sweep.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/tilemap/TileMap.h>
@@ -14,6 +15,27 @@
 
 namespace Arcbit
 {
+namespace
+{
+    // Refresh every Collider2D-derived field of a record (everything except
+    // Owner / WorldAABB / Active, which the broadphase bookkeeping owns).
+    void CopyColliderFields(PhysicsWorld::ColliderRecord& entry, const Collider2D& collider,
+                            const Vec2                    worldPosition)
+    {
+        entry.Position    = worldPosition;
+        entry.Shape       = collider.Shape;
+        entry.Offset      = collider.Offset;
+        entry.HalfExtents = collider.HalfExtents;
+        entry.Radius      = collider.Radius;
+        entry.Kind        = collider.Kind;
+        entry.Layer       = collider.Layer;
+        entry.Mask        = collider.Mask;
+        entry.Rotation    = collider.Rotation;
+        entry.IsTrigger   = collider.IsTrigger;
+        entry.BlockedFrom = collider.BlockedFrom;
+    }
+} // anonymous namespace
+
 PhysicsWorld::PhysicsWorld(const f32 cellSize) : _hash(cellSize) {}
 
 PhysicsWorld::ColliderId PhysicsWorld::RegisterCollider(const Entity      entity,
@@ -32,17 +54,9 @@ PhysicsWorld::ColliderId PhysicsWorld::RegisterCollider(const Entity      entity
         _colliders.emplace_back();
     }
 
-    _colliders[id] = ColliderRecord{
-        .Owner       = entity,
-        .WorldAABB   = worldAABB,
-        .Kind        = collider.Kind,
-        .Layer       = collider.Layer,
-        .Mask        = collider.Mask,
-        .Rotation    = collider.Rotation,
-        .IsTrigger   = collider.IsTrigger,
-        .Active      = true,
-        .BlockedFrom = collider.BlockedFrom,
-    };
+    ColliderRecord& entry = _colliders[id];
+    entry                 = ColliderRecord{ .Owner = entity, .WorldAABB = worldAABB, .Active = true };
+    CopyColliderFields(entry, collider, worldPosition);
     _hash.Insert(id, worldAABB);
     _entityToCollider[PackEntity(entity)] = id;
     return id;
@@ -71,28 +85,18 @@ void PhysicsWorld::UpdateCollider(const ColliderId id, const Collider2D& collide
     ColliderRecord& entry   = _colliders[id];
     const AABB      newAABB = ComputeWorldAABB(collider, worldPosition);
 
+    // Refresh the shape/filter cache even when the bounds stay put. The
+    // caller may have changed fields that leave the AABB identical (a rotated
+    // square turning by 90 degrees, a Layer change, new arcs).
+    CopyColliderFields(entry, collider, worldPosition);
+
     // Cheap early-out — if the AABB is bit-identical the cell membership is too.
     if (entry.WorldAABB.Min.X == newAABB.Min.X && entry.WorldAABB.Min.Y == newAABB.Min.Y &&
-        entry.WorldAABB.Max.X == newAABB.Max.X && entry.WorldAABB.Max.Y == newAABB.Max.Y) {
-        // Still refresh the layer/mask/kind/arc cache in case the caller
-        // mutated them without changing the bounds.
-        entry.Kind        = collider.Kind;
-        entry.Layer       = collider.Layer;
-        entry.Mask        = collider.Mask;
-        entry.Rotation    = collider.Rotation;
-        entry.IsTrigger   = collider.IsTrigger;
-        entry.BlockedFrom = collider.BlockedFrom;
+        entry.WorldAABB.Max.X == newAABB.Max.X && entry.WorldAABB.Max.Y == newAABB.Max.Y)
         return;
-    }
 
     _hash.Remove(id, entry.WorldAABB);
-    entry.WorldAABB   = newAABB;
-    entry.Kind        = collider.Kind;
-    entry.Layer       = collider.Layer;
-    entry.Mask        = collider.Mask;
-    entry.Rotation    = collider.Rotation;
-    entry.IsTrigger   = collider.IsTrigger;
-    entry.BlockedFrom = collider.BlockedFrom;
+    entry.WorldAABB = newAABB;
     _hash.Insert(id, newAABB);
 }
 
@@ -122,9 +126,8 @@ void PhysicsWorld::QueryTileColliders(const AABB&                    worldAABB,
     }
 }
 
-// Synthesize a Box collider from a cached broadphase AABB so the obstacle can
-// be fed to Sweep::SweepAgainst. Conservative when the cached AABB is the
-// bound of a circle or rotated box — same fallback the resolver tolerates.
+// Synthesize a Box collider from a tile collider rect so it can be fed to
+// Sweep::SweepAgainst. Exact — greedy-meshed tile rects are axis-aligned.
 namespace
 {
     Collider2D BoxFromAABB(const AABB& aabb, const u32 layer) noexcept
@@ -134,6 +137,21 @@ namespace
         c.HalfExtents = aabb.HalfExtents();
         c.Kind        = BodyKind::Static;
         c.Layer       = layer;
+        return c;
+    }
+
+    // Rebuild an entity collider's exact shape from its cached record. Pair
+    // with `rec.Position` as the obstacle's world position.
+    Collider2D ObstacleFromRecord(const PhysicsWorld::ColliderRecord& rec) noexcept
+    {
+        Collider2D c{};
+        c.Shape       = rec.Shape;
+        c.Offset      = rec.Offset;
+        c.Rotation    = rec.Rotation;
+        c.HalfExtents = rec.HalfExtents;
+        c.Radius      = rec.Radius;
+        c.Kind        = rec.Kind;
+        c.Layer       = rec.Layer;
         return c;
     }
 
@@ -168,8 +186,8 @@ bool PhysicsWorld::QueryTileBlocked(const Entity      mover, const Collider2D& c
         if (!rec.Active || rec.IsTrigger) continue;
         if (!LayersPair(col.Layer, col.Mask, rec.Layer, rec.Mask)) continue;
 
-        const Collider2D obstacle    = BoxFromAABB(rec.WorldAABB, rec.Layer);
-        const Vec2       obstaclePos = rec.WorldAABB.Center();
+        const Collider2D obstacle    = ObstacleFromRecord(rec);
+        const Vec2       obstaclePos = rec.Position;
         // Skip blockers the mover already overlaps at origin. Tile movement
         // asks "does the destination cell block my approach?" — the source
         // cell isn't part of that question. Without this skip, the slab
@@ -263,6 +281,34 @@ namespace
         // Right edge
         push({max.X - t * 0.5f, min.Y + h * 0.5f}, {t, h});
     }
+
+    // Same four-strip outline for a rotated box: each strip is placed along
+    // the box's local axes and carries the box rotation (Sprite.Rotation uses
+    // the same convention as Collider2D.Rotation).
+    void EmitObbOutline(FramePacket&        packet, const OBB&            box, const f32 rotation,
+                        const Color         tint, const TextureHandle whiteTex,
+                        const SamplerHandle whiteSampler)
+    {
+        const f32  t  = PhysicsDebugThickness;
+        const Vec2 he = box.HalfExtents;
+
+        auto push = [&](const Vec2 localCenter, const Vec2 size) {
+            Sprite s{};
+            s.Texture  = whiteTex;
+            s.Sampler  = whiteSampler;
+            s.Position = box.Center + box.ToWorldDir(localCenter);
+            s.Size     = size;
+            s.Rotation = rotation;
+            s.Tint     = tint;
+            s.Layer    = PhysicsDebugLayer;
+            packet.Sprites.push_back(s);
+        };
+
+        push({0.0f, -he.Y + t * 0.5f}, {he.X * 2.0f, t}); // local top
+        push({0.0f, he.Y - t * 0.5f}, {he.X * 2.0f, t});  // local bottom
+        push({-he.X + t * 0.5f, 0.0f}, {t, he.Y * 2.0f}); // local left
+        push({he.X - t * 0.5f, 0.0f}, {t, he.Y * 2.0f});  // local right
+    }
 } // anonymous namespace
 
 void PhysicsWorld::CollectDebugDraw(FramePacket&        packet,
@@ -285,6 +331,11 @@ void PhysicsWorld::CollectDebugDraw(FramePacket&        packet,
                            : (entry.Kind == BodyKind::Static)
                              ? Color::Red()
                              : Color::Green();
+        if (entry.Shape == ColliderShape::Box && entry.Rotation != 0.0f) {
+            const OBB box = OBB::FromCollider(ObstacleFromRecord(entry), entry.Position);
+            EmitObbOutline(packet, box, entry.Rotation, tint, whiteTex, whiteSampler);
+            continue;
+        }
         EmitRectOutline(packet, entry.WorldAABB, tint, whiteTex, whiteSampler);
     }
 
@@ -614,6 +665,36 @@ void PhysicsWorld::SelfTest()
                       "QueryTileBlocked: NorthOnly ledge must block N→S approach");
 
         LOG_DEBUG(Engine, "PhysicsWorld::SelfTest: QueryTileBlocked passed");
+    }
+
+    // ---- QueryTileBlocked vs rotated obstacle (22E) --------------------------
+    // The query must test the obstacle's real shape: a step through the empty
+    // corner of a 45° plank's bounding AABB passes, a step across the plank
+    // blocks. Pre-22E the query used the bounding AABB and blocked both.
+    {
+        PhysicsWorld pw(32.0f);
+
+        const Collider2D moverCol{ .Shape = ColliderShape::Box, .HalfExtents = { 4.0f, 4.0f } };
+        const Entity     moverEntity{ .Index = 20, .Generation = 0 };
+        pw.RegisterCollider(moverEntity, moverCol, { 110.0f, -26.0f });
+
+        const Collider2D plank{
+            .Shape       = ColliderShape::Box,
+            .Rotation    = QuarterPi,
+            .HalfExtents = { 40.0f, 2.0f },
+            .Kind        = BodyKind::Static,
+        };
+        const Entity plankEntity{ .Index = 21, .Generation = 0 };
+        pw.RegisterCollider(plankEntity, plank, { 100.0f, 0.0f });
+
+        ARCBIT_ASSERT(pw.GetRecord(pw.FindColliderForEntity(plankEntity)).WorldAABB.Contains({ 120.0f, -26.0f }),
+                      "QueryTileBlocked: test setup — path should cross the plank's bounding AABB");
+        ARCBIT_ASSERT(!pw.QueryTileBlocked(moverEntity, moverCol, { 110.0f, -26.0f }, { 130.0f, -26.0f }),
+                      "QueryTileBlocked: rotated plank blocked through its empty bounding-AABB corner");
+        ARCBIT_ASSERT(pw.QueryTileBlocked(moverEntity, moverCol, { 100.0f, -20.0f }, { 100.0f, 20.0f }),
+                      "QueryTileBlocked: step across a rotated plank not blocked");
+
+        LOG_DEBUG(Engine, "PhysicsWorld::SelfTest: rotated QueryTileBlocked passed");
     }
 
     LOG_DEBUG(Engine, "PhysicsWorld::SelfTest passed");

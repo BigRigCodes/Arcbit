@@ -2,6 +2,8 @@
 
 #include <arcbit/core/Types.h>
 
+#include <cmath>
+
 namespace Arcbit
 {
 
@@ -77,6 +79,12 @@ struct Vec2
     constexpr bool operator==(const Vec2& o) const { return X == o.X && Y == o.Y; }
     constexpr bool operator!=(const Vec2& o) const { return !(*this == o); }
 };
+
+[[nodiscard]] constexpr f32 Dot(const Vec2 a, const Vec2 b) noexcept { return a.X * b.X + a.Y * b.Y; }
+
+// Prefer LengthSquared when only comparing magnitudes — it skips the sqrt.
+[[nodiscard]] constexpr f32 LengthSquared(const Vec2 v) noexcept { return Dot(v, v); }
+[[nodiscard]] inline f32    Length(const Vec2 v) noexcept { return std::sqrt(LengthSquared(v)); }
 
 struct Vec3
 {

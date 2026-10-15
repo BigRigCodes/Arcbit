@@ -11,8 +11,8 @@
 namespace Arcbit
 {
 // Collider shape primitive. Box with Rotation == 0 hits the AABB fast path;
-// non-zero Rotation switches the narrowphase to the OBB code path (lands in
-// Phase 22E). Circle is rotation-invariant.
+// non-zero Rotation switches the narrowphase to the OBB code path. Circle is
+// rotation-invariant.
 enum class ColliderShape : u8
 {
     Box    = 0,
@@ -21,7 +21,10 @@ enum class ColliderShape : u8
 
 // Physics shape attached to an entity.
 //
-// Position is `Transform2D.Position + Offset`. Box uses HalfExtents
+// Position is `Transform2D.Position + Offset`. Neither Offset nor the shape
+// follows `Transform2D.Rotation` — `Rotation` here is the collider's own
+// (radians, clockwise on screen like the transform). Props that should turn
+// visually and physically set both. Box uses HalfExtents
 // (half-width, half-height); Circle uses Radius. Shapes that won't be
 // authored at the same time (e.g. a Circle's HalfExtents) are simply unused.
 //
@@ -35,7 +38,7 @@ enum class ColliderShape : u8
 // directions"** (the common case — and avoids per-collider heap allocation for
 // the default). Add explicit arcs only when the prop should pass through some
 // approach directions (trees, ledges, bushes — see DirectionArc.h presets).
-// The arc check itself is wired in Phase 22D — until then the field is inert.
+// Arcs are evaluated in the collider's local frame, so they turn with Rotation.
 struct Collider2D
 {
     ColliderShape Shape       = ColliderShape::Box;

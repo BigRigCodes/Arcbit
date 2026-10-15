@@ -60,11 +60,15 @@ void main()
 
     vec2 corner = corners[gl_VertexIndex % 6];
 
-    // Rotate corner in local [-1,1] space around sprite center, then scale.
+    // Scale the unit corner to the sprite's extents first, then rotate around
+    // the sprite center. The order matters for non-square sprites: rotating
+    // the unit square and scaling afterward applies the scale along world
+    // axes, which shears a rotated rectangle into a parallelogram.
+    vec2 sc = corner * a_PosSize.zw;
     vec2 rc;
-    rc.x = a_Rot.x * corner.x - a_Rot.y * corner.y;
-    rc.y = a_Rot.y * corner.x + a_Rot.x * corner.y;
-    vec2 worldPos = a_PosSize.xy + rc * a_PosSize.zw;
+    rc.x = a_Rot.x * sc.x - a_Rot.y * sc.y;
+    rc.y = a_Rot.y * sc.x + a_Rot.x * sc.y;
+    vec2 worldPos = a_PosSize.xy + rc;
 
     // World → NDC with camera rotation. Rotate delta by -cameraAngle so the
     // world appears to rotate in the opposite direction to the camera.

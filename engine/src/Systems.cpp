@@ -64,7 +64,7 @@ namespace
                  .Without<Disabled>()
                  .ForEach([dt](FreeMovement& fm, PendingMove& pm) {
                      if (fm.MaxSpeed > 0.0f) {
-                         const f32 sqLen = fm.Velocity.X * fm.Velocity.X + fm.Velocity.Y * fm.Velocity.Y;
+                         const f32 sqLen = LengthSquared(fm.Velocity);
                          if (sqLen > fm.MaxSpeed * fm.MaxSpeed) {
                              const f32 inv = fm.MaxSpeed / std::sqrt(sqLen);
                              fm.Velocity   = fm.Velocity * inv;
@@ -213,7 +213,7 @@ namespace
                             const Vec2 remaining = { delta.X * (1.0f - hit.ToI),
                                                      delta.Y * (1.0f - hit.ToI) };
                             const Vec2 tangent   = { -hit.Normal.Y, hit.Normal.X };
-                            const f32  proj      = remaining.X * tangent.X + remaining.Y * tangent.Y;
+                            const f32  proj      = Dot(remaining, tangent);
                             const Vec2 slide     = { tangent.X * proj, tangent.Y * proj };
 
                             if (slide.X != 0.0f || slide.Y != 0.0f) {

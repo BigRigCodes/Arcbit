@@ -15,6 +15,33 @@ namespace
 {
     constexpr f32 SweepEpsilon = 1e-6f;
 
+    // Substep bounds for the non-slab path. 8 covers ordinary per-tick
+    // movement; 64 caps the cost of a long move (a full tile step) past a
+    // thin obstacle.
+    constexpr u32 MinSubsteps = 8;
+    constexpr u32 MaxSubsteps = 64;
+
+    // Thinnest dimension of a shape — the feature a substep must not skip over.
+    f32 SmallestFeature(const Collider2D& c) noexcept
+    {
+        return c.Shape == ColliderShape::Circle
+               ? c.Radius * 2.0f
+               : std::min(c.HalfExtents.X, c.HalfExtents.Y) * 2.0f;
+    }
+
+    // Choose a substep count so each step advances at most half the thinner
+    // shape's smallest feature. Without this, a 64 px tile step in 8 substeps
+    // moves 8 px at a time and can tunnel straight through a 4 px plank.
+    u32 SubstepCount(const Collider2D& mover, const Vec2 delta, const Collider2D& other) noexcept
+    {
+        const f32 feature = std::min(SmallestFeature(mover), SmallestFeature(other));
+        if (feature <= SweepEpsilon) return MaxSubsteps;
+
+        const f32 length = Length(delta);
+        const f32 ideal  = std::ceil(length / (feature * 0.5f));
+        return std::clamp(static_cast<u32>(ideal), MinSubsteps, MaxSubsteps);
+    }
+
     // Per-axis slab-method timing. Returns false when the mover slides past the
     // slab without ever entering it (no contact possible). On success, fills
     // tEnter/tExit; either may be infinite when v == 0 and the axis ranges
@@ -98,7 +125,7 @@ Result Substep(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
         Result r{};
         r.Hit       = true;
         r.ToI       = 0.0f;
-        const f32 dl = std::sqrt(delta.X * delta.X + delta.Y * delta.Y);
+        const f32 dl = Length(delta);
         r.Normal    = dl > SweepEpsilon
                           ? Vec2{-delta.X / dl, -delta.Y / dl}
                           : Vec2{1.0f, 0.0f};
@@ -116,28 +143,22 @@ Result Substep(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
         r.Hit = true;
         r.ToI = static_cast<f32>(k - 1) / static_cast<f32>(substeps);
 
-        // Approximate normal: from the obstacle's center toward the mover's
-        // last clear position. Good enough for sub-step circle resolution; a
-        // proper closed-form circle sweep (future) would compute the exact
-        // contact point.
-        const Vec2 lastClear   = {origin.X + delta.X * r.ToI, origin.Y + delta.Y * r.ToI};
-        const Vec2 otherCenter = {otherPos.X + other.Offset.X, otherPos.Y + other.Offset.Y};
-        const Vec2 moverCenter = {lastClear.X + mover.Offset.X, lastClear.Y + mover.Offset.Y};
-
-        Vec2 n = {moverCenter.X - otherCenter.X, moverCenter.Y - otherCenter.Y};
-        if (const f32 len = std::sqrt(n.X * n.X + n.Y * n.Y); len > SweepEpsilon) {
-            n.X /= len;
-            n.Y /= len;
+        // Normal: the penetration axis at the first overlapping step. The
+        // mover is at most one substep deep, so the least-penetration axis is
+        // the face it just crossed — the wall's face normal for a rotated
+        // wall, the corner direction at a corner. (Pre-22E this was the
+        // obstacle-center → mover-center vector, which points nowhere near
+        // the face on a long wall and broke sliding.)
+        const Narrowphase::Contact c = Narrowphase::ComputeContact(mover, testPos, other, otherPos);
+        if (c.Hit) {
+            r.Normal = c.Normal;
+            return r;
         }
-        else {
-            // Degenerate: mover sits on top of an obstacle. Use the opposite of motion.
-            const f32 dl = std::sqrt(delta.X * delta.X + delta.Y * delta.Y);
 
-            n = dl > SweepEpsilon
-                ? Vec2{-delta.X / dl, -delta.Y / dl}
-                : Vec2{1.0f, 0.0f};
-        }
-        r.Normal = n;
+        // Unreachable in practice (Overlap just fired); fall back to the
+        // opposite of motion rather than returning a zero normal.
+        const f32 dl = Length(delta);
+        r.Normal     = dl > SweepEpsilon ? Vec2{-delta.X / dl, -delta.Y / dl} : Vec2{1.0f, 0.0f};
         return r;
     }
     return {};
@@ -156,17 +177,56 @@ Result SweepAgainst(const Collider2D& mover, const Vec2 origin, const Vec2 delta
         return MovingAABBvsAABB(moverAABB, delta, otherAABB);
     }
 
-    // Anything involving a circle (or rotated box, until 22E) — sub-step.
-    return Substep(mover, origin, delta, other, otherPos, 8u);
+    // Anything involving a circle or a rotated box — sub-step.
+    return Substep(mover, origin, delta, other, otherPos, SubstepCount(mover, delta, other));
 }
 
 // ---------------------------------------------------------------------------
 // SelfTest — slab-method correctness on hand-picked cases.
 // ---------------------------------------------------------------------------
 
+#ifdef ARCBIT_DEBUG
+namespace
+{
+    // Rotated-obstacle sweeps (22E): the substep normal must be the struck
+    // face's normal, and the adaptive substep count must catch thin planks a
+    // fixed 8-step sweep tunnels through.
+    void RotatedSweepSelfTest()
+    {
+        constexpr f32 tol = 0.001f;
+
+        // Box mover moving straight up into the underside of a 30° wall. The
+        // contact normal is the wall's face normal, not straight down and not
+        // center-to-center.
+        const Collider2D wall{ .Shape = ColliderShape::Box, .Rotation = 30.0f * DegToRad, .HalfExtents = { 100.0f, 4.0f } };
+        const Vec2       faceN = OBB::FromCollider(wall, {}).AxisY;
+        const Collider2D mover{ .Shape = ColliderShape::Box, .HalfExtents = { 8.0f, 8.0f } };
+        const Vec2       start = OBB::FromCollider(wall, {}).ToWorldDir({ 50.0f, 30.0f });
+
+        const Result hit = SweepAgainst(mover, start, { 0.0f, -40.0f }, wall, {});
+        ARCBIT_ASSERT(hit.Hit && hit.ToI > 0.0f && hit.ToI < 1.0f, "Sweep::SelfTest: rotated wall missed");
+        ARCBIT_ASSERT(std::abs(hit.Normal.X - faceN.X) < tol && std::abs(hit.Normal.Y - faceN.Y) < tol,
+                      "Sweep::SelfTest: rotated wall normal is not the face normal");
+
+        // Tiny mover crossing a 2 px-thick 45° plank in one 64 px move (a tile
+        // step). Sample points at 8 substeps straddle the plank; adaptive
+        // substepping must not.
+        const Collider2D plank{ .Shape = ColliderShape::Box, .Rotation = QuarterPi, .HalfExtents = { 40.0f, 1.0f } };
+        const Collider2D speck{ .Shape = ColliderShape::Box, .HalfExtents = { 1.0f, 1.0f } };
+        const Vec2       from = { -36.0f, 0.0f };
+        const Vec2       step = { 64.0f, 0.0f };
+        ARCBIT_ASSERT(!Substep(speck, from, step, plank, {}, 8u).Hit,
+                      "Sweep::SelfTest: test setup — 8 substeps should tunnel this plank");
+        ARCBIT_ASSERT(SweepAgainst(speck, from, step, plank, {}).Hit,
+                      "Sweep::SelfTest: adaptive substeps tunneled through a thin plank");
+    }
+} // anonymous namespace
+#endif
+
 void SelfTest()
 {
     #ifdef ARCBIT_DEBUG
+    RotatedSweepSelfTest();
     constexpr f32 tol = 0.001f;
 
     // Head-on X: closing distance 20, delta.x 40 -> ToI = 0.5, normal = (-1, 0).

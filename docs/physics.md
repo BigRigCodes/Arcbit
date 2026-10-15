@@ -689,8 +689,8 @@ runnable / verifiable state:
       behaviour at off-axis approach angles for free movement.
 
 ### Phase 22E — Rotated colliders (OBB)
-- [ ] OBB↔OBB narrowphase (SAT) + OBB↔Circle (transform-into-local).
-- [ ] OBB sweep — for Phase 22 ship a substepping fallback (split sweep into
+- [x] OBB↔OBB narrowphase (SAT) + OBB↔Circle (transform-into-local).
+- [x] OBB sweep — for Phase 22 ship a substepping fallback (split sweep into
       N small AABB-of-OBB-bounds steps); promote to a true OBB sweep only if
       profiling demands it. Rotation is rare.
 - [ ] Demo: rotated chest blocks correctly; spinning hazard rotates its
@@ -725,15 +725,18 @@ partial-move item below can land any time.
 
    **The width is inert for box-vs-box contacts.** The arc check consumes
    `Sweep::Result.Normal`, and the slab method (axis-aligned box vs
-   axis-aligned box — the common case, and every collider in the 22D demos)
-   always reports a pure face normal (N/S/E/W). Any half-width strictly
-   between 0° and 90° therefore behaves identically there; a diagonal
+   axis-aligned box — the common case, and every collider in
+   `TileMoveArcDemo`) always reports a pure face normal (N/S/E/W). Any
+   half-width strictly between 0° and 90° therefore behaves identically
+   there; a diagonal
    approach blocks or passes based solely on which face it touches. The
-   width only matters on the substep path, where the normal is the
-   obstacle-center→mover-center vector: circle colliders today, rotated boxes
-   after 22E.
+   width only matters when the contact normal can be angled: circle
+   colliders (the `ArcDemo` player is one) and rotated boxes. From 22E the
+   substep path reports penetration normals rather than center-to-center
+   vectors, so even there the width mostly bites at *corner* contacts —
+   face contacts read as the face normal in the obstacle's local frame.
 
    Tuning (and any project-wide default — which would belong in project
-   config, not player `Settings`) is deferred until 22E lands and angled
-   normals are common enough to playtest. Until then ±60° stays as the
-   working default. To feel it now, give a demo player a `Circle` collider.
+   config, not player `Settings`) is deferred until 22E lands and the
+   corner behavior can be playtested in `ArcDemo` / `ObbDemo`. Until then
+   ±60° stays as the working default.
