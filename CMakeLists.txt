@@ -35,3 +35,11 @@ add_subdirectory(game)
 
 # Renderer backends — each is a standalone DLL loaded at runtime.
 add_subdirectory(backends/vulkan)
+
+# Unit tests — headless (no window or render device). Run with `ctest` from
+# the build directory, or the Rider / CTest test runner.
+option(ARCBIT_BUILD_TESTS "Build the arcbit-tests unit test executable" ON)
+if(ARCBIT_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

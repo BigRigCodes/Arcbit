@@ -696,11 +696,11 @@ runnable / verifiable state:
 - [x] Demo: rotated chest blocks correctly; spinning hazard rotates its
       directional arc with it.
 
-### Phase 22F — Triggers & events
+### Phase 22F — Triggers & events ✓
 - [x] `IsTrigger` flag on `Collider2D`.
 - [x] `TriggerCallback` / `CollisionCallback` ECS components.
 - [x] Enter/Exit detection (per-pair persistent set, diff each tick).
-- [ ] Door / warp-tile demo: trigger entity teleports the player.
+- [x] Door / warp-tile demo: trigger entity teleports the player.
 
 ### Phase 22G — Polish & integration
 Parked behind Phase 24 (Event Bus) and Phase 40 (editor). After 22F, work

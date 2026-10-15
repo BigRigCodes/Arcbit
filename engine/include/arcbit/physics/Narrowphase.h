@@ -63,7 +63,4 @@ struct Contact
 // the substep path, never in the axis-aligned fast path.
 [[nodiscard]] Contact ComputeContact(const Collider2D& a, Vec2 worldPosA,
                                      const Collider2D& b, Vec2 worldPosB) noexcept;
-
-// Debug-only round-trip self test.
-void SelfTest();
 } // namespace Arcbit::Narrowphase

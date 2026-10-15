@@ -48,9 +48,6 @@ public:
     [[nodiscard]] bool           IsActive(const EntityPair& p) const { return _active.contains(p); }
     void                         Clear() noexcept { _active.clear(); }
 
-    // Debug-only correctness check. Asserts on failure.
-    static void SelfTest();
-
 private:
     PairSet _active;
     PairSet _next; // scratch for Update, kept to reuse its buckets

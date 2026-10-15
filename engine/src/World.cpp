@@ -4,8 +4,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
-#include <memory>
 #include <ranges>
 #include <utility>
 
@@ -226,44 +224,5 @@ void World::RunRenderSystems(Scene& scene, FramePacket& packet)
 }
 
 Transform2D* World::GetTransform(const Entity entity) { return GetComponent<Transform2D>(entity); }
-
-// ---------------------------------------------------------------------------
-// SelfTest — component storage with non-trivially-relocatable members.
-// ---------------------------------------------------------------------------
-
-void World::SelfTest()
-{
-#ifdef ARCBIT_DEBUG
-    // std::function with a small capture lives in its own small buffer on
-    // MSVC and points into itself — a byte-wise relocation corrupts it. The
-    // shared_ptr counts live copies so teardown can be checked.
-    struct CallbackProbe
-    {
-        std::function<u32()> Fn;
-        std::shared_ptr<int> Token;
-    };
-
-    const auto token = std::make_shared<int>(0);
-    {
-        World               world;
-        std::vector<Entity> entities;
-        // Enough entities to force several column reallocations, and each
-        // AddComponent moves the entity between archetypes.
-        for (u32 i = 0; i < 40; ++i) {
-            const Entity e = world.CreateEntity();
-            world.AddComponent<CallbackProbe>(e, CallbackProbe{ [i] { return i; }, token });
-            entities.push_back(e);
-        }
-        for (u32 i = 0; i < 40; i += 2) world.DestroyEntity(entities[i]); // swap-removes shuffle slots
-        for (u32 i = 1; i < 40; i += 2)
-            ARCBIT_ASSERT(world.GetComponent<CallbackProbe>(entities[i])->Fn() == i,
-                          "World::SelfTest: relocated std::function component returned the wrong value");
-        ARCBIT_ASSERT(token.use_count() == 21, "World::SelfTest: destroyed entities leaked their components");
-    }
-    ARCBIT_ASSERT(token.use_count() == 1, "World::SelfTest: world teardown did not destroy its components");
-
-    LOG_DEBUG(Engine, "World::SelfTest passed");
-#endif
-}
 
 } // namespace Arcbit

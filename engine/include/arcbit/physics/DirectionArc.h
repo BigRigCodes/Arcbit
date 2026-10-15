@@ -72,7 +72,4 @@ struct DirectionArc
 [[nodiscard]] bool IsContactBlocked(const std::vector<DirectionArc>& arcs,
                                     Vec2                             contactDirWorld,
                                     f32                              obstacleRotation) noexcept;
-
-// Debug-only correctness check. Asserts on failure.
-void DirectionArcSelfTest();
 } // namespace Arcbit

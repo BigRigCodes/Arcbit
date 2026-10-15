@@ -51,7 +51,4 @@ struct Result
 // touching call sites.
 [[nodiscard]] Result SweepAgainst(const Collider2D& mover, Vec2 origin, Vec2 delta,
                                   const Collider2D& other, Vec2 otherPos) noexcept;
-
-// Debug-only correctness check. Asserts on failure.
-void SelfTest();
 } // namespace Arcbit::Sweep

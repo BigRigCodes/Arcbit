@@ -39,9 +39,6 @@ public:
     [[nodiscard]] f32   CellSize() const noexcept { return _cellSize; }
     [[nodiscard]] usize CellCount() const noexcept { return _cells.size(); }
 
-    // Debug-only round-trip self test. Asserts on failure.
-    static void SelfTest();
-
 private:
     struct CellRange
     {

@@ -203,9 +203,6 @@ public:
     // Handles axis-aligned box (fast path), rotated box (OBB bounds), and circle.
     [[nodiscard]] static AABB ComputeWorldAABB(const Collider2D& collider, Vec2 worldPosition);
 
-    // Debug-only roundtrip self test (register / query / move / unregister).
-    static void SelfTest();
-
 private:
     // Pack an entity into a u64 key for the entity→ColliderId map. Generation
     // is in the upper 32 bits so reused indices with bumped generations get a

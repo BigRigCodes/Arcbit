@@ -263,10 +263,6 @@ public:
     
     Transform2D* GetTransform(Entity entity);
 
-    // Debug-only check that component storage relocates and destroys
-    // non-trivial components correctly. Asserts on failure.
-    static void SelfTest();
-
 private:
     struct EntityRecord
     {
