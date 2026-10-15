@@ -173,7 +173,7 @@ frame at render time with no per-tile state:
 Each frame names a cell of the same atlas by `local_id`, like the rest of the
 atlas file. Placing the tile's own ID in the map plays the whole sequence; the
 frame cells don't need to be placed anywhere. The shipped example is the
-whirlpool in `water.tileatlas.json` (local IDs 156–159), shown in `TriggerDemo`.
+whirlpool in `water.tileatlas.json` (local IDs 156–157), shown in `TriggerDemo`.
 
 #### Phase offset for variation
 

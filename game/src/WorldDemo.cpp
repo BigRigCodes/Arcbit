@@ -65,12 +65,10 @@ constexpr u32 TileWaterLight = 569; // light_water.png (single tile atlas)
 constexpr u32 TileWaterRock  = 509; // (0,9)
 constexpr u32 TileWaterStone = 512; // (3,9)
 constexpr u32 TileIceberg    = 517; // (8,9)
-// WATER+.png whirlpool animation frames — row 13, cols 0-3
-constexpr u32        TileWhirlpool0    = 401 + 13 * 12 + 0; // (0,13)
-constexpr u32        TileWhirlpool1    = 401 + 13 * 12 + 1; // (1,13)
-constexpr u32        TileWhirlpool2    = 401 + 13 * 12 + 2; // (2,13)
-constexpr u32        TileWhirlpool3    = 401 + 13 * 12 + 3; // (3,13)
-static constexpr u32 WhirlpoolFrames[] = {TileWhirlpool0, TileWhirlpool1, TileWhirlpool2, TileWhirlpool3};
+// WATER+.png whirlpool frames — row 13, cols 0-1 (col 2 is a character sprite,
+// col 3 is empty). The entity uses frame 0 and spins it; the two-frame
+// flip-book version lives in water.tileatlas.json (local_id 156).
+constexpr u32 TileWhirlpool0 = 401 + 13 * 12 + 0; // (0,13)
 // floor.jpg tiles (cracked stone per instructions; rest = smooth)
 constexpr u32 TileFloorCrk1 = 601; // (0,0)
 constexpr u32 TileFloorCrk2 = 602; // (1,0)

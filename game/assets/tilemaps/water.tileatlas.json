@@ -5,11 +5,9 @@
   "tile_height": 16,
   "tiles": [
     { "local_id":  7, "uv_scroll": { "x": 0.08, "y": 0.04 }, "blocks_light": true },
-    { "local_id": 156, "animation": [
-        { "local_id": 156, "duration_ms": 150 },
-        { "local_id": 157, "duration_ms": 150 },
-        { "local_id": 158, "duration_ms": 150 },
-        { "local_id": 159, "duration_ms": 150 }
+    { "local_id": 156, "flat": true, "animation": [
+        { "local_id": 156, "duration_ms": 200 },
+        { "local_id": 157, "duration_ms": 200 }
     ] }
   ]
 }

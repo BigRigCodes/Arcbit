@@ -14,9 +14,10 @@
 //   - **NPC** (purple, west) — static blocking box with a CollisionCallback.
 //     Bumping it flashes it white and logs; it reverts on OnExit.
 //
-//   - **Whirlpool tile** (north-east of spawn) — a plain ground tile whose
-//     TileDef is a flip-book animation loaded from water.tileatlas.json.
-//     No entity involved; the tilemap renderer cycles the four frames.
+//   - **Whirlpool tile** (north-east of spawn) — an Objects-layer tile over
+//     the grass whose TileDef is a two-frame flip-book (and `flat`, so it
+//     draws under entities) loaded from water.tileatlas.json. No entity
+//     involved; the tilemap renderer cycles the frames.
 //
 // The player starts on SmoothTileMovement; M swaps to FreeMovement and back,
 // so both blocking-contact paths (QueryTileBlocked and the swept resolver)
@@ -103,7 +104,7 @@ protected:
         for (i32 ty = -GrassExtent; ty <= GrassExtent; ++ty)
             for (i32 tx = -GrassExtent; tx <= GrassExtent; ++tx)
                 tm.SetTile(tx, ty, 0, GrassTileId);
-        tm.SetTile(2, -2, 0, WhirlpoolTileId);
+        tm.SetTile(2, -2, 1, WhirlpoolTileId); // Objects layer: the frames are transparent around the swirl
 
         SetupInput();
         GetScene().GetPhysics().SetDebugDraw(true);
