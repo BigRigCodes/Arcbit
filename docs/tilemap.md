@@ -160,18 +160,20 @@ frame at render time with no per-tile state:
 
 ```json
 {
-    "id": 12, "name": "coin",
+    "local_id": 12,
     "animation": [
-        { "tile": 12, "duration_ms": 120 },
-        { "tile": 13, "duration_ms": 80  },
-        { "tile": 14, "duration_ms": 120 },
-        { "tile": 13, "duration_ms": 80  }
+        { "local_id": 12, "duration_ms": 120 },
+        { "local_id": 13, "duration_ms": 80  },
+        { "local_id": 14, "duration_ms": 120 },
+        { "local_id": 13, "duration_ms": 80  }
     ]
 }
 ```
 
-Each frame references a tile ID from the same atlas. The base tile ID is the
-first frame; the atlas needs all frames as distinct tile IDs.
+Each frame names a cell of the same atlas by `local_id`, like the rest of the
+atlas file. Placing the tile's own ID in the map plays the whole sequence; the
+frame cells don't need to be placed anywhere. The shipped example is the
+whirlpool in `water.tileatlas.json` (local IDs 156–159), shown in `TriggerDemo`.
 
 #### Phase offset for variation
 
@@ -428,9 +430,11 @@ entry; every other cell of the atlas is a plain, non-solid tile.
 | `uv_scroll`    | `{ "x", "y" }`                | `0, 0`   | Continuous UV offset per second |
 | `layer`        | integer bitmask               | `Wall`   | Collision layer (`CollisionLayers.h` bit values) |
 | `blocked_from` | `[{ "center", "half_width" }]` | `[]`     | Directional arcs in degrees; empty = blocks from every direction |
+| `animation`    | `[{ "local_id", "duration_ms" }]` | `[]` | Flip-book frames (cells of this atlas); `duration_ms` defaults to 150 |
 
-Flip-book `TileDef::Animation` is not readable from the atlas JSON yet — it can
-only be set from code with `RegisterTile`.
+Flip-book frames are converted to atlas grid cells using the atlas's column and
+row count; a frame without a `local_id` or outside the atlas is dropped with a
+warning. If a tile has both `animation` and `uv_scroll`, the flip-book wins.
 
 ### Map File (`.arcmap`)
 

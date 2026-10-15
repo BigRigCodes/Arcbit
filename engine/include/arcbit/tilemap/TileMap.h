@@ -139,10 +139,16 @@ public:
     // <nlohmann/json.hpp> to call them.
 
     // Parse one entry of a .tileatlas.json "tiles" array into a TileDef:
-    // solid, blocks_light, flat, uv_scroll {x, y}, layer (bitmask), and
-    // blocked_from [{center, half_width}]. Missing keys keep TileDef defaults.
-    // The entry's local_id is read by the caller.
-    [[nodiscard]] static TileDef ParseTileDef(const nlohmann::json& tile);
+    // solid, blocks_light, flat, uv_scroll {x, y}, layer (bitmask),
+    // blocked_from [{center, half_width}], and animation
+    // [{local_id, duration_ms}]. Missing keys keep TileDef defaults. The
+    // entry's own local_id is read by the caller.
+    //
+    // Flip-book frames name cells of the same atlas by local_id, like the
+    // rest of the file; atlasColumns × atlasRows converts them to the grid
+    // coordinates TileAnimFrame stores. Frames without a local_id, or outside
+    // the atlas, are dropped with a warning.
+    [[nodiscard]] static TileDef ParseTileDef(const nlohmann::json& tile, u32 atlasColumns, u32 atlasRows);
 
     // The .arcmap document for the current state: version, tile_size, the
     // registered atlases (base_id / path / sampler) and every allocated chunk.

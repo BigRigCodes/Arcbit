@@ -122,3 +122,30 @@ TEST_CASE("Bools are stored as 0 / 1", "[ecs][animator]")
     sm.SetBool("grounded", false);
     CHECK(sm.EvaluateTransitions(0.0f) == "b");
 }
+
+TEST_CASE("Parameters that were never set read as zero / false", "[ecs][animator]")
+{
+    struct Case
+    {
+        Op   Cmp;
+        f32  Threshold;
+        bool Passes;
+    };
+    const Case cases[] = {
+        { Op::IsFalse, 0.0f, true },  // an unset bool is false
+        { Op::IsTrue, 0.0f, false },
+        { Op::Triggered, 0.0f, false },
+        { Op::Less, 0.1f, true },     // an unset float is 0
+        { Op::Equal, 0.0f, true },
+        { Op::Greater, 0.0f, false },
+    };
+    for (const Case& c : cases) {
+        AnimatorStateMachine sm;
+        sm.AddState("a", "clip_a");
+        sm.AddState("b", "clip_b");
+        sm.AddTransition("a", { .TargetState = "b", .Conditions = { { "unset", c.Cmp, c.Threshold } } });
+        sm.SetDefaultState("a");
+        INFO("op " << static_cast<int>(c.Cmp) << " threshold " << c.Threshold);
+        CHECK(sm.EvaluateTransitions(0.0f).empty() != c.Passes);
+    }
+}

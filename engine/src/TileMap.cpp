@@ -462,13 +462,33 @@ bool TileMap::LoadAtlasJson(const u32           baseId, const std::string_view  
 
     // Register per-tile overrides (uv_scroll, solid, etc.).
     for (const auto& t : j.value("tiles", nlohmann::json::array()))
-        RegisterTile(baseId + t.at("local_id").get<u32>(), ParseTileDef(t));
+        RegisterTile(baseId + t.at("local_id").get<u32>(), ParseTileDef(t, atlas.Columns(), atlas.Rows()));
 
     RegisterAtlas(baseId, std::move(atlas), sampler, jsonPath, samplerName);
     return true;
 }
 
-TileDef TileMap::ParseTileDef(const nlohmann::json& tile)
+namespace
+{
+    // Flip-book frames: local IDs within the atlas → (col, row) grid cells.
+    std::vector<TileAnimFrame> ParseAnimation(const nlohmann::json& frames, const u32 columns, const u32 rows)
+    {
+        std::vector<TileAnimFrame> out;
+        for (const auto& f : frames) {
+            const auto id = f.find("local_id");
+            if (id == f.end() || !id->is_number_unsigned() || columns == 0 || id->get<u32>() >= columns * rows) {
+                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} — needs a local_id inside the {}x{} atlas",
+                         f.dump(), columns, rows);
+                continue;
+            }
+            const u32 localId = id->get<u32>();
+            out.push_back({ localId % columns, localId / columns, f.value("duration_ms", TileAnimFrame{}.DurationMs) });
+        }
+        return out;
+    }
+} // anonymous namespace
+
+TileDef TileMap::ParseTileDef(const nlohmann::json& tile, const u32 atlasColumns, const u32 atlasRows)
 {
     TileDef def{};
     def.Solid       = tile.value("solid", def.Solid);
@@ -487,6 +507,8 @@ TileDef TileMap::ParseTileDef(const nlohmann::json& tile)
     if (const auto it = tile.find("blocked_from"); it != tile.end())
         for (const auto& a : *it)
             def.BlockedFrom.push_back({ a.value("center", 0.0f), a.value("half_width", 180.0f) });
+    if (const auto it = tile.find("animation"); it != tile.end())
+        def.Animation = ParseAnimation(*it, atlasColumns, atlasRows);
     return def;
 }
 

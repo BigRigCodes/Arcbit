@@ -14,6 +14,10 @@
 //   - **NPC** (purple, west) — static blocking box with a CollisionCallback.
 //     Bumping it flashes it white and logs; it reverts on OnExit.
 //
+//   - **Whirlpool tile** (north-east of spawn) — a plain ground tile whose
+//     TileDef is a flip-book animation loaded from water.tileatlas.json.
+//     No entity involved; the tilemap renderer cycles the four frames.
+//
 // The player starts on SmoothTileMovement; M swaps to FreeMovement and back,
 // so both blocking-contact paths (QueryTileBlocked and the swept resolver)
 // are covered. Tile mode: the NPC un-flashes the tick after you stop
@@ -54,11 +58,13 @@ constexpr ActionID ActionDebugPhysics = MakeAction("Debug_Physics");
 constexpr ActionID ActionToggleGrid   = MakeAction("Debug_ToggleGrid");
 constexpr ActionID ActionToggleStyle  = MakeAction("Demo_ToggleMovementStyle");
 
-constexpr f32 TileSize    = 64.0f;
-constexpr u32 GrassTileId = 1;
-constexpr i32 GrassExtent = 8;
-constexpr f32 WalkSpeed   = 4.0f;   // tiles/s (tile mode)
-constexpr f32 FreeSpeed   = 240.0f; // px/s (free mode)
+constexpr f32 TileSize        = 64.0f;
+constexpr u32 GrassTileId     = 1;
+constexpr u32 WaterBaseId     = 401;               // Demo::LoadGrassAndWaterAtlases
+constexpr u32 WhirlpoolTileId = WaterBaseId + 156; // flip-book tile, see water.tileatlas.json
+constexpr i32 GrassExtent     = 8;
+constexpr f32 WalkSpeed       = 4.0f;   // tiles/s (tile mode)
+constexpr f32 FreeSpeed       = 240.0f; // px/s (free mode)
 
 // Hazard OnStay fires once per fixed tick (60 Hz); log every 30 → every 0.5 s.
 constexpr u32 HazardLogInterval = 30;
@@ -97,6 +103,7 @@ protected:
         for (i32 ty = -GrassExtent; ty <= GrassExtent; ++ty)
             for (i32 tx = -GrassExtent; tx <= GrassExtent; ++tx)
                 tm.SetTile(tx, ty, 0, GrassTileId);
+        tm.SetTile(2, -2, 0, WhirlpoolTileId);
 
         SetupInput();
         GetScene().GetPhysics().SetDebugDraw(true);

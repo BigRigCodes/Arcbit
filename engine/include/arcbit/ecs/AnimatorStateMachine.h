@@ -127,6 +127,8 @@ private:
     // Parameters are stored as floats regardless of semantic type.
     // Bool:    0.0 = false, any other value = true.
     // Trigger: 1.0 = pending, 0.0 = consumed.
+    // A parameter that was never set reads as 0.0 — false / not triggered /
+    // zero — so conditions on it evaluate normally instead of always failing.
     std::unordered_map<std::string, f32> _params;
 };
 } // namespace Arcbit

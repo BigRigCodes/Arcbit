@@ -8,6 +8,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
+#include <utility>
 
 using namespace Arcbit;
 using nlohmann::json;
@@ -17,6 +19,24 @@ namespace
 constexpr u32 Ground  = 0;
 constexpr u32 Objects = 1;
 constexpr u32 Overlay = 2;
+
+// Atlas grid used by the ParseTileDef tests: 12 columns × 14 rows (WATER+.png).
+constexpr u32 AtlasCols = 12;
+constexpr u32 AtlasRows = 14;
+
+TileDef Parse(const char* tileJson) { return TileMap::ParseTileDef(json::parse(tileJson), AtlasCols, AtlasRows); }
+
+// Width / height from a PNG's IHDR chunk, or nullopt for other formats.
+std::optional<std::pair<u32, u32>> PngSize(const std::filesystem::path& path)
+{
+    std::ifstream f(path, std::ios::binary);
+    unsigned char header[24]{};
+    if (!f.read(reinterpret_cast<char*>(header), sizeof(header)) || header[1] != 'P' || header[2] != 'N') return std::nullopt;
+    const auto be32 = [&](const int at) {
+        return (u32{ header[at] } << 24) | (u32{ header[at + 1] } << 16) | (u32{ header[at + 2] } << 8) | u32{ header[at + 3] };
+    };
+    return std::pair{ be32(16), be32(20) };
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -97,13 +117,12 @@ TEST_CASE("IsSolid and BlocksLight look through every layer", "[tilemap]")
 
 TEST_CASE("ParseTileDef reads every tile property", "[tilemap][tileatlas-format]")
 {
-    const json tile = json::parse(R"({
+    const TileDef def = Parse(R"({
         "local_id": 3, "solid": true, "blocks_light": true, "flat": true,
         "uv_scroll": { "x": 0.25, "y": -0.5 },
         "layer": 32,
         "blocked_from": [ { "center": -90, "half_width": 45 }, { "center": 180 } ]
     })");
-    const TileDef def = TileMap::ParseTileDef(tile);
 
     CHECK(def.Solid);
     CHECK(def.BlocksLight);
@@ -117,7 +136,7 @@ TEST_CASE("ParseTileDef reads every tile property", "[tilemap][tileatlas-format]
 
 TEST_CASE("ParseTileDef keeps defaults for missing keys", "[tilemap][tileatlas-format]")
 {
-    const TileDef def = TileMap::ParseTileDef(json::parse(R"({ "local_id": 0 })"));
+    const TileDef def = Parse(R"({ "local_id": 0 })");
     const TileDef defaults{};
     CHECK(def.Solid == defaults.Solid);
     CHECK(def.BlocksLight == defaults.BlocksLight);
@@ -125,6 +144,48 @@ TEST_CASE("ParseTileDef keeps defaults for missing keys", "[tilemap][tileatlas-f
     CHECK(def.UVScroll == defaults.UVScroll);
     CHECK(def.Layer == CollisionLayers::Wall);
     CHECK(def.BlockedFrom.empty());
+    CHECK(def.Animation.empty());
+}
+
+TEST_CASE("Flip-book frames convert local IDs to atlas grid cells", "[tilemap][tileatlas-format]")
+{
+    const TileDef def = Parse(R"({
+        "local_id": 156,
+        "animation": [
+            { "local_id": 156, "duration_ms": 120 },
+            { "local_id": 13,  "duration_ms": 80 },
+            { "local_id": 167 }
+        ]
+    })");
+
+    REQUIRE(def.Animation.size() == 3);
+    CHECK(def.Animation[0].TileX == 0); // 156 = row 13, column 0
+    CHECK(def.Animation[0].TileY == 13);
+    CHECK(def.Animation[0].DurationMs == 120);
+    CHECK(def.Animation[1].TileX == 1); // 13 = row 1, column 1
+    CHECK(def.Animation[1].TileY == 1);
+    CHECK(def.Animation[2].TileX == 11); // last cell of the atlas
+    CHECK(def.Animation[2].TileY == 13);
+    CHECK(def.Animation[2].DurationMs == TileAnimFrame{}.DurationMs); // duration defaults
+}
+
+TEST_CASE("Flip-book frames outside the atlas or without an ID are dropped", "[tilemap][tileatlas-format]")
+{
+    const TileDef def = Parse(R"({
+        "local_id": 0,
+        "animation": [
+            { "local_id": 168 },
+            { "duration_ms": 100 },
+            { "local_id": -1 },
+            { "local_id": 2, "duration_ms": 90 }
+        ]
+    })");
+    REQUIRE(def.Animation.size() == 1);
+    CHECK(def.Animation[0].TileX == 2);
+    CHECK(def.Animation[0].DurationMs == 90);
+
+    // No atlas size known: nothing can be placed.
+    CHECK(TileMap::ParseTileDef(json::parse(R"({ "animation": [ { "local_id": 0 } ] })"), 0, 0).Animation.empty());
 }
 
 TEST_CASE("Every shipped tile atlas parses", "[tilemap][tileatlas-format][shipped]")
@@ -139,9 +200,17 @@ TEST_CASE("Every shipped tile atlas parses", "[tilemap][tileatlas-format][shippe
         CHECK(j.at("tile_width").get<u32>() > 0);
         CHECK(j.at("tile_height").get<u32>() > 0);
         CHECK_FALSE(j.at("texture").get<std::string>().empty());
+
+        // Real atlas dimensions for PNG textures, so every local_id — the
+        // tile's own and each flip-book frame's — is checked against the image.
+        const auto size = PngSize(ArcbitTests::SourcePath("game") / j.at("texture").get<std::string>());
+        const u32  cols = size ? size->first / j.at("tile_width").get<u32>() : 4096;
+        const u32  rows = size ? size->second / j.at("tile_height").get<u32>() : 4096;
         for (const auto& tile : j.value("tiles", json::array())) {
-            CHECK(tile.contains("local_id"));
-            CHECK_NOTHROW((void)TileMap::ParseTileDef(tile));
+            REQUIRE(tile.contains("local_id"));
+            CHECK(tile["local_id"].get<u32>() < cols * rows);
+            const TileDef def = TileMap::ParseTileDef(tile, cols, rows);
+            CHECK(def.Animation.size() == tile.value("animation", json::array()).size()); // no frame dropped
         }
     }
     CHECK(checked > 0);
