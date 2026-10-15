@@ -247,11 +247,39 @@ namespace
         });
     }
 
+    // Consumes the queued direction and starts a step from the tile under the
+    // mover. Returns false (and drops the queued move) when the step is
+    // blocked. Progress is left untouched — the caller decides where the new
+    // step starts so overshoot from the previous step can carry over.
+    bool TryBeginTileStep(const Entity       e, const Transform2D& t, SmoothTileMovement& stm,
+                          const Collider2D*  col, PhysicsWorld&    physics, const f32 ts)
+    {
+        const Vec2 origin = {
+            std::round(t.Position.X / ts) * ts,
+            std::round(t.Position.Y / ts) * ts,
+        };
+        const Vec2 target = {
+            origin.X + stm.QueuedDir.X * ts,
+            origin.Y + stm.QueuedDir.Y * ts,
+        };
+
+        stm.HasQueued = false;
+        if (col && physics.QueryTileBlocked(e, *col, origin, target)) return false;
+
+        stm.OriginWorld = origin;
+        stm.TargetWorld = target;
+        return true;
+    }
+
     void RegisterSmoothTileMoveSystem(World& world)
     {
         // Plan-then-commit tile movement (Phase 22C):
         //   - Idle + queued: snap an origin, compute the candidate target, ask
         //     the resolver if the path is clear; drop the queued move if not.
+        //   - Arrival + queued: chain straight into the next step in the same
+        //     tick, carrying the progress overshoot. Without this, every tile
+        //     boundary cost a dead tick (planning without moving), which reads
+        //     as a ~4 Hz stutter against the smoothed camera.
         //   - Mid-lerp: write the interpolated Position and refresh the
         //     broadphase cache so QueryTileBlocked / FreeMovement see truth.
         // Movers without a Collider2D bypass the query (and the cache update)
@@ -267,30 +295,17 @@ namespace
                         const Collider2D* col = ecsWorld.GetComponent<Collider2D>(e);
 
                         if (stm.Progress >= 1.0f) {
-                            if (!stm.HasQueued) return;
-
-                            const Vec2 origin = {
-                                std::round(t.Position.X / ts) * ts,
-                                std::round(t.Position.Y / ts) * ts,
-                            };
-                            const Vec2 target = {
-                                origin.X + stm.QueuedDir.X * ts,
-                                origin.Y + stm.QueuedDir.Y * ts,
-                            };
-
-                            if (col && physics.QueryTileBlocked(e, *col, origin, target)) {
-                                stm.HasQueued = false; // drop blocked move; stay put
-                                return;
-                            }
-
-                            stm.OriginWorld = origin;
-                            stm.TargetWorld = target;
-                            stm.Progress    = 0.0f;
-                            stm.HasQueued   = false;
-                            return;
+                            if (!stm.HasQueued || !TryBeginTileStep(e, t, stm, col, physics, ts)) return;
+                            stm.Progress = 0.0f;
                         }
 
-                        stm.Progress   += stm.Speed * dt;
+                        stm.Progress += stm.Speed * dt;
+                        if (stm.Progress >= 1.0f && stm.HasQueued) {
+                            const f32 overshoot = stm.Progress - 1.0f;
+                            t.Position          = stm.TargetWorld; // round from the exact tile center
+                            if (TryBeginTileStep(e, t, stm, col, physics, ts)) stm.Progress = overshoot;
+                        }
+
                         const f32 alpha = std::min(stm.Progress, 1.0f);
                         t.Position      = {
                             stm.OriginWorld.X + (stm.TargetWorld.X - stm.OriginWorld.X) * alpha,
