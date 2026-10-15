@@ -1,18 +1,37 @@
-find_package(Catch2 3 CONFIG REQUIRED) # via vcpkg
+find_package(Catch2 3 CONFIG REQUIRED)        # via vcpkg
+find_package(nlohmann_json CONFIG REQUIRED) # JSON format tests build documents directly
 
 # One executable for every engine test. Links the static engine library
 # directly, so tests exercise exactly the code the game ships — no window,
 # render device, or assets are created.
 add_executable(arcbit-tests
     main.cpp
+    assets/SpriteSheetTests.cpp
+    core/LocTests.cpp
+    core/MathTests.cpp
+    ecs/AnimatorStateMachineTests.cpp
+    ecs/SystemsTests.cpp
     ecs/WorldTests.cpp
+    input/InputManagerTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp
+    physics/GeometryTests.cpp
     physics/NarrowphaseTests.cpp
     physics/PhysicsWorldTests.cpp
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
+    render/Camera2DTests.cpp
+    settings/SettingsTests.cpp
+    tilemap/TileMapTests.cpp
+    ui/UILayoutTests.cpp
+    ui/UISkinTests.cpp
 )
+
+target_include_directories(arcbit-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}) # TestSupport.h
+
+# Lets tests validate the assets that actually ship (engine/assets, game/assets)
+# in place, rather than copies.
+target_compile_definitions(arcbit-tests PRIVATE ARCBIT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 target_link_libraries(arcbit-tests
     PRIVATE
@@ -20,6 +39,8 @@ target_link_libraries(arcbit-tests
         arcbit-vulkan  # engine TUs the tests pull in (TileMap → TextureManager) reference RenderDevice,
                        # which the backend DLL exports; no device is ever created
         Catch2::Catch2 # not Catch2WithMain — main.cpp initializes engine logging first
+        SDL3::SDL3     # scancode constants for input-injection tests
+        nlohmann_json::nlohmann_json
 )
 
 # Register each TEST_CASE with CTest. PRE_TEST discovery lists the tests when

@@ -18,6 +18,8 @@ vcpkg dependencies are built with the overlay triplet in [cmake/triplets](./cmak
 
 Unit tests live in [tests/](./tests) (Catch2 v3) and build as `arcbit-tests` alongside the game. They are headless — no window or GPU device. Run them from the build directory with `ctest --output-on-failure`, run `bin/arcbit-tests` directly, or use the IDE's test runner. Set `-DARCBIT_BUILD_TESTS=OFF` to skip them.
 
+Keep `TEST_CASE` / `SECTION` names ASCII — CTest on Windows passes them back to the test runner as filters and mangles non-ASCII characters, so such a test reports as failed. Tests tagged `[shipped]` validate the real files under `engine/assets` and `game/assets` in place.
+
 ---
 
 ## Credits

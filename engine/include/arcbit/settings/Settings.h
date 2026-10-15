@@ -4,7 +4,9 @@
 
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace Arcbit {
@@ -124,14 +126,20 @@ public:
     // -----------------------------------------------------------------------
 
     // Returns the stored value for key, or defaultValue if not found.
-    // Type must match what was passed to Set<T>(); mismatches return the default.
+    //
+    // Numbers convert between i32 / u32 / f32: JSON has a single number type,
+    // so a value written by Set<u32> can be read back from the file as an i32
+    // (and vice versa). An integer that doesn't fit in T (e.g. a negative
+    // number read as u32) returns the default.
+    // bool and std::string must match exactly; other mismatches return the
+    // default.
     template<typename T>
     [[nodiscard]] static T Get(std::string_view key, const T& defaultValue = T{})
     {
         const auto it = s_store.find(std::string(key));
         if (it == s_store.end()) return defaultValue;
-        const T* val = std::get_if<T>(&it->second);
-        return val ? *val : defaultValue;
+        if (const T* val = std::get_if<T>(&it->second)) return *val;
+        return std::visit([&](const auto& stored) { return ConvertNumber<T>(stored, defaultValue); }, it->second);
     }
 
     // Store a value and mark dirty. Overwrites any previous value for this key.
@@ -164,6 +172,22 @@ private:
     static bool                                   s_dirty;
     static std::string                            s_filePath;
     static std::unordered_map<std::string, Value> s_store;
+
+    // Numeric-to-numeric conversion for Get<T>; anything else (bool, string,
+    // or an integer that doesn't fit in T, e.g. a negative value into u32)
+    // yields the fallback.
+    template<typename T, typename V>
+    [[nodiscard]] static T ConvertNumber(const V& stored, const T& fallback)
+    {
+        constexpr bool numericT = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
+        constexpr bool numericV = std::is_arithmetic_v<V> && !std::is_same_v<V, bool>;
+        if constexpr (numericT && numericV) {
+            if constexpr (std::is_integral_v<T> && std::is_integral_v<V>)
+                if (!std::in_range<T>(stored)) return fallback;
+            return static_cast<T>(stored);
+        }
+        else { return fallback; }
+    }
 
     // Helpers called by Init() and Flush().
     static void ReadFile();

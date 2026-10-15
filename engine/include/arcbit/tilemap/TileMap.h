@@ -7,6 +7,8 @@
 #include <arcbit/physics/TileColliderRect.h>
 #include <arcbit/render/RenderHandle.h>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -63,7 +65,8 @@ public:
     // World-space center of a tile.
     [[nodiscard]] Vec2 TileToWorld(i32 tileX, i32 tileY) const;
 
-    // Tile coordinate containing a world-space point.
+    // Tile coordinate containing a world-space point. Tiles are centered on
+    // TileToWorld, so tile t spans [(t - 0.5), (t + 0.5)) tile sizes.
     void WorldToTile(Vec2 worldPos, i32& outX, i32& outY) const;
 
     [[nodiscard]] bool IsSolid(i32 tileX, i32 tileY) const;
@@ -128,6 +131,30 @@ public:
     bool LoadAtlasJson(u32             baseId, std::string_view  jsonPath,
                        SamplerHandle   sampler, std::string_view samplerName,
                        TextureManager& textures);
+
+    // ---- JSON (de)serialization -------------------------------------------
+    // The file-level functions above are I/O + texture loading wrapped around
+    // these, which are public so the formats can be parsed and validated
+    // without a render device (tests, editor tooling). Include
+    // <nlohmann/json.hpp> to call them.
+
+    // Parse one entry of a .tileatlas.json "tiles" array into a TileDef:
+    // solid, blocks_light, flat, uv_scroll {x, y}, layer (bitmask), and
+    // blocked_from [{center, half_width}]. Missing keys keep TileDef defaults.
+    // The entry's local_id is read by the caller.
+    [[nodiscard]] static TileDef ParseTileDef(const nlohmann::json& tile);
+
+    // The .arcmap document for the current state: version, tile_size, the
+    // registered atlases (base_id / path / sampler) and every allocated chunk.
+    [[nodiscard]] nlohmann::json ToJson() const;
+
+    // Apply tile_size and chunk data from an .arcmap document. Atlases are not
+    // touched — LoadMap registers them first, since that needs textures.
+    // Every chunk is validated before anything changes: x / y must be
+    // integers and each layer array at most ChunkSize² non-negative integers
+    // (shorter arrays leave the remaining cells empty; a missing layer is
+    // empty). Returns false, leaving the map unchanged, on any violation.
+    [[nodiscard]] bool LoadTilesFromJson(const nlohmann::json& map);
 
 private:
     [[nodiscard]] static u64       ChunkKey(i32 chunkX, i32 chunkY);

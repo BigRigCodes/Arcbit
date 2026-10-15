@@ -66,8 +66,10 @@ Vec2 TileMap::TileToWorld(const i32 tileX, const i32 tileY) const
 
 void TileMap::WorldToTile(const Vec2 worldPos, i32& outX, i32& outY) const
 {
-    outX = static_cast<i32>(std::floor(worldPos.X / _tileSize));
-    outY = static_cast<i32>(std::floor(worldPos.Y / _tileSize));
+    // Tiles are centered on multiples of the tile size (see TileToWorld), so
+    // tile t spans [(t - 0.5) * ts, (t + 0.5) * ts). Round, don't floor.
+    outX = static_cast<i32>(std::floor(worldPos.X / _tileSize + 0.5f));
+    outY = static_cast<i32>(std::floor(worldPos.Y / _tileSize + 0.5f));
 }
 
 bool TileMap::IsSolid(const i32 tileX, const i32 tileY) const
@@ -330,8 +332,6 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
         return false;
     }
 
-    _tileSize = j.value("tile_size", _tileSize);
-
     for (const auto& a : j.value("atlases", nlohmann::json::array())) {
         const u32           baseId      = a.at("base_id").get<u32>();
         const std::string   atlasPath   = a.at("path").get<std::string>();
@@ -342,20 +342,9 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
             return false;
     }
 
-    for (const auto& c : j.value("chunks", nlohmann::json::array())) {
-        const i32  cx    = c.at("x").get<i32>();
-        const i32  cy    = c.at("y").get<i32>();
-        TileChunk& chunk = GetOrCreateChunk(cx, cy);
-
-        auto fillLayer = [](TileChunk& ch, const u32 layer, const nlohmann::json& arr) {
-            u32 i = 0;
-            for (const auto& v : arr)
-                ch.Tiles[layer][i++] = v.get<u32>();
-        };
-
-        fillLayer(chunk, 0, c.value("ground", nlohmann::json::array()));
-        fillLayer(chunk, 1, c.value("objects", nlohmann::json::array()));
-        fillLayer(chunk, 2, c.value("overlay", nlohmann::json::array()));
+    if (!LoadTilesFromJson(j)) {
+        LOG_WARN(Engine, "TileMap: invalid chunk data in '{}'", path);
+        return false;
     }
 
     LOG_INFO(Engine, "TileMap: loaded '{}' - {} atlases, {} chunks",
@@ -365,53 +354,84 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
 
 bool TileMap::SaveMap(const std::string_view path) const
 {
-    nlohmann::json j;
-    j["version"]   = "1.0";
-    j["tile_size"] = _tileSize;
-
-    auto jAtlases = nlohmann::json::array();
-    for (const auto& e : _atlases) {
-        nlohmann::json a;
-        a["base_id"] = e.BaseId;
-        a["path"]    = e.JsonPath;
-        a["sampler"] = e.SamplerName;
-        jAtlases.push_back(std::move(a));
-    }
-    j["atlases"] = std::move(jAtlases);
-
-    auto jChunks = nlohmann::json::array();
-    for (const auto& [key, chunk] : _chunks) {
-        // Decode chunk coordinates from the packed key.
-        const i32 cx = static_cast<i32>(static_cast<u32>(key >> 32));
-        const i32 cy = static_cast<i32>(static_cast<u32>(key));
-
-        nlohmann::json c;
-        c["x"] = cx;
-        c["y"] = cy;
-
-        auto jGround  = nlohmann::json::array();
-        auto jObjects = nlohmann::json::array();
-        auto jOverlay = nlohmann::json::array();
-        for (u32 i = 0; i < ChunkSize * ChunkSize; ++i) {
-            jGround.push_back(chunk.Tiles[0][i]);
-            jObjects.push_back(chunk.Tiles[1][i]);
-            jOverlay.push_back(chunk.Tiles[2][i]);
-        }
-        c["ground"]  = std::move(jGround);
-        c["objects"] = std::move(jObjects);
-        c["overlay"] = std::move(jOverlay);
-        jChunks.push_back(std::move(c));
-    }
-    j["chunks"] = std::move(jChunks);
-
     std::ofstream f{std::string(path)};
     if (!f) {
         LOG_WARN(Engine, "TileMap: cannot write '{}'", path);
         return false;
     }
-    f << j.dump(2);
+    f << ToJson().dump(2);
     LOG_INFO(Engine, "TileMap: saved '{}' - {} atlases, {} chunks",
              path, _atlases.size(), _chunks.size());
+    return true;
+}
+
+nlohmann::json TileMap::ToJson() const
+{
+    nlohmann::json j;
+    j["version"]   = "1.0";
+    j["tile_size"] = _tileSize;
+
+    auto jAtlases = nlohmann::json::array();
+    for (const auto& e : _atlases)
+        jAtlases.push_back({ { "base_id", e.BaseId }, { "path", e.JsonPath }, { "sampler", e.SamplerName } });
+    j["atlases"] = std::move(jAtlases);
+
+    auto jChunks = nlohmann::json::array();
+    for (const auto& [key, chunk] : _chunks) {
+        // Decode chunk coordinates from the packed key.
+        nlohmann::json c;
+        c["x"]       = static_cast<i32>(static_cast<u32>(key >> 32));
+        c["y"]       = static_cast<i32>(static_cast<u32>(key));
+        c["ground"]  = std::vector<u32>(std::begin(chunk.Tiles[0]), std::end(chunk.Tiles[0]));
+        c["objects"] = std::vector<u32>(std::begin(chunk.Tiles[1]), std::end(chunk.Tiles[1]));
+        c["overlay"] = std::vector<u32>(std::begin(chunk.Tiles[2]), std::end(chunk.Tiles[2]));
+        jChunks.push_back(std::move(c));
+    }
+    j["chunks"] = std::move(jChunks);
+    return j;
+}
+
+namespace
+{
+    constexpr const char* LayerKeys[LayerCount] = { "ground", "objects", "overlay" };
+
+    // One chunk's layer array: absent, or an array of at most ChunkSize²
+    // non-negative integers.
+    bool IsValidLayerArray(const nlohmann::json& chunk, const char* key)
+    {
+        const auto it = chunk.find(key);
+        if (it == chunk.end()) return true;
+        if (!it->is_array() || it->size() > ChunkSize * ChunkSize) return false;
+        return std::ranges::all_of(*it, [](const nlohmann::json& v) { return v.is_number_unsigned(); });
+    }
+
+    bool IsValidChunk(const nlohmann::json& c)
+    {
+        if (!c.is_object() || !c.contains("x") || !c.contains("y")) return false;
+        if (!c["x"].is_number_integer() || !c["y"].is_number_integer()) return false;
+        return std::ranges::all_of(LayerKeys, [&](const char* key) { return IsValidLayerArray(c, key); });
+    }
+} // anonymous namespace
+
+bool TileMap::LoadTilesFromJson(const nlohmann::json& map)
+{
+    if (!map.is_object()) return false;
+    const nlohmann::json chunks = map.value("chunks", nlohmann::json::array());
+    if (!chunks.is_array() || !std::ranges::all_of(chunks, IsValidChunk)) return false;
+
+    _tileSize = map.value("tile_size", _tileSize);
+    for (const auto& c : chunks) {
+        const i32 cx = c["x"].get<i32>();
+        const i32 cy = c["y"].get<i32>();
+        TileChunk& chunk = GetOrCreateChunk(cx, cy);
+        chunk            = TileChunk{}; // a chunk in the file is replaced whole: missing / short layers read empty
+        for (u32 layer = 0; layer < LayerCount; ++layer) {
+            u32 i = 0;
+            for (const auto& v : c.value(LayerKeys[layer], nlohmann::json::array()))
+                chunk.Tiles[layer][i++] = v.get<u32>();
+        }
+        _chunkColliders.erase(ChunkKey(cx, cy)); // tiles changed under the mesh cache
+    }
     return true;
 }
 
@@ -441,35 +461,33 @@ bool TileMap::LoadAtlasJson(const u32           baseId, const std::string_view  
         return false;
 
     // Register per-tile overrides (uv_scroll, solid, etc.).
-    for (const auto& t : j.value("tiles", nlohmann::json::array())) {
-        const u32 localId = t.at("local_id").get<u32>();
-        TileDef   def{};
-        if (t.contains("solid")) def.Solid = t["solid"].get<bool>();
-        if (t.contains("blocks_light")) def.BlocksLight = t["blocks_light"].get<bool>();
-        if (t.contains("flat")) def.Flat = t["flat"].get<bool>();
-        if (t.contains("uv_scroll")) {
-            def.UVScroll.X = t["uv_scroll"].value("x", 0.0f);
-            def.UVScroll.Y = t["uv_scroll"].value("y", 0.0f);
-        }
-        // Collision metadata (consumed when Solid == true). `layer` is an
-        // integer bitmask matching CollisionLayers — named-layer support
-        // arrives with project.arcbit (Phase 38).
-        if (t.contains("layer")) def.Layer = t["layer"].get<u32>();
-        // `blocked_from`: array of {center, half_width} arc objects. Empty
-        // / missing → block-all (the default empty list).
-        if (t.contains("blocked_from")) {
-            for (const auto& a : t["blocked_from"]) {
-                DirectionArc arc{};
-                arc.CenterDegrees    = a.value("center", 0.0f);
-                arc.HalfWidthDegrees = a.value("half_width", 180.0f);
-                def.BlockedFrom.push_back(arc);
-            }
-        }
-        RegisterTile(baseId + localId, std::move(def));
-    }
+    for (const auto& t : j.value("tiles", nlohmann::json::array()))
+        RegisterTile(baseId + t.at("local_id").get<u32>(), ParseTileDef(t));
 
     RegisterAtlas(baseId, std::move(atlas), sampler, jsonPath, samplerName);
     return true;
+}
+
+TileDef TileMap::ParseTileDef(const nlohmann::json& tile)
+{
+    TileDef def{};
+    def.Solid       = tile.value("solid", def.Solid);
+    def.BlocksLight = tile.value("blocks_light", def.BlocksLight);
+    def.Flat        = tile.value("flat", def.Flat);
+    if (const auto it = tile.find("uv_scroll"); it != tile.end()) {
+        def.UVScroll.X = it->value("x", 0.0f);
+        def.UVScroll.Y = it->value("y", 0.0f);
+    }
+    // Collision metadata (consumed when Solid == true). `layer` is an integer
+    // bitmask matching CollisionLayers — named-layer support arrives with
+    // project.arcbit (Phase 38).
+    def.Layer = tile.value("layer", def.Layer);
+    // `blocked_from`: array of {center, half_width} arc objects. Empty /
+    // missing → block-all (the default empty list).
+    if (const auto it = tile.find("blocked_from"); it != tile.end())
+        for (const auto& a : *it)
+            def.BlockedFrom.push_back({ a.value("center", 0.0f), a.value("half_width", 180.0f) });
+    return def;
 }
 
 u64 TileMap::ChunkKey(const i32 chunkX, const i32 chunkY)

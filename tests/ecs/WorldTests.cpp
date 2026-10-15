@@ -1,3 +1,6 @@
+#include "TestSupport.h"
+
+#include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/World.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -19,6 +22,73 @@ struct CallbackProbe
     std::shared_ptr<int> Token;
 };
 } // namespace
+
+TEST_CASE("Entities start with Transform2D and Tag", "[ecs]")
+{
+    World        world;
+    const Entity e = world.CreateEntity();
+    CHECK(world.IsValid(e));
+    CHECK(world.GetTransform(e) != nullptr);
+    CHECK(world.GetComponent<Tag>(e) != nullptr);
+}
+
+TEST_CASE("Destroyed entities are rejected even after their slot is reused", "[ecs]")
+{
+    World        world;
+    const Entity first = world.CreateEntity();
+    world.DestroyEntity(first);
+    CHECK_FALSE(world.IsValid(first));
+    CHECK(world.GetTransform(first) == nullptr);
+
+    const Entity second = world.CreateEntity();
+    CHECK(second.Index == first.Index);           // slot recycled
+    CHECK(second.Generation != first.Generation); // generation bumped
+    CHECK(world.IsValid(second));
+    CHECK_FALSE(world.IsValid(first));
+
+    world.DestroyEntity(first); // stale handle: a no-op, must not hit the new entity
+    CHECK(world.IsValid(second));
+}
+
+TEST_CASE("Add, get, and remove components keep other data intact", "[ecs]")
+{
+    World        world;
+    const Entity e                  = world.CreateEntity();
+    world.GetTransform(e)->Position = { 5.0f, 6.0f };
+
+    world.AddComponent<Lifetime>(e, Lifetime{ .Remaining = 3.0f });
+    REQUIRE(world.GetComponent<Lifetime>(e) != nullptr);
+    CHECK(world.GetComponent<Lifetime>(e)->Remaining == 3.0f);
+    CHECK(world.GetTransform(e)->Position == Vec2{ 5.0f, 6.0f }); // survived the archetype move
+
+    world.RemoveComponent<Lifetime>(e);
+    CHECK(world.GetComponent<Lifetime>(e) == nullptr);
+    CHECK(world.GetTransform(e)->Position == Vec2{ 5.0f, 6.0f });
+}
+
+TEST_CASE("Queries match component sets and honor Without", "[ecs]")
+{
+    World        world;
+    const Entity plain    = world.CreateEntity();
+    const Entity timed    = world.CreateEntity();
+    const Entity disabled = world.CreateEntity();
+    world.AddComponent<Lifetime>(timed, Lifetime{ .Remaining = 1.0f });
+    world.AddComponent<Lifetime>(disabled, Lifetime{ .Remaining = 2.0f });
+    world.AddComponent<Disabled>(disabled);
+
+    std::vector<Entity> seen;
+    world.Query<Lifetime>().ForEach([&](const Entity e, Lifetime&) { seen.push_back(e); });
+    CHECK(seen.size() == 2);
+
+    seen.clear();
+    world.Query<Lifetime>().Without<Disabled>().ForEach([&](const Entity e, Lifetime&) { seen.push_back(e); });
+    CHECK(seen == std::vector{ timed });
+
+    usize count = 0;
+    world.Query<Transform2D>().ForEach([&](Transform2D&) { ++count; }); // component-only signature
+    CHECK(count == 3);
+    (void)plain;
+}
 
 TEST_CASE("Component storage relocates and destroys non-trivial components", "[ecs]")
 {

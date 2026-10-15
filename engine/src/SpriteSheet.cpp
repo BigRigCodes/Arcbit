@@ -37,6 +37,30 @@ std::optional<nlohmann::json> ParseJsonFile(std::string_view path)
     }
 }
 
+// The spec (docs/sprite-format.md) requires rejecting unrecognised versions:
+// any "1" / "1.x" string is accepted, everything else — missing, non-string,
+// or another major — is refused rather than silently misread.
+bool HasSupportedVersion(const nlohmann::json& json, const std::string_view source)
+{
+    const auto it = json.find("version");
+    if (it == json.end())
+    {
+        LOG_ERROR(Engine, "SpriteSheet: '{}' is missing the 'version' field — "
+                          "use the explicit Carrot import path for non-Arcbit files", source);
+        return false;
+    }
+
+    const std::string_view major = SpriteSheet::SupportedMajorVersion;
+    if (it->is_string())
+    {
+        const std::string& v = it->get_ref<const std::string&>();
+        if (v == major || (v.starts_with(major) && v.size() > major.size() && v[major.size()] == '.'))
+            return true;
+    }
+    LOG_ERROR(Engine, "SpriteSheet: '{}' has unsupported version {} (expected {}.x)", source, it->dump(), major);
+    return false;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -50,12 +74,9 @@ SpriteSheet SpriteSheet::Load(std::string_view metaPath, TextureManager& texture
         return {};
     const auto& json = *jsonOpt;
 
-    if (!json.contains("version"))
-    {
-        LOG_ERROR(Engine, "SpriteSheet: '{}' is missing the 'version' field — "
-                          "use the explicit Carrot import path for non-Arcbit files", metaPath);
+    // Validate before touching the texture so a bad file never uploads one.
+    if (!HasSupportedVersion(json, metaPath))
         return {};
-    }
 
     if (!json.contains("texture"))
     {
@@ -66,18 +87,27 @@ SpriteSheet SpriteSheet::Load(std::string_view metaPath, TextureManager& texture
     const std::filesystem::path metaDir = std::filesystem::path(metaPath).parent_path();
     const std::string texPath = (metaDir / json["texture"].get<std::string>()).lexically_normal().string();
 
-    SpriteSheet sheet{};
-    sheet._texture = textures.Load(texPath);
-    if (!sheet._texture.IsValid())
+    const TextureHandle texture = textures.Load(texPath);
+    if (!texture.IsValid())
         return {};
 
-    const auto [texW, texH] = textures.GetInfo(sheet._texture);
+    const auto [texW, texH] = textures.GetInfo(texture);
+    return FromJson(json, texture, texW, texH, metaPath);
+}
+
+SpriteSheet SpriteSheet::FromJson(const nlohmann::json& json, const TextureHandle texture,
+                                  const u32 texW, const u32 texH, const std::string_view sourceName)
+{
+    if (!HasSupportedVersion(json, sourceName) || !texture.IsValid())
+        return {};
     if (texW == 0 || texH == 0)
     {
-        LOG_ERROR(Engine, "SpriteSheet: zero-dimension texture for '{}'", texPath);
+        LOG_ERROR(Engine, "SpriteSheet: zero-dimension texture for '{}'", sourceName);
         return {};
     }
 
+    SpriteSheet sheet{};
+    sheet._texture = texture;
     // 0 means "absent — defer to WorldConfig.TileSize at render time".
     sheet._pixelsPerUnit    = json.value("pixels_per_unit", 0.0f);
     sheet._texturePixelSize = { static_cast<f32>(texW), static_cast<f32>(texH) };
@@ -85,9 +115,9 @@ SpriteSheet SpriteSheet::Load(std::string_view metaPath, TextureManager& texture
     const f32 invW = 1.0f / static_cast<f32>(texW);
     const f32 invH = 1.0f / static_cast<f32>(texH);
 
-    LoadFrames    (metaPath, json, sheet, invW, invH);
-    LoadTileGrid  (metaPath, json, sheet, texW, texH, invW, invH);
-    LoadAnimations(metaPath, json, sheet);
+    LoadFrames    (sourceName, json, sheet, invW, invH);
+    LoadTileGrid  (sourceName, json, sheet, texW, texH, invW, invH);
+    LoadAnimations(sourceName, json, sheet);
 
     return sheet;
 }

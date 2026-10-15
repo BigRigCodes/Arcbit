@@ -309,9 +309,12 @@ void Settings::ReadFile()
     {
         for (const auto& [key, val] : doc["custom"].items())
         {
+            // Unsigned first: nlohmann reports every non-negative integer as
+            // both unsigned and integer, and reading a large u32 as i32 wraps.
+            // Get<T> converts between the numeric types on the way out.
             if      (val.is_boolean())        s_store[key] = val.get<bool>();
-            else if (val.is_number_integer())  s_store[key] = val.get<i32>();
             else if (val.is_number_unsigned()) s_store[key] = val.get<u32>();
+            else if (val.is_number_integer())  s_store[key] = val.get<i32>();
             else if (val.is_number_float())    s_store[key] = val.get<f32>();
             else if (val.is_string())          s_store[key] = val.get<std::string>();
             // Nested objects / arrays are not supported in the flat store.

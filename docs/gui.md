@@ -583,6 +583,10 @@ Color ProgressBg, ProgressFill;
 Color ScrollTrack, ScrollThumb, ScrollThumbHovered;
 Color AccentColor;  // focused/listening states
 Color ScrimColor;   // Scrim widget default
+Color InputBg, InputBorder, InputFocusBorder, InputCursor, InputPlaceholder;
+Color SliderThumb, SliderThumbHovered;
+Color CheckboxBg, CheckboxHovered, CheckboxCheck; // shared with RadioGroup
+Color SwitchOn, SwitchOff, SwitchThumb;
 
 // Sound keys — empty string = no sound; resolved via AudioManager at interaction time
 std::string SoundFocusMove;   // keyboard/gamepad focus navigation
@@ -593,6 +597,16 @@ std::string SoundToggle;      // checkbox / switch toggle
 
 i32   ScreenLayerBase; // set per-screen by UIManager; ensures stack order
 ```
+
+In the skin JSON (`engine/assets/skins/default.skin.json`) colors are `[r, g, b, a]`
+arrays grouped by widget: `panel` (`background`, `border`), `button` (`normal`,
+`hovered`, `pressed`, `disabled`), `text` (`normal`, `disabled`, `label`),
+`progressBar` (`background`, `fill`), `scrollBar` (`track`, `thumb`, `thumbHovered`),
+`input` (`background`, `border`, `focusBorder`, `cursor`, `placeholder`), `slider`
+(`thumb`, `thumbHovered`), `checkbox` (`background`, `hovered`, `check`), `switch`
+(`on`, `off`, `thumb`), plus top-level `accentColor`, `scrimColor` (legacy key
+`overlayColor` is still read), `fontScale`, and a `sounds` object (`focusMove`,
+`activate`, `back`, `sliderTick`, `toggle`). Any missing key keeps the `UISkin` default.
 
 Sound keys are plain strings for now; Phase 36 replaces them with asset handle references from `arcbit-pack`. The default engine skin ships with all sound keys empty (no sound).
 
