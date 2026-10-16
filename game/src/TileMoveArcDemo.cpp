@@ -42,8 +42,6 @@
 #include <arcbit/scene/WorldConfig.h>
 #include <arcbit/tilemap/TileMap.h>
 
-#include <cmath>
-
 using namespace Arcbit;
 
 namespace
@@ -184,6 +182,8 @@ protected:
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
+        world.AddComponent<InputMovement>(_player, InputMovement{ActionMoveLeft, ActionMoveRight,
+                                                                 ActionMoveUp, ActionMoveDown});
 
         const Collider2D playerCollider{
             .Shape       = ColliderShape::Box,
@@ -230,24 +230,6 @@ protected:
     void OnUpdate(const f32 /*dt*/) override
     {
         PhysicsWorld& physics = GetScene().GetPhysics();
-        auto*         stm     = GetScene().GetWorld().GetComponent<SmoothTileMovement>(_player);
-        if (!stm) return;
-
-        Vec2 dir{};
-        if (GetInput().IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (GetInput().IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-
-        // Cardinal-only — keep the mover tile-aligned when both axes pressed.
-        if (dir.X != 0.0f && dir.Y != 0.0f)
-            std::abs(dir.X) >= std::abs(dir.Y) ? dir.Y = 0.0f : dir.X = 0.0f;
-
-        if (dir.X != 0.0f || dir.Y != 0.0f) {
-            stm->QueuedDir = dir;
-            stm->HasQueued = true;
-        }
-        else { stm->HasQueued = false; }
 
         if (GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
