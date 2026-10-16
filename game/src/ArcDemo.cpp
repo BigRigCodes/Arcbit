@@ -54,6 +54,7 @@ constexpr ActionID ActionToggleGrid   = MakeAction("Debug_ToggleGrid");
 constexpr f32 TileSize    = 64.0f;
 constexpr u32 GrassTileId = 1;
 constexpr i32 GrassExtent = 8;
+constexpr f32 PlayerSpeed = 240.0f; // world px/sec
 } // namespace
 
 class ArcDemo : public Application
@@ -131,8 +132,10 @@ protected:
                                                .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
-        world.AddComponent<FreeMovement>(_player, FreeMovement{.Friction = 0.0f});
+        world.AddComponent<FreeMovement>(_player, FreeMovement{.Speed = PlayerSpeed});
         world.AddComponent<PendingMove>(_player, PendingMove{});
+        world.AddComponent<InputMovement>(_player, InputMovement{ ActionMoveLeft, ActionMoveRight,
+                                                                  ActionMoveUp, ActionMoveDown });
 
         const Collider2D playerCollider{
             .Shape  = ColliderShape::Circle,
@@ -262,16 +265,6 @@ protected:
     void OnUpdate(const f32 /*dt*/) override
     {
         PhysicsWorld& physics = GetScene().GetPhysics();
-
-        Vec2 dir{};
-        if (GetInput().IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (GetInput().IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-
-        constexpr f32 PlayerSpeed = 240.0f;
-        auto*         fm          = GetScene().GetWorld().GetComponent<FreeMovement>(_player);
-        fm->Velocity              = dir * PlayerSpeed;
 
         if (GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
