@@ -122,8 +122,13 @@ public:
     // Frames per second measured by the application loop (smoothed).
     [[nodiscard]] f32 GetFPS() const { return _renderStats.FPS; }
 
-protected:
+    // Ask the main loop to exit after the current frame (e.g. a menu's Quit).
     void RequestShutdown() { _shouldShutdown = true; }
+
+    // Replace the window's title bar text.
+    void SetWindowTitle(std::string_view title);
+
+protected:
     
     void ToggleDebugGrid() { _showGrid = !_showGrid; }
 

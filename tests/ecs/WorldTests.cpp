@@ -141,3 +141,22 @@ TEST_CASE("OnRemove hooks run for RemoveComponent and DestroyEntity", "[ecs]")
     world.DestroyEntity(b); // already destroyed: no call
     CHECK(seen.size() == 2);
 }
+
+TEST_CASE("DestroyAllEntities runs OnRemove hooks for every live entity", "[ecs]")
+{
+    World world;
+    int   removed = 0;
+    world.OnRemove<Lifetime>([&](Entity, Lifetime&) { ++removed; });
+
+    const Entity a = world.CreateEntity();
+    const Entity b = world.CreateEntity();
+    const Entity c = world.CreateEntity();
+    world.AddComponent<Lifetime>(a);
+    world.AddComponent<Lifetime>(b);
+    world.DestroyEntity(b); // already gone: not counted twice
+
+    world.DestroyAllEntities();
+    CHECK(removed == 2);
+    CHECK_FALSE(world.IsValid(a));
+    CHECK_FALSE(world.IsValid(c));
+}

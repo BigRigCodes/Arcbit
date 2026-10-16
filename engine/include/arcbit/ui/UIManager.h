@@ -67,6 +67,11 @@ public:
     void Push(std::unique_ptr<UIScreen> screen);
     void Pop();
 
+    // Remove a specific screen immediately, wherever it sits in the stack (no
+    // fade). For screens owned by something going away — a scene's HUD when
+    // the scene unloads. No-op if the screen isn't on the stack.
+    void Remove(const UIScreen* screen);
+
     [[nodiscard]] UIScreen* Top()   const;
     [[nodiscard]] bool      Empty() const { return _stack.empty(); }
 

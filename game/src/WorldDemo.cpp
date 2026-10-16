@@ -1,3 +1,5 @@
+#include "Common.h"
+
 #include <arcbit/app/Application.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
@@ -96,18 +98,14 @@ struct ShipInfo
 // WorldDemo
 // ---------------------------------------------------------------------------
 
-class WorldDemo : public Application
+class WorldDemo : public Scene
 {
-public:
-    WorldDemo() : Application({.Title = "Arcbit", .Width = 1920, .Height = 1080}) {}
-
 protected:
-    void OnStart() override
+    void OnLoad() override
     {
-        GetScene().GetConfig().TileSize = TileSize;
-        GetScene().GetCamera().Zoom     = InitialZoom;
+        GetConfig().TileSize = TileSize;
+        GetCamera().Zoom     = InitialZoom;
 
-        RegisterInputActions();
         CreateSamplers();
         SetupTilemap();
         CreatePlayer();
@@ -118,10 +116,11 @@ protected:
         RegisterWhirlpoolAI();
         CreateMouseLight();
 
-        _bitmapFont.Load("assets/engine/fonts/Roboto-Regular.ttf", 32.0f, FontMode::Bitmap, GetDevice());
+        _bitmapFont.Load("assets/engine/fonts/Roboto-Regular.ttf", 32.0f, FontMode::Bitmap, GetApp().GetDevice());
 
-        // Preload UI textures before the render thread starts (loading in OnUpdate races the queue).
-        _uiPanelTex = GetTextures().Load("assets/textures/ui_panel.png");
+        // Load in OnLoad, not OnUpdate: OnLoad runs while the render thread is idle,
+        // so creating GPU resources here can't race a frame in flight.
+        _uiPanelTex = GetApp().GetTextures().Load("assets/textures/ui_panel.png");
 
         InitScreens();
     }
@@ -130,17 +129,17 @@ protected:
     {
         UpdateHud(dt);
 
-        if (GetInput().JustPressed(ActionPause) && !GetUI().HasBlockingScreen())
+        if (GetApp().GetInput().JustPressed(ActionPause) && !GetApp().GetUI().HasBlockingScreen())
             ShowPauseMenu();
 
-        if (GetInput().JustPressed(ActionWidgetTest) && !GetUI().HasBlockingScreen())
+        if (GetApp().GetInput().JustPressed(ActionWidgetTest) && !GetApp().GetUI().HasBlockingScreen())
             ShowWidgetTest();
 
-        if (GetUI().HasBlockingScreen()) return;
+        if (GetApp().GetUI().HasBlockingScreen()) return;
 
-        if (GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
-        if (GetInput().JustPressed(ActionInteract)) GetScene().GetCamera().AddTrauma(0.6f);
-        if (GetInput().JustPressed(ActionAttack) && !_isAttacking) _isAttacking = true;
+        if (GetApp().GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
+        if (GetApp().GetInput().JustPressed(ActionInteract)) GetCamera().AddTrauma(0.6f);
+        if (GetApp().GetInput().JustPressed(ActionAttack) && !_isAttacking) _isAttacking = true;
         UpdatePlayerVisuals();
         UpdateMouseLight();
     }
@@ -151,13 +150,13 @@ protected:
         packet.ReferenceSize = {ViewportW, ViewportH};
         if (_showGrid) {
             // Engine-provided tile-grid debug overlay (slice 1, Phase 22B).
-            const Camera2D& cam     = GetScene().GetCamera();
+            const Camera2D& cam     = GetCamera();
             const Vec2      camPos  = cam.GetEffectivePosition();
             const Vec2      halfView{ (ViewportW / cam.Zoom) * 0.5f,
                                      (ViewportH / cam.Zoom) * 0.5f };
             const AABB      viewAABB  = AABB::FromCenterHalfExtents(camPos, halfView);
             const f32       thickness = std::max(1.0f, 1.0f / cam.Zoom);
-            GetScene().GetTileMap().CollectGridDebugDraw(
+            GetTileMap().CollectGridDebugDraw(
                 packet, viewAABB, _gridTex, _gridSampler, thickness);
         }
 
@@ -165,16 +164,20 @@ protected:
                  Color::Magenta(), 0, TextAlign::Center);
     }
 
-    void OnShutdown() override
+    void OnUnload() override
     {
-        GetDevice().DestroyTexture(_gridTex);
-        GetDevice().DestroySampler(_gridSampler);
-        GetDevice().DestroySampler(_linearSampler);
-        GetDevice().DestroySampler(_sampler);
+        // The HUD reads this scene's state, so it leaves with the scene.
+        GetApp().GetUI().Remove(_hud);
+        _hud = nullptr;
+
+        GetApp().GetDevice().DestroyTexture(_gridTex);
+        GetApp().GetDevice().DestroySampler(_gridSampler);
+        GetApp().GetDevice().DestroySampler(_linearSampler);
+        GetApp().GetDevice().DestroySampler(_sampler);
 
         if (_bitmapFont.IsValid()) {
-            GetDevice().DestroyTexture(_bitmapFont.GetTexture());
-            GetDevice().DestroySampler(_bitmapFont.GetSampler());
+            GetApp().GetDevice().DestroyTexture(_bitmapFont.GetTexture());
+            GetApp().GetDevice().DestroySampler(_bitmapFont.GetSampler());
         }
     }
 
@@ -183,45 +186,6 @@ private:
     // Setup
     // -----------------------------------------------------------------------
 
-    void RegisterInputActions()
-    {
-        GetInput().RegisterAction(ActionToggleGrid,  "Debug_ToggleGrid",  "Toggle Grid",   "Debug");
-        GetInput().RegisterAction(ActionWidgetTest,  "Debug_WidgetTest",  "Widget Test",   "Debug");
-        GetInput().RegisterAction(ActionMoveLeft,   "Move_Left",        "Move Left",    "Movement");
-        GetInput().RegisterAction(ActionMoveRight,  "Move_Right",       "Move Right",   "Movement");
-        GetInput().RegisterAction(ActionMoveUp,     "Move_Up",          "Move Up",      "Movement");
-        GetInput().RegisterAction(ActionMoveDown,   "Move_Down",        "Move Down",    "Movement");
-        GetInput().RegisterAction(ActionInteract,   "Interact",         "Interact",     "Gameplay");
-        GetInput().RegisterAction(ActionSprint,     "Sprint",           "Sprint",       "Gameplay");
-        GetInput().RegisterAction(ActionAttack,     "Player_Attack",    "Attack",       "Gameplay");
-        GetInput().RegisterAction(ActionPause,      "Pause",            "Pause",        "System");
-
-        GetInput().BindKey(ActionWidgetTest,  Key::T);
-        GetInput().BindKey(ActionToggleGrid, Key::G);
-        GetInput().BindKey(ActionMoveLeft, Key::A);
-        GetInput().BindKey(ActionMoveLeft, Key::Left);
-        GetInput().BindKey(ActionMoveRight, Key::D);
-        GetInput().BindKey(ActionMoveRight, Key::Right);
-        GetInput().BindKey(ActionMoveUp, Key::W);
-        GetInput().BindKey(ActionMoveUp, Key::Up);
-        GetInput().BindKey(ActionMoveDown, Key::S);
-        GetInput().BindKey(ActionMoveDown, Key::Down);
-        GetInput().BindKey(ActionInteract, Key::E);
-        GetInput().BindKey(ActionInteract, Key::Enter);
-        GetInput().BindKey(ActionSprint, Key::LeftShift);
-        GetInput().BindKey(ActionAttack, Key::Space);
-        GetInput().BindKey(ActionPause, Key::Escape);
-        GetInput().BindKey(ActionPause, Key::F1);
-
-        GetInput().BindGamepadButton(ActionInteract, GamepadButton::South);
-        GetInput().BindGamepadButton(ActionSprint, GamepadButton::RightShoulder);
-        // One half of each stick axis per direction — a whole axis on both
-        // actions would press both whenever the stick moved, and they'd cancel.
-        GetInput().BindGamepadAxis(ActionMoveLeft, GamepadAxis::LeftX, AxisHalf::Negative);
-        GetInput().BindGamepadAxis(ActionMoveRight, GamepadAxis::LeftX, AxisHalf::Positive);
-        GetInput().BindGamepadAxis(ActionMoveUp, GamepadAxis::LeftY, AxisHalf::Negative);
-        GetInput().BindGamepadAxis(ActionMoveDown, GamepadAxis::LeftY, AxisHalf::Positive);
-    }
 
     void CreateSamplers()
     {
@@ -231,7 +195,7 @@ private:
         nd.AddressU  = AddressMode::Repeat;
         nd.AddressV  = AddressMode::Repeat;
         nd.DebugName = "NearestRepeat";
-        _sampler     = GetDevice().CreateSampler(nd);
+        _sampler     = GetApp().GetDevice().CreateSampler(nd);
         ARCBIT_ASSERT(_sampler.IsValid(), "Failed to create sampler");
 
         SamplerDesc ld{};
@@ -240,7 +204,7 @@ private:
         ld.AddressU    = AddressMode::Repeat;
         ld.AddressV    = AddressMode::Repeat;
         ld.DebugName   = "LinearRepeat";
-        _linearSampler = GetDevice().CreateSampler(ld);
+        _linearSampler = GetApp().GetDevice().CreateSampler(ld);
         ARCBIT_ASSERT(_linearSampler.IsValid(), "Failed to create linear sampler");
 
         TextureDesc gd{};
@@ -249,9 +213,9 @@ private:
         gd.Format             = Format::RGBA8_UNorm;
         gd.Usage              = TextureUsage::Sampled | TextureUsage::Transfer;
         gd.DebugName          = "Debug_SolidWhite";
-        _gridTex              = GetDevice().CreateTexture(gd);
+        _gridTex              = GetApp().GetDevice().CreateTexture(gd);
         constexpr u8 white[4] = {255, 255, 255, 255};
-        GetDevice().UploadTexture(_gridTex, white, sizeof(white));
+        GetApp().GetDevice().UploadTexture(_gridTex, white, sizeof(white));
 
         SamplerDesc sd{};
         sd.MinFilter = Filter::Nearest;
@@ -259,7 +223,7 @@ private:
         sd.AddressU  = AddressMode::ClampToEdge;
         sd.AddressV  = AddressMode::ClampToEdge;
         sd.DebugName = "Debug_GridSampler";
-        _gridSampler = GetDevice().CreateSampler(sd);
+        _gridSampler = GetApp().GetDevice().CreateSampler(sd);
     }
 
     // -----------------------------------------------------------------------
@@ -268,21 +232,21 @@ private:
 
     void SetupTilemap()
     {
-        TileMap& tm = GetScene().GetTileMap();
+        TileMap& tm = GetTileMap();
         tm.SetTileSize(TileSize);
 
-        if (!tm.LoadMap("assets/tilemaps/demo.arcmap", GetTextures(), _sampler, _linearSampler)) {
+        if (!tm.LoadMap("assets/tilemaps/demo.arcmap", GetApp().GetTextures(), _sampler, _linearSampler)) {
             ARCBIT_ASSERT(
-                tm.LoadAtlasJson(1, "assets/tilemaps/grass.tileatlas.json", _sampler, "nearest", GetTextures()),
+                tm.LoadAtlasJson(1, "assets/tilemaps/grass.tileatlas.json", _sampler, "nearest", GetApp().GetTextures()),
                 "Failed to load grass atlas");
             ARCBIT_ASSERT(
-                tm.LoadAtlasJson(401, "assets/tilemaps/water.tileatlas.json", _sampler, "nearest", GetTextures()),
+                tm.LoadAtlasJson(401, "assets/tilemaps/water.tileatlas.json", _sampler, "nearest", GetApp().GetTextures()),
                 "Failed to load water atlas");
             ARCBIT_ASSERT(
-                tm.LoadAtlasJson(569, "assets/tilemaps/light_water.tileatlas.json", _sampler, "nearest", GetTextures()),
+                tm.LoadAtlasJson(569, "assets/tilemaps/light_water.tileatlas.json", _sampler, "nearest", GetApp().GetTextures()),
                 "Failed to load light_water atlas");
             ARCBIT_ASSERT(
-                tm.LoadAtlasJson(601, "assets/tilemaps/floor.tileatlas.json", _linearSampler, "linear", GetTextures()),
+                tm.LoadAtlasJson(601, "assets/tilemaps/floor.tileatlas.json", _linearSampler, "linear", GetApp().GetTextures()),
                 "Failed to load floor atlas");
 
             GenerateGround(tm);
@@ -413,10 +377,10 @@ private:
 
     void CreatePlayer()
     {
-        _playerSheet = SpriteSheet::Load("assets/spritesheets/player.json", GetTextures());
+        _playerSheet = SpriteSheet::Load("assets/spritesheets/player.json", GetApp().GetTextures());
         ARCBIT_ASSERT(_playerSheet.IsValid(), "Failed to load player sprite");
 
-        auto& world                                   = GetScene().GetWorld();
+        auto& world                                   = GetWorld();
         _playerEntity                                 = world.CreateEntity();
         world.GetComponent<Tag>(_playerEntity)->Value = "Player";
 
@@ -460,7 +424,7 @@ private:
 
     Entity MakeShip(const Vec2 pos, const Vec2 vel, const Vec2 bMin, const Vec2 bMax)
     {
-        auto&        world                = GetScene().GetWorld();
+        auto&        world                = GetWorld();
         const Entity e                    = world.CreateEntity();
         world.GetComponent<Tag>(e)->Value = "PirateShip";
 
@@ -485,7 +449,7 @@ private:
 
     void CreateShips()
     {
-        _shipTex = GetTextures().Load(
+        _shipTex = GetApp().GetTextures().Load(
             "assets/textures/MiniWorldSprites/Miscellaneous/PirateShip.png");
         ARCBIT_ASSERT(_shipTex.IsValid(), "Failed to load PirateShip texture");
 
@@ -502,11 +466,11 @@ private:
 
     void CreateBridges()
     {
-        _bridgeTex = GetTextures().Load(
+        _bridgeTex = GetApp().GetTextures().Load(
             "assets/textures/MiniWorldSprites/Miscellaneous/Bridge.png");
         ARCBIT_ASSERT(_bridgeTex.IsValid(), "Failed to load Bridge texture");
 
-        auto& world      = GetScene().GetWorld();
+        auto& world      = GetWorld();
         auto  MakeBridge = [&](Vec2 pos, Vec2 scale, UVRect uv) {
             const Entity e                    = world.CreateEntity();
             world.GetComponent<Tag>(e)->Value = "Bridge";
@@ -528,7 +492,7 @@ private:
     // Whirlpool: 2×2 tile entity inside water body 1; animated via AI system.
     void CreateWhirlpool()
     {
-        auto& world                                      = GetScene().GetWorld();
+        auto& world                                      = GetWorld();
         _whirlpoolEntity                                 = world.CreateEntity();
         world.GetComponent<Tag>(_whirlpoolEntity)->Value = "Whirlpool";
 
@@ -538,14 +502,14 @@ private:
 
         world.AddComponent<SpriteRenderer>(_whirlpoolEntity, SpriteRenderer{
                                                .Texture = _waterTex, .Sampler = _sampler,
-                                               .UV      = GetScene().GetTileMap().GetTileUV(TileWhirlpool0),
+                                               .UV      = GetTileMap().GetTileUV(TileWhirlpool0),
                                                .Layer   = static_cast<i32>(t->Position.Y + t->Scale.Y * 0.5f),
                                            });
     }
 
     void CreateMouseLight()
     {
-        auto& world                                     = GetScene().GetWorld();
+        auto& world                                     = GetWorld();
         _mouseLightEntity                               = world.CreateEntity();
         world.GetTransform(_mouseLightEntity)->Position = {};
         world.AddComponent<LightEmitter>(_mouseLightEntity, LightEmitter{
@@ -556,13 +520,13 @@ private:
     }
 
     // -----------------------------------------------------------------------
-    // AI systems registered in OnStart
+    // AI systems registered in OnLoad
     // -----------------------------------------------------------------------
 
     void RegisterShipAI()
     {
         auto ships = _ships;
-        GetScene().GetWorld().RegisterSystem("ShipAI",
+        GetWorld().RegisterSystem("ShipAI",
                                              [ships](Scene& scene, f32 /*dt*/) mutable {
                                                  auto& world = scene.GetWorld();
                                                  for (auto& info : ships) {
@@ -600,7 +564,7 @@ private:
 
     void RegisterWhirlpoolAI()
     {
-        GetScene().GetWorld().RegisterSystem("WhirlpoolAI",
+        GetWorld().RegisterSystem("WhirlpoolAI",
                                              [wp = _whirlpoolEntity](Scene& scene, const f32 dt) {
                                                  auto& world = scene.GetWorld();
                                                  if (!world.IsValid(wp)) return;
@@ -648,7 +612,7 @@ private:
     // scene's systems, so this reads the previous tick's intent.
     void UpdatePlayerVisuals()
     {
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         if (!world.IsValid(_playerEntity)) return;
         const auto* stm    = world.GetComponent<SmoothTileMovement>(_playerEntity);
         const auto* intent = world.GetComponent<MoveIntent>(_playerEntity);
@@ -663,7 +627,7 @@ private:
 
     void UpdatePlayerAnimation(const bool moving)
     {
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         auto* sr    = world.GetComponent<SpriteRenderer>(_playerEntity);
         auto* anim  = world.GetComponent<Animator>(_playerEntity);
         auto* t     = world.GetComponent<Transform2D>(_playerEntity);
@@ -690,15 +654,15 @@ private:
 
     void UpdateMouseLight()
     {
-        if (!GetScene().GetWorld().IsValid(_mouseLightEntity)) return;
+        if (!GetWorld().IsValid(_mouseLightEntity)) return;
         i32 mouseX = 0, mouseY = 0;
-        GetInput().GetMousePosition(mouseX, mouseY);
+        GetApp().GetInput().GetMousePosition(mouseX, mouseY);
         const Vec2 mouseRef = {
-            static_cast<f32>(mouseX) * ViewportW / static_cast<f32>(GetWindowWidth()),
-            static_cast<f32>(mouseY) * ViewportH / static_cast<f32>(GetWindowHeight()),
+            static_cast<f32>(mouseX) * ViewportW / static_cast<f32>(GetApp().GetWindowWidth()),
+            static_cast<f32>(mouseY) * ViewportH / static_cast<f32>(GetApp().GetWindowHeight()),
         };
-        const Vec2 world = GetScene().GetCamera().ScreenToWorld(mouseRef, {ViewportW, ViewportH});
-        GetScene().GetWorld().GetComponent<Transform2D>(_mouseLightEntity)->Position = world;
+        const Vec2 world = GetCamera().ScreenToWorld(mouseRef, {ViewportW, ViewportH});
+        GetWorld().GetComponent<Transform2D>(_mouseLightEntity)->Position = world;
     }
     
         // -----------------------------------------------------------------------
@@ -714,11 +678,11 @@ private:
 
     void InitScreens()
     {
-        GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
+        GetApp().GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
 
         auto hud = std::make_unique<HudScreen>();
         _hud = hud.get();
-        GetUI().Push(std::move(hud));
+        GetApp().GetUI().Push(std::move(hud));
 
         // Enable FPS label after Push so the widget pointer is valid.
         _hud->GetFpsLabel()->Visible = Settings::Graphics.ShowFps;
@@ -735,48 +699,48 @@ private:
         _hud->GetManaBar()->Value   = 0.425f + 0.375f * std::sin(_simTime * 0.524f + 1.0f);
 
         _hud->GetFpsLabel()->Visible = Settings::Graphics.ShowFps;
-        _hud->GetFpsLabel()->Text    = std::format("FPS: {:.0f}", GetFPS());
+        _hud->GetFpsLabel()->Text    = std::format("FPS: {:.0f}", GetApp().GetFPS());
     }
 
     void ShowPauseMenu()
     {
         auto pause                  = std::make_unique<PauseMenuScreen>();
-        pause->OnResume             = [this] { GetUI().Pop(); };
+        pause->OnResume             = [this] { GetApp().GetUI().Pop(); };
         pause->OnControls           = [this] { ShowInputRebind(); };
         pause->OnAudioSettings      = [this] { ShowAudioSettings(); };
         pause->OnGraphicsSettings   = [this] { ShowGraphicsSettings(); };
-        pause->OnQuit               = [this] { RequestShutdown(); };
-        GetUI().Push(std::move(pause));
+        pause->OnQuit               = [this] { GetApp().RequestShutdown(); };
+        GetApp().GetUI().Push(std::move(pause));
     }
 
     void ShowInputRebind()
     {
         auto rebind    = std::make_unique<InputRebindScreen>();
-        rebind->Input  = &GetInput();
-        rebind->OnBack = [this] { GetUI().Pop(); };
-        GetUI().Push(std::move(rebind));
+        rebind->Input  = &GetApp().GetInput();
+        rebind->OnBack = [this] { GetApp().GetUI().Pop(); };
+        GetApp().GetUI().Push(std::move(rebind));
     }
 
     void ShowAudioSettings()
     {
         auto audio    = std::make_unique<AudioSettingsScreen>();
-        audio->OnBack = [this] { GetUI().Pop(); };
-        GetUI().Push(std::move(audio));
+        audio->OnBack = [this] { GetApp().GetUI().Pop(); };
+        GetApp().GetUI().Push(std::move(audio));
     }
 
     void ShowGraphicsSettings()
     {
         auto gfx                   = std::make_unique<GraphicsSettingsScreen>();
-        gfx->OnBack                = [this] { GetUI().Pop(); };
-        gfx->OnToggleFullscreen    = [this] { ToggleFullscreen(); };
-        GetUI().Push(std::move(gfx));
+        gfx->OnBack                = [this] { GetApp().GetUI().Pop(); };
+        gfx->OnToggleFullscreen    = [this] { GetApp().ToggleFullscreen(); };
+        GetApp().GetUI().Push(std::move(gfx));
     }
 
     void ShowWidgetTest()
     {
         auto screen     = std::make_unique<WidgetTestScreen>();
-        screen->OnClose = [this] { GetUI().Pop(); };
-        GetUI().Push(std::move(screen));
+        screen->OnClose = [this] { GetApp().GetUI().Pop(); };
+        GetApp().GetUI().Push(std::move(screen));
     }
 
 private:
@@ -840,10 +804,5 @@ private:
     f32 _simTime = 0.0f;
 };
 
-// Entry point — main.cpp calls this when ARCBIT_DEMO_WORLD is the selected demo.
-void RunWorldDemo()
-{
-    WorldDemo game;
-    game.Run();
-}
+std::unique_ptr<Scene> Demo::CreateWorldDemo() { return std::make_unique<WorldDemo>(); }
 

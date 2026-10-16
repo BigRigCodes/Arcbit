@@ -328,7 +328,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
 
 **Demo switcher**
-- [ ] Each demo becomes a scene registered in one `Application`; a demo-select menu plus a hotkey switches between them in one run. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp` and doubles as the load / unload / transition test bed
+- [x] Each demo becomes a scene registered in one `DemoApp`; F1 opens a demo-select menu, PgUp / PgDn cycle, and the last demo is remembered in settings. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp`. `arcbit-game --cycle <seconds>` switches demos on a timer as a soak test for load / unload (no keyboard needed)
+- [x] Scene teardown releases outside resources — `Scene`'s destructor destroys its entities so `OnRemove` hooks run; an `AudioSource` hook stops its sound (a looping sound used to outlive its scene)
 
 **Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
 - [ ] One `.arcscene` format — `docs/ecs.md` (UUID-keyed entities, inline components) and `docs/tilemap.md` (entity array with templates / overrides, separate `.arcmap` reference) describe two different formats today; reconcile into `docs/scenes.md`

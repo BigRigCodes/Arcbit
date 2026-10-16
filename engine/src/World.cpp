@@ -197,6 +197,15 @@ void World::DestroyEntity(const Entity entity)
     _freeList.push_back(entity.Index);
 }
 
+void World::DestroyAllEntities()
+{
+    // A free slot's record already carries its next generation, so a handle
+    // built from it would pass IsValid; an empty mask is what marks it free
+    // (live entities always have Transform2D + Tag).
+    for (u32 i = 0; i < static_cast<u32>(_entityTable.size()); ++i)
+        if (_entityTable[i].mask != 0) DestroyEntity(Entity{ i, _entityTable[i].generation });
+}
+
 void World::RunRemoveHooks(const Entity entity, const ComponentTypeID type)
 {
     const auto it = _removeHooks.find(type);

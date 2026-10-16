@@ -1,5 +1,6 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/app/Application.h>
+#include <arcbit/audio/AudioManager.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
@@ -21,9 +22,22 @@ Scene::Scene()
         if (const PhysicsWorld::ColliderId id = _physics->FindColliderForEntity(e); id != PhysicsWorld::InvalidId)
             _physics->UnregisterCollider(id);
     });
+
+    // A sound outlives nothing: removing the source (or its entity, or the
+    // whole scene) stops it. Without this a looping sound kept playing after
+    // its scene was unloaded.
+    _world.OnRemove<AudioSource>([](Entity, AudioSource& src) {
+        if (!src._handle) return;
+        AudioManager::DestroySpatialSound(src._handle);
+        src._handle = nullptr;
+    });
 }
 
-Scene::~Scene() = default; // out-of-line for unique_ptr<PhysicsWorld> destruction
+Scene::~Scene()
+{
+    // Run the OnRemove hooks while the members they use are still alive.
+    _world.DestroyAllEntities();
+}
 
 Application& Scene::GetApp()
 {

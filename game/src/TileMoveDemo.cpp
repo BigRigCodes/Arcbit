@@ -59,26 +59,20 @@ constexpr f32 WalkSpeed   = 4.0f; // tiles/sec
 constexpr f32 SnapStep    = 1.0f / WalkSpeed; // same pace in snap mode
 } // namespace
 
-class TileMoveDemo : public Application
+class TileMoveDemo : public Scene
 {
-public:
-    TileMoveDemo() : Application({
-        .Title  = "Arcbit — Tile Move Demo (F2 toggles colliders)",
-        .Width  = 1920, .Height = 1080
-    }) {}
-
 protected:
-    void OnStart() override
+    void OnLoad() override
     {
-        _sampler  = Demo::CreateNearestRepeatSampler(GetDevice());
-        _whiteTex = Demo::CreateWhiteTexture(GetDevice());
+        _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());
+        _whiteTex = Demo::CreateWhiteTexture(GetApp().GetDevice());
 
-        GetScene().GetConfig().TileSize = TileSize;
-        GetScene().GetCamera().Zoom     = 1.5f;
+        GetConfig().TileSize = TileSize;
+        GetCamera().Zoom     = 1.5f;
 
-        TileMap& tm = GetScene().GetTileMap();
+        TileMap& tm = GetTileMap();
         tm.SetTileSize(TileSize);
-        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetTextures(), _sampler),
+        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetApp().GetTextures(), _sampler),
                       "TileMoveDemo: failed to load tile atlases");
 
         // Mark the water tile id as solid so the greedy mesher picks it up.
@@ -93,36 +87,17 @@ protected:
         for (i32 ty = WallMin; ty <= WallMax; ++ty)
             tm.SetTile(WallColumn, ty, 0, WaterTileId);
 
-        SetupInput();
 
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
         physics.SetDebugDraw(true);
 
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         CreatePlayer(world, physics);
         CreateRocks(world, physics);
 
         LOG_INFO(Game, "TileMoveDemo ready — WASD to step, M movement style, F2 collider overlay");
     }
 
-    void SetupInput()
-    {
-        GetInput().RegisterAction(ActionMoveLeft, "Move_Left", "Move Left", "Movement");
-        GetInput().RegisterAction(ActionMoveRight, "Move_Right", "Move Right", "Movement");
-        GetInput().RegisterAction(ActionMoveUp, "Move_Up", "Move Up", "Movement");
-        GetInput().RegisterAction(ActionMoveDown, "Move_Down", "Move Down", "Movement");
-        GetInput().RegisterAction(ActionDebugPhysics, "Debug_Physics", "Toggle Physics Debug", "Debug");
-        GetInput().RegisterAction(ActionToggleGrid, "Debug_ToggleGrid", "Toggle Grid", "Debug");
-        GetInput().RegisterAction(ActionToggleStyle, "Demo_ToggleMovementStyle", "Toggle Movement Style", "Demo");
-
-        GetInput().BindKey(ActionMoveLeft, Key::A);
-        GetInput().BindKey(ActionMoveRight, Key::D);
-        GetInput().BindKey(ActionMoveUp, Key::W);
-        GetInput().BindKey(ActionMoveDown, Key::S);
-        GetInput().BindKey(ActionDebugPhysics, Key::F2);
-        GetInput().BindKey(ActionToggleGrid, Key::G);
-        GetInput().BindKey(ActionToggleStyle, Key::M);
-    }
 
     // Player: blue square, SmoothTileMovement-driven. ECS-side Collider2D so
     // the QueryTileBlocked path picks it up; broadphase registration so the
@@ -190,7 +165,7 @@ protected:
     // mid-step lands on the nearest tile center so snap steps stay aligned.
     void ToggleMovementStyle()
     {
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         if (world.GetComponent<SnapTileMovement>(_player)) {
             world.RemoveComponent<SnapTileMovement>(_player);
             world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
@@ -202,30 +177,30 @@ protected:
 
         Vec2& p = world.GetTransform(_player)->Position;
         p       = {std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize};
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
         physics.UpdateCollider(physics.FindColliderForEntity(_player), *world.GetComponent<Collider2D>(_player), p);
         LOG_INFO(Game, "Movement: snap");
     }
 
     void OnUpdate(const f32 /*dt*/) override
     {
-        PhysicsWorld& physics = GetScene().GetPhysics();
-        if (GetInput().JustPressed(ActionToggleStyle)) ToggleMovementStyle();
+        PhysicsWorld& physics = GetPhysics();
+        if (GetApp().GetInput().JustPressed(ActionToggleStyle)) ToggleMovementStyle();
 
-        if (GetInput().JustPressed(ActionDebugPhysics)) {
+        if (GetApp().GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
             LOG_INFO(Game, "Physics debug draw: {}", physics.GetDebugDraw() ? "ON" : "OFF");
         }
-        if (GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
+        if (GetApp().GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
     }
 
     void OnRender(FramePacket& packet) override
     {
         packet.AmbientColor = {1.0f, 1.0f, 1.0f, 1.0f};
-        GetScene().GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
+        GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
 
         if (_showGrid) {
-            const Camera2D& cam    = GetScene().GetCamera();
+            const Camera2D& cam    = GetCamera();
             const Vec2      camPos = cam.GetEffectivePosition();
             const Vec2      halfView{
                 (1920.0f / cam.Zoom) * 0.5f,
@@ -233,15 +208,15 @@ protected:
             };
             const AABB viewAABB  = AABB::FromCenterHalfExtents(camPos, halfView);
             const f32  thickness = std::max(1.0f, 1.0f / cam.Zoom);
-            GetScene().GetTileMap().CollectGridDebugDraw(
+            GetTileMap().CollectGridDebugDraw(
                 packet, viewAABB, _whiteTex, _sampler, thickness);
         }
     }
 
-    void OnShutdown() override
+    void OnUnload() override
     {
-        if (_whiteTex.IsValid()) GetDevice().DestroyTexture(_whiteTex);
-        if (_sampler.IsValid()) GetDevice().DestroySampler(_sampler);
+        if (_whiteTex.IsValid()) GetApp().GetDevice().DestroyTexture(_whiteTex);
+        if (_sampler.IsValid()) GetApp().GetDevice().DestroySampler(_sampler);
     }
 
 private:
@@ -251,9 +226,4 @@ private:
     bool          _showGrid = false;
 };
 
-// Entry point — main.cpp calls this when ARCBIT_DEMO_TILEMOVE is selected.
-void RunTileMoveDemo()
-{
-    TileMoveDemo demo;
-    demo.Run();
-}
+std::unique_ptr<Scene> Demo::CreateTileMoveDemo() { return std::make_unique<TileMoveDemo>(); }

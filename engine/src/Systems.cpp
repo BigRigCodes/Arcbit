@@ -863,52 +863,29 @@ namespace
         });
     }
 
+    // Starts, moves, and stops spatial sounds. A source that leaves (entity
+    // destroyed, component removed, scene unloaded) is stopped by Scene's
+    // AudioSource OnRemove hook, not here.
     void RegisterAudioSystem(World& world)
     {
-        // Key: packed entity (Generation << 32 | Index) → opaque ma_sound handle.
-        // The map is the only owner of destroyed entities' handles — once an entity
-        // is gone from the query, this map is the last reference to its sound.
-        using SoundMap = std::unordered_map<u64, void*>;
-
-        world.RegisterSystem("Audio", [sounds = SoundMap{}](Scene& scene, f32 /*dt*/) mutable {
+        world.RegisterSystem("Audio", [](Scene& scene, f32 /*dt*/) {
             // Move the listener with the camera so attenuation is camera-relative.
             AudioManager::SetListenerPosition(scene.GetCamera().GetEffectivePosition());
-
-            std::unordered_set<u64> seen;
 
             scene.GetWorld()
                  .Query<const Transform2D, AudioSource>()
                  .Without<Disabled>()
-                 .ForEach([&](Entity e, const Transform2D& t, AudioSource& src) {
-                     const u64 key = (static_cast<u64>(e.Generation) << 32) | e.Index;
-                     seen.insert(key);
-
-                     // Start a new sound the first time we see a playing source.
-                     if (!src._handle && src.Playing) {
+                 .ForEach([](const Transform2D& t, AudioSource& src) {
+                     if (!src._handle && src.Playing)
                          src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume);
-                         sounds[key] = src._handle;
-                     }
+                     if (!src._handle) return;
 
-                     if (src._handle) {
-                         AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);
-
-                         // Playing set to false at runtime — stop and release.
-                         if (!src.Playing) {
-                             AudioManager::DestroySpatialSound(src._handle);
-                             src._handle = nullptr;
-                             sounds.erase(key);
-                         }
+                     AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);
+                     if (!src.Playing) { // stopped at runtime — release it
+                         AudioManager::DestroySpatialSound(src._handle);
+                         src._handle = nullptr;
                      }
                  });
-
-            // Destroy sounds for entities that were removed since last tick.
-            for (auto it = sounds.begin(); it != sounds.end();) {
-                if (!seen.contains(it->first)) {
-                    AudioManager::DestroySpatialSound(it->second);
-                    it = sounds.erase(it);
-                }
-                else { ++it; }
-            }
         });
     }
 

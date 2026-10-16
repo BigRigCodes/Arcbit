@@ -5,6 +5,8 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/input/InputTypes.h>
 
+#include <algorithm>
+
 namespace Arcbit
 {
 // ---------------------------------------------------------------------------
@@ -90,6 +92,14 @@ void UIManager::Pop()
         top.OnExit();
         _stack.pop_back();
     }
+}
+
+void UIManager::Remove(const UIScreen* screen)
+{
+    const auto it = std::ranges::find_if(_stack, [&](const auto& s) { return s.get() == screen; });
+    if (it == _stack.end()) return;
+    (*it)->OnExit();
+    _stack.erase(it);
 }
 
 UIScreen* UIManager::Top() const { return _stack.empty() ? nullptr : _stack.back().get(); }

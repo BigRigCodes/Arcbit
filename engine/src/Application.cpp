@@ -98,6 +98,8 @@ void Application::ToggleFullscreen()
     Settings::MarkDirty();
 }
 
+void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
+
 void Application::CollectSceneFade(FramePacket& packet) const
 {
     const f32 alpha = _scenes.GetFadeAlpha();

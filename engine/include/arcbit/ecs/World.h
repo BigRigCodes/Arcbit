@@ -193,6 +193,11 @@ public:
             [fn = std::move(fn)](const Entity e, void* component) { fn(e, *static_cast<T*>(component)); });
     }
 
+    // Destroy every entity, running OnRemove hooks for each — Scene's
+    // destructor uses this so components holding outside resources (sounds,
+    // broadphase records) release them. The World's destructor alone doesn't.
+    void DestroyAllEntities();
+
     // Returns true if the entity is alive and its generation matches the table.
     [[nodiscard]] bool IsValid(Entity entity) const;
 
