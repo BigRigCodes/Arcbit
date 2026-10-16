@@ -80,6 +80,19 @@ public:
     // directory. Returns an invalid SpriteSheet on any error — check IsValid().
     [[nodiscard]] static SpriteSheet Load(std::string_view metaPath, TextureManager& textures);
 
+    // Build a spritesheet from already-parsed sprite format JSON and an
+    // already-loaded texture of texW × texH pixels. Load() is file I/O +
+    // texture upload + this; it is public so the format can be parsed and
+    // validated without a render device (tests, editor tooling). sourceName
+    // is only used in log messages. Returns an invalid SpriteSheet when the
+    // version is missing or unsupported, or the texture is invalid / empty.
+    [[nodiscard]] static SpriteSheet FromJson(const nlohmann::json& json, TextureHandle texture,
+                                              u32 texW, u32 texH, std::string_view sourceName = "<json>");
+
+    // The format's major version this loader understands. "1", "1.0", "1.3"
+    // are accepted; "2.0" or a non-string version is rejected.
+    static constexpr std::string_view SupportedMajorVersion = "1";
+
     [[nodiscard]] bool          IsValid()          const { return _texture.IsValid(); }
     [[nodiscard]] TextureHandle GetTexture()       const { return _texture; }
     [[nodiscard]] Vec2          TexturePixelSize() const { return _texturePixelSize; }

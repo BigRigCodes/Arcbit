@@ -72,6 +72,31 @@ UISkin UISkin::LoadFromFile(const std::string_view path)
         skin.ScrollThumb        = GetColor(sb, "thumb", skin.ScrollThumb);
         skin.ScrollThumbHovered = GetColor(sb, "thumbHovered", skin.ScrollThumbHovered);
     }
+    if (j.contains("input")) {
+        const auto& in        = j["input"];
+        skin.InputBg          = GetColor(in, "background", skin.InputBg);
+        skin.InputBorder      = GetColor(in, "border", skin.InputBorder);
+        skin.InputFocusBorder = GetColor(in, "focusBorder", skin.InputFocusBorder);
+        skin.InputCursor      = GetColor(in, "cursor", skin.InputCursor);
+        skin.InputPlaceholder = GetColor(in, "placeholder", skin.InputPlaceholder);
+    }
+    if (j.contains("slider")) {
+        const auto& sl          = j["slider"];
+        skin.SliderThumb        = GetColor(sl, "thumb", skin.SliderThumb);
+        skin.SliderThumbHovered = GetColor(sl, "thumbHovered", skin.SliderThumbHovered);
+    }
+    if (j.contains("checkbox")) {
+        const auto& cb       = j["checkbox"];
+        skin.CheckboxBg      = GetColor(cb, "background", skin.CheckboxBg);
+        skin.CheckboxHovered = GetColor(cb, "hovered", skin.CheckboxHovered);
+        skin.CheckboxCheck   = GetColor(cb, "check", skin.CheckboxCheck);
+    }
+    if (j.contains("switch")) {
+        const auto& sw   = j["switch"];
+        skin.SwitchOn    = GetColor(sw, "on", skin.SwitchOn);
+        skin.SwitchOff   = GetColor(sw, "off", skin.SwitchOff);
+        skin.SwitchThumb = GetColor(sw, "thumb", skin.SwitchThumb);
+    }
     skin.AccentColor = GetColor(j, "accentColor", skin.AccentColor);
     // Accept legacy "overlayColor" key as a fallback so existing skin files keep working.
     skin.ScrimColor = GetColor(j, "scrimColor",
@@ -109,6 +134,17 @@ bool UISkin::SaveToFile(const std::string_view path) const
         {"thumb", ColorToJson(ScrollThumb)},
         {"thumbHovered", ColorToJson(ScrollThumbHovered)}
     };
+    j["input"] = {
+        {"background", ColorToJson(InputBg)}, {"border", ColorToJson(InputBorder)},
+        {"focusBorder", ColorToJson(InputFocusBorder)}, {"cursor", ColorToJson(InputCursor)},
+        {"placeholder", ColorToJson(InputPlaceholder)}
+    };
+    j["slider"]   = {{"thumb", ColorToJson(SliderThumb)}, {"thumbHovered", ColorToJson(SliderThumbHovered)}};
+    j["checkbox"] = {
+        {"background", ColorToJson(CheckboxBg)}, {"hovered", ColorToJson(CheckboxHovered)},
+        {"check", ColorToJson(CheckboxCheck)}
+    };
+    j["switch"] = {{"on", ColorToJson(SwitchOn)}, {"off", ColorToJson(SwitchOff)}, {"thumb", ColorToJson(SwitchThumb)}};
     j["accentColor"] = ColorToJson(AccentColor);
     j["scrimColor"]  = ColorToJson(ScrimColor);
     j["sounds"] = {

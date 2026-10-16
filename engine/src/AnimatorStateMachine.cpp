@@ -91,11 +91,9 @@ void AnimatorStateMachine::TransitionTo(const std::string_view stateName)
 
 bool AnimatorStateMachine::EvaluateCondition(const AnimatorCondition& cond) const
 {
+    // Unset parameters read as 0 (false / not triggered); see _params.
     const auto it = _params.find(cond.Name);
-    if (it == _params.end())
-        return false;
-
-    const f32 v = it->second;
+    const f32  v  = it != _params.end() ? it->second : 0.0f;
     using Op = AnimatorCondition::Op;
     switch (cond.Cmp)
     {

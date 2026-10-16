@@ -3,6 +3,7 @@
 #include <arcbit/assets/AssetTypes.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/physics/Collider2D.h>
 #include <arcbit/render/RenderHandle.h>
 
 #include <functional>

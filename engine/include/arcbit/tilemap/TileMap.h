@@ -4,15 +4,21 @@
 #include <arcbit/tilemap/TileDef.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/physics/TileColliderRect.h>
 #include <arcbit/render/RenderHandle.h>
+
+#include <nlohmann/json_fwd.hpp>
 
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
+
 namespace Arcbit
 {
+struct FramePacket;
+
 // 16×16 grid of tile IDs per layer. ID 0 = empty cell.
 constexpr u32 ChunkSize  = 16;
 constexpr u32 LayerCount = 3;
@@ -59,7 +65,8 @@ public:
     // World-space center of a tile.
     [[nodiscard]] Vec2 TileToWorld(i32 tileX, i32 tileY) const;
 
-    // Tile coordinate containing a world-space point.
+    // Tile coordinate containing a world-space point. Tiles are centered on
+    // TileToWorld, so tile t spans [(t - 0.5), (t + 0.5)) tile sizes.
     void WorldToTile(Vec2 worldPos, i32& outX, i32& outY) const;
 
     [[nodiscard]] bool IsSolid(i32 tileX, i32 tileY) const;
@@ -73,6 +80,35 @@ public:
     [[nodiscard]] const std::unordered_map<u64, TileChunk>& GetChunks() const;
     [[nodiscard]] const TileAtlasEntry*                     FindAtlas(u32 tileId) const;
     [[nodiscard]] const TileDef*                            FindTileDef(u32 tileId) const;
+
+    // ---- Tile collision (Phase 22A) ---------------------------------------
+    // Returns the greedy-meshed solid rectangles for the given chunk. Built
+    // lazily on first request and cached; the cache for a chunk is invalidated
+    // automatically by SetTile when that chunk changes. Empty result for chunks
+    // with no solid tiles or chunks that have not been allocated.
+    [[nodiscard]] const std::vector<TileColliderRect>& GetChunkColliders(i32 chunkX,
+                                                                         i32 chunkY) const;
+
+    // Constants exposed so PhysicsWorld can compute the chunk range overlapping
+    // a query AABB without duplicating the chunk-coord math.
+    [[nodiscard]] static constexpr u32 GetChunkSize() { return ChunkSize; }
+
+    // ---- Debug overlays (developer/editor tool) ---------------------------
+    // Emit a tile-grid overlay covering the given world-space view rect.
+    // Lines fall on tile *edges* (which sit halfway between adjacent tile
+    // centers, since TileToWorld returns a tile's center).
+    //
+    // Caller supplies a 1×1 white texture + sampler — the engine UI white
+    // texture (RenderThread::GetUIWhiteTexture) is the conventional source.
+    // Defaults give a faint white grid on layer 999999 (above tilemap and
+    // entities, below physics debug). Adjust per demo / editor as needed.
+    void CollectGridDebugDraw(FramePacket&        packet,
+                              const AABB&         viewAABB,
+                              TextureHandle       whiteTex,
+                              SamplerHandle       whiteSampler,
+                              f32                 lineThickness = 1.0f,
+                              Color               color         = { 1.0f, 1.0f, 1.0f, 0.25f },
+                              i32                 layer         = 999999) const;
 
     // Log a summary of the current map state: chunk count, tile counts per layer,
     // registered atlases, and registered tile defs. Use after map generation.
@@ -96,10 +132,48 @@ public:
                        SamplerHandle   sampler, std::string_view samplerName,
                        TextureManager& textures);
 
+    // ---- JSON (de)serialization -------------------------------------------
+    // The file-level functions above are I/O + texture loading wrapped around
+    // these, which are public so the formats can be parsed and validated
+    // without a render device (tests, editor tooling). Include
+    // <nlohmann/json.hpp> to call them.
+
+    // Parse one entry of a .tileatlas.json "tiles" array into a TileDef:
+    // solid, blocks_light, flat, uv_scroll {x, y}, layer (bitmask),
+    // blocked_from [{center, half_width}], and animation
+    // [{local_id, duration_ms}]. Missing keys keep TileDef defaults. The
+    // entry's own local_id is read by the caller.
+    //
+    // Flip-book frames name cells of the same atlas by local_id, like the
+    // rest of the file; atlasColumns × atlasRows converts them to the grid
+    // coordinates TileAnimFrame stores. Frames without a local_id, or outside
+    // the atlas, are dropped with a warning.
+    [[nodiscard]] static TileDef ParseTileDef(const nlohmann::json& tile, u32 atlasColumns, u32 atlasRows);
+
+    // The .arcmap document for the current state: version, tile_size, the
+    // registered atlases (base_id / path / sampler) and every allocated chunk.
+    [[nodiscard]] nlohmann::json ToJson() const;
+
+    // Apply tile_size and chunk data from an .arcmap document. Atlases are not
+    // touched — LoadMap registers them first, since that needs textures.
+    // Every chunk is validated before anything changes: x / y must be
+    // integers and each layer array at most ChunkSize² non-negative integers
+    // (shorter arrays leave the remaining cells empty; a missing layer is
+    // empty). Returns false, leaving the map unchanged, on any violation.
+    [[nodiscard]] bool LoadTilesFromJson(const nlohmann::json& map);
+
 private:
     [[nodiscard]] static u64       ChunkKey(i32 chunkX, i32 chunkY);
     TileChunk&                     GetOrCreateChunk(i32 chunkX, i32 chunkY);
     [[nodiscard]] const TileChunk* GetChunk(i32 chunkX, i32 chunkY) const;
+
+    // Picks the first solid TileDef across layers (Ground → Objects → Overlay)
+    // for one cell, or nullptr if no layer is solid. Used by the greedy mesher.
+    [[nodiscard]] const TileDef* GetCollisionDef(i32 tileX, i32 tileY) const;
+
+    // Build (or rebuild) the greedy-meshed collider list for one chunk.
+    void BuildChunkColliders(i32 chunkX, i32 chunkY,
+                             std::vector<TileColliderRect>& out) const;
 
     f32 _tileSize = 32.0f;
 
@@ -107,5 +181,9 @@ private:
     std::vector<TileAtlasEntry>        _atlases;
     std::unordered_map<u32, TileDef>   _tileDefs;
     std::unordered_map<u64, TileChunk> _chunks;
+
+    // Per-chunk greedy-meshed collider cache. `mutable` so GetChunkColliders
+    // can lazy-fill while staying const. Invalidated by SetTile.
+    mutable std::unordered_map<u64, std::vector<TileColliderRect>> _chunkColliders;
 };
 } // namespace Arcbit

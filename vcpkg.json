@@ -10,6 +10,7 @@
         "spdlog",
         "nlohmann-json",
         "stb",
-        "miniaudio"
+        "miniaudio",
+        "catch2"
     ]
 }

@@ -12,6 +12,14 @@ For a road map and current progress, see the [Blueprint](./BLUEPRINT.md).
 This project is designed with cmake and vcpkg in mind. Tested via CLion on windows only at this stage.
 Currently, the [CMakePresets](./CMakePresets.json) file has the path to my installed vcpkg hardcoded, as with the Vulkan SDK. Bare that in mind if you clone this repo.
 
+vcpkg dependencies are built with the overlay triplet in [cmake/triplets](./cmake/triplets), which pins them to the Visual Studio 2022 (v143) toolset the project compiles with. Update it alongside any compiler upgrade.
+
+### Tests
+
+Unit tests live in [tests/](./tests) (Catch2 v3) and build as `arcbit-tests` alongside the game. They are headless — no window or GPU device. Run them from the build directory with `ctest --output-on-failure`, run `bin/arcbit-tests` directly, or use the IDE's test runner. Set `-DARCBIT_BUILD_TESTS=OFF` to skip them.
+
+Keep `TEST_CASE` / `SECTION` names ASCII — CTest on Windows passes them back to the test runner as filters and mangles non-ASCII characters, so such a test reports as failed. Tests tagged `[shipped]` validate the real files under `engine/assets` and `game/assets` in place.
+
 ---
 
 ## Credits
@@ -25,6 +33,8 @@ Nothing could be possible without the following.
 - spdlog
 - nlohmann-json
 - stb
+- miniaudio
+- Catch2 (tests)
 
 #### Documentation
 - Ahem, thanks to AI for helping write all the comments documenting code...

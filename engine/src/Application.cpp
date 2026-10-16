@@ -112,6 +112,7 @@ void Application::Run()
 
     // Create the scene before OnStart so game code can use GetScene() immediately.
     _scene = std::make_unique<Scene>();
+    _scene->SetInput(&_input); // drives InputMovementSystem
 
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
@@ -146,12 +147,11 @@ void Application::Run()
                 .DebugName = "EngineSplashSampler",
             });
             auto splash = std::make_unique<SplashScreen>();
-            splash->Entries.push_back({ splashTex, splashSampler, 8.0f, 0.5f, 0.5f });
+            splash->Entries.push_back({splashTex, splashSampler, 8.0f, 0.5f, 0.5f});
             splash->OnComplete = [this] { _ui.Pop(); };
             _ui.Push(std::move(splash));
-        } else {
-            LOG_WARN(Engine, "Engine splash image not found — skipping splash screen");
         }
+        else { LOG_WARN(Engine, "Engine splash image not found — skipping splash screen"); }
     }
 
     // Route Window input events to InputManager so JustPressed/JustReleased are
@@ -212,10 +212,13 @@ void Application::Run()
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
-                if (_scene) _scene->Update(_fixedTimestep);
+                if (_scene) {
+                    _scene->SetInputBlocked(_ui.HasBlockingScreen()); // e.g. an input-capturing overlay
+                    _scene->Update(_fixedTimestep);
+                }
             }
             _ui.Update(_fixedTimestep,
-                       { static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) },
+                       {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
             accumulator -= static_cast<f64>(_fixedTimestep);
         }
@@ -233,7 +236,7 @@ void Application::Run()
             if (_scene) _scene->CollectRenderData(packet);
         }
         _ui.CollectRenderData(packet,
-            { static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) });
+                              {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())});
 
         // Capture tilemap stats from the packet before the move — the tilemap
         // system populates these during CollectRenderData on the game thread.
@@ -262,10 +265,10 @@ void Application::Run()
         // recent frame's render statistics from the render thread.
         ++fpsFrameCount;
         if (const f64 fpsElapsed = Duration(Clock::now() - fpsWindowStart).count(); fpsElapsed >= 1.0) {
-            _renderStats            = _renderThread.GetStats();
-            _renderStats.FPS        = static_cast<f32>(static_cast<f64>(fpsFrameCount) / fpsElapsed);
-            fpsFrameCount  = 0;
-            fpsWindowStart = Clock::now();
+            _renderStats     = _renderThread.GetStats();
+            _renderStats.FPS = static_cast<f32>(static_cast<f64>(fpsFrameCount) / fpsElapsed);
+            fpsFrameCount    = 0;
+            fpsWindowStart   = Clock::now();
         }
 
         // --- Asset hot-reload ------------------------------------------------

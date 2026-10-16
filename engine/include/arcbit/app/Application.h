@@ -117,9 +117,10 @@ public:
     [[nodiscard]] f32 GetFPS() const { return _renderStats.FPS; }
 
 protected:
-    
     void RequestShutdown() { _shouldShutdown = true; }
     
+    void ToggleDebugGrid() { _showGrid = !_showGrid; }
+
     // -----------------------------------------------------------------------
     // Game hooks — override these in your Application subclass.
     // -----------------------------------------------------------------------
@@ -154,6 +155,8 @@ protected:
 
     // The engine's built-in SDF debug font — Roboto loaded at engine startup.
     [[nodiscard]] const FontAtlas& GetDebugFont() const { return _debugFont; }
+    
+    bool        _showGrid = false;
 
 private:
     ApplicationConfig _config;
@@ -177,7 +180,8 @@ private:
 
     FontAtlas   _debugFont;
     RenderStats _renderStats{};
-    UIManager   _ui;
+
+    UIManager _ui;
 
     std::unique_ptr<Scene>          _scene;
     RenderDevice*                   _device = nullptr;

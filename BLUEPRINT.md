@@ -7,6 +7,8 @@ Checkbox list of every major milestone. Check off items as they are completed.
 ## Phase 0: Foundation
 - [x] CMake project structure (root, core, engine, game, backends/vulkan)
 - [x] vcpkg manifest + CMakePresets (SDL3, spdlog, VMA)
+- [x] **Unit test project** — `tests/` → `arcbit-tests` (Catch2 v3 via vcpkg), registered with CTest; headless (no window / render device). The debug-only startup `*SelfTest()` functions (World, SpatialHash, PhysicsWorld, Narrowphase, Sweep, DirectionArc, ContactTracker) were migrated into test cases and removed from the engine. New code gets tests alongside it — starting with 22H's movement controllers
+- [x] vcpkg overlay triplet (`cmake/triplets/x64-windows.cmake`) pins ports to the project's v143 toolset — prevents newer-Visual-Studio-built ports from failing to link
 
 ---
 
@@ -79,7 +81,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 
 ## Phase 9: Input System
 - [x] `Action` registry — map named actions (`"Move_Left"`, `"Interact"`) to one or more bindings
-- [x] Binding types: keyboard key, mouse button, gamepad button, gamepad axis (with deadzone)
+- [x] Binding types: keyboard key, mouse button, gamepad button, gamepad axis (with deadzone; whole axis or one half via `AxisHalf`, Phase 22H)
 - [x] `InputManager::IsPressed(Action)` / `JustPressed` / `JustReleased` / `AxisValue`
 - [x] Keyboard + mouse support via SDL3 event stream
 - [x] Gamepad / controller support via SDL3 `SDL_Gamepad` API (hot-plug add/remove)
@@ -94,6 +96,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 - [x] Audio settings: master volume, music volume, SFX volume
 - [x] Input settings: persist action→binding map from Phase 9; apply on load
 - [x] `Settings::Get<T>` / `Set<T>` typed accessors with dirty-flag auto-save
+- [ ] Persist only rebound actions — `SaveInputBindings` writes every action's bindings on shutdown, and `LoadInputBindings` replaces the code's defaults with them. So a default changed in code never reaches an existing settings file (hit in 22H: WorldDemo's broken stick bindings had to be deleted from `settings.json` by hand), and demos sharing one file inherit each other's bindings (TileMoveDemo picks up WorldDemo's arrow keys and stick). Snapshot the defaults at startup, save only actions that differ, and give actions with no saved entry their code defaults. A per-game settings path would also keep the demos apart
 
 ---
 
@@ -158,12 +161,12 @@ Controller components drive *where* an entity wants to move; style components
 define *how* it gets there. Any controller pairs with any style.
 
 **Controller components** (who decides the destination):
-- [ ] `InputMovement` — reads input bindings each tick; converts pressed directions into movement requests (deferred — WASD drives FreeMovement directly from game code for now)
-- [ ] `AIMovement` — driven by pathfinding / behavior system; pushes movement requests programmatically (Phase 30)
+- [x] `InputMovement` — reads input bindings each tick; converts pressed directions into a `MoveIntent` (Phase 22H)
+- [ ] `AIMovement` — driven by pathfinding / behavior system; writes the same `MoveIntent` programmatically (struct declared, no system yet — Phase 30)
 
 **Style components** (how the entity actually moves):
 - [x] `SmoothTileMovement` — lerps from tile center to tile center; plays a walk animation mid-transit; next input queued but not consumed until landing
-- [ ] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; useful for puzzle / grid games
+- [x] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; a held direction repeats every `StepInterval`; useful for puzzle / grid games (Phase 22H)
 - [x] `FreeMovement` — pixel-perfect world-space velocity; not tile-aligned; intended for live-combat sections where precise sub-tile positioning matters
 
 **Usage examples:**
@@ -241,22 +244,94 @@ define *how* it gets there. Any controller pairs with any style.
 
 ---
 
-## Phase 22: 2D Physics
-- [ ] Physics library integration (Box2D v3 via vcpkg)
-- [ ] `PhysicsWorld` — fixed-timestep update, gravity config
-- [ ] `Rigidbody2D` + `Collider2D` ECS components (AABB / circle)
-- [ ] Collision event callbacks (enter / stay / exit) forwarded to ECS systems
-- [ ] Debug draw overlay (wireframe collider shapes)
+## Phase 22: 2D Collision
+*Custom kinematic-first collision system — no rigid-body dynamics. Full design
+in `docs/physics.md`. Covers tile collision, sub-tile entity colliders,
+directional arc gating, optional rotation, triggers, and per-style movement
+integration. Box2D was reconsidered and rejected — see `docs/physics.md`
+"Library Choice" for rationale.*
+
+### Phase 22A — Core types & static collision ✓
+- [x] `BodyKind`, `Collider2D` (Box / Circle, `Rotation` for OBB later, `Layer` / `Mask`, `IsTrigger`) headers + ECS registration
+- [x] `SpatialHash` (uniform grid keyed on tile size) with insert / remove / query
+- [x] `PhysicsWorld` skeleton — owns the hash and the tilemap pointer; tick stub
+- [x] AABB↔AABB and AABB↔Circle narrowphase (rotation==0 fast path)
+- [x] Tile-synthesized colliders from `TileDef.Solid`, with **greedy-mesh** rectangle merging per chunk; rebuild on tile mutation
+- [x] Engine default collision layers (`Default`, `Player`, `NPC`, `Enemy`, `Wall`, `Prop`, `Pickup`, `Projectile`, `Trigger`); user layers extensible from bit 9 upward
+- [x] Debug draw — runtime `PhysicsDebugDraw` flag (kinematic green / static red); toggled from a dev key binding in demo, from the editor IPC channel in Phase 40. **Not** a player-facing setting.
+
+### Phase 22B — `FreeMovement` collision ✓
+- [x] `PendingMove` component + `FreeMovementIntegrateSystem` writes desired delta into it
+- [x] `CollisionResolutionSystem` — swept resolution, slide along contact normal, one re-sweep
+- [x] `Layer` / `Mask` filtering applied in narrowphase
+- [x] Demo: player can't walk through trees / rocks; slides cleanly along walls
+
+### Phase 22C — Tile movement collision ✓
+- [x] `PhysicsWorld::QueryTileBlocked(entity, targetTile)` for the plan-then-commit flow
+- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` and `SnapTileMovement` (22H) with the query before a tile transition is committed
+- [x] Demo: tile-style player can't enter solid tiles; queued-input-during-transit semantics preserved
+
+### Phase 22D — Directional collision (arcs) ✓
+- [x] `DirectionArc` type (`{ centerDeg, halfWidthDeg }`) + preset library (`AllDirections`, `Vertical`, `Horizontal`, `NorthOnly`, ...)
+- [x] Narrowphase emits a contact direction; arc check filters blocking contacts. Arcs evaluated in the collider's **local frame** so they rotate with the body
+- [x] `TileDef.BlockedFrom` field (vector of arcs); tile-loader / atlas-spec support
+- [x] Demos: `ArcDemo` (free movement — bush `Horizontal()`, one-way platform `SouthOnly()`, tree as offset stump collider) and `TileMoveArcDemo` (tile movement — canopy/trunk tree pair, bush, `NorthOnly()` cliff strip)
+
+### Phase 22E — Rotated colliders (OBB) ✓
+- [x] OBB↔OBB narrowphase (SAT) and OBB↔Circle (transform-into-local)
+- [x] OBB sweep — substepping fallback for Phase 22 (split into N small AABB-of-OBB-bounds steps); promote to true OBB sweep only if profiling demands. Rotation is rare.
+- [x] Demo (`ObbDemo`): diagonal wall slide, rotated chest, thin plank, spinning gate whose directional arc rotates with it
+
+### Phase 22F — Triggers & events ✓
+- [x] `IsTrigger` flag on `Collider2D`
+- [x] `TriggerCallback` and `CollisionCallback` ECS components
+- [x] Per-pair persistent set diffed each tick → `OnEnter` / `OnExit` (and `OnStay` for triggers only)
+- [x] Demo (`TriggerDemo`): warp door teleports on enter, hazard zone Enter/Stay/Exit, NPC bump `CollisionCallback` in tile and free movement
+
+### Phase 22G — Polish & integration
+*Parked: two of three items wait on Phase 24 (Event Bus) and Phase 40 (editor). Execution order after 22F is **22H**, then the partial-move item here; the rest closes out when its dependency lands.*
+- [ ] Optional `SmoothTileMovement.AllowPartialMove` — sub-tile stop policy for the rare scenes that want it
+- [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`, `Trigger.Entered`, `Trigger.Exited`) — wired when Phase 24 lands; callback API is the integration surface until then
+- [ ] Editor integration (Phase 40) — collider authoring panel, live preview, directional-arc arrows on the canvas
+
+### Phase 22H — Movement controllers ✓
+*Replaces the hand-rolled WASD blocks copy-pasted across the demos with the controller → style pipeline designed in Phase 16 (`docs/ecs.md` "Movement"). Lands after 22F; does not wait on 22G.*
+- [x] `InputMovementSystem` — reads `InputMovement` actions into a `MoveIntent`; style systems turn it into `FreeMovement.Velocity` (diagonals normalized) or `SmoothTileMovement.QueuedDir` (cardinal-only). Reads all actions as released while a `BlocksInput` screen is up
+- [x] Defined two-key tie-break for tile styles: the most recently pressed key wins everywhere — across axes (X when both go down together) and between opposite keys on one axis, for free movers too
+- [x] Resolve `InputMovement.Speed` unit ambiguity — removed; style components own their speed (`FreeMovement.Speed` px/s, `SmoothTileMovement.Speed` tiles/s, `SnapTileMovement.StepInterval` s)
+- [x] Expose the resolved move direction on the entity — `MoveIntent.Direction` plus `MoveIntent.Facing` (last nonzero direction)
+- [x] `SnapTileMoveSystem` — plan-then-commit via `PhysicsWorld::QueryTileBlocked`, instant `Transform2D` write + broadphase refresh; a fresh press steps at once, a held one repeats every `StepInterval`
+- [x] Intent path shared so `AIMovementSystem` (Phase 30) plugs in without touching the style systems — it writes `MoveIntent` like `InputMovementSystem` does
+- [x] Migrate `PhysicsDemo`, `ArcDemo`, `ObbDemo`, `TileMoveDemo`, `TileMoveArcDemo`, `TriggerDemo`, `WorldDemo` to `InputMovement`; M toggles smooth / snap in `TileMoveDemo`
+- [x] Update `docs/ecs.md` movement section and built-in system table
+- [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
 ---
 
 ## Phase 23: Scene Management
-- [ ] `Scene` class — owns an ECS world, tilemap, active lights, and camera
-- [ ] `SceneManager` — load / unload / transition between scenes
-- [ ] Async streaming: load next scene in background while current scene is still running
-- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21)
-- [ ] Scene stack for overlays (e.g. pop up an inventory screen over the world without unloading it)
+*`Scene` already exists from Phase 16 (ECS world, camera, `WorldConfig`, `TileMap`, lazily-created `PhysicsWorld`; lights are entities), but `Application` owns exactly one for the whole run. This phase makes scenes swappable, then uses that for a demo switcher and a proper boot flow.*
+
+**Foundations**
+- [ ] Entity destroy cleanup — only `LifetimeSystem` unregisters a destroyed entity's collider today; any other `DestroyEntity` leaves a stale broadphase record that keeps blocking movers and overlapping triggers. One destroy path (hook or `Scene::DestroyEntity`) that every caller goes through, and scene unload releases everything at once
+- [ ] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds
+
+**SceneManager**
+- [ ] `SceneManager` — load / unload / switch the active scene; `Application` drives the active one instead of owning a single `Scene`
+- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21) — every scene change fades the outgoing scene out *and the incoming one in*
+- [ ] Async streaming: load the next scene in the background while the current one keeps running
+- [ ] Scene stack — a scene suspended under another without unloading (e.g. a battle scene over the overworld, resumed with state intact). UI overlays like inventory stay on the UI screen stack
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 37)
+
+**Demo switcher**
+- [ ] Each demo becomes a scene registered in one `Application`; a demo-select menu plus a hotkey switches between them in one run. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp` and doubles as the load / unload / transition test bed
+
+**Boot flow** — engine splash → game splash(es) → title screen → gameplay
+- [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading
+- [ ] Hand-off into the first scene fades in. Today the splash fades its image to black, pops, and the world appears at full brightness in one frame (skipping cuts straight to it)
+- [ ] Engine splash is engine-owned: its content and timing are defined inside the engine, not exposed to games. Games append their own splash entries after it but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
+- [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
+- [ ] Title screen as the default first stop after the splashes (`MainMenuScreen` exists; it becomes the boot flow's destination rather than something each game wires by hand)
+- [ ] Credits screen — data-driven scrolling credits (sections, names, optional logos), reachable from the title screen and usable as an end-of-game roll
 
 ---
 
@@ -427,11 +502,17 @@ define *how* it gets there. Any controller pairs with any style.
 
 ## Phase 35: Cutscene & Event Sequence System
 - [ ] `EventSequence` — ordered list of timed commands (timeline-style)
-- [ ] Command types: `MoveCameraTo`, `PanCamera`, `PlayAnimation`, `PlaySound`, `ShowDialog`, `FadeScreen`, `WaitSeconds`, `WaitForInput`, `SetFlag`, `RunLua`, `PublishEvent`
+- [ ] Command types: `MoveCameraTo`, `PanCamera`, `PlayAnimation`, `PlaySound`, `PlayVideo`, `ShowDialog`, `FadeScreen`, `WaitSeconds`, `WaitForInput`, `SetFlag`, `RunLua`, `PublishEvent`
 - [ ] `EventTrigger` tile/entity property — starts a named sequence when entered or interacted with
 - [ ] Sequence authoring in JSON; imported and previewed in editor (Phase 40)
 - [ ] Skippable flag per sequence (skip jumps to end, fires all `SetFlag` / `RunLua` / `PublishEvent` commands immediately)
 - [ ] Supports both in-engine cutscenes and background story events (no camera override needed)
+
+**Video playback** — pre-rendered cutscenes, an animated engine splash intro (Phase 23 boot flow), looping title backgrounds
+- [ ] Choose codec + container with licensing in mind: royalty-free formats (e.g. VP9 / AV1 in WebM, or Theora) over H.264 / H.265; prefer a permissively licensed decoder over linking all of FFmpeg
+- [ ] `VideoPlayer` — decode on a worker thread, upload frames into a streaming texture, route the audio track through `AudioManager`, keep video synced to the audio clock
+- [ ] Fullscreen `VideoScreen` (skippable, `BlocksGame`) and a `Video` UI widget for in-layout playback
+- [ ] `PlayVideo` sequence command (above) and a video entry type for the splash sequence
 
 ---
 

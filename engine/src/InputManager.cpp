@@ -191,6 +191,22 @@ f32 NormalizeAxis(const i16 raw)
         : static_cast<f32>(raw)  / 32768.0f;
 }
 
+// Short label for an axis binding, e.g. "LS-X" or, for one half, "LS-Left".
+std::string AxisToString(const GamepadAxis axis, const AxisHalf half)
+{
+    const bool  isX  = axis == GamepadAxis::LeftX || axis == GamepadAxis::RightX;
+    const char* side = half == AxisHalf::Positive ? (isX ? "Right" : "Down")
+                     : half == AxisHalf::Negative ? (isX ? "Left" : "Up")
+                     : (isX ? "X" : "Y");
+    switch (axis) {
+        case GamepadAxis::LeftX:
+        case GamepadAxis::LeftY:  return std::string("LS-") + side;
+        case GamepadAxis::RightX:
+        case GamepadAxis::RightY: return std::string("RS-") + side;
+        default: return "Axis?";
+    }
+}
+
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -274,13 +290,7 @@ std::string InputManager::BindingToString(const Binding& b)
                 default: return "Pad?";
             }
         case Binding::Type::GamepadAxis:
-            switch (b.BoundAxis) {
-                case GamepadAxis::LeftX:  return "LS-X";
-                case GamepadAxis::LeftY:  return "LS-Y";
-                case GamepadAxis::RightX: return "RS-X";
-                case GamepadAxis::RightY: return "RS-Y";
-                default: return "Axis?";
-            }
+            return AxisToString(b.BoundAxis, b.Half);
         default: return "---";
     }
 }
@@ -331,9 +341,10 @@ void InputManager::BindGamepadButton(const ActionID action, const GamepadButton 
     GetOrCreate(action).Bindings.push_back(Binding::FromGamepadButton(button));
 }
 
-void InputManager::BindGamepadAxis(const ActionID action, const GamepadAxis axis, const f32 deadzone)
+void InputManager::BindGamepadAxis(const ActionID action, const GamepadAxis axis, const AxisHalf half,
+                                   const f32 deadzone)
 {
-    GetOrCreate(action).Bindings.push_back(Binding::FromGamepadAxis(axis, deadzone));
+    GetOrCreate(action).Bindings.push_back(Binding::FromGamepadAxis(axis, half, deadzone));
 }
 
 void InputManager::ClearBindings(const ActionID action)
@@ -766,11 +777,9 @@ f32 InputManager::EvaluateBinding(const Binding& binding) const
             for (const auto& handle : _gamepads | std::views::values)
             {
                 const i16 raw  = SDL_GetGamepadAxis(static_cast<SDL_Gamepad*>(handle), sdlAxis);
-                f32 norm = NormalizeAxis(raw);
-                if (std::abs(norm) < binding.Deadzone)
-                    norm = 0.0f;
-                if (std::abs(norm) > std::abs(best))
-                    best = norm;
+                const f32 value = binding.ShapeAxis(NormalizeAxis(raw));
+                if (std::abs(value) > std::abs(best))
+                    best = value;
             }
             return best;
         }

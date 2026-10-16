@@ -2,8 +2,10 @@
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Log.h>
 
+#include <algorithm>
 #include <cmath>
 #include <ranges>
+#include <utility>
 
 namespace Arcbit {
 
@@ -41,17 +43,65 @@ ComponentArray CreateArray(const ComponentTypeID id)
 // ComponentArray
 // ---------------------------------------------------------------------------
 
+ComponentArray::~ComponentArray() { DestroyAll(); }
+
+ComponentArray::ComponentArray(ComponentArray&& other) noexcept
+    : _data(std::move(other._data)),
+      _elementSize(other._elementSize),
+      _count(std::exchange(other._count, 0u)),
+      _capacity(std::exchange(other._capacity, 0u)),
+      _defaultConstruct(std::move(other._defaultConstruct)),
+      _destruct(std::move(other._destruct)),
+      _moveConstruct(std::move(other._moveConstruct))
+{}
+
+ComponentArray& ComponentArray::operator=(ComponentArray&& other) noexcept
+{
+    if (this == &other) return *this;
+    DestroyAll();
+    _data             = std::move(other._data);
+    _elementSize      = other._elementSize;
+    _count            = std::exchange(other._count, 0u);
+    _capacity         = std::exchange(other._capacity, 0u);
+    _defaultConstruct = std::move(other._defaultConstruct);
+    _destruct         = std::move(other._destruct);
+    _moveConstruct    = std::move(other._moveConstruct);
+    return *this;
+}
+
+void ComponentArray::DestroyAll() noexcept
+{
+    for (u32 i = 0; i < _count; ++i) _destruct(GetRaw(i));
+    _count = 0;
+}
+
+void* ComponentArray::AppendSlot()
+{
+    if (_count == _capacity) Reallocate(std::max(8u, _capacity * 2u));
+    return GetRaw(_count);
+}
+
+void ComponentArray::Reallocate(const u32 newCapacity)
+{
+    std::vector<u8> fresh(static_cast<usize>(newCapacity) * _elementSize);
+    for (u32 i = 0; i < _count; ++i) {
+        u8* dst = fresh.data() + static_cast<usize>(i) * _elementSize;
+        _moveConstruct(dst, GetRaw(i));
+        _destruct(GetRaw(i));
+    }
+    _data.swap(fresh);
+    _capacity = newCapacity;
+}
+
 void ComponentArray::PushDefault()
 {
-    _data.resize(_data.size() + _elementSize);
-    _defaultConstruct(GetRaw(_count));
+    _defaultConstruct(AppendSlot());
     ++_count;
 }
 
 void ComponentArray::MoveFrom(const u32 srcIndex, ComponentArray& src)
 {
-    _data.resize(_data.size() + _elementSize);
-    _moveConstruct(GetRaw(_count), src.GetRaw(srcIndex));
+    _moveConstruct(AppendSlot(), src.GetRaw(srcIndex));
     ++_count;
 }
 
@@ -64,8 +114,7 @@ void ComponentArray::SwapRemove(const u32 index)
         _moveConstruct(GetRaw(index), GetRaw(last));
     }
     _destruct(GetRaw(last));
-    _data.resize(_data.size() - _elementSize);
-    --_count;
+    --_count; // slot stays allocated for reuse
 }
 
 // ---------------------------------------------------------------------------

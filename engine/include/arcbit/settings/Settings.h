@@ -2,9 +2,13 @@
 
 #include <arcbit/core/Types.h>
 
+#include <cmath>
+#include <limits>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace Arcbit {
@@ -124,14 +128,20 @@ public:
     // -----------------------------------------------------------------------
 
     // Returns the stored value for key, or defaultValue if not found.
-    // Type must match what was passed to Set<T>(); mismatches return the default.
+    //
+    // Numbers convert between i32 / u32 / f32: JSON has a single number type,
+    // so a value written by Set<u32> can be read back from the file as an i32
+    // (and vice versa). An integer that doesn't fit in T (e.g. a negative
+    // number read as u32) returns the default.
+    // bool and std::string must match exactly; other mismatches return the
+    // default.
     template<typename T>
     [[nodiscard]] static T Get(std::string_view key, const T& defaultValue = T{})
     {
         const auto it = s_store.find(std::string(key));
         if (it == s_store.end()) return defaultValue;
-        const T* val = std::get_if<T>(&it->second);
-        return val ? *val : defaultValue;
+        if (const T* val = std::get_if<T>(&it->second)) return *val;
+        return std::visit([&](const auto& stored) { return ConvertNumber<T>(stored, defaultValue); }, it->second);
     }
 
     // Store a value and mark dirty. Overwrites any previous value for this key.
@@ -164,6 +174,38 @@ private:
     static bool                                   s_dirty;
     static std::string                            s_filePath;
     static std::unordered_map<std::string, Value> s_store;
+
+    // True when `value` truncates to a representable integer T. NaN,
+    // infinity, and out-of-range floats would make the cast undefined
+    // behavior. The bounds are powers of two (exact in floating point), so
+    // the upper check can't round up past T's max.
+    template<typename T, typename F>
+    [[nodiscard]] static bool FloatFitsInteger(const F value)
+    {
+        if (!std::isfinite(value)) return false;
+        const f64 v     = static_cast<f64>(value);
+        const f64 lower = static_cast<f64>((std::numeric_limits<T>::min)()) - 1.0; // exclusive: truncation
+        const f64 upper = std::ldexp(1.0, std::numeric_limits<T>::digits);       // max + 1, exclusive
+        return v > lower && v < upper;
+    }
+
+    // Numeric-to-numeric conversion for Get<T>; anything else (bool, string,
+    // or a value that doesn't fit in T, e.g. a negative value into u32 or NaN
+    // into i32) yields the fallback.
+    template<typename T, typename V>
+    [[nodiscard]] static T ConvertNumber(const V& stored, const T& fallback)
+    {
+        constexpr bool numericT = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
+        constexpr bool numericV = std::is_arithmetic_v<V> && !std::is_same_v<V, bool>;
+        if constexpr (numericT && numericV) {
+            if constexpr (std::is_integral_v<T> && std::is_integral_v<V>)
+                if (!std::in_range<T>(stored)) return fallback;
+            if constexpr (std::is_integral_v<T> && std::is_floating_point_v<V>)
+                if (!FloatFitsInteger<T>(stored)) return fallback;
+            return static_cast<T>(stored);
+        }
+        else { return fallback; }
+    }
 
     // Helpers called by Init() and Flush().
     static void ReadFile();

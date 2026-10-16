@@ -4,6 +4,7 @@
 PLAN.md
 .claude/
 /CLAUDE.md
+docs/plans/
 
 # ---------------------------------------------------------------------------
 # CMake build output

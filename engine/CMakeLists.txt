@@ -16,6 +16,7 @@ add_library(arcbit-engine STATIC
     src/SpriteSheet.cpp
     src/World.cpp
     src/Systems.cpp
+    src/Movement.cpp
     src/Scene.cpp
     src/AnimatorStateMachine.cpp
     src/AudioManager.cpp
@@ -37,6 +38,12 @@ add_library(arcbit-engine STATIC
     src/UILoader.cpp
     src/InputWidgets.cpp
     src/Loc.cpp
+    src/SpatialHash.cpp
+    src/PhysicsWorld.cpp
+    src/Narrowphase.cpp
+    src/Sweep.cpp
+    src/DirectionArc.cpp
+    src/ContactTracker.cpp
 )
 
 target_include_directories(arcbit-engine

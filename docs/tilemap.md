@@ -160,18 +160,20 @@ frame at render time with no per-tile state:
 
 ```json
 {
-    "id": 12, "name": "coin",
+    "local_id": 12,
     "animation": [
-        { "tile": 12, "duration_ms": 120 },
-        { "tile": 13, "duration_ms": 80  },
-        { "tile": 14, "duration_ms": 120 },
-        { "tile": 13, "duration_ms": 80  }
+        { "local_id": 12, "duration_ms": 120 },
+        { "local_id": 13, "duration_ms": 80  },
+        { "local_id": 14, "duration_ms": 120 },
+        { "local_id": 13, "duration_ms": 80  }
     ]
 }
 ```
 
-Each frame references a tile ID from the same atlas. The base tile ID is the
-first frame; the atlas needs all frames as distinct tile IDs.
+Each frame names a cell of the same atlas by `local_id`, like the rest of the
+atlas file. Placing the tile's own ID in the map plays the whole sequence; the
+frame cells don't need to be placed anywhere. The shipped example is the
+whirlpool in `water.tileatlas.json` (local IDs 156–157), shown in `TriggerDemo`.
 
 #### Phase offset for variation
 
@@ -404,59 +406,64 @@ struct TileAtlas
 ```json
 {
     "version": "1.0",
-    "texture": "overworld_tiles.png",
+    "texture": "assets/textures/Water+.png",
     "tile_width": 16,
     "tile_height": 16,
     "tiles": [
-        { "id": 1, "name": "grass" },
-        { "id": 2, "name": "dirt" },
-        { "id": 3, "name": "stone_floor" },
-        { "id": 4, "name": "stone_wall",  "solid": true, "light_blocking": true },
-        { "id": 5, "name": "ocean_water", "solid": true, "uv_scroll": { "x": 0.04, "y": 0.02 } },
-        { "id": 6, "name": "river",       "solid": true, "uv_scroll": { "x": 0.08, "y": 0.0  } },
-        { "id": 7, "name": "lava",        "solid": true, "uv_scroll": { "x": -0.03, "y": 0.03 } },
-        { "id": 8, "name": "coin",        "animation": [
-            { "tile": 8,  "duration_ms": 120 },
-            { "tile": 9,  "duration_ms": 80  },
-            { "tile": 10, "duration_ms": 120 },
-            { "tile": 9,  "duration_ms": 80  }
-        ]},
-        { "id": 11, "name": "door", "interactable": true }
+        { "local_id": 7,  "uv_scroll": { "x": 0.08, "y": 0.04 }, "blocks_light": true },
+        { "local_id": 12, "solid": true, "layer": 32, "blocked_from": [ { "center": -90, "half_width": 90 } ] },
+        { "local_id": 30, "flat": true }
     ]
 }
 ```
 
-Fields not listed (`solid`, `light_blocking`, `interactable`) default to `false`.
-IDs must match the atlas grid position (1-indexed, left-to-right, top-to-bottom).
-Gaps in the `tiles` array are legal — undefined IDs get default-constructed TileDefs.
+Parsed by `TileMap::LoadAtlasJson` (file + texture) and `TileMap::ParseTileDef`
+(one `tiles` entry → `TileDef`). Only tiles with non-default properties need an
+entry; every other cell of the atlas is a plain, non-solid tile.
+
+| Key            | Type                          | Default  | Meaning |
+|----------------|-------------------------------|----------|---------|
+| `local_id`     | integer                       | required | Cell index within this atlas; the registered tile ID is `base_id + local_id` |
+| `solid`        | bool                          | `false`  | Blocks movement (feeds the greedy-meshed tile colliders) |
+| `blocks_light` | bool                          | `false`  | Casts shadows |
+| `flat`         | bool                          | `false`  | Objects-layer tile that always sorts below entities |
+| `uv_scroll`    | `{ "x", "y" }`                | `0, 0`   | Continuous UV offset per second |
+| `layer`        | integer bitmask               | `Wall`   | Collision layer (`CollisionLayers.h` bit values) |
+| `blocked_from` | `[{ "center", "half_width" }]` | `[]`     | Directional arcs in degrees; empty = blocks from every direction |
+| `animation`    | `[{ "local_id", "duration_ms" }]` | `[]` | Flip-book frames (cells of this atlas); `duration_ms` defaults to 150 |
+
+Flip-book frames are converted to atlas grid cells using the atlas's column and
+row count; a frame without a `local_id` or outside the atlas is dropped with a
+warning. If a tile has both `animation` and `uv_scroll`, the flip-book wins.
 
 ### Map File (`.arcmap`)
 
 ```json
 {
     "version": "1.0",
-    "atlas":     "overworld_tiles.tileatlas.json",
-    "tile_size": 16,
+    "tile_size": 32,
+    "atlases": [
+        { "base_id": 1,   "path": "assets/tilemaps/grass.tileatlas.json", "sampler": "nearest" },
+        { "base_id": 401, "path": "assets/tilemaps/water.tileatlas.json", "sampler": "linear" }
+    ],
     "chunks": [
         {
             "x": 0, "y": 0,
             "ground":  [1,1,1,1, 1,1,1,1, ...],
             "objects": [0,0,4,0, 0,0,0,0, ...],
             "overlay": [0,0,0,0, 0,0,0,0, ...]
-        },
-        {
-            "x": 1, "y": 0,
-            "ground":  [...],
-            "objects": [...],
-            "overlay": [...]
         }
     ]
 }
 ```
 
-Each layer array has exactly `ChunkSize × ChunkSize = 256` tile IDs.
-Chunks absent from the file have all tiles = 0 (empty).
-The loader allocates only chunks present in the file; the world outside is
+`TileMap::SaveMap` writes this (via `ToJson`); `TileMap::LoadMap` loads each atlas,
+then applies `tile_size` and the chunks via `LoadTilesFromJson`. Each layer array is
+row-major with `ChunkSize × ChunkSize = 256` tile IDs — the writer always emits all
+256. On load a missing layer is empty and a shorter array leaves the remaining cells
+empty, but any chunk with more than 256 entries, a negative or non-integer ID, or
+non-integer `x` / `y` rejects the whole file without modifying the map.
+Chunks absent from the file have all tiles = 0 (empty); the world outside is
 implicitly empty.
 
 ---

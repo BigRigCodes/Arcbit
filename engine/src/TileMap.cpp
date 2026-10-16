@@ -1,6 +1,7 @@
 #include <arcbit/tilemap/TileMap.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/render/RenderThread.h>
 
 #include <nlohmann/json.hpp>
 
@@ -41,6 +42,9 @@ void TileMap::SetTile(const i32 tileX, const i32 tileY, const u32 layerIndex, co
 
     auto& [Tiles]                = GetOrCreateChunk(chunkX, chunkY);
     Tiles[layerIndex][cellIndex] = tileId;
+
+    // Invalidate the greedy collider mesh for this chunk; next query rebuilds.
+    _chunkColliders.erase(ChunkKey(chunkX, chunkY));
 }
 
 u32 TileMap::GetTile(const i32 tileX, const i32 tileY, const u32 layerIndex) const
@@ -62,8 +66,10 @@ Vec2 TileMap::TileToWorld(const i32 tileX, const i32 tileY) const
 
 void TileMap::WorldToTile(const Vec2 worldPos, i32& outX, i32& outY) const
 {
-    outX = static_cast<i32>(std::floor(worldPos.X / _tileSize));
-    outY = static_cast<i32>(std::floor(worldPos.Y / _tileSize));
+    // Tiles are centered on multiples of the tile size (see TileToWorld), so
+    // tile t spans [(t - 0.5) * ts, (t + 0.5) * ts). Round, don't floor.
+    outX = static_cast<i32>(std::floor(worldPos.X / _tileSize + 0.5f));
+    outY = static_cast<i32>(std::floor(worldPos.Y / _tileSize + 0.5f));
 }
 
 bool TileMap::IsSolid(const i32 tileX, const i32 tileY) const
@@ -116,6 +122,174 @@ const TileDef* TileMap::FindTileDef(const u32 tileId) const
     return it != _tileDefs.end() ? &it->second : nullptr;
 }
 
+// ---------------------------------------------------------------------------
+// Tile collision — greedy meshing per chunk
+// ---------------------------------------------------------------------------
+
+const TileDef* TileMap::GetCollisionDef(const i32 tileX, const i32 tileY) const
+{
+    // First solid TileDef across layers wins (Ground → Objects → Overlay order).
+    // Documented limitation: a cell with conflicting solid TileDefs across layers
+    // collapses to a single collider class. Fine for 22A; multi-layer trigger
+    // composition is a 22F concern.
+    for (u32 layer = 0; layer < LayerCount; ++layer) {
+        const u32 id = GetTile(tileX, tileY, layer);
+        if (id == 0) continue;
+        const TileDef* def = FindTileDef(id);
+        if (def && def->Solid) return def;
+    }
+    return nullptr;
+}
+
+void TileMap::BuildChunkColliders(const i32                      chunkX, const i32 chunkY,
+                                  std::vector<TileColliderRect>& out) const
+{
+    out.clear();
+    const TileChunk* chunk = GetChunk(chunkX, chunkY);
+    if (!chunk) return;
+
+    // Cache the collision def per cell in the chunk; lookups are otherwise
+    // repeated O(layers) per cell during the merge scan.
+    const TileDef* defs[ChunkSize * ChunkSize] = {};
+    bool           anySolid                    = false;
+    const i32      baseTileX                   = chunkX * static_cast<i32>(ChunkSize);
+    const i32      baseTileY                   = chunkY * static_cast<i32>(ChunkSize);
+    for (u32 y = 0; y < ChunkSize; ++y) {
+        for (u32 x = 0; x < ChunkSize; ++x) {
+            const TileDef* def = GetCollisionDef(baseTileX + static_cast<i32>(x),
+                                                 baseTileY + static_cast<i32>(y));
+            defs[y * ChunkSize + x] = def;
+            if (def) anySolid = true;
+        }
+    }
+    if (!anySolid) return;
+
+    // Two TileDefs merge into the same rect iff they describe the same
+    // collision class. Pointer identity is the fast path; if pointers differ,
+    // deep-compare only the collision-relevant fields.
+    auto sameClass = [](const TileDef* a, const TileDef* b) noexcept {
+        if (a == b) return true;
+        if (!a || !b) return false;
+        return a->Layer == b->Layer && a->BlockedFrom == b->BlockedFrom;
+    };
+
+    bool visited[ChunkSize * ChunkSize] = {};
+
+    for (u32 y = 0; y < ChunkSize; ++y) {
+        for (u32 x = 0; x < ChunkSize; ++x) {
+            const u32      idx = y * ChunkSize + x;
+            const TileDef* def = defs[idx];
+            if (visited[idx] || !def) continue;
+
+            // Expand right while still in the same collision class and not visited.
+            u32 w = 1;
+            while (x + w < ChunkSize) {
+                const u32 ridx = y * ChunkSize + (x + w);
+                if (visited[ridx] || !sameClass(defs[ridx], def)) break;
+                ++w;
+            }
+
+            // Expand down — every cell in [x, x+w) on row (y+h) must match.
+            u32 h = 1;
+            while (y + h < ChunkSize) {
+                bool rowMatches = true;
+                for (u32 dx = 0; dx < w; ++dx) {
+                    const u32 ridx = (y + h) * ChunkSize + (x + dx);
+                    if (visited[ridx] || !sameClass(defs[ridx], def)) {
+                        rowMatches = false;
+                        break;
+                    }
+                }
+                if (!rowMatches) break;
+                ++h;
+            }
+
+            // Mark the rectangle as visited and emit a TileColliderRect.
+            for (u32 dy = 0; dy < h; ++dy)
+                for (u32 dx = 0; dx < w; ++dx)
+                    visited[(y + dy) * ChunkSize + (x + dx)] = true;
+
+            // TileToWorld(tx, ty) returns the *center* of the tile (the
+            // tilemap renderer uses it as Sprite::Position which is centered).
+            // So tile (tx, ty) occupies [tx*ts - ts/2, tx*ts + ts/2] in world
+            // space. The collider rect must use the same convention, otherwise
+            // it ends up offset by half a tile southeast of what the player sees.
+            const f32 halfTile = _tileSize * 0.5f;
+            const f32 worldX0  = static_cast<f32>(baseTileX + static_cast<i32>(x)) * _tileSize - halfTile;
+            const f32 worldY0  = static_cast<f32>(baseTileY + static_cast<i32>(y)) * _tileSize - halfTile;
+            const f32 worldX1  = worldX0 + static_cast<f32>(w) * _tileSize;
+            const f32 worldY1  = worldY0 + static_cast<f32>(h) * _tileSize;
+
+            out.push_back(TileColliderRect{
+                .BlockedFrom = def->BlockedFrom,
+                .WorldAABB   = AABB::FromMinMax({worldX0, worldY0}, {worldX1, worldY1}),
+                .Layer       = def->Layer,
+            });
+        }
+    }
+}
+
+const std::vector<TileColliderRect>& TileMap::GetChunkColliders(const i32 chunkX,
+                                                                const i32 chunkY) const
+{
+    const u64 key = ChunkKey(chunkX, chunkY);
+    if (const auto it = _chunkColliders.find(key); it != _chunkColliders.end())
+        return it->second;
+
+    auto& list = _chunkColliders[key];
+    BuildChunkColliders(chunkX, chunkY, list);
+    return list;
+}
+
+void TileMap::CollectGridDebugDraw(FramePacket&        packet,
+                                   const AABB&         viewAABB,
+                                   const TextureHandle whiteTex,
+                                   const SamplerHandle whiteSampler,
+                                   const f32           lineThickness,
+                                   const Color         color,
+                                   const i32           layer) const
+{
+    if (!viewAABB.IsValid()) return;
+
+    // Tile (tx, ty) is *centered* at (tx*ts, ty*ts), so its left edge is at
+    // (tx - 0.5) * ts and its right edge at (tx + 0.5) * ts. We want vertical
+    // grid lines on every right-edge in the visible range, and horizontal
+    // lines on every bottom-edge. Padding the range by one tile prevents the
+    // outermost line from popping in/out as the camera scrolls.
+    const i32 firstCol = static_cast<i32>(std::floor(viewAABB.Min.X / _tileSize)) - 1;
+    const i32 lastCol  = static_cast<i32>(std::ceil(viewAABB.Max.X / _tileSize)) + 1;
+    const i32 firstRow = static_cast<i32>(std::floor(viewAABB.Min.Y / _tileSize)) - 1;
+    const i32 lastRow  = static_cast<i32>(std::ceil(viewAABB.Max.Y / _tileSize)) + 1;
+
+    const f32 totalW = static_cast<f32>(lastCol - firstCol) * _tileSize;
+    const f32 totalH = static_cast<f32>(lastRow - firstRow) * _tileSize;
+    const f32 origX  = static_cast<f32>(firstCol) * _tileSize;
+    const f32 origY  = static_cast<f32>(firstRow) * _tileSize;
+
+    auto pushLine = [&](const Vec2 center, const Vec2 size) {
+        Sprite s{};
+        s.Texture  = whiteTex;
+        s.Sampler  = whiteSampler;
+        s.Position = center;
+        s.Size     = size;
+        s.Tint     = color;
+        s.Layer    = layer;
+        packet.Sprites.push_back(s);
+    };
+
+    // Vertical lines — one per visible column, on each tile's right edge.
+    for (i32 col = firstCol; col <= lastCol; ++col) {
+        const f32 x = static_cast<f32>(col) * _tileSize + _tileSize * 0.5f;
+        pushLine({ x, origY + totalH * 0.5f }, { lineThickness, totalH });
+    }
+
+    // Horizontal lines.
+    for (i32 row = firstRow; row <= lastRow; ++row) {
+        const f32 y = static_cast<f32>(row) * _tileSize + _tileSize * 0.5f;
+        pushLine({ origX + totalW * 0.5f, y }, { totalW, lineThickness });
+    }
+}
+
 void TileMap::LogStats() const
 {
     u32 tileCounts[LayerCount] = {};
@@ -158,8 +332,6 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
         return false;
     }
 
-    _tileSize = j.value("tile_size", _tileSize);
-
     for (const auto& a : j.value("atlases", nlohmann::json::array())) {
         const u32           baseId      = a.at("base_id").get<u32>();
         const std::string   atlasPath   = a.at("path").get<std::string>();
@@ -170,20 +342,9 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
             return false;
     }
 
-    for (const auto& c : j.value("chunks", nlohmann::json::array())) {
-        const i32  cx    = c.at("x").get<i32>();
-        const i32  cy    = c.at("y").get<i32>();
-        TileChunk& chunk = GetOrCreateChunk(cx, cy);
-
-        auto fillLayer = [](TileChunk& ch, const u32 layer, const nlohmann::json& arr) {
-            u32 i = 0;
-            for (const auto& v : arr)
-                ch.Tiles[layer][i++] = v.get<u32>();
-        };
-
-        fillLayer(chunk, 0, c.value("ground", nlohmann::json::array()));
-        fillLayer(chunk, 1, c.value("objects", nlohmann::json::array()));
-        fillLayer(chunk, 2, c.value("overlay", nlohmann::json::array()));
+    if (!LoadTilesFromJson(j)) {
+        LOG_WARN(Engine, "TileMap: invalid chunk data in '{}'", path);
+        return false;
     }
 
     LOG_INFO(Engine, "TileMap: loaded '{}' - {} atlases, {} chunks",
@@ -193,53 +354,84 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
 
 bool TileMap::SaveMap(const std::string_view path) const
 {
-    nlohmann::json j;
-    j["version"]   = "1.0";
-    j["tile_size"] = _tileSize;
-
-    auto jAtlases = nlohmann::json::array();
-    for (const auto& e : _atlases) {
-        nlohmann::json a;
-        a["base_id"] = e.BaseId;
-        a["path"]    = e.JsonPath;
-        a["sampler"] = e.SamplerName;
-        jAtlases.push_back(std::move(a));
-    }
-    j["atlases"] = std::move(jAtlases);
-
-    auto jChunks = nlohmann::json::array();
-    for (const auto& [key, chunk] : _chunks) {
-        // Decode chunk coordinates from the packed key.
-        const i32 cx = static_cast<i32>(static_cast<u32>(key >> 32));
-        const i32 cy = static_cast<i32>(static_cast<u32>(key));
-
-        nlohmann::json c;
-        c["x"] = cx;
-        c["y"] = cy;
-
-        auto jGround  = nlohmann::json::array();
-        auto jObjects = nlohmann::json::array();
-        auto jOverlay = nlohmann::json::array();
-        for (u32 i = 0; i < ChunkSize * ChunkSize; ++i) {
-            jGround.push_back(chunk.Tiles[0][i]);
-            jObjects.push_back(chunk.Tiles[1][i]);
-            jOverlay.push_back(chunk.Tiles[2][i]);
-        }
-        c["ground"]  = std::move(jGround);
-        c["objects"] = std::move(jObjects);
-        c["overlay"] = std::move(jOverlay);
-        jChunks.push_back(std::move(c));
-    }
-    j["chunks"] = std::move(jChunks);
-
     std::ofstream f{std::string(path)};
     if (!f) {
         LOG_WARN(Engine, "TileMap: cannot write '{}'", path);
         return false;
     }
-    f << j.dump(2);
+    f << ToJson().dump(2);
     LOG_INFO(Engine, "TileMap: saved '{}' - {} atlases, {} chunks",
              path, _atlases.size(), _chunks.size());
+    return true;
+}
+
+nlohmann::json TileMap::ToJson() const
+{
+    nlohmann::json j;
+    j["version"]   = "1.0";
+    j["tile_size"] = _tileSize;
+
+    auto jAtlases = nlohmann::json::array();
+    for (const auto& e : _atlases)
+        jAtlases.push_back({ { "base_id", e.BaseId }, { "path", e.JsonPath }, { "sampler", e.SamplerName } });
+    j["atlases"] = std::move(jAtlases);
+
+    auto jChunks = nlohmann::json::array();
+    for (const auto& [key, chunk] : _chunks) {
+        // Decode chunk coordinates from the packed key.
+        nlohmann::json c;
+        c["x"]       = static_cast<i32>(static_cast<u32>(key >> 32));
+        c["y"]       = static_cast<i32>(static_cast<u32>(key));
+        c["ground"]  = std::vector<u32>(std::begin(chunk.Tiles[0]), std::end(chunk.Tiles[0]));
+        c["objects"] = std::vector<u32>(std::begin(chunk.Tiles[1]), std::end(chunk.Tiles[1]));
+        c["overlay"] = std::vector<u32>(std::begin(chunk.Tiles[2]), std::end(chunk.Tiles[2]));
+        jChunks.push_back(std::move(c));
+    }
+    j["chunks"] = std::move(jChunks);
+    return j;
+}
+
+namespace
+{
+    constexpr const char* LayerKeys[LayerCount] = { "ground", "objects", "overlay" };
+
+    // One chunk's layer array: absent, or an array of at most ChunkSize²
+    // non-negative integers.
+    bool IsValidLayerArray(const nlohmann::json& chunk, const char* key)
+    {
+        const auto it = chunk.find(key);
+        if (it == chunk.end()) return true;
+        if (!it->is_array() || it->size() > ChunkSize * ChunkSize) return false;
+        return std::ranges::all_of(*it, [](const nlohmann::json& v) { return v.is_number_unsigned(); });
+    }
+
+    bool IsValidChunk(const nlohmann::json& c)
+    {
+        if (!c.is_object() || !c.contains("x") || !c.contains("y")) return false;
+        if (!c["x"].is_number_integer() || !c["y"].is_number_integer()) return false;
+        return std::ranges::all_of(LayerKeys, [&](const char* key) { return IsValidLayerArray(c, key); });
+    }
+} // anonymous namespace
+
+bool TileMap::LoadTilesFromJson(const nlohmann::json& map)
+{
+    if (!map.is_object()) return false;
+    const nlohmann::json chunks = map.value("chunks", nlohmann::json::array());
+    if (!chunks.is_array() || !std::ranges::all_of(chunks, IsValidChunk)) return false;
+
+    _tileSize = map.value("tile_size", _tileSize);
+    for (const auto& c : chunks) {
+        const i32 cx = c["x"].get<i32>();
+        const i32 cy = c["y"].get<i32>();
+        TileChunk& chunk = GetOrCreateChunk(cx, cy);
+        chunk            = TileChunk{}; // a chunk in the file is replaced whole: missing / short layers read empty
+        for (u32 layer = 0; layer < LayerCount; ++layer) {
+            u32 i = 0;
+            for (const auto& v : c.value(LayerKeys[layer], nlohmann::json::array()))
+                chunk.Tiles[layer][i++] = v.get<u32>();
+        }
+        _chunkColliders.erase(ChunkKey(cx, cy)); // tiles changed under the mesh cache
+    }
     return true;
 }
 
@@ -269,21 +461,55 @@ bool TileMap::LoadAtlasJson(const u32           baseId, const std::string_view  
         return false;
 
     // Register per-tile overrides (uv_scroll, solid, etc.).
-    for (const auto& t : j.value("tiles", nlohmann::json::array())) {
-        const u32 localId = t.at("local_id").get<u32>();
-        TileDef   def{};
-        if (t.contains("solid"))        def.Solid       = t["solid"].get<bool>();
-        if (t.contains("blocks_light")) def.BlocksLight = t["blocks_light"].get<bool>();
-        if (t.contains("flat"))         def.Flat        = t["flat"].get<bool>();
-        if (t.contains("uv_scroll")) {
-            def.UVScroll.X = t["uv_scroll"].value("x", 0.0f);
-            def.UVScroll.Y = t["uv_scroll"].value("y", 0.0f);
-        }
-        RegisterTile(baseId + localId, std::move(def));
-    }
+    for (const auto& t : j.value("tiles", nlohmann::json::array()))
+        RegisterTile(baseId + t.at("local_id").get<u32>(), ParseTileDef(t, atlas.Columns(), atlas.Rows()));
 
     RegisterAtlas(baseId, std::move(atlas), sampler, jsonPath, samplerName);
     return true;
+}
+
+namespace
+{
+    // Flip-book frames: local IDs within the atlas → (col, row) grid cells.
+    std::vector<TileAnimFrame> ParseAnimation(const nlohmann::json& frames, const u32 columns, const u32 rows)
+    {
+        std::vector<TileAnimFrame> out;
+        for (const auto& f : frames) {
+            const auto id = f.find("local_id");
+            if (id == f.end() || !id->is_number_unsigned() || columns == 0 || id->get<u32>() >= columns * rows) {
+                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} — needs a local_id inside the {}x{} atlas",
+                         f.dump(), columns, rows);
+                continue;
+            }
+            const u32 localId = id->get<u32>();
+            out.push_back({ localId % columns, localId / columns, f.value("duration_ms", TileAnimFrame{}.DurationMs) });
+        }
+        return out;
+    }
+} // anonymous namespace
+
+TileDef TileMap::ParseTileDef(const nlohmann::json& tile, const u32 atlasColumns, const u32 atlasRows)
+{
+    TileDef def{};
+    def.Solid       = tile.value("solid", def.Solid);
+    def.BlocksLight = tile.value("blocks_light", def.BlocksLight);
+    def.Flat        = tile.value("flat", def.Flat);
+    if (const auto it = tile.find("uv_scroll"); it != tile.end()) {
+        def.UVScroll.X = it->value("x", 0.0f);
+        def.UVScroll.Y = it->value("y", 0.0f);
+    }
+    // Collision metadata (consumed when Solid == true). `layer` is an integer
+    // bitmask matching CollisionLayers — named-layer support arrives with
+    // project.arcbit (Phase 38).
+    def.Layer = tile.value("layer", def.Layer);
+    // `blocked_from`: array of {center, half_width} arc objects. Empty /
+    // missing → block-all (the default empty list).
+    if (const auto it = tile.find("blocked_from"); it != tile.end())
+        for (const auto& a : *it)
+            def.BlockedFrom.push_back({ a.value("center", 0.0f), a.value("half_width", 180.0f) });
+    if (const auto it = tile.find("animation"); it != tile.end())
+        def.Animation = ParseAnimation(*it, atlasColumns, atlasRows);
+    return def;
 }
 
 u64 TileMap::ChunkKey(const i32 chunkX, const i32 chunkY)

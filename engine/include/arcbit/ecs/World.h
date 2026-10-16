@@ -47,13 +47,31 @@ using ComponentMask   = u64; // caps at 64 distinct component types
 // ComponentArray — type-erased, contiguous storage for one component type.
 // Must be defined before Internal namespace so declarations reference the real type.
 // ---------------------------------------------------------------------------
+//
+// Elements are only ever relocated through their move constructor, never by
+// copying bytes: components may hold types that point into themselves (MSVC's
+// std::function keeps a pointer into its own small-buffer storage), and a
+// byte-wise relocation leaves those pointers dangling. The array owns its
+// elements — destroying or move-assigning over it runs their destructors.
 class ComponentArray
 {
 public:
+    ComponentArray() = default;
+    ~ComponentArray();
+
+    ComponentArray(ComponentArray&& other) noexcept;
+    ComponentArray& operator=(ComponentArray&& other) noexcept;
+    ComponentArray(const ComponentArray&)            = delete;
+    ComponentArray& operator=(const ComponentArray&) = delete;
+
     // Create a typed array. T must be move-constructible and destructible.
     template<typename T>
     static ComponentArray Make()
     {
+        // The buffer comes from plain operator new, so over-aligned types
+        // would land misaligned.
+        static_assert(alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__,
+                      "ComponentArray: over-aligned component types are not supported");
         ComponentArray a;
         a._elementSize      = sizeof(T);
         a._defaultConstruct = [](void* p) { new (p) T{}; };
@@ -69,8 +87,7 @@ public:
     template<typename T>
     void Push(T&& val)
     {
-        _data.resize(_data.size() + _elementSize);
-        new (GetRaw(_count)) T(std::forward<T>(val));
+        new (AppendSlot()) std::remove_cvref_t<T>(std::forward<T>(val));
         ++_count;
     }
 
@@ -90,9 +107,19 @@ public:
     [[nodiscard]] constexpr u32 Count() const { return _count; }
 
 private:
-    std::vector<u8> _data;
+    // Address of the first unconstructed slot (index _count), growing the
+    // buffer first if it is full.
+    void* AppendSlot();
+
+    // Move every live element into a fresh buffer of `newCapacity` slots.
+    void Reallocate(u32 newCapacity);
+
+    void DestroyAll() noexcept;
+
+    std::vector<u8> _data;            // raw slot storage, always _capacity * _elementSize bytes
     usize           _elementSize = 0;
-    u32             _count       = 0;
+    u32             _count       = 0; // constructed elements
+    u32             _capacity    = 0; // allocated slots
 
     std::function<void(void*)>        _defaultConstruct;
     std::function<void(void*)>        _destruct;

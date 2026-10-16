@@ -2,11 +2,13 @@
 
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/physics/CollisionLayers.h>
+#include <arcbit/physics/DirectionArc.h>
 
 #include <vector>
 
-namespace Arcbit {
-
+namespace Arcbit
+{
 // Three draw layers for every tile position.
 enum class TileLayer : u8
 {
@@ -40,6 +42,21 @@ struct TileDef
     // Sampler repeat mode wraps the offset so the texture tiles seamlessly.
     // Mutually exclusive with Animation.
     Vec2 UVScroll = {};
-};
 
+    // ---- Collision metadata (consumed when Solid == true) -----------------
+    // Carried into the synthesized TileColliderRect during greedy meshing.
+    // Adjacent solid tiles only merge into the same rect when these fields
+    // match (alongside Solid).
+    //
+    // BlockedFrom: directional arcs that gate which approach directions are
+    // treated as blocking. Empty list = "block from all directions" (the
+    // common case; matches the Collider2D convention). Phase 22D wires the
+    // arc check; until then any non-empty list is carried but inert.
+    //
+    // Layer: collision layer this tile contributes to (see CollisionLayers.h).
+    // Defaults to Wall, which is what tile-synthesized geometry usually is.
+    std::vector<DirectionArc> BlockedFrom = {};
+
+    u32 Layer = CollisionLayers::Wall;
+};
 } // namespace Arcbit
