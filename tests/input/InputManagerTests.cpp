@@ -141,3 +141,35 @@ TEST_CASE("Scroll delta accumulates between ticks and publishes once", "[input]"
     input.ProcessEdges();
     CHECK(input.GetScrollDelta() == 0.0f);
 }
+
+TEST_CASE("Axis bindings apply the deadzone, then read their half", "[input]")
+{
+    const Binding full = Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Full, 0.2f);
+    const Binding neg  = Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Negative, 0.2f);
+    const Binding pos  = Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Positive, 0.2f);
+
+    CHECK(full.ShapeAxis(-0.1f) == 0.0f); // inside the deadzone
+    CHECK(full.ShapeAxis(-0.5f) == -0.5f);
+    CHECK(full.ShapeAxis(0.5f) == 0.5f);
+
+    // Regression: one full axis bound to Move_Left and Move_Right pressed
+    // both whenever the stick moved. Each half only sees its own direction.
+    CHECK(neg.ShapeAxis(-0.5f) == 0.5f);
+    CHECK(neg.ShapeAxis(0.5f) == 0.0f);
+    CHECK(pos.ShapeAxis(0.5f) == 0.5f);
+    CHECK(pos.ShapeAxis(-0.5f) == 0.0f);
+    CHECK(pos.ShapeAxis(0.1f) == 0.0f);
+}
+
+TEST_CASE("Axis halves are distinct bindings with their own labels", "[input]")
+{
+    const Binding left  = Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Negative);
+    const Binding right = Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Positive);
+    CHECK_FALSE(left == right);
+    CHECK(left == Binding::FromGamepadAxis(GamepadAxis::LeftX, AxisHalf::Negative, 0.5f)); // deadzone ignored
+
+    CHECK(InputManager::BindingToString(left) == "LS-Left");
+    CHECK(InputManager::BindingToString(Binding::FromGamepadAxis(GamepadAxis::RightY, AxisHalf::Negative)) ==
+          "RS-Up");
+    CHECK(InputManager::BindingToString(Binding::FromGamepadAxis(GamepadAxis::LeftY)) == "LS-Y");
+}
