@@ -10,6 +10,15 @@ void RegisterBuiltinSystems(World& world);
 Scene::Scene()
 {
     RegisterBuiltinSystems(_world);
+
+    // Every way a collider leaves (DestroyEntity, RemoveComponent) also drops
+    // its broadphase record — otherwise it keeps blocking movers and
+    // overlapping triggers after the entity is gone.
+    _world.OnRemove<Collider2D>([this](const Entity e, Collider2D&) {
+        if (!_physics) return;
+        if (const PhysicsWorld::ColliderId id = _physics->FindColliderForEntity(e); id != PhysicsWorld::InvalidId)
+            _physics->UnregisterCollider(id);
+    });
 }
 
 Scene::~Scene() = default; // out-of-line for unique_ptr<PhysicsWorld> destruction

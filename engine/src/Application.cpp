@@ -276,7 +276,7 @@ void Application::Run()
         // of stat()-ing every loaded texture path each tick.
         _hotReloadAccumulator += dt;
         if (_hotReloadAccumulator >= 1.0) {
-            _textures->CheckReloads();
+            _textures->CheckReloads([this] { _renderThread.WaitIdle(); });
             _hotReloadAccumulator -= 1.0;
         }
 

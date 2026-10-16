@@ -289,6 +289,13 @@ public:
     // Blocks briefly if the render thread is still finishing the previous frame.
     void SubmitFrame(FramePacket packet);
 
+    // Block until the render thread has finished its current frame and the
+    // GPU has drained. Until the next SubmitFrame nothing else touches the
+    // device, so the main thread may create and destroy GPU resources
+    // mid-run (scene switches, texture hot-reload). Outside that window,
+    // Create* / Destroy* race the render thread. Costs a full GPU stall.
+    void WaitIdle();
+
     // Returns a snapshot of the statistics from the most recently completed frame.
     // Safe to call from any thread — values are written with relaxed atomics.
     [[nodiscard]] RenderStats GetStats() const;

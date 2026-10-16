@@ -312,6 +312,42 @@ TEST_CASE("Blocking contacts report Enter with a normal, persist while touching,
 }
 
 // ---------------------------------------------------------------------------
+// Scene cleanup
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Every way a collider leaves drops its broadphase record", "[ecs][systems][physics]")
+{
+    // Regression: only LifetimeSystem unregistered colliders, so an entity
+    // destroyed any other way kept blocking movers as an invisible wall.
+    Scene         scene;
+    PhysicsWorld& physics = scene.GetPhysics();
+
+    SECTION("DestroyEntity")
+    {
+        const Entity e = AddBody(scene, {}, Box(8.0f));
+        REQUIRE(physics.FindColliderForEntity(e) != PhysicsWorld::InvalidId);
+        scene.GetWorld().DestroyEntity(e);
+        CHECK(physics.FindColliderForEntity(e) == PhysicsWorld::InvalidId);
+    }
+    SECTION("RemoveComponent<Collider2D>")
+    {
+        const Entity e = AddBody(scene, {}, Box(8.0f));
+        scene.GetWorld().RemoveComponent<Collider2D>(e);
+        CHECK(physics.FindColliderForEntity(e) == PhysicsWorld::InvalidId);
+        CHECK(scene.GetWorld().IsValid(e));
+    }
+    SECTION("a mover passes where a destroyed wall stood")
+    {
+        const Entity wall  = AddBody(scene, { 32.0f, 0.0f }, Box(8.0f, BodyKind::Static));
+        const Entity mover = AddFreeMover(scene, {});
+        scene.GetWorld().DestroyEntity(wall);
+        SetVelocity(scene, mover, { 240.0f, 0.0f });
+        Step(scene, 30);
+        CHECK(PositionOf(scene, mover).X > 64.0f);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Lifetime
 // ---------------------------------------------------------------------------
 

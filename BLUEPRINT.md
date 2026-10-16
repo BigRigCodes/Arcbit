@@ -312,7 +312,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 *`Scene` already exists from Phase 16 (ECS world, camera, `WorldConfig`, `TileMap`, lazily-created `PhysicsWorld`; lights are entities), but `Application` owns exactly one for the whole run. This phase makes scenes swappable, then uses that for a demo switcher and a proper boot flow.*
 
 **Foundations**
-- [ ] Entity destroy cleanup — only `LifetimeSystem` unregisters a destroyed entity's collider today; any other `DestroyEntity` leaves a stale broadphase record that keeps blocking movers and overlapping triggers. One destroy path (hook or `Scene::DestroyEntity`) that every caller goes through, and scene unload releases everything at once
+- [x] Entity destroy cleanup — `World::OnRemove<T>` hooks run whenever a component leaves an entity (`RemoveComponent` or `DestroyEntity`); `Scene` hooks `Collider2D` to drop the broadphase record, so no removal path leaves an invisible wall. `LifetimeSystem`'s manual unregister is gone
+- [x] Mid-run GPU resource safety — `RenderThread::WaitIdle()` parks the render thread and drains the GPU so the main thread can create / destroy resources between frames (scene switches); texture hot-reload now goes through it instead of racing the render thread
 - [ ] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds
 
 **SceneManager**

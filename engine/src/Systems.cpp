@@ -50,15 +50,8 @@ namespace
                          toDestroy.push_back(e);
                  });
 
-            // Unregister colliders first — a destroyed entity's broadphase
-            // record would otherwise keep blocking tile movers and
-            // overlapping triggers.
-            PhysicsWorld& physics = scene.GetPhysics();
-            for (const Entity e : toDestroy) {
-                if (const PhysicsWorld::ColliderId id = physics.FindColliderForEntity(e); id != PhysicsWorld::InvalidId)
-                    physics.UnregisterCollider(id);
-                scene.GetWorld().DestroyEntity(e);
-            }
+            // The Scene's Collider2D OnRemove hook drops broadphase records.
+            for (const Entity e : toDestroy) scene.GetWorld().DestroyEntity(e);
         });
     }
 

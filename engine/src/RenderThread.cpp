@@ -443,6 +443,17 @@ void RenderThread::SubmitFrame(FramePacket packet)
     _frameReady.notify_one();
 }
 
+void RenderThread::WaitIdle()
+{
+    {
+        std::unique_lock lock(_mutex);
+        _frameDone.wait(lock, [this] { return _slotFree; });
+    }
+    // The render thread is now parked waiting for a packet, so this is the
+    // only thread using the device.
+    if (_device) _device->WaitIdle();
+}
+
 RenderStats RenderThread::GetStats() const
 {
     return {

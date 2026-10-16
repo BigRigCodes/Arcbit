@@ -76,15 +76,18 @@ void TextureManager::Clear()
 // Hot-reload
 // ---------------------------------------------------------------------------
 
-void TextureManager::CheckReloads()
+void TextureManager::CheckReloads(const std::function<void()>& beforeReload)
 {
+    bool quiesced = false;
     for (auto& [path, entry] : _pathCache) {
         std::error_code ec;
         const auto currentTime = std::filesystem::last_write_time(path, ec);
         if (ec) continue; // file deleted or inaccessible — skip silently
+        if (currentTime == entry.LastModified) continue;
 
-        if (currentTime != entry.LastModified)
-            ReloadFromDisk(path);
+        if (!quiesced && beforeReload) beforeReload();
+        quiesced = true;
+        ReloadFromDisk(path);
     }
 }
 

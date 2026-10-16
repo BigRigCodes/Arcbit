@@ -4,6 +4,7 @@
 #include <arcbit/render/RenderHandle.h>
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -90,7 +91,10 @@ public:
 
     // Poll all loaded textures for file changes and re-upload modified ones.
     // Application calls this once per second. Can also be called manually.
-    void CheckReloads();
+    // `beforeReload` runs once, before the first re-upload, only when a file
+    // actually changed — Application passes RenderThread::WaitIdle so the
+    // upload doesn't race a frame in flight.
+    void CheckReloads(const std::function<void()>& beforeReload = {});
 
     // Returns width/height of a cached texture, or zeroes if not found.
     [[nodiscard]] TextureInfo GetInfo(TextureHandle handle) const;

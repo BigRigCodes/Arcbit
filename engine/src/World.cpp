@@ -186,12 +186,24 @@ Entity World::CreateEntity()
 void World::DestroyEntity(const Entity entity)
 {
     if (!IsValid(entity)) return;
+    for (const ComponentTypeID type : _removeHooks | std::views::keys)
+        if (_entityTable[entity.Index].mask & (1ULL << type)) RunRemoveHooks(entity, type);
+
     auto& rec = _entityTable[entity.Index];
     SwapRemoveFromArchetype(_archetypes.at(rec.mask), rec.slot);
     ++rec.generation;
     rec.mask = 0;
     rec.slot = 0;
     _freeList.push_back(entity.Index);
+}
+
+void World::RunRemoveHooks(const Entity entity, const ComponentTypeID type)
+{
+    const auto it = _removeHooks.find(type);
+    if (it == _removeHooks.end()) return;
+    const EntityRecord& rec       = _entityTable[entity.Index];
+    void*               component = _archetypes.at(rec.mask).Columns.at(type).GetRaw(rec.slot);
+    for (const RemoveHook& hook : it->second) hook(entity, component);
 }
 
 bool World::IsValid(const Entity entity) const

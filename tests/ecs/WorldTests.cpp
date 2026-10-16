@@ -118,3 +118,26 @@ TEST_CASE("Component storage relocates and destroys non-trivial components", "[e
     }
     CHECK(token.use_count() == 1); // world teardown destroyed every component
 }
+
+TEST_CASE("OnRemove hooks run for RemoveComponent and DestroyEntity", "[ecs]")
+{
+    World            world;
+    std::vector<f32> seen;
+    world.OnRemove<Lifetime>([&](Entity, const Lifetime& lt) { seen.push_back(lt.Remaining); });
+
+    const Entity a = world.CreateEntity();
+    world.AddComponent<Lifetime>(a, Lifetime{ .Remaining = 1.0f });
+    world.RemoveComponent<Lifetime>(a);
+    REQUIRE(seen.size() == 1);
+    CHECK(seen[0] == 1.0f); // the hook sees the component before it goes
+
+    const Entity b = world.CreateEntity();
+    world.AddComponent<Lifetime>(b, Lifetime{ .Remaining = 2.0f });
+    world.DestroyEntity(b);
+    REQUIRE(seen.size() == 2);
+    CHECK(seen[1] == 2.0f);
+
+    world.DestroyEntity(a); // no Lifetime left: no call
+    world.DestroyEntity(b); // already destroyed: no call
+    CHECK(seen.size() == 2);
+}

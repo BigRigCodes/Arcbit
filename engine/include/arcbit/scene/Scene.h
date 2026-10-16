@@ -27,6 +27,10 @@ public:
     Scene();
     ~Scene(); // out-of-line so PhysicsWorld only needs to be complete in the .cpp
 
+    // Systems and hooks capture `this`, so a Scene never moves.
+    Scene(const Scene&)            = delete;
+    Scene& operator=(const Scene&) = delete;
+
     // ECS world — create/destroy entities, add/remove components, register systems.
     [[nodiscard]] World&       GetWorld()   { return _world; }
     [[nodiscard]] Camera2D&    GetCamera()  { return _camera; }
