@@ -157,12 +157,14 @@ void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& 
 
     // Screens set this flag on the frame they are pushed so that the key event
     // that caused the push (e.g. Escape to open a menu) is not also processed
-    // as a back-press on the newly-visible screen.
+    // as a back-press on the newly-visible screen. OnTick is skipped too: it
+    // reads input directly, so a screen toggled by the same key (F1 opens, F1
+    // closes) would otherwise close itself the tick it opened.
     const bool skipInput        = active->_skipInputThisFrame;
     active->_skipInputThisFrame = false;
 
     const UIRect screenRect = {0.0f, 0.0f, windowSize.X, windowSize.Y};
-    active->OnTick(dt, input);
+    if (!skipInput) active->OnTick(dt, input);
     active->Update(dt, screenRect, _mousePos, _mouseDown, _mouseJustDown, _mouseJustUp,
                    input.GetScrollDelta());
 

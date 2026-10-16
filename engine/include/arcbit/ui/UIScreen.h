@@ -35,6 +35,8 @@ public:
 
     // Called once per game tick before widget UpdateTree.
     // Override in screens that need direct input access (e.g. InputRebindScreen).
+    // Not called on the tick the screen is pushed, so the key press that
+    // opened it is never seen here.
     virtual void OnTick(f32 /*dt*/, const InputManager& /*input*/) {}
 
     // Rate at which transition opacity changes (units/second). 0 = instant.

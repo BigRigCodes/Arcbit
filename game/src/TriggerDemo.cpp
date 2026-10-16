@@ -70,14 +70,11 @@ constexpr f32 FreeSpeed       = 240.0f; // px/s (free mode)
 // Hazard OnStay fires once per fixed tick (60 Hz); log every 30 → every 0.5 s.
 constexpr u32 HazardLogInterval = 30;
 
-constexpr Color PlayerColor = { 0.3f, 0.5f, 1.0f, 1.0f };
-constexpr Color HurtColor   = { 1.0f, 0.25f, 0.25f, 1.0f };
-constexpr Color NpcColor    = { 0.6f, 0.35f, 0.8f, 1.0f };
+constexpr Color PlayerColor = {0.3f, 0.5f, 1.0f, 1.0f};
+constexpr Color HurtColor   = {1.0f, 0.25f, 0.25f, 1.0f};
+constexpr Color NpcColor    = {0.6f, 0.35f, 0.8f, 1.0f};
 
-constexpr Vec2 TileCenter(const i32 tx, const i32 ty)
-{
-    return { static_cast<f32>(tx) * TileSize, static_cast<f32>(ty) * TileSize };
-}
+constexpr Vec2 TileCenter(const i32 tx, const i32 ty) { return {static_cast<f32>(tx) * TileSize, static_cast<f32>(ty) * TileSize}; }
 } // namespace
 
 class TriggerDemo : public Scene
@@ -137,87 +134,90 @@ protected:
 
     void CreatePlayer()
     {
-        _player = CreateBlock("Player", TileCenter(0, 0), { TileSize * 0.7f, TileSize * 0.7f }, PlayerColor, 0);
+        _player     = CreateBlock("Player", TileCenter(0, 0), {TileSize * 0.7f, TileSize * 0.7f}, PlayerColor, 0);
         auto& world = GetWorld();
-        world.AddComponent<CameraTarget>(_player, CameraTarget{ .Lag = 0.05f });
-        world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{ .Speed = WalkSpeed });
-        world.AddComponent<InputMovement>(_player, InputMovement{ .MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
-                                                                  .MoveUp   = ActionMoveUp, .MoveDown    = ActionMoveDown });
+        world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
+        world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
+        world.AddComponent<InputMovement>(_player, InputMovement{
+                                              .MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
+                                              .MoveUp   = ActionMoveUp, .MoveDown    = ActionMoveDown
+                                          });
         AttachCollider(_player, Collider2D{
-                                    .HalfExtents = { TileSize * 0.4f, TileSize * 0.4f },
-                                    .Kind        = BodyKind::Kinematic,
-                                    .Layer       = CollisionLayers::Player,
-                                });
+                           .HalfExtents = {TileSize * 0.4f, TileSize * 0.4f},
+                           .Kind        = BodyKind::Kinematic,
+                           .Layer       = CollisionLayers::Player,
+                       });
     }
 
     // Small trigger at a tile center, so it fires as the player arrives on the
     // tile rather than the moment their edge grazes it.
     void CreateWarpDoor()
     {
-        const Entity door = CreateBlock("WarpDoor", TileCenter(5, 0), { TileSize * 0.8f, TileSize * 0.8f },
-                                        { 0.95f, 0.85f, 0.2f, 1.0f }, -999998);
+        const Entity door = CreateBlock("WarpDoor", TileCenter(5, 0), {TileSize * 0.8f, TileSize * 0.8f},
+                                        {0.95f, 0.85f, 0.2f, 1.0f}, -999998);
         AttachCollider(door, Collider2D{
-                                 .HalfExtents = { TileSize * 0.1f, TileSize * 0.1f },
-                                 .Kind        = BodyKind::Static,
-                                 .Layer       = CollisionLayers::Trigger,
-                                 .Mask        = CollisionLayers::Player,
-                                 .IsTrigger   = true,
-                             });
-        (void)CreateBlock("WarpLanding", TileCenter(-5, -4), { TileSize * 0.8f, TileSize * 0.8f },
-                          { 0.3f, 0.6f, 0.95f, 0.5f }, -999998);
+                           .HalfExtents = {TileSize * 0.1f, TileSize * 0.1f},
+                           .Kind        = BodyKind::Static,
+                           .Layer       = CollisionLayers::Trigger,
+                           .Mask        = CollisionLayers::Player,
+                           .IsTrigger   = true,
+                       });
+        (void)CreateBlock("WarpLanding", TileCenter(-5, -4), {TileSize * 0.8f, TileSize * 0.8f},
+                          {0.3f, 0.6f, 0.95f, 0.5f}, -999998);
 
         GetWorld().AddComponent<TriggerCallback>(door, TriggerCallback{
-            .OnEnter = [this](Entity, const Entity other) {
-                LOG_INFO(Game, "Warp door: whoosh");
-                Teleport(other, TileCenter(-5, -4));
-            },
-        });
+                                                     .OnEnter = [this](Entity, const Entity other) {
+                                                         LOG_INFO(Game, "Warp door: whoosh");
+                                                         Teleport(other, TileCenter(-5, -4));
+                                                     },
+                                                 });
     }
 
     void CreateHazardZone()
     {
-        const Vec2   center = { TileSize * 1.0f, TileSize * 3.5f }; // covers tiles x 0..2, y 3..4
-        const Vec2   size   = { TileSize * 3.0f, TileSize * 2.0f };
-        const Entity zone   = CreateBlock("Hazard", center, size, { 0.9f, 0.2f, 0.15f, 0.35f }, -999998);
+        const Vec2   center = {TileSize * 1.0f, TileSize * 3.5f}; // covers tiles x 0..2, y 3..4
+        const Vec2   size   = {TileSize * 3.0f, TileSize * 2.0f};
+        const Entity zone   = CreateBlock("Hazard", center, size, {0.9f, 0.2f, 0.15f, 0.35f}, -999998);
         AttachCollider(zone, Collider2D{
-                                 .HalfExtents = { size.X * 0.5f, size.Y * 0.5f },
-                                 .Kind        = BodyKind::Static,
-                                 .Layer       = CollisionLayers::Trigger,
-                                 .Mask        = CollisionLayers::Player,
-                                 .IsTrigger   = true,
-                             });
+                           .HalfExtents = {size.X * 0.5f, size.Y * 0.5f},
+                           .Kind        = BodyKind::Static,
+                           .Layer       = CollisionLayers::Trigger,
+                           .Mask        = CollisionLayers::Player,
+                           .IsTrigger   = true,
+                       });
         GetWorld().AddComponent<TriggerCallback>(zone, TriggerCallback{
-            .OnEnter = [this](Entity, const Entity other) { SetTint(other, HurtColor); _hazardTicks = 0; },
-            .OnStay  = [this](Entity, Entity) {
-                if (++_hazardTicks % HazardLogInterval == 0) LOG_INFO(Game, "Hazard: ouch (tick {})", _hazardTicks);
-            },
-            .OnExit = [this](Entity, const Entity other) { SetTint(other, PlayerColor); },
-        });
+                                                     .OnEnter = [this](Entity, const Entity other) {
+                                                         SetTint(other, HurtColor);
+                                                         _hazardTicks = 0;
+                                                     },
+                                                     .OnStay = [this](Entity, Entity) {
+                                                         if (++_hazardTicks % HazardLogInterval == 0)
+                                                             LOG_INFO(Game, "Hazard: ouch (tick {})", _hazardTicks);
+                                                     },
+                                                     .OnExit = [this](Entity, const Entity other) { SetTint(other, PlayerColor); },
+                                                 });
     }
 
     void CreateNpc()
     {
         const Vec2   pos = TileCenter(-3, 0);
-        const Entity npc = CreateBlock("Npc", pos, { TileSize * 0.8f, TileSize * 0.8f }, NpcColor,
+        const Entity npc = CreateBlock("Npc", pos, {TileSize * 0.8f, TileSize * 0.8f}, NpcColor,
                                        static_cast<i32>(pos.Y));
         AttachCollider(npc, Collider2D{
-                                .HalfExtents = { TileSize * 0.4f, TileSize * 0.4f },
-                                .Kind        = BodyKind::Static,
-                                .Layer       = CollisionLayers::NPC,
-                            });
+                           .HalfExtents = {TileSize * 0.4f, TileSize * 0.4f},
+                           .Kind        = BodyKind::Static,
+                           .Layer       = CollisionLayers::NPC,
+                       });
         GetWorld().AddComponent<CollisionCallback>(npc, CollisionCallback{
-            .OnEnter = [this](const Entity self, Entity, const Vec2 normal) {
-                LOG_INFO(Game, "NPC: hey! (pushed toward ({:.2f}, {:.2f}))", normal.X, normal.Y);
-                SetTint(self, Color::White());
-            },
-            .OnExit = [this](const Entity self, Entity) { SetTint(self, NpcColor); },
-        });
+                                                       .OnEnter = [this](const Entity self, Entity, const Vec2 normal) {
+                                                           LOG_INFO(Game, "NPC: hey! (pushed toward ({:.2f}, {:.2f}))", normal.X, normal.Y);
+                                                           SetTint(self, Color::White());
+                                                       },
+                                                       .OnExit = [this](const Entity self, Entity) { SetTint(self, NpcColor); },
+                                                   });
     }
 
-    void SetTint(const Entity e, const Color tint)
-    {
-        if (auto* sr = GetWorld().GetComponent<SpriteRenderer>(e)) sr->Tint = tint;
-    }
+    void SetTint(const Entity e, const Color tint) { if (auto* sr = GetWorld().GetComponent<SpriteRenderer>(e)) sr->Tint = tint; }
 
     // Move an entity instantly: cancel any in-flight movement, refresh its
     // broadphase record, and cut the camera so it doesn't pan across the map.
@@ -246,16 +246,16 @@ protected:
         auto& world = GetWorld();
         if (world.GetComponent<SmoothTileMovement>(_player)) {
             world.RemoveComponent<SmoothTileMovement>(_player);
-            world.AddComponent<FreeMovement>(_player, FreeMovement{ .Speed = FreeSpeed });
+            world.AddComponent<FreeMovement>(_player, FreeMovement{.Speed = FreeSpeed});
             world.AddComponent<PendingMove>(_player, PendingMove{});
             LOG_INFO(Game, "Movement: free");
             return;
         }
         world.RemoveComponent<FreeMovement>(_player);
         world.RemoveComponent<PendingMove>(_player);
-        world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{ .Speed = WalkSpeed });
+        world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
         const Vec2 p = world.GetTransform(_player)->Position;
-        Teleport(_player, { std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize });
+        Teleport(_player, {std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize});
         LOG_INFO(Game, "Movement: tile");
     }
 
@@ -272,13 +272,13 @@ protected:
 
     void OnRender(FramePacket& packet) override
     {
-        packet.AmbientColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+        packet.AmbientColor = {1.0f, 1.0f, 1.0f, 1.0f};
         GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
         if (!_showGrid) return;
 
         const Camera2D& cam    = GetCamera();
         const Vec2      camPos = cam.GetEffectivePosition();
-        const Vec2      halfView{ (1920.0f / cam.Zoom) * 0.5f, (1080.0f / cam.Zoom) * 0.5f };
+        const Vec2      halfView{(1920.0f / cam.Zoom) * 0.5f, (1080.0f / cam.Zoom) * 0.5f};
         const AABB      viewAABB  = AABB::FromCenterHalfExtents(camPos, halfView);
         const f32       thickness = std::max(1.0f, 1.0f / cam.Zoom);
         GetTileMap().CollectGridDebugDraw(packet, viewAABB, _whiteTex, _sampler, thickness);
