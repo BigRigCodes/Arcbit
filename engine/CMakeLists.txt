@@ -16,6 +16,7 @@ add_library(arcbit-engine STATIC
     src/SpriteSheet.cpp
     src/World.cpp
     src/Systems.cpp
+    src/Movement.cpp
     src/Scene.cpp
     src/AnimatorStateMachine.cpp
     src/AudioManager.cpp
