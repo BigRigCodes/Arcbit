@@ -167,6 +167,8 @@ protected:
         auto& world = GetScene().GetWorld();
         world.AddComponent<CameraTarget>(_player, CameraTarget{ .Lag = 0.05f });
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{ .Speed = WalkSpeed });
+        world.AddComponent<InputMovement>(_player, InputMovement{ ActionMoveLeft, ActionMoveRight,
+                                                                  ActionMoveUp, ActionMoveDown });
         AttachCollider(_player, Collider2D{
                                     .HalfExtents = { TileSize * 0.4f, TileSize * 0.4f },
                                     .Kind        = BodyKind::Kinematic,
@@ -270,7 +272,7 @@ protected:
         auto& world = GetScene().GetWorld();
         if (world.GetComponent<SmoothTileMovement>(_player)) {
             world.RemoveComponent<SmoothTileMovement>(_player);
-            world.AddComponent<FreeMovement>(_player, FreeMovement{ .Friction = 0.0f });
+            world.AddComponent<FreeMovement>(_player, FreeMovement{ .Speed = FreeSpeed });
             world.AddComponent<PendingMove>(_player, PendingMove{});
             LOG_INFO(Game, "Movement: free");
             return;
@@ -283,30 +285,9 @@ protected:
         LOG_INFO(Game, "Movement: tile");
     }
 
-    void DrivePlayer()
-    {
-        auto& input = GetInput();
-        Vec2  dir{};
-        if (input.IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (input.IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (input.IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (input.IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-
-        auto& world = GetScene().GetWorld();
-        if (auto* fm = world.GetComponent<FreeMovement>(_player)) {
-            fm->Velocity = dir * FreeSpeed;
-            return;
-        }
-        auto* stm = world.GetComponent<SmoothTileMovement>(_player);
-        if (dir.X != 0.0f && dir.Y != 0.0f) dir.Y = 0.0f; // cardinal only
-        stm->QueuedDir = dir;
-        stm->HasQueued = dir.X != 0.0f || dir.Y != 0.0f;
-    }
-
     void OnUpdate(const f32 /*dt*/) override
     {
         if (GetInput().JustPressed(ActionToggleStyle)) ToggleMovementStyle();
-        DrivePlayer();
 
         if (GetInput().JustPressed(ActionDebugPhysics)) {
             PhysicsWorld& physics = GetScene().GetPhysics();
