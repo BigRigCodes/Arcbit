@@ -7,10 +7,12 @@
 //   - A 7-tile vertical wall of solid water tiles at column +3
 //   - One static box "rock" south of the player so entity-vs-entity blocking
 //     is verifiable separately from tile blocking
-//   - Player as a small box collider driven by SmoothTileMovement; WASD
-//     queues a tile-step, the system rejects the queued move when the path
-//     is blocked
+//   - Player as a small box collider with InputMovement; WASD becomes a
+//     MoveIntent, the tile-movement system rejects the step when the path
+//     is blocked. Holding two directions follows the one pressed last.
 //
+// M swaps SmoothTileMovement (lerp between tiles) and SnapTileMovement
+// (instant steps, repeating while held) at the same tiles-per-second pace.
 // Press F2 to toggle physics debug draw (defaults to ON for instant feedback).
 // G toggles the grid overlay.
 // ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ constexpr ActionID ActionMoveUp       = MakeAction("Move_Up");
 constexpr ActionID ActionMoveDown     = MakeAction("Move_Down");
 constexpr ActionID ActionDebugPhysics = MakeAction("Debug_Physics");
 constexpr ActionID ActionToggleGrid   = MakeAction("Debug_ToggleGrid");
+constexpr ActionID ActionToggleStyle  = MakeAction("Demo_ToggleMovementStyle");
 
 constexpr f32 TileSize    = 64.0f;
 constexpr u32 GrassTileId = 1;   // base of grass.tileatlas.json
@@ -53,6 +56,7 @@ constexpr i32 WallColumn  = 3;   // vertical wall of water tiles at tx=3
 constexpr i32 WallMin     = -3;  // wall spans ty=-3..+3 (7 tiles)
 constexpr i32 WallMax     = 3;
 constexpr f32 WalkSpeed   = 4.0f; // tiles/sec
+constexpr f32 SnapStep    = 1.0f / WalkSpeed; // same pace in snap mode
 } // namespace
 
 class TileMoveDemo : public Application
@@ -98,7 +102,7 @@ protected:
         CreatePlayer(world, physics);
         CreateRocks(world, physics);
 
-        LOG_INFO(Game, "TileMoveDemo ready — WASD to step, F2 toggles collider overlay");
+        LOG_INFO(Game, "TileMoveDemo ready — WASD to step, M movement style, F2 collider overlay");
     }
 
     void SetupInput()
@@ -109,6 +113,7 @@ protected:
         GetInput().RegisterAction(ActionMoveDown, "Move_Down", "Move Down", "Movement");
         GetInput().RegisterAction(ActionDebugPhysics, "Debug_Physics", "Toggle Physics Debug", "Debug");
         GetInput().RegisterAction(ActionToggleGrid, "Debug_ToggleGrid", "Toggle Grid", "Debug");
+        GetInput().RegisterAction(ActionToggleStyle, "Demo_ToggleMovementStyle", "Toggle Movement Style", "Demo");
 
         GetInput().BindKey(ActionMoveLeft, Key::A);
         GetInput().BindKey(ActionMoveRight, Key::D);
@@ -116,6 +121,7 @@ protected:
         GetInput().BindKey(ActionMoveDown, Key::S);
         GetInput().BindKey(ActionDebugPhysics, Key::F2);
         GetInput().BindKey(ActionToggleGrid, Key::G);
+        GetInput().BindKey(ActionToggleStyle, Key::M);
     }
 
     // Player: blue square, SmoothTileMovement-driven. ECS-side Collider2D so
@@ -136,6 +142,8 @@ protected:
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
+        world.AddComponent<InputMovement>(_player, InputMovement{ActionMoveLeft, ActionMoveRight,
+                                                                 ActionMoveUp, ActionMoveDown});
 
         // Half-extents slightly less than half a tile so corner approaches don't
         // get caught on the rounded broadphase AABB of a circle obstacle.
@@ -176,28 +184,31 @@ protected:
         (void)physics.RegisterCollider(e, rockCol, rockPos);
     }
 
+    // Swap SmoothTileMovement <-> SnapTileMovement. Leaving smooth mode
+    // mid-step lands on the nearest tile center so snap steps stay aligned.
+    void ToggleMovementStyle()
+    {
+        auto& world = GetScene().GetWorld();
+        if (world.GetComponent<SnapTileMovement>(_player)) {
+            world.RemoveComponent<SnapTileMovement>(_player);
+            world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
+            LOG_INFO(Game, "Movement: smooth");
+            return;
+        }
+        world.RemoveComponent<SmoothTileMovement>(_player);
+        world.AddComponent<SnapTileMovement>(_player, SnapTileMovement{.StepInterval = SnapStep});
+
+        Vec2& p = world.GetTransform(_player)->Position;
+        p       = {std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize};
+        PhysicsWorld& physics = GetScene().GetPhysics();
+        physics.UpdateCollider(physics.FindColliderForEntity(_player), *world.GetComponent<Collider2D>(_player), p);
+        LOG_INFO(Game, "Movement: snap");
+    }
+
     void OnUpdate(const f32 /*dt*/) override
     {
         PhysicsWorld& physics = GetScene().GetPhysics();
-        auto*         stm     = GetScene().GetWorld().GetComponent<SmoothTileMovement>(_player);
-        if (!stm) return;
-
-        Vec2 dir{};
-        if (GetInput().IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (GetInput().IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-
-        // Cardinal-only — pick the dominant axis when both are pressed so the
-        // mover stays tile-aligned (matches WorldDemo's player input).
-        if (dir.X != 0.0f && dir.Y != 0.0f)
-            std::abs(dir.X) >= std::abs(dir.Y) ? dir.Y = 0.0f : dir.X = 0.0f;
-
-        if (dir.X != 0.0f || dir.Y != 0.0f) {
-            stm->QueuedDir = dir;
-            stm->HasQueued = true;
-        }
-        else { stm->HasQueued = false; }
+        if (GetInput().JustPressed(ActionToggleStyle)) ToggleMovementStyle();
 
         if (GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
