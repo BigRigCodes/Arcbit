@@ -81,7 +81,7 @@ namespace
 std::vector<u8> LoadShaderFile(const char* path)
 {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
-    ARCBIT_ASSERT(file.is_open(), "RenderThread: failed to open shader file — check working directory");
+    ARCBIT_ASSERT(file.is_open(), "RenderThread: failed to open shader file - check working directory");
     const auto size = static_cast<std::streamsize>(file.tellg());
     file.seekg(0, std::ios::beg);
     std::vector<u8> buf(static_cast<size_t>(size));

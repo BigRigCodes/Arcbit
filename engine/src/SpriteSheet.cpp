@@ -45,7 +45,7 @@ bool HasSupportedVersion(const nlohmann::json& json, const std::string_view sour
     const auto it = json.find("version");
     if (it == json.end())
     {
-        LOG_ERROR(Engine, "SpriteSheet: '{}' is missing the 'version' field — "
+        LOG_ERROR(Engine, "SpriteSheet: '{}' is missing the 'version' field - "
                           "use the explicit Carrot import path for non-Arcbit files", source);
         return false;
     }

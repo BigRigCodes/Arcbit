@@ -78,6 +78,15 @@ namespace
         return true;
     }
 
+    // True when the boxes overlap by more than float noise on both axes —
+    // the mover is genuinely inside the obstacle, not resting against it.
+    bool StartsInside(const AABB& m, const AABB& s) noexcept
+    {
+        const f32 overlapX = std::min(m.Max.X - s.Min.X, s.Max.X - m.Min.X);
+        const f32 overlapY = std::min(m.Max.Y - s.Min.Y, s.Max.Y - m.Min.Y);
+        return overlapX > TouchTolerance && overlapY > TouchTolerance;
+    }
+
     // Contact rule for boxes already touching at t = 0 — the normal state of
     // a mover the resolver stopped against a face last tick. Only motion
     // *into* the touching face is a hit; moving away or sliding along it is
@@ -135,6 +144,7 @@ Result MovingAABBvsAABB(const AABB& moving, const Vec2 delta,
                         const AABB& stationary) noexcept
 {
     if (const std::optional<Result> touch = TouchingContact(moving, delta, stationary)) return *touch;
+    if (StartsInside(moving, stationary)) return {};
 
     f32 tEnterX = 0, tExitX = 0;
     f32 tEnterY = 0, tExitY = 0;
@@ -175,27 +185,15 @@ Result Substep(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
 {
     if (substeps == 0) return {};
 
-    // If the mover already overlaps the obstacle at t=0, the obstacle-center
-    // → mover-position vector (the normal we'd compute below) is essentially
-    // noise — the mover could be anywhere inside the obstacle. Match the
-    // slab method's convention instead: report a normal pointing back along
-    // the motion direction (the axis-equivalent of "the face the mover is
-    // moving toward"). Without this, a circle mover inside a directional
-    // box collider (e.g. walked through a Vertical-arc tree from the side)
-    // would get spurious off-axis normals that fall inside the arc and trap
-    // it; with this fix, the arc check sees the actual motion direction.
-    if (Narrowphase::Overlap(mover, origin, other, otherPos)) {
-        if (const std::optional<Result> touch = ShallowContact(mover, origin, delta, other, otherPos)) return *touch;
-
-        Result r{};
-        r.Hit       = true;
-        r.ToI       = 0.0f;
-        const f32 dl = Length(delta);
-        r.Normal    = dl > SweepEpsilon
-                          ? Vec2{-delta.X / dl, -delta.Y / dl}
-                          : Vec2{1.0f, 0.0f};
-        return r;
-    }
+    // Already overlapping at t = 0: touching follows ShallowContact's rules;
+    // genuinely inside means the mover got in some legitimate way (through a
+    // pass-through face of a directional collider, or placed there), and
+    // the obstacle doesn't block it again until it has fully left. A
+    // directional arc gates getting *in*, so blocking moves made from inside
+    // would trap the mover (it used to: a NorthOnly gate entered from the
+    // south could only be left through its north face).
+    if (Narrowphase::Overlap(mover, origin, other, otherPos))
+        return ShallowContact(mover, origin, delta, other, otherPos).value_or(Result{});
 
     // Walk the delta in N equal steps. The first step where the boolean
     // narrowphase fires gives ToI = (k-1)/N — the position just before contact.

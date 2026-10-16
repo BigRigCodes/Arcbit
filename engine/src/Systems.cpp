@@ -212,12 +212,9 @@ namespace
             const Sweep::Result r = Sweep::SweepAgainst(col, origin, delta, *otherCol, otherT->Position);
             if (!r.Hit) continue;
             // Arc gate — directional contacts can pass through if the
-            // approach falls outside the obstacle's BlockedFrom arcs.
-            // Sweep::SweepAgainst already handles the started-overlapping
-            // case by returning an axis-aligned normal opposite to motion,
-            // so the arc check correctly sees the motion direction even
-            // when the mover is inside the obstacle (e.g. walked through a
-            // pass-through arc).
+            // approach falls outside the obstacle's BlockedFrom arcs. A
+            // mover already inside the obstacle never gets here: the sweep
+            // reports no hit for it (see Sweep.h).
             if (!IsContactBlocked(rec.BlockedFrom, r.Normal, rec.Rotation)) continue;
             if (r.ToI < best.ToI) {
                 best      = r;

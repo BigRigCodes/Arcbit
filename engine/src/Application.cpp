@@ -172,7 +172,7 @@ void Application::Run()
             splash->OnComplete = [this] { _ui.Pop(); };
             _ui.Push(std::move(splash));
         }
-        else { LOG_WARN(Engine, "Engine splash image not found — skipping splash screen"); }
+        else { LOG_WARN(Engine, "Engine splash image not found - skipping splash screen"); }
     }
 
     // Route Window input events to InputManager so JustPressed/JustReleased are

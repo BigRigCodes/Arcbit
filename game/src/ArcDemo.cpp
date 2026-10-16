@@ -89,7 +89,7 @@ protected:
         CreateBush(world, physics);
         CreateLedge(world, physics);
 
-        LOG_INFO(Game, "ArcDemo ready — WASD to move, F2 toggles collider overlay");
+        LOG_INFO(Game, "ArcDemo ready - WASD to move, F2 toggles collider overlay");
     }
 
 

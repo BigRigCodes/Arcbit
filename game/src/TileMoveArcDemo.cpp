@@ -96,7 +96,7 @@ protected:
         CreateOverlaySprites(world);
 
         LOG_INFO(Game,
-                 "TileMoveArcDemo ready — WASD to step, F2 toggles colliders, G toggles grid");
+                 "TileMoveArcDemo ready - WASD to step, F2 toggles colliders, G toggles grid");
     }
 
     static void RegisterDirectionalTiles(TileMap& tm)

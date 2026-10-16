@@ -3,6 +3,12 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace Arcbit
 {
 // Static member definition
@@ -45,6 +51,13 @@ namespace
 // ---------------------------------------------------------------------------
 void Log::Init(bool fileOutput, const std::string& filePath)
 {
+    #ifdef _WIN32
+    // Log text is UTF-8. A Windows console otherwise decodes it with the OEM
+    // code page, so any non-ASCII character prints as garbage (an em dash
+    // shows up as three junk characters).
+    SetConsoleOutputCP(CP_UTF8);
+    #endif
+
     // Build the shared sink list
     std::vector<spdlog::sink_ptr> sinks;
 

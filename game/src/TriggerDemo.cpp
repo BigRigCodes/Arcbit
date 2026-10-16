@@ -104,7 +104,7 @@ protected:
         CreateHazardZone();
         CreateNpc();
 
-        LOG_INFO(Game, "TriggerDemo ready — WASD move, M movement style, F2 colliders, G grid");
+        LOG_INFO(Game, "TriggerDemo ready - WASD move, M movement style, F2 colliders, G grid");
     }
 
 

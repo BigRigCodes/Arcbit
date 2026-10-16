@@ -191,13 +191,9 @@ bool PhysicsWorld::QueryTileBlocked(const Entity      mover, const Collider2D& c
         const Vec2       obstaclePos = rec.Position;
         // Skip blockers the mover already overlaps at origin. Tile movement
         // asks "does the destination cell block my approach?" — the source
-        // cell isn't part of that question. Without this skip, the slab
-        // method's started-overlapping convention (normal opposite delta,
-        // ToI=0) makes a stationary contact with the source tile look like
-        // a fresh approach, tripping the source's arc and trapping the
-        // mover inside any arc'd tile they legitimately stepped onto.
-        // Free-movement's resolver keeps overlap as a real contact for
-        // push-back; this skip is scoped to the tile-step path only.
+        // cell isn't part of that question. The sweep itself ignores a
+        // mover that starts inside an obstacle; this skip also covers mere
+        // touching, which the sweep would treat as a contact.
         if (Narrowphase::Overlap(col, originWorld, obstacle, obstaclePos)) continue;
         const Sweep::Result r = Sweep::SweepAgainst(col, originWorld, delta, obstacle, obstaclePos);
         if (!r.Hit) continue;

@@ -143,7 +143,7 @@ TextureHandle TextureManager::LoadFromDisk(const std::string& path)
     int w, h, channels;
     stbi_uc* pixels = stbi_load(path.c_str(), &w, &h, &channels, STBI_rgb_alpha);
     if (!pixels) {
-        LOG_ERROR(Engine, "TextureManager: failed to load '{}' — {}", path, stbi_failure_reason());
+        LOG_ERROR(Engine, "TextureManager: failed to load '{}' - {}", path, stbi_failure_reason());
         return TextureHandle::Invalid();
     }
 
@@ -188,7 +188,7 @@ void TextureManager::ReloadFromDisk(const std::string& path)
     int w, h, channels;
     stbi_uc* pixels = stbi_load(path.c_str(), &w, &h, &channels, STBI_rgb_alpha);
     if (!pixels) {
-        LOG_WARN(Engine, "TextureManager: hot-reload failed for '{}' — {}", path, stbi_failure_reason());
+        LOG_WARN(Engine, "TextureManager: hot-reload failed for '{}' - {}", path, stbi_failure_reason());
         return;
     }
 
@@ -201,8 +201,8 @@ void TextureManager::ReloadFromDisk(const std::string& path)
     } else {
         // Dimension change would invalidate the handle and break existing users.
         // Log a warning and leave the old texture in place.
-        LOG_WARN(Engine, "TextureManager: skipping hot-reload for '{}' — "
-                 "dimensions changed ({}x{} → {}x{})",
+        LOG_WARN(Engine, "TextureManager: skipping hot-reload for '{}' - "
+                 "dimensions changed ({}x{} -> {}x{})",
                  path, entry.Width, entry.Height, w, h);
     }
 

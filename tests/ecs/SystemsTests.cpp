@@ -5,6 +5,7 @@
 
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
+#include <arcbit/physics/DirectionArc.h>
 #include <arcbit/physics/PhysicsCallbacks.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/Scene.h>
@@ -309,6 +310,41 @@ TEST_CASE("Blocking contacts report Enter with a normal, persist while touching,
     Step(scene, 10);
     CHECK(exits == 1);
     CHECK(enters == 1);
+}
+
+TEST_CASE("A one-way gate blocks entry through its face but never traps a mover inside", "[ecs][systems][physics]")
+{
+    // ObbDemo's spinning gate, frozen at an angle: NorthOnly arcs, so only
+    // contacts on its local north face block. Regression: once inside (entered
+    // through another face), any move with a local-south component was
+    // refused, so the only way out was through the blocking face.
+    constexpr f32  Angle = 0.6f;
+    const Vec2     north{ std::sin(Angle), -std::cos(Angle) }; // the gate's local -Y in world space
+    const Collider2D gateCol{ .Shape = ColliderShape::Box, .Rotation = Angle, .HalfExtents = { 64.0f, 16.0f },
+                              .Kind = BodyKind::Static, .BlockedFrom = DirectionArc::NorthOnly() };
+
+    SECTION("approaching the north face is blocked")
+    {
+        Scene scene;
+        (void)AddBody(scene, {}, gateCol);
+        const Entity mover = AddFreeMover(scene, north * 80.0f, 19.0f);
+        SetVelocity(scene, mover, north * -240.0f);
+        Step(scene, 30);
+        CHECK(Dot(PositionOf(scene, mover), north) > 16.0f + 19.0f - 1.0f); // stopped at the face
+    }
+    SECTION("from inside, every direction is open")
+    {
+        for (int i = 0; i < 8; ++i) {
+            Scene scene;
+            (void)AddBody(scene, {}, gateCol);
+            const Entity mover = AddFreeMover(scene, {}, 19.0f);
+            const f32    a     = static_cast<f32>(i) * QuarterPi;
+            SetVelocity(scene, mover, Vec2{ std::cos(a), std::sin(a) } * 240.0f);
+            Step(scene, 6);
+            INFO("direction " << i);
+            CHECK_THAT(Length(PositionOf(scene, mover)), WithinAbs(24.0f, 0.5f)); // 6 ticks at 240 px/s
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

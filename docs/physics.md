@@ -304,6 +304,13 @@ whether the angle falls inside any of the `BlockedFrom` arcs. If yes, the
 contact is a blocker; if no, the contact is dropped and movement passes
 through.
 
+Arcs gate getting *in*. A mover that is already inside a collider (it came
+through a pass-through face, or was placed there) is not blocked by that
+collider again until it has left, so it can back out the way it came or
+continue through. Merely touching is different: moving into the touching face
+is a contact (subject to the arcs), while sliding along it or moving away is
+free.
+
 ```cpp
 // Tree (axis-aligned): block top/bottom approaches; sides pass through.
 // Default tunable: each arc covers ±60° around its axis, leaving a clear

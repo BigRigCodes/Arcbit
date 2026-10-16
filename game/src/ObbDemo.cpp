@@ -102,7 +102,7 @@ protected:
         CreateProps(world, physics);
         CreateGate(world, physics);
 
-        LOG_INFO(Game, "ObbDemo ready — WASD move, R gate, C player shape, F2 colliders, G grid");
+        LOG_INFO(Game, "ObbDemo ready - WASD move, R gate, C player shape, F2 colliders, G grid");
     }
 
 

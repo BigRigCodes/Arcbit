@@ -95,7 +95,7 @@ protected:
         CreatePlayer(world, physics);
         CreateRocks(world, physics);
 
-        LOG_INFO(Game, "TileMoveDemo ready — WASD to step, M movement style, F2 collider overlay");
+        LOG_INFO(Game, "TileMoveDemo ready - WASD to step, M movement style, F2 collider overlay");
     }
 
 

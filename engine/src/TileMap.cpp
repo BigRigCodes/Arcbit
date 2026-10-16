@@ -477,7 +477,7 @@ namespace
         for (const auto& f : frames) {
             const auto id = f.find("local_id");
             if (id == f.end() || !id->is_number_unsigned() || columns == 0 || id->get<u32>() >= columns * rows) {
-                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} — needs a local_id inside the {}x{} atlas",
+                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} - needs a local_id inside the {}x{} atlas",
                          f.dump(), columns, rows);
                 continue;
             }

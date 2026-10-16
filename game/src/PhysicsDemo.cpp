@@ -92,7 +92,7 @@ protected:
         CreatePlayer(world, physics);
         CreateRocks(world, physics);
 
-        LOG_INFO(Game, "PhysicsDemo ready — WASD to move, F2 toggles collider overlay");
+        LOG_INFO(Game, "PhysicsDemo ready - WASD to move, F2 toggles collider overlay");
     }
 
     // Player: blue circle, FreeMovement-driven, ECS-side Collider2D so the
