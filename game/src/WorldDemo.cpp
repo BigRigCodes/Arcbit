@@ -141,7 +141,7 @@ protected:
         if (GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
         if (GetInput().JustPressed(ActionInteract)) GetScene().GetCamera().AddTrauma(0.6f);
         if (GetInput().JustPressed(ActionAttack) && !_isAttacking) _isAttacking = true;
-        UpdatePlayerMovement();
+        UpdatePlayerVisuals();
         UpdateMouseLight();
     }
 
@@ -215,10 +215,12 @@ private:
 
         GetInput().BindGamepadButton(ActionInteract, GamepadButton::South);
         GetInput().BindGamepadButton(ActionSprint, GamepadButton::RightShoulder);
-        GetInput().BindGamepadAxis(ActionMoveLeft, GamepadAxis::LeftX);
-        GetInput().BindGamepadAxis(ActionMoveRight, GamepadAxis::LeftX);
-        GetInput().BindGamepadAxis(ActionMoveUp, GamepadAxis::LeftY);
-        GetInput().BindGamepadAxis(ActionMoveDown, GamepadAxis::LeftY);
+        // One half of each stick axis per direction — a whole axis on both
+        // actions would press both whenever the stick moved, and they'd cancel.
+        GetInput().BindGamepadAxis(ActionMoveLeft, GamepadAxis::LeftX, AxisHalf::Negative);
+        GetInput().BindGamepadAxis(ActionMoveRight, GamepadAxis::LeftX, AxisHalf::Positive);
+        GetInput().BindGamepadAxis(ActionMoveUp, GamepadAxis::LeftY, AxisHalf::Negative);
+        GetInput().BindGamepadAxis(ActionMoveDown, GamepadAxis::LeftY, AxisHalf::Positive);
     }
 
     void CreateSamplers()
@@ -440,6 +442,9 @@ private:
         world.AddComponent<SmoothTileMovement>(_playerEntity, SmoothTileMovement{
                                                    .Speed = WalkTileSpeed,
                                                });
+        world.AddComponent<InputMovement>(_playerEntity, InputMovement{ActionMoveLeft, ActionMoveRight,
+                                                                       ActionMoveUp, ActionMoveDown});
+        world.AddComponent<MoveIntent>(_playerEntity); // read by UpdatePlayerVisuals
 
         world.AddComponent<AudioSource>(_playerEntity, AudioSource{
                                             .Path = "assets/sfx/footsteps.mp3", .Volume = 0.6f,
@@ -638,36 +643,22 @@ private:
         return "idle_down";
     }
 
-    void UpdatePlayerMovement()
+    // Facing and walk/idle come from the player's MoveIntent, which
+    // InputMovementSystem fills from WASD / arrows. OnUpdate runs before the
+    // scene's systems, so this reads the previous tick's intent.
+    void UpdatePlayerVisuals()
     {
         auto& world = GetScene().GetWorld();
         if (!world.IsValid(_playerEntity)) return;
-        auto* stm = world.GetComponent<SmoothTileMovement>(_playerEntity);
-        if (!stm) return;
+        const auto* stm    = world.GetComponent<SmoothTileMovement>(_playerEntity);
+        const auto* intent = world.GetComponent<MoveIntent>(_playerEntity);
+        if (!stm || !intent) return;
 
-        Vec2 dir = {};
-        if (GetInput().IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (GetInput().IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveDown)) dir.Y += 1.0f;
+        const Vec2 f = intent->Facing;
+        if (std::abs(f.X) >= std::abs(f.Y)) _playerFacing = f.X < 0.0f ? Facing::Left : Facing::Right;
+        else _playerFacing = f.Y < 0.0f ? Facing::Up : Facing::Down;
 
-        // Prefer cardinal movement — pick the dominant axis to stay tile-aligned.
-        if (dir.X != 0.0f && dir.Y != 0.0f)
-            std::abs(dir.X) >= std::abs(dir.Y) ? dir.Y = 0.0f : dir.X = 0.0f;
-
-        const bool moving = dir.X != 0.0f || dir.Y != 0.0f;
-        if (moving) {
-            stm->QueuedDir = dir;
-            stm->HasQueued = true;
-            if (dir.X != 0.0f)
-                _playerFacing = (dir.X < 0.0f) ? Facing::Left : Facing::Right;
-            else
-                _playerFacing = (dir.Y < 0.0f) ? Facing::Up : Facing::Down;
-        }
-        else { stm->HasQueued = false; }
-
-        const bool isMoving = stm->Progress < 1.0f || moving;
-        UpdatePlayerAnimation(isMoving);
+        UpdatePlayerAnimation(stm->Progress < 1.0f || intent->Direction != Vec2{});
     }
 
     void UpdatePlayerAnimation(const bool moving)
