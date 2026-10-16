@@ -81,7 +81,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 
 ## Phase 9: Input System
 - [x] `Action` registry — map named actions (`"Move_Left"`, `"Interact"`) to one or more bindings
-- [x] Binding types: keyboard key, mouse button, gamepad button, gamepad axis (with deadzone)
+- [x] Binding types: keyboard key, mouse button, gamepad button, gamepad axis (with deadzone; whole axis or one half via `AxisHalf`, Phase 22H)
 - [x] `InputManager::IsPressed(Action)` / `JustPressed` / `JustReleased` / `AxisValue`
 - [x] Keyboard + mouse support via SDL3 event stream
 - [x] Gamepad / controller support via SDL3 `SDL_Gamepad` API (hot-plug add/remove)
@@ -96,6 +96,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 - [x] Audio settings: master volume, music volume, SFX volume
 - [x] Input settings: persist action→binding map from Phase 9; apply on load
 - [x] `Settings::Get<T>` / `Set<T>` typed accessors with dirty-flag auto-save
+- [ ] Persist only rebound actions — `SaveInputBindings` writes every action's bindings on shutdown, and `LoadInputBindings` replaces the code's defaults with them. So a default changed in code never reaches an existing settings file (hit in 22H: WorldDemo's broken stick bindings had to be deleted from `settings.json` by hand), and demos sharing one file inherit each other's bindings (TileMoveDemo picks up WorldDemo's arrow keys and stick). Snapshot the defaults at startup, save only actions that differ, and give actions with no saved entry their code defaults. A per-game settings path would also keep the demos apart
 
 ---
 
@@ -160,12 +161,12 @@ Controller components drive *where* an entity wants to move; style components
 define *how* it gets there. Any controller pairs with any style.
 
 **Controller components** (who decides the destination):
-- [ ] `InputMovement` — reads input bindings each tick; converts pressed directions into movement requests (struct declared in `Movement.h`, no system yet — demos read WASD in game code and drive the style component directly; system lands in **Phase 22H**)
-- [ ] `AIMovement` — driven by pathfinding / behavior system; pushes movement requests programmatically (struct declared, no system yet — Phase 30, on the intent path built in Phase 22H)
+- [x] `InputMovement` — reads input bindings each tick; converts pressed directions into a `MoveIntent` (Phase 22H)
+- [ ] `AIMovement` — driven by pathfinding / behavior system; writes the same `MoveIntent` programmatically (struct declared, no system yet — Phase 30)
 
 **Style components** (how the entity actually moves):
 - [x] `SmoothTileMovement` — lerps from tile center to tile center; plays a walk animation mid-transit; next input queued but not consumed until landing
-- [ ] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; useful for puzzle / grid games (empty placeholder struct declared, no system yet — **Phase 22H**)
+- [x] `SnapTileMovement` — jumps instantly to the destination tile; no interpolation; a held direction repeats every `StepInterval`; useful for puzzle / grid games (Phase 22H)
 - [x] `FreeMovement` — pixel-perfect world-space velocity; not tile-aligned; intended for live-combat sections where precise sub-tile positioning matters
 
 **Usage examples:**
@@ -267,7 +268,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 
 ### Phase 22C — Tile movement collision ✓
 - [x] `PhysicsWorld::QueryTileBlocked(entity, targetTile)` for the plan-then-commit flow
-- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` with the query before a tile transition is committed (`SnapTileMovement` hooks in when that style gets a system)
+- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` and `SnapTileMovement` (22H) with the query before a tile transition is committed
 - [x] Demo: tile-style player can't enter solid tiles; queued-input-during-transit semantics preserved
 
 ### Phase 22D — Directional collision (arcs) ✓
@@ -293,16 +294,17 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`, `Trigger.Entered`, `Trigger.Exited`) — wired when Phase 24 lands; callback API is the integration surface until then
 - [ ] Editor integration (Phase 40) — collider authoring panel, live preview, directional-arc arrows on the canvas
 
-### Phase 22H — Movement controllers
+### Phase 22H — Movement controllers ✓
 *Replaces the hand-rolled WASD blocks copy-pasted across the demos with the controller → style pipeline designed in Phase 16 (`docs/ecs.md` "Movement"). Lands after 22F; does not wait on 22G.*
-- [ ] `InputMovementSystem` — reads `InputMovement` actions and writes intent into whichever style is present: `FreeMovement.Velocity` (diagonals normalized) or `SmoothTileMovement.QueuedDir` (cardinal-only)
-- [ ] Defined two-key tie-break for tile styles (e.g. most-recently-pressed axis wins) — replaces the demos' "dominant axis" check, which always picks X for digital input
-- [ ] Resolve `InputMovement.Speed` unit ambiguity (px/s vs tiles/s) — style components own their speed, or split the field
-- [ ] Expose the resolved move direction on the entity so game code (facing, animation selection) reads intent instead of polling keys
-- [ ] `SnapTileMoveSystem` — plan-then-commit via `PhysicsWorld::QueryTileBlocked`, instant `Transform2D` write + broadphase refresh; needs a step / key-repeat interval so a held key isn't one tile per tick
-- [ ] Intent path shared so `AIMovementSystem` (Phase 30) plugs in without touching the style systems
-- [ ] Migrate `PhysicsDemo`, `ArcDemo`, `TileMoveDemo`, `TileMoveArcDemo`, `WorldDemo` to `InputMovement`; snap-movement demo (or a style toggle in `TileMoveDemo`)
-- [ ] Update `docs/ecs.md` built-in system table (currently lists `SmoothTileMoveSystem` as deferred and omits the 22B/22C collision systems)
+- [x] `InputMovementSystem` — reads `InputMovement` actions into a `MoveIntent`; style systems turn it into `FreeMovement.Velocity` (diagonals normalized) or `SmoothTileMovement.QueuedDir` (cardinal-only). Reads all actions as released while a `BlocksInput` screen is up
+- [x] Defined two-key tie-break for tile styles: the most recently pressed axis wins (X when both go down together); opposite keys on one axis cancel
+- [x] Resolve `InputMovement.Speed` unit ambiguity — removed; style components own their speed (`FreeMovement.Speed` px/s, `SmoothTileMovement.Speed` tiles/s, `SnapTileMovement.StepInterval` s)
+- [x] Expose the resolved move direction on the entity — `MoveIntent.Direction` plus `MoveIntent.Facing` (last nonzero direction)
+- [x] `SnapTileMoveSystem` — plan-then-commit via `PhysicsWorld::QueryTileBlocked`, instant `Transform2D` write + broadphase refresh; a fresh press steps at once, a held one repeats every `StepInterval`
+- [x] Intent path shared so `AIMovementSystem` (Phase 30) plugs in without touching the style systems — it writes `MoveIntent` like `InputMovementSystem` does
+- [x] Migrate `PhysicsDemo`, `ArcDemo`, `ObbDemo`, `TileMoveDemo`, `TileMoveArcDemo`, `TriggerDemo`, `WorldDemo` to `InputMovement`; M toggles smooth / snap in `TileMoveDemo`
+- [x] Update `docs/ecs.md` movement section and built-in system table
+- [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
 ---
 
