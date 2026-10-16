@@ -119,6 +119,12 @@ constexpr std::pair<std::string_view, GamepadButton> GamepadButtonNames[] = {
     { "DPadRight",     GamepadButton::DPadRight     },
 };
 
+constexpr std::pair<std::string_view, AxisHalf> AxisHalfNames[] = {
+    { "Full",     AxisHalf::Full     },
+    { "Positive", AxisHalf::Positive },
+    { "Negative", AxisHalf::Negative },
+};
+
 constexpr std::pair<std::string_view, GamepadAxis> GamepadAxisNames[] = {
     { "LeftX",        GamepadAxis::LeftX        },
     { "LeftY",        GamepadAxis::LeftY        },
@@ -170,6 +176,7 @@ nlohmann::json SerializeBinding(const Binding& b)
             obj["type"]     = "GamepadAxis";
             obj["axis"]     = FindName(GamepadAxisNames, b.BoundAxis);
             obj["deadzone"] = b.Deadzone;
+            if (b.Half != AxisHalf::Full) obj["half"] = FindName(AxisHalfNames, b.Half);
             break;
     }
     return obj;
@@ -209,10 +216,11 @@ bool DeserializeBinding(const nlohmann::json& obj, Binding& out)
     if (type == "GamepadAxis")
     {
         if (!obj.contains("axis")) return false;
-        const f32 deadzone = obj.value("deadzone", 0.15f);
+        const f32      deadzone = obj.value("deadzone", 0.15f);
+        const AxisHalf half     = FindByName(AxisHalfNames, obj.value("half", std::string("Full")), AxisHalf::Full);
         out = Binding::FromGamepadAxis(
             FindByName(GamepadAxisNames, obj["axis"].get<std::string>(), GamepadAxis::LeftX),
-            deadzone);
+            half, deadzone);
         return true;
     }
 
@@ -439,7 +447,7 @@ bool Settings::LoadInputBindings(InputManager& input)
                         input.BindGamepadButton(id, b.BoundButton);
                         break;
                     case Binding::Type::GamepadAxis:
-                        input.BindGamepadAxis(id, b.BoundAxis, b.Deadzone);
+                        input.BindGamepadAxis(id, b.BoundAxis, b.Half, b.Deadzone);
                         break;
                 }
                 LOG_DEBUG(Engine, "Loaded binding for action '{}': {}", name, obj.dump());

@@ -150,6 +150,17 @@ constexpr ActionID MakeAction(const std::string_view name)
     return hash;
 }
 
+// Which part of an axis a binding reads. A stick axis spans -1..1, and any
+// nonzero value counts as pressed, so binding a whole axis to both Move_Left
+// and Move_Right presses both whenever the stick moves. Bind each half to its
+// own action instead. On SDL sticks, negative Y is up.
+enum class AxisHalf : u8
+{
+    Full,     // signed -1..1
+    Positive, // 0..1 while the axis is positive (stick right / down)
+    Negative, // 0..1 while the axis is negative (stick left / up)
+};
+
 // ---------------------------------------------------------------------------
 // Binding
 //
@@ -181,6 +192,9 @@ struct Binding
     // as pressed. Eliminates stick drift on cheap controllers.
     f32 Deadzone = 0.15f;
 
+    // For axis bindings only: which half of the axis this binding reads.
+    AxisHalf Half = AxisHalf::Full;
+
     static Binding FromKey(const Key key)
     {
         Binding b;
@@ -205,13 +219,28 @@ struct Binding
         return b;
     }
 
-    static Binding FromGamepadAxis(const GamepadAxis axis, const f32 deadzone = 0.15f)
+    static Binding FromGamepadAxis(const GamepadAxis axis, const AxisHalf half = AxisHalf::Full,
+                                   const f32 deadzone = 0.15f)
     {
         Binding b;
         b.BindingType = Type::GamepadAxis;
         b.BoundAxis   = axis;
+        b.Half        = half;
         b.Deadzone    = deadzone;
         return b;
+    }
+
+    // Axis bindings: a normalized axis value (-1..1) after the deadzone and
+    // half selection. Full keeps the sign; a half reads 0..1 in its own
+    // direction and 0 in the other.
+    [[nodiscard]] f32 ShapeAxis(const f32 value) const
+    {
+        if ((value < 0.0f ? -value : value) < Deadzone) return 0.0f;
+        switch (Half) {
+            case AxisHalf::Positive: return value > 0.0f ? value : 0.0f;
+            case AxisHalf::Negative: return value < 0.0f ? -value : 0.0f;
+            default:                 return value;
+        }
     }
 
     bool operator==(const Binding& o) const
@@ -221,7 +250,7 @@ struct Binding
             case Type::Key:           return BoundKey    == o.BoundKey;
             case Type::MouseButton:   return BoundMouse  == o.BoundMouse;
             case Type::GamepadButton: return BoundButton == o.BoundButton;
-            case Type::GamepadAxis:   return BoundAxis   == o.BoundAxis;
+            case Type::GamepadAxis:   return BoundAxis   == o.BoundAxis && Half == o.Half;
             default: return false;
         }
     }

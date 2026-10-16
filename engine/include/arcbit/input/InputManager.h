@@ -90,7 +90,8 @@ public:
     void BindKey          (ActionID action, Key           key);
     void BindMouseButton  (ActionID action, MouseButton   button);
     void BindGamepadButton(ActionID action, GamepadButton button);
-    void BindGamepadAxis  (ActionID action, GamepadAxis   axis, f32 deadzone = 0.15f);
+    void BindGamepadAxis  (ActionID action, GamepadAxis   axis, AxisHalf half = AxisHalf::Full,
+                           f32 deadzone = 0.15f);
 
     // Remove all bindings for an action without unregistering it.
     void ClearBindings(ActionID action);
