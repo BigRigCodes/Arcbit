@@ -6,8 +6,9 @@
 //   - 4×4 water square in the middle, marked Solid → tile collider mesh
 //   - A pair of static box "rocks" so entity-vs-entity blocking + slide is
 //     visible alongside tile blocking
-//   - Player as a circle collider driven by FreeMovement; WASD writes the
-//     intent, the resolver clamps + slides against tiles and props
+//   - Player as a circle collider: InputMovement turns WASD into MoveIntent,
+//     FreeMovement into velocity; the resolver clamps + slides against tiles
+//     and props
 //
 // Press F2 to toggle physics debug draw (defaults to ON for instant feedback).
 // ---------------------------------------------------------------------------
@@ -41,6 +42,7 @@ constexpr ActionID ActionDebugPhysics = MakeAction("Debug_Physics");
 constexpr ActionID ActionToggleGrid   = MakeAction("Debug_ToggleGrid");
 
 constexpr f32 TileSize    = 64.0f;
+constexpr f32 PlayerSpeed = 240.0f; // world px/sec
 constexpr u32 GrassTileId = 1;   // base of grass.tileatlas.json
 constexpr u32 WaterTileId = 409; // base of water.tileatlas.json
 constexpr i32 GrassExtent = 8;   // grass field is [-8..+8] tiles each axis
@@ -131,8 +133,10 @@ protected:
                                                .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
-        world.AddComponent<FreeMovement>(_player, FreeMovement{.Friction = 0.0f});
+        world.AddComponent<FreeMovement>(_player, FreeMovement{.Speed = PlayerSpeed});
         world.AddComponent<PendingMove>(_player, PendingMove{});
+        world.AddComponent<InputMovement>(_player, InputMovement{ ActionMoveLeft, ActionMoveRight,
+                                                                  ActionMoveUp, ActionMoveDown });
 
         const Collider2D playerCollider{
             .Shape  = ColliderShape::Circle,
@@ -178,20 +182,6 @@ protected:
     void OnUpdate(const f32 /*dt*/) override
     {
         PhysicsWorld& physics = GetScene().GetPhysics();
-
-        Vec2 dir{};
-        if (GetInput().IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (GetInput().IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (GetInput().IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-
-        // Drive FreeMovement.Velocity directly — the system integrates it into
-        // PendingMove and the resolver clamps + slides against colliders. No
-        // manual UpdateCollider needed; the resolver refreshes the broadphase
-        // after committing the new position.
-        constexpr f32 PlayerSpeed = 240.0f; // world px/sec
-        auto*         fm          = GetScene().GetWorld().GetComponent<FreeMovement>(_player);
-        fm->Velocity              = dir * PlayerSpeed;
 
         if (GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
