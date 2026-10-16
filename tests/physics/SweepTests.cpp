@@ -117,3 +117,64 @@ TEST_CASE("Substep sweep: adaptive step count catches thin planks", "[physics][s
     REQUIRE_FALSE(Substep(speck, from, step, plank, {}, 8u).Hit); // setup: 8 steps tunnel
     CHECK(SweepAgainst(speck, from, step, plank, {}).Hit);
 }
+
+TEST_CASE("Slab sweep: an edge shared on a still axis is not a hit", "[physics][sweep]")
+{
+    // Regression: a box sliding along one box's top face snagged on the next,
+    // separate box at the seam — touching edges on the axis it wasn't moving
+    // along counted as overlap, so the slab test reported entering the box.
+    SECTION("exactly flush")
+    {
+        const AABB next = AABB::FromCenterHalfExtents({ 20.0f, 10.0f }, { 5.0f, 5.0f });
+        CHECK_FALSE(MovingAABBvsAABB(Mover, { 40.0f, 0.0f }, next).Hit);
+    }
+    SECTION("flush within float noise")
+    {
+        const AABB next = AABB::FromCenterHalfExtents({ 20.0f, 10.0f - 5e-4f }, { 5.0f, 5.0f });
+        CHECK_FALSE(MovingAABBvsAABB(Mover, { 40.0f, 0.0f }, next).Hit);
+    }
+    SECTION("a real overlap on the still axis is still a hit")
+    {
+        const Result r = MovingAABBvsAABB(Mover, { 40.0f, 0.0f }, AABB::FromCenterHalfExtents({ 20.0f, 9.0f }, { 5.0f, 5.0f }));
+        REQUIRE(r.Hit);
+        CHECK_THAT(r.ToI, WithinAbs(0.25f, Tol));
+    }
+}
+
+TEST_CASE("Substep sweep: a touching circle can leave or slide, but not push in", "[physics][sweep]")
+{
+    // Regression: a circle exactly touching an obstacle reported a hit at
+    // ToI 0 with a normal opposite its motion for *every* direction, so the
+    // resolver cancelled all motion and the mover was stuck.
+    const Collider2D circle{ .Shape = ColliderShape::Circle, .Radius = 4.0f };
+
+    SECTION("axis-aligned box")
+    {
+        const Collider2D box{ .Shape = ColliderShape::Box, .HalfExtents = { 5.0f, 5.0f } };
+        const Vec2       boxPos{ 9.0f, 0.0f }; // face at x = 4: touching
+        CHECK_FALSE(SweepAgainst(circle, {}, { -5.0f, 0.0f }, box, boxPos).Hit);
+        CHECK_FALSE(SweepAgainst(circle, {}, { 0.0f, 5.0f }, box, boxPos).Hit);
+
+        const Result into = SweepAgainst(circle, {}, { 5.0f, 0.0f }, box, boxPos);
+        REQUIRE(into.Hit);
+        CHECK(into.ToI == 0.0f);
+        CHECK_THAT(into.Normal.X, WithinAbs(-1.0f, Tol));
+        CHECK_THAT(into.Normal.Y, WithinAbs(0.0f, Tol));
+    }
+    SECTION("rotated box")
+    {
+        const Collider2D box{ .Shape = ColliderShape::Box, .Rotation = QuarterPi, .HalfExtents = { 5.0f, 5.0f } };
+        const OBB        obb    = OBB::FromCollider(box, {});
+        const Vec2       n      = obb.AxisX;                 // outward normal of the touched face
+        const Vec2       along  = obb.AxisY;                 // tangent to that face
+        const Vec2       origin = n * 9.0f;                  // 5 (half extent) + 4 (radius)
+        CHECK_FALSE(SweepAgainst(circle, origin, n * 5.0f, box, {}).Hit);
+        CHECK_FALSE(SweepAgainst(circle, origin, along * 3.0f, box, {}).Hit);
+
+        const Result into = SweepAgainst(circle, origin, n * -2.0f, box, {});
+        REQUIRE(into.Hit);
+        CHECK(into.ToI == 0.0f);
+        CHECK_THAT(into.Normal.X, WithinAbs(n.X, Tol));
+        CHECK_THAT(into.Normal.Y, WithinAbs(n.Y, Tol));
+    }
+}

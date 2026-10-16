@@ -309,12 +309,29 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 ---
 
 ## Phase 23: Scene Management
-- [ ] `Scene` class — owns an ECS world, tilemap, active lights, and camera
-- [ ] `SceneManager` — load / unload / transition between scenes
-- [ ] Async streaming: load next scene in background while current scene is still running
-- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21)
-- [ ] Scene stack for overlays (e.g. pop up an inventory screen over the world without unloading it)
+*`Scene` already exists from Phase 16 (ECS world, camera, `WorldConfig`, `TileMap`, lazily-created `PhysicsWorld`; lights are entities), but `Application` owns exactly one for the whole run. This phase makes scenes swappable, then uses that for a demo switcher and a proper boot flow.*
+
+**Foundations**
+- [ ] Entity destroy cleanup — only `LifetimeSystem` unregisters a destroyed entity's collider today; any other `DestroyEntity` leaves a stale broadphase record that keeps blocking movers and overlapping triggers. One destroy path (hook or `Scene::DestroyEntity`) that every caller goes through, and scene unload releases everything at once
+- [ ] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds
+
+**SceneManager**
+- [ ] `SceneManager` — load / unload / switch the active scene; `Application` drives the active one instead of owning a single `Scene`
+- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21) — every scene change fades the outgoing scene out *and the incoming one in*
+- [ ] Async streaming: load the next scene in the background while the current one keeps running
+- [ ] Scene stack — a scene suspended under another without unloading (e.g. a battle scene over the overworld, resumed with state intact). UI overlays like inventory stay on the UI screen stack
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 37)
+
+**Demo switcher**
+- [ ] Each demo becomes a scene registered in one `Application`; a demo-select menu plus a hotkey switches between them in one run. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp` and doubles as the load / unload / transition test bed
+
+**Boot flow** — engine splash → game splash(es) → title screen → gameplay
+- [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading
+- [ ] Hand-off into the first scene fades in. Today the splash fades its image to black, pops, and the world appears at full brightness in one frame (skipping cuts straight to it)
+- [ ] Engine splash is engine-owned: its content and timing are defined inside the engine, not exposed to games. Games append their own splash entries after it but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
+- [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
+- [ ] Title screen as the default first stop after the splashes (`MainMenuScreen` exists; it becomes the boot flow's destination rather than something each game wires by hand)
+- [ ] Credits screen — data-driven scrolling credits (sections, names, optional logos), reachable from the title screen and usable as an end-of-game roll
 
 ---
 
@@ -485,11 +502,17 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 
 ## Phase 35: Cutscene & Event Sequence System
 - [ ] `EventSequence` — ordered list of timed commands (timeline-style)
-- [ ] Command types: `MoveCameraTo`, `PanCamera`, `PlayAnimation`, `PlaySound`, `ShowDialog`, `FadeScreen`, `WaitSeconds`, `WaitForInput`, `SetFlag`, `RunLua`, `PublishEvent`
+- [ ] Command types: `MoveCameraTo`, `PanCamera`, `PlayAnimation`, `PlaySound`, `PlayVideo`, `ShowDialog`, `FadeScreen`, `WaitSeconds`, `WaitForInput`, `SetFlag`, `RunLua`, `PublishEvent`
 - [ ] `EventTrigger` tile/entity property — starts a named sequence when entered or interacted with
 - [ ] Sequence authoring in JSON; imported and previewed in editor (Phase 40)
 - [ ] Skippable flag per sequence (skip jumps to end, fires all `SetFlag` / `RunLua` / `PublishEvent` commands immediately)
 - [ ] Supports both in-engine cutscenes and background story events (no camera override needed)
+
+**Video playback** — pre-rendered cutscenes, an animated engine splash intro (Phase 23 boot flow), looping title backgrounds
+- [ ] Choose codec + container with licensing in mind: royalty-free formats (e.g. VP9 / AV1 in WebM, or Theora) over H.264 / H.265; prefer a permissively licensed decoder over linking all of FFmpeg
+- [ ] `VideoPlayer` — decode on a worker thread, upload frames into a streaming texture, route the audio track through `AudioManager`, keep video synced to the audio clock
+- [ ] Fullscreen `VideoScreen` (skippable, `BlocksGame`) and a `Video` UI widget for in-layout playback
+- [ ] `PlayVideo` sequence command (above) and a video entry type for the splash sequence
 
 ---
 

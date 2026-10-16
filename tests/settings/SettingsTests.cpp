@@ -5,6 +5,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
+
 using namespace Arcbit;
 
 namespace
@@ -111,6 +113,31 @@ TEST_CASE("Get converts between numeric types but not to or from bool / string",
     CHECK(Settings::Get<i32>("text", -7) == -7);
     CHECK(Settings::Get<i32>("flag", -7) == -7);
     CHECK(Settings::Get<bool>("count", false) == false);
+}
+
+TEST_CASE("Float values convert to integers only when they fit", "[settings]")
+{
+    // Regression: Get<integer> cast any stored f32 straight to the integer
+    // type, which is undefined behavior for NaN, infinity, and out-of-range
+    // values.
+    SettingsScope scope;
+    Settings::Init(scope.Path());
+    Settings::Set<f32>("frac", 3.7f);
+    Settings::Set<f32>("negative", -1.0f);
+    Settings::Set<f32>("huge", 1e30f);
+    Settings::Set<f32>("twoPow31", 2147483648.0f); // one past i32 max, exact in f32
+    Settings::Set<f32>("nan", std::numeric_limits<f32>::quiet_NaN());
+    Settings::Set<f32>("inf", std::numeric_limits<f32>::infinity());
+
+    CHECK(Settings::Get<i32>("frac") == 3);
+    CHECK(Settings::Get<i32>("negative") == -1);
+    CHECK(Settings::Get<u32>("negative", 7u) == 7u);
+    CHECK(Settings::Get<i32>("huge", -7) == -7);
+    CHECK(Settings::Get<u32>("huge", 7u) == 7u);
+    CHECK(Settings::Get<i32>("twoPow31", -7) == -7);
+    CHECK(Settings::Get<u32>("twoPow31") == 2147483648u);
+    CHECK(Settings::Get<i32>("nan", -7) == -7);
+    CHECK(Settings::Get<u32>("inf", 7u) == 7u);
 }
 
 TEST_CASE("A malformed settings file falls back to defaults", "[settings]")

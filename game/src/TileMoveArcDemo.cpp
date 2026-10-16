@@ -192,7 +192,9 @@ protected:
             .Layer       = CollisionLayers::Player,
         };
         world.AddComponent<Collider2D>(_player, playerCollider);
-        physics.RegisterCollider(_player, playerCollider, t->Position);
+        // Re-fetch: each AddComponent above moved the entity to a new archetype,
+        // so `t` no longer points at its Transform2D.
+        physics.RegisterCollider(_player, playerCollider, world.GetTransform(_player)->Position);
     }
 
     // Visual overlays: each directional tile renders whatever water-atlas UV

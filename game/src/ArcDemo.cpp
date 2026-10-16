@@ -144,7 +144,9 @@ protected:
             .Layer  = CollisionLayers::Player,
         };
         world.AddComponent<Collider2D>(_player, playerCollider);
-        (void)physics.RegisterCollider(_player, playerCollider, t->Position);
+        // Re-fetch: each AddComponent above moved the entity to a new archetype,
+        // so `t` no longer points at its Transform2D.
+        (void)physics.RegisterCollider(_player, playerCollider, world.GetTransform(_player)->Position);
     }
 
     // Tree: tall green canopy (no collider) + small brown stump (collider only).

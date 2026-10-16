@@ -11,12 +11,13 @@ namespace Arcbit
 // Kinematic — position is owned by a movement system or script; the resolver
 //             clamps its motion against other bodies. Use for the player,
 //             NPCs, pushable boxes, AI agents.
-// Trigger   — generates overlap events but never blocks movement. Use for
-//             door tiles, interaction zones, damage volumes.
+//
+// Triggers aren't a kind: set Collider2D::IsTrigger on either kind (a static
+// door zone or a kinematic sword hitbox) to get overlap events instead of
+// blocking.
 enum class BodyKind : u8
 {
     Static    = 0,
     Kinematic = 1,
-    Trigger   = 2,
 };
 } // namespace Arcbit

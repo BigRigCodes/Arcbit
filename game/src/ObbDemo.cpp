@@ -162,7 +162,9 @@ protected:
             .Layer       = CollisionLayers::Player,
         };
         world.AddComponent<Collider2D>(_player, col);
-        (void)physics.RegisterCollider(_player, col, t->Position);
+        // Re-fetch: each AddComponent above moved the entity to a new archetype,
+        // so `t` no longer points at its Transform2D.
+        (void)physics.RegisterCollider(_player, col, world.GetTransform(_player)->Position);
     }
 
     void CreateProps(World& world, PhysicsWorld& physics)

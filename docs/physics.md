@@ -106,17 +106,21 @@ component API and integration with the movement systems should stay the same.
 
 ## Body Kinds
 
-Three kinds, distinguished by who owns the position and how collisions resolve:
+Two kinds, distinguished by who owns the position and how collisions resolve:
 
 | Kind        | Position owner          | Resolves into other bodies? | Use case                                      |
 |-------------|-------------------------|-----------------------------|-----------------------------------------------|
 | `Static`    | World — never moves     | No — others resolve into it | Trees, rocks, walls, terrain colliders        |
 | `Kinematic` | Movement system / script | Yes — pushed by resolver   | Player, NPCs, pushable boxes, AI agents       |
-| `Trigger`   | Static or kinematic     | Never blocks; fires events  | Door tiles, interaction zones, damage volumes |
 
 `Static` bodies are uploaded once and live in the broadphase forever. `Kinematic`
-bodies update each tick before resolution. `Trigger` bodies only generate
-overlap events — they never block movement.
+bodies update each tick before resolution.
+
+Triggers are not a kind: `Collider2D::IsTrigger` turns either kind into a
+trigger that only generates overlap events and never blocks movement — a
+static door tile or interaction zone, or a kinematic hitbox that follows its
+entity. (Early drafts had a `BodyKind::Trigger`; nothing honored it, so it was
+removed in favor of the flag.)
 
 There is no `Dynamic` kind in Phase 22. If a future phase needs it, we add it.
 

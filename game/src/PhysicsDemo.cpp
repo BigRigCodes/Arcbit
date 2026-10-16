@@ -145,8 +145,10 @@ protected:
             .Layer  = CollisionLayers::Player,
         };
         world.AddComponent<Collider2D>(_player, playerCollider);
-        // Id discarded — the resolver looks it up by entity each tick.
-        physics.RegisterCollider(_player, playerCollider, t->Position);
+        // Id discarded — the resolver looks it up by entity each tick. Re-fetch
+        // the transform: each AddComponent above moved the entity to a new
+        // archetype, so `t` no longer points at its Transform2D.
+        physics.RegisterCollider(_player, playerCollider, world.GetTransform(_player)->Position);
     }
 
     // Two static box props east of the player so entity-vs-entity blocking +

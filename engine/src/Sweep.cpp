@@ -16,6 +16,11 @@ namespace
 {
     constexpr f32 SweepEpsilon = 1e-6f;
 
+    // Shapes closer than this (gap or overlap, in px) count as touching
+    // rather than overlapping. Covers the float noise left by
+    // `position + delta * ToI` after a resolved hit.
+    constexpr f32 TouchTolerance = 1e-3f;
+
     // Substep bounds for the non-slab path. 8 covers ordinary per-tick
     // movement; 64 caps the cost of a long move (a full tile step) past a
     // thin obstacle.
@@ -53,8 +58,11 @@ namespace
                   f32&      tEnter, f32& tExit) noexcept
     {
         if (std::abs(v) < SweepEpsilon) {
-            // Stationary on this axis — overlap decides "always open" vs "never enterable".
-            if (mMax < sMin || mMin > sMax) return false;
+            // Stationary on this axis — overlap decides "always open" vs "never
+            // enterable". Ranges that only share an edge don't overlap: a box
+            // sliding flush along one box would otherwise snag on the next box's
+            // corner at the seam between them.
+            if (mMax <= sMin + TouchTolerance || mMin >= sMax - TouchTolerance) return false;
             tEnter = -std::numeric_limits<f32>::infinity();
             tExit  = std::numeric_limits<f32>::infinity();
             return true;
@@ -69,10 +77,6 @@ namespace
         }
         return true;
     }
-
-    // Boxes closer than this (gap or overlap, in px) count as touching. Covers
-    // the float noise left by `position + delta * ToI` after a resolved hit.
-    constexpr f32 TouchTolerance = 1e-3f;
 
     // Contact rule for boxes already touching at t = 0 — the normal state of
     // a mover the resolver stopped against a face last tick. Only motion
@@ -107,6 +111,23 @@ namespace
         const bool into = touchX ? intoX : intoY;
         if (!into) return Result{};
         return Result{ .ToI = 0.0f, .Normal = n, .Hit = true };
+    }
+
+    // Contact rule for a substep pair that only *touches* at t = 0 (the
+    // non-slab counterpart of TouchingContact). Moving away or along the
+    // surface is free; moving into it is a hit at ToI 0 with the surface
+    // normal. Without this, a circle exactly touching a wall got a normal
+    // opposite its motion for every direction and could never leave.
+    //
+    // Returns nullopt for a genuine overlap; that keeps the motion-opposed
+    // normal below, which directional arcs depend on.
+    std::optional<Result> ShallowContact(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
+                                         const Collider2D& other, const Vec2 otherPos) noexcept
+    {
+        const Narrowphase::Contact c = Narrowphase::ComputeContact(mover, origin, other, otherPos);
+        if (!c.Hit || c.Depth > TouchTolerance) return std::nullopt;
+        if (Dot(delta, c.Normal) >= 0.0f) return Result{};
+        return Result{ .ToI = 0.0f, .Normal = c.Normal, .Hit = true };
     }
 } // anonymous namespace
 
@@ -164,6 +185,8 @@ Result Substep(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
     // would get spurious off-axis normals that fall inside the arc and trap
     // it; with this fix, the arc check sees the actual motion direction.
     if (Narrowphase::Overlap(mover, origin, other, otherPos)) {
+        if (const std::optional<Result> touch = ShallowContact(mover, origin, delta, other, otherPos)) return *touch;
+
         Result r{};
         r.Hit       = true;
         r.ToI       = 0.0f;
@@ -193,6 +216,9 @@ Result Substep(const Collider2D& mover, const Vec2 origin, const Vec2 delta,
         // the face on a long wall and broke sliding.)
         const Narrowphase::Contact c = Narrowphase::ComputeContact(mover, testPos, other, otherPos);
         if (c.Hit) {
+            // Grazing the surface without moving into it (sliding along a face
+            // at exactly touching distance) isn't a hit.
+            if (c.Depth <= TouchTolerance && Dot(delta, c.Normal) >= 0.0f) continue;
             r.Normal = c.Normal;
             return r;
         }
