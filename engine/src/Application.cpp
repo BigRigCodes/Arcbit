@@ -12,6 +12,7 @@
 #include <format>
 
 #include <chrono>
+#include <limits>
 #include <thread>
 
 namespace Arcbit
@@ -85,8 +86,9 @@ u32 Application::GetWindowHeight() const { return _window->GetHeight(); }
 
 Scene& Application::GetScene()
 {
-    ARCBIT_ASSERT(_scene != nullptr, "GetScene() called before Run()");
-    return *_scene;
+    Scene* scene = _scenes.GetActive();
+    ARCBIT_ASSERT(scene != nullptr, "GetScene() called before Run()");
+    return *scene;
 }
 
 void Application::ToggleFullscreen()
@@ -94,6 +96,22 @@ void Application::ToggleFullscreen()
     _window->ToggleFullscreen();
     Settings::Graphics.Fullscreen = !Settings::Graphics.Fullscreen;
     Settings::MarkDirty();
+}
+
+void Application::CollectSceneFade(FramePacket& packet) const
+{
+    const f32 alpha = _scenes.GetFadeAlpha();
+    if (alpha <= 0.0f) return;
+
+    const Vec2 size{ static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) };
+    Sprite     quad{};
+    quad.Texture  = _renderThread.GetUIWhiteTexture();
+    quad.Sampler  = _renderThread.GetUIWhiteSampler();
+    quad.Position = size * 0.5f;
+    quad.Size     = size;
+    quad.Tint     = { 0.0f, 0.0f, 0.0f, alpha };
+    quad.Layer    = std::numeric_limits<i32>::lowest(); // under every UI screen
+    packet.UISprites.push_back(quad);
 }
 
 Format Application::GetSwapchainFormat() const { return _device->GetSwapchainColorFormat(_swapchain); }
@@ -110,9 +128,10 @@ void Application::Run()
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
 
-    // Create the scene before OnStart so game code can use GetScene() immediately.
-    _scene = std::make_unique<Scene>();
-    _scene->SetInput(&_input); // drives InputMovementSystem
+    // Install a default scene before OnStart so game code can use GetScene()
+    // immediately; a game that registers scenes replaces it with Switch().
+    _scenes.SetHost({ .App = this, .Input = &_input, .Quiesce = [this] { _renderThread.WaitIdle(); } });
+    _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
@@ -212,15 +231,24 @@ void Application::Run()
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
-                if (_scene) {
-                    _scene->SetInputBlocked(_ui.HasBlockingScreen()); // e.g. an input-capturing overlay
-                    _scene->Update(_fixedTimestep);
+                _scenes.Update(_fixedTimestep);
+                if (Scene* scene = _scenes.GetActive()) {
+                    // An input-capturing overlay or a scene fade holds the player still.
+                    scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsTransitioning());
+                    scene->Update(_fixedTimestep);
                 }
             }
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
             accumulator -= static_cast<f64>(_fixedTimestep);
+
+            // A scene swap can take a while (loading). Don't simulate that
+            // time afterwards, or the fade-in jumps ahead in one frame.
+            if (_scenes.ConsumeSwapped()) {
+                accumulator = 0.0;
+                prevTime    = Clock::now();
+            }
         }
 
         // --- Variable-rate render --------------------------------------------
@@ -233,7 +261,8 @@ void Application::Run()
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
-            if (_scene) _scene->CollectRenderData(packet);
+            if (Scene* scene = _scenes.GetActive()) scene->CollectRenderData(packet);
+            CollectSceneFade(packet);
         }
         _ui.CollectRenderData(packet,
                               {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())});
@@ -304,8 +333,9 @@ void Application::Run()
     if (splashSampler.IsValid())
         _device->DestroySampler(splashSampler);
 
-    // Destroy scene entities before shutting down GPU resources.
-    _scene.reset();
+    // Unload the active scene (OnUnload, scene textures, entities) before the
+    // game's OnShutdown and the GPU teardown.
+    _scenes.Shutdown();
 
     OnShutdown();
     AudioManager::Shutdown();

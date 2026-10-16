@@ -1,4 +1,6 @@
 #include <arcbit/scene/Scene.h>
+#include <arcbit/app/Application.h>
+#include <arcbit/core/Assert.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
 
@@ -23,6 +25,26 @@ Scene::Scene()
 
 Scene::~Scene() = default; // out-of-line for unique_ptr<PhysicsWorld> destruction
 
+Application& Scene::GetApp()
+{
+    ARCBIT_ASSERT(_app != nullptr, "Scene::GetApp: scene isn't hosted by an Application's SceneManager");
+    return *_app;
+}
+
+TextureHandle Scene::LoadTexture(const std::string_view path)
+{
+    const TextureHandle handle = GetApp().GetTextures().Acquire(path);
+    if (handle.IsValid()) _textures.push_back(handle);
+    return handle;
+}
+
+void Scene::ReleaseResources()
+{
+    if (_app)
+        for (const TextureHandle h : _textures) _app->GetTextures().Release(h);
+    _textures.clear();
+}
+
 PhysicsWorld& Scene::GetPhysics()
 {
     if (!_physics) {
@@ -32,8 +54,9 @@ PhysicsWorld& Scene::GetPhysics()
     return *_physics;
 }
 
-void Scene::Update(f32 dt)
+void Scene::Update(const f32 dt)
 {
+    OnUpdate(dt);
     _camera.Update(dt);
     _world.RunUpdateSystems(*this, dt);
 }
@@ -43,6 +66,7 @@ void Scene::CollectRenderData(FramePacket& packet)
     packet.CameraPosition = _camera.GetEffectivePosition();
     packet.CameraZoom     = _camera.Zoom;
     packet.CameraRotation = _camera.Rotation;
+    OnRender(packet);
     _world.RunRenderSystems(*this, packet);
 }
 

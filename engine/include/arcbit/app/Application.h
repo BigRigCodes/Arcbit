@@ -7,6 +7,7 @@
 #include <arcbit/render/Font.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
+#include <arcbit/scene/SceneManager.h>
 #include <arcbit/ui/UIManager.h>
 
 #include <memory>
@@ -14,7 +15,6 @@
 namespace Arcbit
 {
 class Window; // full type only needed in Application.cpp
-class Scene;  // full type only needed in Application.cpp
 
 // ---------------------------------------------------------------------------
 // ApplicationConfig
@@ -103,8 +103,14 @@ public:
     // automatically during shutdown, but you can also Unload() explicitly.
     [[nodiscard]] TextureManager& GetTextures() { return *_textures; }
 
-    // The active scene — access the ECS world, camera, and world config from OnStart onwards.
+    // The active scene — access the ECS world, camera, and world config from
+    // OnStart onwards. Before any scene is registered and switched to, this is
+    // a default unmanaged Scene the game populates itself. Don't hold the
+    // reference across a scene switch.
     [[nodiscard]] Scene& GetScene();
+
+    // Register scenes and switch between them (fade out → swap → fade in).
+    [[nodiscard]] SceneManager& GetScenes() { return _scenes; }
 
     // The UI manager — push screens in OnStart; query widgets in OnUpdate.
     [[nodiscard]] UIManager& GetUI() { return _ui; }
@@ -183,13 +189,16 @@ private:
 
     UIManager _ui;
 
-    std::unique_ptr<Scene>          _scene;
+    SceneManager                    _scenes;
     RenderDevice*                   _device = nullptr;
     std::unique_ptr<TextureManager> _textures;
     SwapchainHandle                 _swapchain;
     RenderThread                    _renderThread;
     std::unique_ptr<Window>         _window;
     InputManager                    _input;
+
+    // Full-window black quad over the world while a scene switch fades.
+    void CollectSceneFade(FramePacket& packet) const;
 
     // Accumulates real time to rate-limit hot-reload checks to once per second.
     f64 _hotReloadAccumulator = 0.0;

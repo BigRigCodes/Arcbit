@@ -314,17 +314,28 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 **Foundations**
 - [x] Entity destroy cleanup — `World::OnRemove<T>` hooks run whenever a component leaves an entity (`RemoveComponent` or `DestroyEntity`); `Scene` hooks `Collider2D` to drop the broadphase record, so no removal path leaves an invisible wall. `LifetimeSystem`'s manual unregister is gone
 - [x] Mid-run GPU resource safety — `RenderThread::WaitIdle()` parks the render thread and drains the GPU so the main thread can create / destroy resources between frames (scene switches); texture hot-reload now goes through it instead of racing the render thread
-- [ ] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds
+- [x] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds. The hooks are engine extension points: a data-driven scene (below) is one generic `FileScene` class whose `OnLoad` reads an `.arcscene`, so editor-made games need no C++ scene subclasses
 
 **SceneManager**
-- [ ] `SceneManager` — load / unload / switch the active scene; `Application` drives the active one instead of owning a single `Scene`
-- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21) — every scene change fades the outgoing scene out *and the incoming one in*
+- [x] `SceneManager` — load / unload / switch the active scene by name (`Register(name, factory)`, queued `Switch(name)`); `Application` drives the active one instead of owning a single `Scene`
+- [x] Scene-owned resources — textures acquired through `Scene::LoadTexture` are reference-counted (`TextureManager::Acquire` / `Release`) and released automatically on unload; a data-driven scene can't hand-write cleanup
+- [ ] Scene-owned sprite sheets and audio — same ref-counted ownership for `SpriteSheet` and sounds (textures only so far)
+- [x] Entry point on switch — `Switch(name, entry)` so a door or script can say where the player arrives (e.g. a named spawn marker)
+- [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
+- [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
 - [ ] Async streaming: load the next scene in the background while the current one keeps running
 - [ ] Scene stack — a scene suspended under another without unloading (e.g. a battle scene over the overworld, resumed with state intact). UI overlays like inventory stay on the UI screen stack
-- [ ] Entry-point scene configured in `project.arcbit` (Phase 37)
+- [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
 
 **Demo switcher**
 - [ ] Each demo becomes a scene registered in one `Application`; a demo-select menu plus a hotkey switches between them in one run. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp` and doubles as the load / unload / transition test bed
+
+**Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
+- [ ] One `.arcscene` format — `docs/ecs.md` (UUID-keyed entities, inline components) and `docs/tilemap.md` (entity array with templates / overrides, separate `.arcmap` reference) describe two different formats today; reconcile into `docs/scenes.md`
+- [ ] Component registry — component name ↔ C++ type ↔ JSON read / write, so the loader (and later the editor and Lua) handle components generically
+- [ ] `.arcscene` loader and saver (`FileScene`), with file ID → runtime `Entity` mapping for cross-references during load
+- [ ] Named systems — game code registers systems by name; a scene file lists the ones it uses (C++ lambdas can't live in a data file)
+- [ ] At least one demo converted to an `.arcscene` to prove an editor-style scene runs with no C++ scene class
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
 - [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading

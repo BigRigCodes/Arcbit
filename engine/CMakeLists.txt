@@ -18,6 +18,7 @@ add_library(arcbit-engine STATIC
     src/Systems.cpp
     src/Movement.cpp
     src/Scene.cpp
+    src/SceneManager.cpp
     src/AnimatorStateMachine.cpp
     src/AudioManager.cpp
     src/TileAtlas.cpp

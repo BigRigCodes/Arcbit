@@ -1,0 +1,190 @@
+// SceneManager driven headless: no Application host, so scenes never touch
+// the GPU. Covers the switch state machine (fades, retargeting, reversal) and
+// the lifecycle order scenes see.
+
+#include <arcbit/scene/SceneManager.h>
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <memory>
+#include <string>
+#include <vector>
+
+using namespace Arcbit;
+using Catch::Matchers::WithinAbs;
+
+namespace
+{
+constexpr f32 Dt = 1.0f / 60.0f;
+
+// Records every lifecycle call as "<event>:<name>[@entry]".
+class LogScene : public Scene
+{
+public:
+    explicit LogScene(std::vector<std::string>& log) : _log(log) {}
+
+    void OnLoad() override
+    {
+        _log.push_back("load:" + GetName() + (GetEntryPoint().empty() ? "" : "@" + GetEntryPoint()));
+    }
+    void OnUnload() override { _log.push_back("unload:" + GetName()); }
+    void OnUpdate(f32) override { _log.push_back("update:" + GetName()); }
+
+private:
+    std::vector<std::string>& _log;
+};
+
+struct Fixture
+{
+    std::vector<std::string> log;
+    SceneManager             scenes;
+
+    Fixture()
+    {
+        scenes.FadeOutTime = 0.25f; // 15 ticks
+        scenes.FadeInTime  = 0.25f;
+        for (const char* name : { "A", "B", "C" })
+            scenes.Register(name, [this] { return std::make_unique<LogScene>(log); });
+    }
+
+    void Tick(const int n = 1)
+    {
+        for (int i = 0; i < n; ++i) scenes.Update(Dt);
+    }
+
+    // Switch and run until the transition finishes.
+    void SwitchAndSettle(const char* name)
+    {
+        scenes.Switch(name);
+        for (int i = 0; i < 600 && scenes.IsTransitioning(); ++i) Tick();
+        log.clear();
+    }
+
+    [[nodiscard]] std::string ActiveName() const
+    {
+        return scenes.GetActive() ? scenes.GetActive()->GetName() : "<none>";
+    }
+};
+} // namespace
+
+TEST_CASE("The first switch loads at once behind black, then fades in", "[scene]")
+{
+    Fixture f;
+    f.scenes.SetActive(std::make_unique<Scene>()); // Application's default, unnamed
+    f.scenes.Switch("A", "spawn");
+    CHECK(f.scenes.IsTransitioning());
+
+    f.Tick();
+    CHECK(f.ActiveName() == "A");
+    CHECK(f.log == std::vector<std::string>{ "load:A@spawn" });
+    CHECK(f.scenes.GetFadeAlpha() == 1.0f);
+    CHECK(f.scenes.ConsumeSwapped());
+    CHECK_FALSE(f.scenes.ConsumeSwapped()); // reported once
+
+    f.Tick(15);
+    CHECK_THAT(f.scenes.GetFadeAlpha(), WithinAbs(0.0f, 1e-4f));
+    f.Tick();
+    CHECK_FALSE(f.scenes.IsTransitioning());
+}
+
+TEST_CASE("Switching between scenes fades out, swaps, then fades in", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("B", "door");
+    f.Tick(); // Idle → FadingOut
+    f.Tick(7);
+    CHECK(f.ActiveName() == "A"); // still fading out
+    CHECK(f.scenes.GetFadeAlpha() > 0.3f);
+    CHECK(f.scenes.GetFadeAlpha() < 0.6f);
+
+    f.Tick(8); // alpha reaches 1 → swap
+    CHECK(f.ActiveName() == "B");
+    CHECK(f.log == std::vector<std::string>{ "unload:A", "load:B@door" }); // old unloads before new loads
+    CHECK(f.scenes.GetFadeAlpha() == 1.0f);
+
+    f.Tick(16);
+    CHECK(f.scenes.GetFadeAlpha() == 0.0f);
+    CHECK_FALSE(f.scenes.IsTransitioning());
+}
+
+TEST_CASE("A switch during the fade-out retargets it", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("B");
+    f.Tick(5);
+    f.scenes.Switch("C");
+    f.Tick(30);
+    CHECK(f.ActiveName() == "C");
+    CHECK(f.log == std::vector<std::string>{ "unload:A", "load:C" }); // B was never built
+}
+
+TEST_CASE("A switch during the fade-in reverses from the current alpha", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Switch("B");
+    f.Tick(16);
+    REQUIRE(f.ActiveName() == "B");
+    f.Tick(5); // partway back in
+    const f32 partial = f.scenes.GetFadeAlpha();
+    REQUIRE(partial < 1.0f);
+
+    f.scenes.Switch("C");
+    f.Tick(); // FadingIn → FadingOut, no step yet
+    CHECK(f.scenes.GetFadeAlpha() == partial);
+    f.Tick();
+    CHECK(f.scenes.GetFadeAlpha() > partial); // darkening again, not jumping to black
+
+    f.Tick(30);
+    CHECK(f.ActiveName() == "C");
+}
+
+TEST_CASE("Zero fade times cut instantly", "[scene]")
+{
+    Fixture f;
+    f.scenes.FadeOutTime = 0.0f;
+    f.scenes.FadeInTime  = 0.0f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("B");
+    f.Tick(); // Idle → FadingOut
+    f.Tick(); // cut to black and swap
+    CHECK(f.ActiveName() == "B");
+    f.Tick();
+    CHECK(f.scenes.GetFadeAlpha() == 0.0f);
+    CHECK_FALSE(f.scenes.IsTransitioning());
+}
+
+TEST_CASE("Unknown scene names are ignored", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Switch("Nowhere");
+    CHECK_FALSE(f.scenes.IsTransitioning());
+    f.Tick(30);
+    CHECK(f.ActiveName() == "A");
+}
+
+TEST_CASE("Shutdown unloads the active scene", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Shutdown();
+    CHECK(f.scenes.GetActive() == nullptr);
+    CHECK(f.log == std::vector<std::string>{ "unload:A" });
+}
+
+TEST_CASE("Scene::Update runs OnUpdate before the scene's systems", "[scene]")
+{
+    std::vector<std::string> log;
+    LogScene                 scene(log);
+    scene.GetWorld().RegisterSystem("Probe", [&](Scene&, f32) { log.emplace_back("system"); });
+
+    scene.Update(Dt);
+    CHECK(log == std::vector<std::string>{ "update:", "system" });
+}

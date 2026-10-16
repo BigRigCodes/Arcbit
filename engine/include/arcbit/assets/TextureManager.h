@@ -85,6 +85,14 @@ public:
     // The handle becomes invalid after this call.
     void Unload(TextureHandle handle);
 
+    // Counted load for scene-lifetime textures (Scene::LoadTexture). Each
+    // Acquire needs one Release; the texture is destroyed when the count
+    // reaches zero, unless Load() also pinned it for the app's lifetime.
+    // Release destroys GPU resources, so call it only while the render thread
+    // is idle (RenderThread::WaitIdle) — SceneManager does.
+    [[nodiscard]] TextureHandle Acquire(std::string_view path);
+    void                        Release(TextureHandle handle);
+
     // Release all cached textures and clear the cache.
     // Called automatically by Application during shutdown.
     void Clear();
@@ -107,7 +115,13 @@ private:
         u32                               Width        = 0;
         u32                               Height       = 0;
         std::filesystem::file_time_type   LastModified = {};
+        u32                               RefCount     = 0;     // live Acquire()s
+        bool                              Pinned       = false; // loaded with Load(): never auto-freed
     };
+
+    // Cache lookup by normalized path, loading from disk on a miss. Null when
+    // the file fails to load.
+    [[nodiscard]] CacheEntry* FindOrLoad(std::string_view path);
 
     // Decode the file at the given (already-normalized) path, upload to GPU,
     // insert into both caches, and return the new handle.

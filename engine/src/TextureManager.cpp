@@ -25,18 +25,44 @@ TextureManager::~TextureManager()
 // Load / Unload
 // ---------------------------------------------------------------------------
 
-TextureHandle TextureManager::Load(std::string_view path)
+TextureManager::CacheEntry* TextureManager::FindOrLoad(const std::string_view path)
 {
     // Normalize separators and remove redundant components so that
     // "assets/textures/../textures/foo.png" and "assets/textures/foo.png"
     // both map to the same cache entry.
     const std::string key = std::filesystem::path(path).lexically_normal().string();
 
-    // Cache hit — return existing handle without re-uploading.
-    if (const auto it = _pathCache.find(key); it != _pathCache.end())
-        return it->second.Handle;
+    // Cache hit — return the existing entry without re-uploading.
+    if (const auto it = _pathCache.find(key); it != _pathCache.end()) return &it->second;
 
-    return LoadFromDisk(key);
+    if (!LoadFromDisk(key).IsValid()) return nullptr;
+    return &_pathCache.at(key);
+}
+
+TextureHandle TextureManager::Load(const std::string_view path)
+{
+    CacheEntry* entry = FindOrLoad(path);
+    if (!entry) return TextureHandle::Invalid();
+    entry->Pinned = true;
+    return entry->Handle;
+}
+
+TextureHandle TextureManager::Acquire(const std::string_view path)
+{
+    CacheEntry* entry = FindOrLoad(path);
+    if (!entry) return TextureHandle::Invalid();
+    ++entry->RefCount;
+    return entry->Handle;
+}
+
+void TextureManager::Release(const TextureHandle handle)
+{
+    const auto handleIt = _handleToPath.find(handle.Value);
+    if (handleIt == _handleToPath.end()) return;
+
+    CacheEntry& entry = _pathCache.at(handleIt->second);
+    if (entry.RefCount > 0) --entry.RefCount;
+    if (entry.RefCount == 0 && !entry.Pinned) Unload(handle);
 }
 
 void TextureManager::Reload(TextureHandle handle)
