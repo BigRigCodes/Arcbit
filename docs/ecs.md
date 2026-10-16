@@ -318,16 +318,21 @@ struct InputMovement {
     ActionID MoveRight;
     ActionID MoveUp;
     ActionID MoveDown;
-    u8   HeldMask       = 0;     // tie-break state, maintained by the system
+    // Most-recent-key state, maintained by the system:
+    u8   HeldMask       = 0;
     bool PreferVertical = false;
+    bool PreferLeft     = false;
+    bool PreferUp       = false;
 };
 ```
 
 `InputMovementSystem` reads the four actions each tick and writes `MoveIntent`
 (adding one if the entity lacks it). The logic lives in
-`ResolveInputDirection`:
+`ResolveInputDirection`. The most recently pressed key wins every conflict:
 
-- Opposite keys on one axis cancel.
+- Opposite keys on one axis: the one pressed last. Holding right and then
+  pressing left walks left; releasing left resumes right. This applies to
+  free movers too.
 - Free movers get diagonals, normalized to unit length.
 - Tile movers (`SmoothTileMovement` or `SnapTileMovement` present) get one axis:
   the one whose key was pressed most recently. Holding right and then pressing

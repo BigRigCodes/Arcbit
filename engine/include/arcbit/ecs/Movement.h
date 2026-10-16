@@ -41,9 +41,11 @@ struct InputMovement
     ActionID MoveUp;
     ActionID MoveDown;
 
-    // Tie-break state for tile movers, maintained by ResolveInputDirection.
+    // Most-recent-key state, maintained by ResolveInputDirection.
     u8   HeldMask       = 0;     // MoveKeys held last tick, as bits
-    bool PreferVertical = false; // axis that wins when both are held
+    bool PreferVertical = false; // tile movers: axis that wins when both are held
+    bool PreferLeft     = false; // which of Left / Right wins when both are held
+    bool PreferUp       = false; // which of Up / Down wins when both are held
 };
 
 // Driven externally by the pathfinding system (Phase 30). Translates
@@ -63,10 +65,13 @@ struct MoveKeys
     bool Down  = false;
 };
 
-// Turns held keys into a direction (+Y is down). Opposite keys cancel.
+// Turns held keys into a direction (+Y is down). The most recently pressed
+// key wins every conflict:
+//   - Opposite keys (Left + Right): the one pressed last; releasing it hands
+//     control back to the other.
 //   - cardinalOnly = false: diagonals allowed, normalized to unit length.
-//   - cardinalOnly = true: one axis only; when both are held, the axis whose
-//     key was pressed most recently wins (X if both went down together).
+//   - cardinalOnly = true: one axis only; the axis whose key was pressed last
+//     wins (X if both went down together).
 // Updates the tie-break state in `im`, so call it exactly once per tick.
 [[nodiscard]] Vec2 ResolveInputDirection(InputMovement& im, MoveKeys keys, bool cardinalOnly);
 

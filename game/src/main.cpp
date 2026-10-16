@@ -19,10 +19,10 @@ void RunTriggerDemo();
 
 
 // #define ARCBIT_DEMO_WORLD
-// #define ARCBIT_DEMO_TILEMOVE
+#define ARCBIT_DEMO_TILEMOVE
 // #define ARCBIT_DEMO_ARC
 // #define ARCBIT_DEMO_TILEARC
-#define ARCBIT_DEMO_OBB
+// #define ARCBIT_DEMO_OBB
 // #define ARCBIT_DEMO_TRIGGER
 
 int main(int /*argc*/, char* /*argv*/[])

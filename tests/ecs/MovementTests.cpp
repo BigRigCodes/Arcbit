@@ -13,6 +13,7 @@
 #include <arcbit/scene/Scene.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace Arcbit;
@@ -68,7 +69,7 @@ void AddSolidTile(Scene& scene, const i32 x, const i32 y)
 // ResolveInputDirection
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Single keys map to unit directions; opposite keys cancel", "[ecs][movement]")
+TEST_CASE("Single keys map to unit directions", "[ecs][movement]")
 {
     InputMovement im;
     CHECK(ResolveInputDirection(im, None, false) == Vec2{});
@@ -76,11 +77,46 @@ TEST_CASE("Single keys map to unit directions; opposite keys cancel", "[ecs][mov
     CHECK(ResolveInputDirection(im, Right, false) == Vec2{ 1.0f, 0.0f });
     CHECK(ResolveInputDirection(im, Up, false) == Vec2{ 0.0f, -1.0f }); // +Y is down
     CHECK(ResolveInputDirection(im, Down, true) == Vec2{ 0.0f, 1.0f });
-    CHECK(ResolveInputDirection(im, MoveKeys{ .Left = true, .Right = true }, false) == Vec2{});
+}
 
-    // A cancelled axis leaves the other one, even for tile movers.
-    CHECK(ResolveInputDirection(im, MoveKeys{ .Left = true, .Right = true, .Down = true }, true) ==
-          Vec2{ 0.0f, 1.0f });
+TEST_CASE("Opposite keys: the most recently pressed one wins", "[ecs][movement]")
+{
+    constexpr MoveKeys LeftRight{ .Left = true, .Right = true };
+    constexpr MoveKeys UpDown{ .Up = true, .Down = true };
+    InputMovement      im;
+    const bool         cardinal = GENERATE(false, true); // same rule for free and tile movers
+
+    SECTION("Holding right, then pressing left, turns left; releasing left resumes right")
+    {
+        CHECK(ResolveInputDirection(im, Right, cardinal) == Vec2{ 1.0f, 0.0f });
+        CHECK(ResolveInputDirection(im, LeftRight, cardinal) == Vec2{ -1.0f, 0.0f });
+        CHECK(ResolveInputDirection(im, LeftRight, cardinal) == Vec2{ -1.0f, 0.0f });
+        CHECK(ResolveInputDirection(im, Right, cardinal) == Vec2{ 1.0f, 0.0f });
+    }
+    SECTION("Holding left, then pressing right, turns right")
+    {
+        CHECK(ResolveInputDirection(im, Left, cardinal) == Vec2{ -1.0f, 0.0f });
+        CHECK(ResolveInputDirection(im, LeftRight, cardinal) == Vec2{ 1.0f, 0.0f });
+    }
+    SECTION("The vertical pair follows the same rule")
+    {
+        CHECK(ResolveInputDirection(im, Down, cardinal) == Vec2{ 0.0f, 1.0f });
+        CHECK(ResolveInputDirection(im, UpDown, cardinal) == Vec2{ 0.0f, -1.0f });
+        CHECK(ResolveInputDirection(im, Down, cardinal) == Vec2{ 0.0f, 1.0f });
+    }
+    SECTION("Both pressed on the same tick still move")
+    {
+        CHECK(ResolveInputDirection(im, LeftRight, cardinal) != Vec2{});
+    }
+}
+
+TEST_CASE("Opposite keys plus a third: each axis resolves on its own", "[ecs][movement]")
+{
+    InputMovement im;
+    CHECK(ResolveInputDirection(im, Right, false) == Vec2{ 1.0f, 0.0f });
+    const Vec2 dir = ResolveInputDirection(im, MoveKeys{ .Left = true, .Right = true, .Down = true }, false);
+    CHECK_THAT(dir.X, WithinAbs(-0.70710678f, 1e-6f)); // left (pressed last on X) + down
+    CHECK_THAT(dir.Y, WithinAbs(0.70710678f, 1e-6f));
 }
 
 TEST_CASE("Free movers get a normalized diagonal", "[ecs][movement]")

@@ -297,7 +297,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 ### Phase 22H — Movement controllers ✓
 *Replaces the hand-rolled WASD blocks copy-pasted across the demos with the controller → style pipeline designed in Phase 16 (`docs/ecs.md` "Movement"). Lands after 22F; does not wait on 22G.*
 - [x] `InputMovementSystem` — reads `InputMovement` actions into a `MoveIntent`; style systems turn it into `FreeMovement.Velocity` (diagonals normalized) or `SmoothTileMovement.QueuedDir` (cardinal-only). Reads all actions as released while a `BlocksInput` screen is up
-- [x] Defined two-key tie-break for tile styles: the most recently pressed axis wins (X when both go down together); opposite keys on one axis cancel
+- [x] Defined two-key tie-break for tile styles: the most recently pressed key wins everywhere — across axes (X when both go down together) and between opposite keys on one axis, for free movers too
 - [x] Resolve `InputMovement.Speed` unit ambiguity — removed; style components own their speed (`FreeMovement.Speed` px/s, `SmoothTileMovement.Speed` tiles/s, `SnapTileMovement.StepInterval` s)
 - [x] Expose the resolved move direction on the entity — `MoveIntent.Direction` plus `MoveIntent.Facing` (last nonzero direction)
 - [x] `SnapTileMoveSystem` — plan-then-commit via `PhysicsWorld::QueryTileBlocked`, instant `Transform2D` write + broadphase refresh; a fresh press steps at once, a held one repeats every `StepInterval`
