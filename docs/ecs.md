@@ -290,7 +290,23 @@ struct Lifetime {
 
 Movement uses a **mix-and-match** design: a controller component decides
 *where* the entity wants to go; a style component decides *how* it gets there.
-Any controller pairs with any style.
+Any controller pairs with any style. The two meet at `MoveIntent`: controllers
+write it, style systems read it, and speed belongs to the style.
+
+### MoveIntent
+
+```cpp
+struct MoveIntent {
+    Vec2 Direction;               // zero = idle; length <= 1; cardinal for tile movers
+    Vec2 Facing = { 0.0f, 1.0f }; // last nonzero Direction; starts facing down
+    void Set(Vec2 dir);           // writes Direction and keeps Facing up to date
+};
+```
+
+Game code reads `MoveIntent` for facing and animation selection instead of
+polling input. Scripts and cutscenes can add one and call `Set` to drive any
+style without a controller. Style systems reduce a non-cardinal intent to its
+dominant axis for tile movers, so an AI heading like `(0.3, 0.8)` steps down.
 
 ### Controller components
 
@@ -302,26 +318,39 @@ struct InputMovement {
     ActionID MoveRight;
     ActionID MoveUp;
     ActionID MoveDown;
-    f32      Speed = 100.0f;  // world pixels/s for FreeMovement; tiles/s for tile movement
+    u8   HeldMask       = 0;     // tie-break state, maintained by the system
+    bool PreferVertical = false;
 };
 ```
 
-`InputMovementSystem` reads the InputManager state each tick and writes a
-movement request into whichever style component is present on the same entity.
+`InputMovementSystem` reads the four actions each tick and writes `MoveIntent`
+(adding one if the entity lacks it). The logic lives in
+`ResolveInputDirection`:
+
+- Opposite keys on one axis cancel.
+- Free movers get diagonals, normalized to unit length.
+- Tile movers (`SmoothTileMovement` or `SnapTileMovement` present) get one axis:
+  the one whose key was pressed most recently. Holding right and then pressing
+  up turns up; releasing up resumes right. Keys on both axes going down on the
+  same tick prefer X.
+
+While a `BlocksInput` UI screen is up, every action reads as released, so the
+entity stops instead of keeping its last intent. Application wires its
+`InputManager` into the scene (`Scene::SetInput`); without one (tests, tools)
+the system leaves intent alone.
 
 #### AIMovement
 
 ```cpp
 struct AIMovement {
     Vec2 TargetPosition;
-    f32  Speed     = 100.0f;
     bool HasTarget = false;
 };
 ```
 
 Driven externally by the pathfinding system (Phase 30). `AIMovementSystem`
-translates `TargetPosition` into the same movement request interface that
-`InputMovementSystem` uses, so the style layer is shared.
+will translate `TargetPosition` into `MoveIntent`, so the style layer is
+shared with `InputMovement`.
 
 ### Style components
 
@@ -335,17 +364,25 @@ struct FreeMovement {
     Vec2 Velocity;
     f32  Friction = 8.0f;   // velocity multiplied by exp(-Friction * dt) each tick
     f32  MaxSpeed = 0.0f;   // clamp magnitude after integration; 0 = unlimited
+    f32  Speed    = 100.0f; // world pixels/s at full MoveIntent
 };
 ```
 
+With a `MoveIntent`, `Velocity` is set to `Direction * Speed` every tick:
+instant start and stop, so `Friction` has no visible effect. Without one,
+`Velocity` is yours to drive (ships, projectiles) and `Friction` decays it.
+Acceleration curves and knockback are future work.
+
 #### SmoothTileMovement
 
-Lerps from tile centre to tile centre. Input is queued during transit so the
-next direction is consumed the moment the entity lands.
+Lerps from tile center to tile center. Input is queued during transit so the
+next direction is consumed the moment the entity lands. With a `MoveIntent`,
+`QueuedDir` / `HasQueued` are rewritten from it every tick; without one, queue
+directly.
 
 ```cpp
 struct SmoothTileMovement {
-    f32  Speed     = 4.0f;    // tiles/second (tile size comes from WorldConfig)
+    f32  Speed     = 4.0f;    // tiles/second (tile size comes from the TileMap)
     Vec2 OriginWorld;
     Vec2 TargetWorld;
     f32  Progress  = 1.0f;   // 0→1 lerp progress; 1.0 means arrived
@@ -357,10 +394,15 @@ struct SmoothTileMovement {
 #### SnapTileMovement
 
 Moves instantly to the adjacent tile. No interpolation — suitable for puzzle
-games and strict grid-based overworlds.
+games and strict grid-based overworlds. Driven only by `MoveIntent`. A fresh
+direction steps at once; a held one repeats every `StepInterval`. A blocked
+step reports the contact (so `CollisionCallback` fires) and retries next tick.
 
 ```cpp
-struct SnapTileMovement {};  // tile size from WorldConfig; no per-entity state needed
+struct SnapTileMovement {
+    f32 StepInterval = 0.15f; // seconds between steps while a direction is held
+    f32 Cooldown     = 0.0f;  // time until the next step may start
+};
 ```
 
 ### Pairing examples
@@ -414,14 +456,20 @@ systems first; game code registers its systems in `OnStart` and they run after.
 
 | Order | System | Reads | Writes | Status |
 |-------|--------|-------|--------|--------|
-| 1 | `LifetimeSystem` | `Lifetime` | destroys entity at zero | ✓ Done |
-| 2 | `InputMovementSystem` | `InputMovement`, InputManager | `FreeMovement.Velocity` or `SmoothTileMovement.QueuedDir` | Deferred |
-| 3 | `AIMovementSystem` | `AIMovement` | same targets as above | Deferred (Phase 30) |
-| 4 | `FreeMovementSystem` | `FreeMovement` | `Transform2D.Position` | ✓ Done |
-| 5 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `WorldConfig.TileSize` | `Transform2D.Position` | Deferred |
-| 6 | `SnapTileMoveSystem` | `SnapTileMovement`, `WorldConfig.TileSize` | `Transform2D.Position` | Deferred |
-| 7 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
-| 8 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
+| 1 | `LifetimeSystem` | `Lifetime` | destroys entity (unregisters its collider) | ✓ Done |
+| 2 | `InputMovementSystem` | `InputMovement`, InputManager | `MoveIntent` | ✓ Done (22H) |
+| — | `AIMovementSystem` | `AIMovement` | `MoveIntent` | Deferred (Phase 30) |
+| 3 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity`, `PendingMove` | ✓ Done |
+| 4 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
+| 5 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
+| 6 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`? | `Transform2D.Position` (swept clamp + slide) | ✓ Done (22B) |
+| 7 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
+| 8 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
+| 9 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
+| 10 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
+| 11 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
+
+`?` marks an optional component: the system reads it when present.
 
 ### Render-collect phase (variable rate, before SubmitFrame)
 
@@ -522,7 +570,8 @@ randomly generated at entity-creation time in the editor.
       "Name": "Kael",
       "Transform2D": { "Position": [0, 0], "Scale": [1, 1], "Rotation": 0 },
       "SpriteRenderer": { "Texture": "assets/textures/player.png", "Layer": 1 },
-      "InputMovement": { "Speed": 4.0 },
+      "InputMovement": { "MoveLeft": "Move_Left", "MoveRight": "Move_Right",
+                         "MoveUp": "Move_Up", "MoveDown": "Move_Down" },
       "SmoothTileMovement": { "Speed": 4.0 }
     },
     "7c9e6679-7425-40de-944b-e07fc1f90ae7": {
@@ -559,8 +608,8 @@ engine/include/arcbit/ecs/
     System.h      — SystemRegistry, RegisterSystem / RegisterRenderSystem
     Components.h  — Transform2D, SpriteRenderer, LightEmitter, Parallax,
                     CameraTarget, Disabled, Lifetime, Name, Tag
-    Movement.h    — InputMovement, AIMovement, FreeMovement,
-                    SmoothTileMovement, SnapTileMovement
+    Movement.h    — MoveIntent, InputMovement, AIMovement, FreeMovement,
+                    SmoothTileMovement, SnapTileMovement, PendingMove
 
 engine/include/arcbit/scene/
     Scene.h       — Scene class (owns World, Camera2D, WorldConfig)
@@ -569,6 +618,7 @@ engine/include/arcbit/scene/
 engine/src/
     World.cpp     — World implementation (archetype management, entity table)
     Systems.cpp   — built-in system implementations (all systems listed above)
+    Movement.cpp  — ResolveInputDirection (input → direction, tie-break)
     Scene.cpp     — Scene::Update, Scene::CollectRenderData
 ```
 
@@ -581,7 +631,7 @@ culls them by hand in `OnRender`. After this phase it migrates to:
 
 1. ✓ Create entities with `Transform2D + SpriteRenderer` for each sprite.
 2. ✓ Create entities with `Transform2D + LightEmitter` for each light source.
-3. WASD camera pan kept as manual `OnUpdate` code for now (deferred until InputMovementSystem).
+3. ✓ WASD movement goes through `InputMovement` + `MoveIntent` (Phase 22H).
 4. ✓ Delete `_sprites`, `_lights`, and the manual cull loops — `SpriteRenderSystem`
    and `LightRenderSystem` handle everything.
 5. ✓ The `Camera2D` moves from being a game-owned member to `scene.GetCamera()`.
