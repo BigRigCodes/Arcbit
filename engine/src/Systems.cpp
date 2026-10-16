@@ -61,12 +61,88 @@ namespace
         });
     }
 
+    // ---------------------------------------------------------------------
+    // Movement intent (22H) — controllers write MoveIntent, styles read it.
+    // ---------------------------------------------------------------------
+
+    // Unit cardinal step for tile movers: the dominant axis of `v` (X on a
+    // tie), reduced to its sign. Guards against AI or script intents that are
+    // diagonal or not unit length.
+    Vec2 CardinalStep(const Vec2 v)
+    {
+        const auto sign = [](const f32 x) { return x > 0.0f ? 1.0f : (x < 0.0f ? -1.0f : 0.0f); };
+        if (std::abs(v.X) >= std::abs(v.Y)) return { sign(v.X), 0.0f };
+        return { 0.0f, sign(v.Y) };
+    }
+
+    // Give every entity with `Controller` a MoveIntent. Done outside the
+    // controller's own query: adding a component moves the entity to another
+    // archetype, which isn't safe mid-iteration.
+    template<typename Controller>
+    void EnsureMoveIntent(World& ecs)
+    {
+        std::vector<Entity> missing;
+        ecs.Query<Controller>().template Without<MoveIntent>().ForEach(
+            [&](const Entity e, Controller&) { missing.push_back(e); });
+        for (const Entity e : missing) ecs.AddComponent<MoveIntent>(e);
+    }
+
+    // Samples the four move actions into MoveIntent. Tile movers get a
+    // cardinal direction (most recently pressed axis wins); free movers get a
+    // normalized diagonal. Without an InputManager on the scene (tests,
+    // tools) intent is left as-is; while input is blocked by the UI, every
+    // action reads as released.
+    void RegisterInputMovementSystem(World& world)
+    {
+        world.RegisterSystem("InputMovement", [](Scene& scene, f32 /*dt*/) {
+            const InputManager* input = scene.GetInput();
+            if (!input) return;
+            World&     ecs  = scene.GetWorld();
+            const bool live = !scene.IsInputBlocked();
+            EnsureMoveIntent<InputMovement>(ecs);
+
+            ecs.Query<InputMovement, MoveIntent>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, InputMovement& im, MoveIntent& intent) {
+                   const MoveKeys keys{ .Left  = live && input->IsPressed(im.MoveLeft),
+                                        .Right = live && input->IsPressed(im.MoveRight),
+                                        .Up    = live && input->IsPressed(im.MoveUp),
+                                        .Down  = live && input->IsPressed(im.MoveDown) };
+                   const bool tileMover = ecs.GetComponent<SmoothTileMovement>(e) != nullptr ||
+                                          ecs.GetComponent<SnapTileMovement>(e) != nullptr;
+                   intent.Set(ResolveInputDirection(im, keys, tileMover));
+               });
+        });
+    }
+
+    // Intent-driven free movers move at Speed in the intended direction and
+    // stop the moment intent goes to zero.
+    void ApplyIntentToFreeMovers(World& ecs)
+    {
+        ecs.Query<const MoveIntent, FreeMovement>()
+           .Without<Disabled>()
+           .ForEach([](const MoveIntent& intent, FreeMovement& fm) {
+               fm.Velocity = intent.Direction * fm.Speed;
+           });
+    }
+
+    void ApplyIntentToSmoothTileMovers(World& ecs)
+    {
+        ecs.Query<const MoveIntent, SmoothTileMovement>()
+           .Without<Disabled>()
+           .ForEach([](const MoveIntent& intent, SmoothTileMovement& stm) {
+               stm.QueuedDir = CardinalStep(intent.Direction);
+               stm.HasQueued = stm.QueuedDir != Vec2{};
+           });
+    }
+
     void RegisterFreeMovementSystem(World& world)
     {
         // Integrate-only: clamp velocity, accumulate desired delta into
         // PendingMove, decay friction. Transform is *not* touched here — that
         // lands in CollisionResolutionSystem (22B.4) via the PendingMove path.
         world.RegisterSystem("FreeMovement", [](Scene& scene, f32 dt) {
+            ApplyIntentToFreeMovers(scene.GetWorld());
             scene.GetWorld()
                  .Query<FreeMovement, PendingMove>()
                  .Without<Disabled>()
@@ -266,6 +342,32 @@ namespace
         });
     }
 
+    Vec2 TileCenterUnder(const Vec2 p, const f32 ts)
+    {
+        return { std::round(p.X / ts) * ts, std::round(p.Y / ts) * ts };
+    }
+
+    // Asks the resolver whether a one-tile step is clear. A step blocked by
+    // an entity reports the contact so ContactEvents fires for tile movers
+    // too. Movers without a Collider2D are never blocked.
+    bool TileStepClear(const Entity e, const Collider2D* col, PhysicsWorld& physics,
+                       const Vec2 origin, const Vec2 target)
+    {
+        PhysicsWorld::BlockingHit hit;
+        if (!col || !physics.QueryTileBlocked(e, *col, origin, target, &hit)) return true;
+        if (hit.Other.IsValid()) physics.ReportContact(e, hit.Other, hit.Normal);
+        return false;
+    }
+
+    // Keep the broadphase cache in step with a Transform2D write so later
+    // queries this tick see the new position.
+    void RefreshCollider(const Entity e, const Collider2D* col, const Vec2 pos, PhysicsWorld& physics)
+    {
+        if (!col) return;
+        const PhysicsWorld::ColliderId id = physics.FindColliderForEntity(e);
+        if (id != PhysicsWorld::InvalidId) physics.UpdateCollider(id, *col, pos);
+    }
+
     // Consumes the queued direction and starts a step from the tile under the
     // mover. Returns false (and drops the queued move) when the step is
     // blocked. Progress is left untouched — the caller decides where the new
@@ -273,21 +375,11 @@ namespace
     bool TryBeginTileStep(const Entity       e, const Transform2D& t, SmoothTileMovement& stm,
                           const Collider2D*  col, PhysicsWorld&    physics, const f32 ts)
     {
-        const Vec2 origin = {
-            std::round(t.Position.X / ts) * ts,
-            std::round(t.Position.Y / ts) * ts,
-        };
-        const Vec2 target = {
-            origin.X + stm.QueuedDir.X * ts,
-            origin.Y + stm.QueuedDir.Y * ts,
-        };
+        const Vec2 origin = TileCenterUnder(t.Position, ts);
+        const Vec2 target = origin + stm.QueuedDir * ts;
 
         stm.HasQueued = false;
-        PhysicsWorld::BlockingHit hit;
-        if (col && physics.QueryTileBlocked(e, *col, origin, target, &hit)) {
-            if (hit.Other.IsValid()) physics.ReportContact(e, hit.Other, hit.Normal);
-            return false;
-        }
+        if (!TileStepClear(e, col, physics, origin, target)) return false;
 
         stm.OriginWorld = origin;
         stm.TargetWorld = target;
@@ -311,6 +403,7 @@ namespace
             const f32     ts       = scene.GetTileMap().GetTileSize();
             PhysicsWorld& physics  = scene.GetPhysics();
             World&        ecsWorld = scene.GetWorld();
+            ApplyIntentToSmoothTileMovers(ecsWorld);
 
             ecsWorld.Query<Transform2D, SmoothTileMovement>()
                     .Without<Disabled>()
@@ -335,11 +428,53 @@ namespace
                             stm.OriginWorld.Y + (stm.TargetWorld.Y - stm.OriginWorld.Y) * alpha,
                         };
 
-                        if (col) {
-                            const PhysicsWorld::ColliderId id = physics.FindColliderForEntity(e);
-                            if (id != PhysicsWorld::InvalidId)
-                                physics.UpdateCollider(id, *col, t.Position);
-                        }
+                        RefreshCollider(e, col, t.Position, physics);
+                    });
+        });
+    }
+
+    // Float slack so a cooldown that should land exactly on zero after N
+    // ticks (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
+    constexpr f32 CooldownEpsilon = 1e-4f;
+
+    // One snap mover's tick. A fresh direction steps at once; a held one
+    // repeats every StepInterval, carrying the remainder so the average rate
+    // is exact. A blocked step clears the cooldown and retries next tick.
+    void TickSnapMover(const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent,
+                       const Collider2D* col, PhysicsWorld& physics, const f32 ts, const f32 dt)
+    {
+        const Vec2 dir = CardinalStep(intent.Direction);
+        if (dir == Vec2{}) {
+            snap.Cooldown = 0.0f;
+            return;
+        }
+        if (snap.Cooldown <= CooldownEpsilon) {
+            const Vec2 origin = TileCenterUnder(t.Position, ts);
+            const Vec2 target = origin + dir * ts;
+            if (!TileStepClear(e, col, physics, origin, target)) {
+                snap.Cooldown = 0.0f;
+                return;
+            }
+            t.Position = target;
+            RefreshCollider(e, col, t.Position, physics);
+            snap.Cooldown += snap.StepInterval;
+        }
+        snap.Cooldown -= dt;
+    }
+
+    // Instant tile-to-tile movement, driven only by MoveIntent. Same
+    // plan-then-commit query as SmoothTileMove, minus the lerp.
+    void RegisterSnapTileMoveSystem(World& world)
+    {
+        world.RegisterSystem("SnapTileMove", [](Scene& scene, const f32 dt) {
+            const f32     ts       = scene.GetTileMap().GetTileSize();
+            PhysicsWorld& physics  = scene.GetPhysics();
+            World&        ecsWorld = scene.GetWorld();
+
+            ecsWorld.Query<Transform2D, SnapTileMovement, const MoveIntent>()
+                    .Without<Disabled>()
+                    .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
+                        TickSnapMover(e, t, snap, intent, ecsWorld.GetComponent<Collider2D>(e), physics, ts, dt);
                     });
         });
     }
@@ -897,8 +1032,10 @@ void RegisterBuiltinSystems(World& world)
 {
     // Update phase — order matches the blueprint execution table.
     RegisterLifetimeSystem(world);
-    RegisterFreeMovementSystem(world);          // writes PendingMove
-    RegisterSmoothTileMoveSystem(world);        // writes Transform directly (joins PendingMove in 22C)
+    RegisterInputMovementSystem(world);         // InputMovement → MoveIntent
+    RegisterFreeMovementSystem(world);          // MoveIntent → Velocity; writes PendingMove
+    RegisterSmoothTileMoveSystem(world);        // MoveIntent → QueuedDir; writes Transform directly
+    RegisterSnapTileMoveSystem(world);          // MoveIntent → instant tile steps
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
     RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
     RegisterCameraFollowSystem(world);
