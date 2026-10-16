@@ -149,8 +149,10 @@ protected:
                                                .Tint    = { 0.3f, 0.5f, 1.0f, 1.0f },
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{ .Lag = 0.05f });
-        world.AddComponent<FreeMovement>(_player, FreeMovement{ .Friction = 0.0f });
+        world.AddComponent<FreeMovement>(_player, FreeMovement{ .Speed = PlayerSpeed });
         world.AddComponent<PendingMove>(_player, PendingMove{});
+        world.AddComponent<InputMovement>(_player, InputMovement{ ActionMoveLeft, ActionMoveRight,
+                                                                  ActionMoveUp, ActionMoveDown });
 
         const Collider2D col{
             .Shape       = ColliderShape::Box,
@@ -272,13 +274,6 @@ protected:
     void OnUpdate(const f32 dt) override
     {
         auto& input = GetInput();
-
-        Vec2 dir{};
-        if (input.IsPressed(ActionMoveLeft)) dir.X -= 1.0f;
-        if (input.IsPressed(ActionMoveRight)) dir.X += 1.0f;
-        if (input.IsPressed(ActionMoveUp)) dir.Y -= 1.0f;
-        if (input.IsPressed(ActionMoveDown)) dir.Y += 1.0f;
-        GetScene().GetWorld().GetComponent<FreeMovement>(_player)->Velocity = dir * PlayerSpeed;
 
         if (input.JustPressed(ActionToggleGate)) {
             _gateSpinning = !_gateSpinning;
