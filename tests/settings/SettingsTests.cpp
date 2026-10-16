@@ -132,7 +132,8 @@ TEST_CASE("Input bindings round-trip; UI_ actions are not persisted", "[settings
         input.RegisterAction(MakeAction("UI_Confirm"), "UI_Confirm");
         input.BindKey(Jump, Key::Space);
         input.BindGamepadButton(Jump, GamepadButton::South);
-        input.BindGamepadAxis(Jump, GamepadAxis::LeftY, 0.4f);
+        input.BindGamepadAxis(Jump, GamepadAxis::LeftY, AxisHalf::Full, 0.4f);
+        input.BindGamepadAxis(Jump, GamepadAxis::LeftX, AxisHalf::Negative);
         input.BindKey(MakeAction("UI_Confirm"), Key::Enter);
         Settings::SaveInputBindings(input);
         Settings::Flush();
@@ -149,7 +150,7 @@ TEST_CASE("Input bindings round-trip; UI_ actions are not persisted", "[settings
     REQUIRE(Settings::LoadInputBindings(input));
 
     const auto& jump = input.GetBindings(Jump);
-    REQUIRE(jump.size() == 3);
+    REQUIRE(jump.size() == 4);
     CHECK(jump[0].BindingType == Binding::Type::Key);
     CHECK(jump[0].BoundKey == Key::Space);
     CHECK(jump[1].BindingType == Binding::Type::GamepadButton);
@@ -157,6 +158,9 @@ TEST_CASE("Input bindings round-trip; UI_ actions are not persisted", "[settings
     CHECK(jump[2].BindingType == Binding::Type::GamepadAxis);
     CHECK(jump[2].BoundAxis == GamepadAxis::LeftY);
     CHECK(jump[2].Deadzone == 0.4f);
+    CHECK(jump[2].Half == AxisHalf::Full);
+    CHECK(jump[3].BoundAxis == GamepadAxis::LeftX);
+    CHECK(jump[3].Half == AxisHalf::Negative);
 
     REQUIRE(input.GetBindings(Fire).size() == 1);
     CHECK(input.GetBindings(Fire)[0].BoundKey == Key::F);
