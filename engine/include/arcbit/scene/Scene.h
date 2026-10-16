@@ -10,6 +10,7 @@
 namespace Arcbit {
 
 struct FramePacket;
+class InputManager;
 class PhysicsWorld;
 
 // ---------------------------------------------------------------------------
@@ -40,6 +41,18 @@ public:
     // effect on the broadphase grid.
     [[nodiscard]] PhysicsWorld& GetPhysics();
 
+    // Input source for InputMovementSystem. Application wires its own
+    // InputManager in; null (the default, e.g. in tests) leaves MoveIntent
+    // untouched. Not owned.
+    void                              SetInput(const InputManager* input) { _input = input; }
+    [[nodiscard]] const InputManager* GetInput() const { return _input; }
+
+    // While blocked, InputMovementSystem reads every move action as released
+    // (so movers stop rather than keep their last intent). Application sets
+    // it each tick from UIManager::HasBlockingScreen().
+    void               SetInputBlocked(const bool blocked) { _inputBlocked = blocked; }
+    [[nodiscard]] bool IsInputBlocked() const { return _inputBlocked; }
+
     // Called by Application each fixed tick. Advances the camera and runs all
     // registered update systems in registration order.
     void Update(f32 dt);
@@ -54,6 +67,8 @@ private:
     WorldConfig                   _config;
     TileMap                       _tileMap;
     std::unique_ptr<PhysicsWorld> _physics; // lazy; created on first GetPhysics()
+    const InputManager*           _input        = nullptr;
+    bool                          _inputBlocked = false;
 };
 
 } // namespace Arcbit

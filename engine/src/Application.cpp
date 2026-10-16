@@ -112,6 +112,7 @@ void Application::Run()
 
     // Create the scene before OnStart so game code can use GetScene() immediately.
     _scene = std::make_unique<Scene>();
+    _scene->SetInput(&_input); // drives InputMovementSystem
 
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
@@ -211,7 +212,10 @@ void Application::Run()
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
-                if (_scene) _scene->Update(_fixedTimestep);
+                if (_scene) {
+                    _scene->SetInputBlocked(_ui.HasBlockingScreen()); // e.g. an input-capturing overlay
+                    _scene->Update(_fixedTimestep);
+                }
             }
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},

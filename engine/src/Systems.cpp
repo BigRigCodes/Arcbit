@@ -3,6 +3,7 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/input/InputManager.h>
 #include <arcbit/physics/PhysicsCallbacks.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/physics/Sweep.h>
