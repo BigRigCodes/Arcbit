@@ -381,7 +381,7 @@ GameLoop tick:
   1. Input pump
   2. ECS update systems (in registration order):
      - LifetimeSystem
-     - InputMovement / AIMovement (write desired direction into style component)
+     - InputMovement / AIMovement (write MoveIntent; style systems read it)
      - --- physics planning phase ---
      - TileMovementPlanSystem    (SmoothTileMovement / SnapTileMovement)
      - FreeMovementIntegrateSystem (writes a tentative new position into Transform2D)
@@ -448,7 +448,8 @@ snappy, and matches Pokémon's discrete-step behaviour.
 ### `SnapTileMovement` integration
 
 Identical to `SmoothTileMovement` except the entity teleports to the target
-on a successful query (no lerp). Same plan-then-commit flow.
+on a successful query (no lerp). Same plan-then-commit flow. Landed in Phase
+22H as `SnapTileMoveSystem`, with a `StepInterval` key-repeat.
 
 ### Pushing other entities
 
@@ -674,7 +675,7 @@ runnable / verifiable state:
 
 ### Phase 22C — Tile movement collision
 - [x] `PhysicsWorld::QueryTileBlocked(entity, targetTile)` for plan-then-commit.
-- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` and (deferred)
+- [x] `TileMovementPlanSystem` integrates `SmoothTileMovement` and (22H)
       `SnapTileMovement` with the query.
 - [x] Tile-style demo: player can't enter solid tiles.
 
