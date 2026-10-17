@@ -173,3 +173,31 @@ TEST_CASE("Axis halves are distinct bindings with their own labels", "[input]")
           "RS-Up");
     CHECK(InputManager::BindingToString(Binding::FromGamepadAxis(GamepadAxis::LeftY)) == "LS-Y");
 }
+
+TEST_CASE("The last-used device follows key and gamepad presses", "[input]")
+{
+    InputManager input;
+    CHECK(input.GetLastDevice() == InputDevice::KeyboardMouse); // the starting assumption
+    input.InjectKeyEvent(SDL_SCANCODE_SPACE, true);
+    CHECK_FALSE(input.ConsumeDeviceChanged()); // already keyboard / mouse
+
+    input.InjectGamepadButton(1, SDL_GAMEPAD_BUTTON_SOUTH, true);
+    CHECK(input.GetLastDevice() == InputDevice::Gamepad);
+    CHECK(input.ConsumeDeviceChanged());
+    CHECK_FALSE(input.ConsumeDeviceChanged()); // reported once
+
+    input.InjectGamepadButton(1, SDL_GAMEPAD_BUTTON_SOUTH, false); // releases don't count
+    input.InjectMouseScroll(1.0f);
+    CHECK(input.GetLastDevice() == InputDevice::KeyboardMouse);
+    CHECK(input.ConsumeDeviceChanged());
+}
+
+TEST_CASE("Releasing a key doesn't switch the device", "[input]")
+{
+    InputManager input;
+    input.InjectGamepadButton(1, SDL_GAMEPAD_BUTTON_SOUTH, true);
+    (void)input.ConsumeDeviceChanged();
+    input.InjectKeyEvent(SDL_SCANCODE_SPACE, false); // a key held from before, let go
+    CHECK(input.GetLastDevice() == InputDevice::Gamepad);
+    CHECK(ToString(InputDevice::Gamepad) == "gamepad");
+}

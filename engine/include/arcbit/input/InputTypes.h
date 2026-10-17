@@ -141,6 +141,19 @@ using ActionID = u32;
 // globally unique names (e.g. "Inventory_Open" not "Open").
 constexpr ActionID MakeAction(const std::string_view name) { return HashName(name); }
 
+// The kind of device the player is using - what button hints to show.
+enum class InputDevice : u8
+{
+    KeyboardMouse,
+    Gamepad,
+};
+
+// "keyboard_mouse" / "gamepad" - the engine.input.device_changed payload.
+constexpr std::string_view ToString(const InputDevice device)
+{
+    return device == InputDevice::Gamepad ? "gamepad" : "keyboard_mouse";
+}
+
 // Which part of an axis a binding reads. A stick axis spans -1..1, and any
 // nonzero value counts as pressed, so binding a whole axis to both Move_Left
 // and Move_Right presses both whenever the stick moves. Bind each half to its

@@ -7,6 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace Arcbit {
@@ -237,8 +238,21 @@ public:
 
     // Accumulated mouse wheel delta this tick (positive = scroll up/away from user).
     // ProcessEdges moves the pending value into the readable slot each tick.
-    void InjectMouseScroll(f32 delta) { _pendingScrollDelta += delta; }
+    void InjectMouseScroll(f32 delta)
+    {
+        _pendingScrollDelta += delta;
+        NoteDevice(InputDevice::KeyboardMouse);
+    }
     [[nodiscard]] f32 GetScrollDelta() const { return _scrollDelta; }
+
+    // The kind of device the player used last: a key, mouse button, scroll or
+    // real mouse movement means keyboard / mouse; a gamepad button or a stick
+    // or trigger pushed past half way means gamepad. Starts as keyboard / mouse.
+    [[nodiscard]] InputDevice GetLastDevice() const { return _lastDevice; }
+
+    // True once after the last-used device changed kind (Application turns
+    // it into engine.input.device_changed).
+    [[nodiscard]] bool ConsumeDeviceChanged() { return std::exchange(_deviceChanged, false); }
 
     // UTF-8 text typed this tick (composed, IME-aware). Populated from
     // SDL_EVENT_TEXT_INPUT via InjectTextInput; available after ProcessEdges().
@@ -256,6 +270,16 @@ public:
     [[nodiscard]] static std::string BindingToString(const Binding& b);
 
 private:
+    // Record the kind of device just used; flags a change for ConsumeDeviceChanged.
+    void NoteDevice(InputDevice device)
+    {
+        if (device == _lastDevice) return;
+        _lastDevice    = device;
+        _deviceChanged = true;
+    }
+
+    // Mouse movement and stick / trigger pushes - device use without an event.
+    void DetectDeviceFromMotion();
     // Per-action data stored in the registry.
     struct ActionEntry
     {
@@ -295,6 +319,9 @@ private:
     MouseButton   _anyJustReleasedMouseButton    = MouseButton::Count;
     GamepadButton _anyJustReleasedGamepadButton  = GamepadButton::Count;
     f32           _pendingScrollDelta            = 0.0f;
+    InputDevice   _lastDevice                    = InputDevice::KeyboardMouse;
+    bool          _deviceChanged                 = false;
+    bool          _mouseSeen                     = false; // Update has read the mouse once (no jump from 0,0)
     f32           _scrollDelta                   = 0.0f;
     std::string   _pendingTextInput;  // accumulates between ProcessEdges calls
     std::string   _textInput;         // available to read after ProcessEdges

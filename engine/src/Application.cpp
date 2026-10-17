@@ -2,6 +2,7 @@
 #include <arcbit/app/Window.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/LoadingScreen.h>
@@ -248,6 +249,9 @@ void Application::Run()
         // Input must be updated after PollEvents so SDL's internal state
         // reflects all events from this tick.
         _input.Update();
+        if (_input.ConsumeDeviceChanged())
+            _events.PublishEngine(EngineEvents::InputDeviceChanged,
+                                  { { "device", std::string(ToString(_input.GetLastDevice())) } });
 
         // --- Fixed-timestep update -------------------------------------------
         // Accumulate real elapsed time and drain it in fixed-size chunks so
