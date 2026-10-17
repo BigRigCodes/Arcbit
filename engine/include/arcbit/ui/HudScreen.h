@@ -18,7 +18,12 @@ namespace Arcbit
 class HudScreen : public UIScreen
 {
 public:
-    HudScreen() { TransitionSpeed = 0.0f; } // HUDs appear instantly
+    HudScreen()
+    {
+        TransitionSpeed = 0.0f; // HUDs appear instantly
+        Layer           = UILayer::Hud;
+        TakesInput      = false; // display only: menus above it get the keys
+    }
 
     void OnEnter() override;
 

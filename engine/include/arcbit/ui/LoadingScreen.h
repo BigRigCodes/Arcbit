@@ -29,11 +29,13 @@ public:
     LoadingScreen()
     {
         BlocksInput     = true; // nothing under it should react while loading
+        TakesInput      = false;
+        Layer           = UILayer::Overlay;
         TransitionSpeed = 4.0f;
     }
 
     void OnEnter() override;
-    void OnTick(f32 dt, const InputManager& input) override;
+    void OnUpdate(f32 dt) override; // display only: it never gets OnTick
 
 private:
     Label*       _label = nullptr;

@@ -14,6 +14,12 @@
 //   - **NPC** (purple, west) — static blocking box with a CollisionCallback.
 //     Bumping it flashes it white and logs; it reverts on OnExit.
 //
+//   - **Coins** (gold, scattered) — triggers that publish game.coin.collected
+//     on the event bus (Phase 24) as they're picked up. A small HUD hears it
+//     through Scene::Subscribe and counts; the last coin publishes
+//     game.coin.all_collected. The player opts into EntityEvents, so its
+//     spawn shows up too - F3 lists them all.
+//
 //   - **Whirlpool tile** (north-east of spawn) — an Objects-layer tile over
 //     the grass whose TileDef is a two-frame flip-book (and `flat`, so it
 //     draws under entities) loaded from water.tileatlas.json. No entity
@@ -34,6 +40,7 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/World.h>
+#include <arcbit/events/EventBus.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/physics/Collider2D.h>
@@ -44,8 +51,13 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/scene/WorldConfig.h>
 #include <arcbit/tilemap/TileMap.h>
+#include <arcbit/ui/UIManager.h>
+#include <arcbit/ui/UIScreen.h>
+#include <arcbit/ui/Widgets.h>
 
+#include <array>
 #include <cmath>
+#include <format>
 
 using namespace Arcbit;
 
@@ -73,8 +85,38 @@ constexpr u32 HazardLogInterval = 30;
 constexpr Color PlayerColor = {0.3f, 0.5f, 1.0f, 1.0f};
 constexpr Color HurtColor   = {1.0f, 0.25f, 0.25f, 1.0f};
 constexpr Color NpcColor    = {0.6f, 0.35f, 0.8f, 1.0f};
+constexpr Color CoinColor   = {1.0f, 0.82f, 0.2f, 1.0f};
+
+// The demo's own events - any name outside "engine.".
+constexpr EventId CoinCollected     = MakeEvent("game.coin.collected");
+constexpr EventId AllCoinsCollected = MakeEvent("game.coin.all_collected");
+
+constexpr std::array<std::array<i32, 2>, 5> CoinTiles = { { { -2, -3 }, { 3, -4 }, { -6, 2 }, { 4, 3 }, { -1, 5 } } };
 
 constexpr Vec2 TileCenter(const i32 tx, const i32 ty) { return {static_cast<f32>(tx) * TileSize, static_cast<f32>(ty) * TileSize}; }
+
+// "Coins: 2 / 5" in the top-left corner.
+class CoinHud : public UIScreen
+{
+public:
+    Label* Count = nullptr;
+
+    CoinHud()
+    {
+        Layer      = UILayer::Hud;
+        TakesInput = false; // display only
+    }
+
+    void OnEnter() override
+    {
+        _roots.clear();
+        Count                         = Add<Label>();
+        Count->Size                   = {300.0f, 40.0f};
+        Count->Offset                 = {24.0f, 20.0f};
+        Count->SkinOverride.FontScale = 1.4f;
+        Count->SkinOverride.TextLabel = CoinColor;
+    }
+};
 } // namespace
 
 class TriggerDemo : public Scene
@@ -105,6 +147,7 @@ protected:
         CreateWarpDoor();
         CreateHazardZone();
         CreateNpc();
+        CreateCoins();
 
         LOG_INFO(Game, "TriggerDemo ready - WASD move, M movement style, F2 colliders, G grid");
     }
@@ -139,6 +182,7 @@ protected:
         _player     = CreateBlock("Player", TileCenter(0, 0), {TileSize * 0.7f, TileSize * 0.7f}, PlayerColor, 0);
         auto& world = GetWorld();
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
+        world.AddComponent<EntityEvents>(_player); // announces its spawn (and its destruction, were it destroyed)
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
         world.AddComponent<InputMovement>(_player, InputMovement{
                                               .MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
@@ -219,6 +263,46 @@ protected:
                                                    });
     }
 
+    // Each coin is a trigger: touching it publishes game.coin.collected and
+    // removes it. The HUD counts them by listening, not by being told - the
+    // trigger doesn't know the HUD exists.
+    void CreateCoins()
+    {
+        for (const auto& [tx, ty] : CoinTiles) {
+            const Entity coin = CreateBlock("Coin", TileCenter(tx, ty), {TileSize * 0.35f, TileSize * 0.35f}, CoinColor,
+                                            -999997);
+            AttachCollider(coin, Collider2D{
+                               .HalfExtents = {TileSize * 0.2f, TileSize * 0.2f},
+                               .Kind        = BodyKind::Static,
+                               .Layer       = CollisionLayers::Trigger,
+                               .Mask        = CollisionLayers::Player,
+                               .IsTrigger   = true,
+                           });
+            GetWorld().AddComponent<TriggerCallback>(coin, TriggerCallback{
+                .OnEnter = [this](const Entity self, const Entity other) {
+                    GetApp().GetEvents().Publish(CoinCollected, {{"amount", 1}, {"by", other}});
+                    GetWorld().DestroyEntity(self);
+                },
+            });
+        }
+
+        auto hud = std::make_unique<CoinHud>();
+        _hud     = hud.get();
+        GetApp().GetUI().Push(std::move(hud));
+        UpdateHud();
+        Subscribe(CoinCollected, [this](const Event& e) {
+            _coins += e.Payload.Get<i32>("amount", 1);
+            UpdateHud();
+            if (_coins == static_cast<i32>(CoinTiles.size()))
+                GetApp().GetEvents().Publish(AllCoinsCollected, {{"count", _coins}});
+        });
+    }
+
+    void UpdateHud()
+    {
+        if (_hud && _hud->Count) _hud->Count->Text = std::format("Coins: {} / {}", _coins, CoinTiles.size());
+    }
+
     void SetTint(const Entity e, const Color tint) { if (auto* sr = GetWorld().GetComponent<SpriteRenderer>(e)) sr->Tint = tint; }
 
     // Move an entity instantly: cancel any in-flight movement, refresh its
@@ -288,6 +372,8 @@ protected:
 
     void OnUnload() override
     {
+        GetApp().GetUI().Remove(_hud);
+        _hud = nullptr;
         if (_whiteTex.IsValid()) GetApp().GetDevice().DestroyTexture(_whiteTex);
         if (_sampler.IsValid()) GetApp().GetDevice().DestroySampler(_sampler);
     }
@@ -298,6 +384,8 @@ private:
     Entity        _player      = Entity::Invalid();
     u32           _hazardTicks = 0;
     bool          _showGrid    = false;
+    i32           _coins       = 0;
+    CoinHud*      _hud         = nullptr; // on the UI stack while the scene is loaded
 };
 
 std::unique_ptr<Scene> Demo::CreateTriggerDemo() { return std::make_unique<TriggerDemo>(); }

@@ -198,6 +198,12 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] `PlayOneShot` honors its `volume` (it used `ma_engine_play_sound`, which has none, so every one-shot played at full gain)
 - [ ] Loudness guidance for game assets (e.g. music around -24 to -26 LUFS, SFX peaks below -3 dBFS), checked by `arcbit-pack` at import (Phase 36)
 
+**Revisit: audio categories** - beyond the fixed master / music / SFX
+- [ ] Game-defined audio categories (buses): a game declares its own - menu music, game music, combat music, ambience, voice, UI - each with its own player-facing volume slider, persisted in settings like the built-in three. Lets a player keep menu music at 70 but in-game music at 40
+- [ ] Categories nest under a parent (combat music under music under master), so one slider can still turn a whole group down; the settings screen lists whatever categories the game defines
+- [ ] Every sound names its category: `PlayOneShot`, `AudioSource`, `Scene::SetMusic` / the `.arcscene` `"music"` key, UI skin sounds; music crossfades stay per category
+- [ ] Optional per-asset gain (or measured loudness stored with the asset at pack time, Phase 36) so tracks mastered at different levels play at a consistent level without editing the files
+
 ---
 
 ## Phase 19: Tilemap System
@@ -292,9 +298,9 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Demo (`TriggerDemo`): warp door teleports on enter, hazard zone Enter/Stay/Exit, NPC bump `CollisionCallback` in tile and free movement
 
 ### Phase 22G — Polish & integration
-*Parked: two of three items wait on Phase 24 (Event Bus) and Phase 40 (editor). Execution order after 22F is **22H**, then the partial-move item here; the rest closes out when its dependency lands.*
+*Parked: the event-bus item was settled in Phase 24; the editor item waits on Phase 40. Execution order after 22F is **22H**, then the partial-move item here.*
 - [ ] Optional `SmoothTileMovement.AllowPartialMove` — sub-tile stop policy for the rare scenes that want it
-- [ ] Event Bus publishing (`Collision.Started`, `Collision.Ended`, `Trigger.Entered`, `Trigger.Exited`) — wired when Phase 24 lands; callback API is the integration surface until then
+- [x] Event Bus publishing settled in Phase 24: collisions and triggers stay per-entity callbacks (one bus event per contact would flood it); a game publishes the contacts that matter from its callback in one line
 - [ ] Editor integration (Phase 40) — collider authoring panel, live preview, directional-arc arrows on the canvas
 
 ### Phase 22H — Movement controllers ✓
@@ -372,22 +378,23 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 ---
 
 ## Phase 24: Event Bus
-- [ ] Named pub/sub message bus: `EventBus::Subscribe(eventName, callback)` / `Unsubscribe` / `Publish(eventName, payload)`
-- [ ] Typed payload: `EventPayload` — flexible container for arbitrary per-event data (discriminated union or `std::any`)
-- [ ] Deferred dispatch mode: events queued during the update tick and flushed at the start of the next tick to prevent re-entrant callback issues
-- [ ] Predefined engine events:
-  - *Scene:* `Scene.Loaded`, `Scene.Unloaded`
-  - *Persistence:* `Game.Saved`, `Game.Loaded`
-  - *Entities:* `Entity.Spawned(entityId)`, `Entity.Destroyed(entityId)`
-  - *World:* `DayNight.Changed(normalizedTime)`, `Weather.Changed(type)`
-  - *Dialog:* `Dialog.Started(graphId)`, `Dialog.Ended(graphId, lastChoice)`
-  - *Combat:* `Combat.Started`, `Combat.Ended(result)`, `Player.Died`, `Player.Respawned`
-  - *Input:* `Input.DeviceChanged(deviceType)` — e.g. keyboard → gamepad, used to swap UI hint icons
-  - *Items:* `Item.PickedUp(itemId, entityId)`, `Item.Dropped(itemId, entityId)`
-  - *Progression:* `Quest.Started(questId)`, `Quest.Completed(questId)`, `Player.LeveledUp(newLevel)`, `Achievement.Unlocked(achievementId)`
-- [ ] User-definable events: any string key outside the reserved `engine.*` namespace is valid; game code and Lua scripts may publish and subscribe freely
-- [ ] Lua integration: `Event.Subscribe("name", handler)`, `Event.Unsubscribe`, `Event.Publish("name", payload)` — exposed in Phase 26 Lua scripting
-- [ ] Editor integration: live event monitor panel in the running game showing event name, payload, and source (Phase 40)
+*Plan: `docs/plans/24-event-bus.md`. Reference: `docs/events.md`.*
+
+- [x] Named pub/sub bus: `EventBus` (`Application::GetEvents()`) - `Subscribe` / `Publish` by `EventId` (a name hashed with the shared `HashName`, like input actions) or by name; `Register` / `Describe` keep names for logs, Lua and the editor
+- [x] Payload: `EventPayload` - named fields of a closed type set (bool, integer, decimal, text, `Entity`, `Vec2`) instead of `std::any`, so Lua, the editor monitor and saves can read any event; `Get<T>(name, fallback)` converts between number types
+- [x] Deferred dispatch: `Publish` queues and the bus delivers once per fixed tick, after the scene update - handlers never run mid-update. Events published during delivery go out in the same pass, capped (`MaxPerFlush`) against handlers publishing to each other forever; `PublishNow` for the exceptions
+- [x] Owned subscriptions: `Subscription` unsubscribes when destroyed; safe to subscribe or unsubscribe during delivery. `Scene::Subscribe` ends with the scene's unload (a suspended scene keeps listening)
+- [x] Naming: lower-case dot paths; `engine.` is reserved - game code subscribes to engine events but can't publish them (`PublishEngine` is the engine's)
+- [x] Engine events (`EngineEvents`): scene loaded / unloaded / suspended / resumed, `engine.input.device_changed` (new: `InputManager::GetLastDevice`), window focus / resize, `engine.settings.changed` (screens report their section; `Settings::Set` reports `game` + key)
+- [x] Opt-in entity events: `EntityEvents` (code or `.arcscene`) announces spawned / destroyed for chosen entities only, each renameable per entity (`"boss.defeated"`); scene unloads and component removal aren't deaths. New `World::OnAdd<T>` / `OnDestroy` hooks underneath
+- [x] Bus vs callbacks settled: per-entity callbacks (triggers, collisions, animation events) stay; a game publishes from them in one line when it wants a broadcast
+- [x] Debugging: `SubscribeAll` (the editor monitor's hook), every event logged on the `EventBus` channel; demo app F3 event overlay and coin pickups in the Triggers demo
+- [ ] Lua integration: `Event.Subscribe("name", handler)`, `Event.Unsubscribe`, `Event.Publish("name", payload)` - Phase 26
+- [ ] Editor integration: live event monitor (name, payload, source) - Phase 40
+- [ ] Progression events (`quest.started`, `player.leveled_up` and friends) - when a quest / progression system is planned; until then games define them as their own events
+- [ ] Day / night events - with a day / night cycle, when one is planned
+
+The rest of the original event list moved to the phases that build those systems, renamed to the dotted `engine.` style: saves (25), dialog (27), items (29), combat and death (30 - 32), weather (34), achievements (39).
 
 ---
 
@@ -398,7 +405,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Auto-save trigger API (on scene transition, on rest, on checkpoint)
 - [ ] Migration / version-upgrade path so old saves stay compatible after content updates
 - [ ] Lua API exposure so scripts can read and write custom save keys
-- [ ] Publishes `Game.Saved` and `Game.Loaded` via the Event Bus (Phase 24) on completion
+- [ ] Publishes `engine.game.saved` and `engine.game.loaded` via the Event Bus (Phase 24) on completion
 
 ---
 
@@ -432,7 +439,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Portraits / speaker icons per node (optional; falls back to name-only if absent)
 - [ ] JSON authoring format; importable from editor (Phase 40)
 - [ ] Lua hook: `OnDialogEnd(graphId, lastChoice)` for scripted reactions
-- [ ] Publishes `Dialog.Started` and `Dialog.Ended` events via the Event Bus (Phase 24)
+- [ ] Publishes `engine.dialog.started` and `engine.dialog.ended` (graph id, last choice) via the Event Bus (Phase 24)
 
 ---
 
@@ -463,7 +470,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Loot tables: weighted random drops defined in JSON
 - [ ] Save / load integration (Phase 25)
 - [ ] Lua API: add/remove/check items from scripts
-- [ ] Publishes `Item.PickedUp` and `Item.Dropped` events via the Event Bus (Phase 24)
+- [ ] Publishes `engine.item.picked_up` and `engine.item.dropped` (item id, entity) via the Event Bus (Phase 24)
 
 ---
 
@@ -473,6 +480,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Steering behaviors: `Follow` (track target), `Wander` (random walk), `Flee` (move away from threat)
 - [ ] `AIController` ECS component — configurable behavior tree or state machine
 - [ ] Line-of-sight check (raytrace against solid tiles; used for perception radius)
+- [ ] Per-entity sighting event through `EntityEvents` (Phase 24): an opted-in NPC announces when it sees the player ("on see"), renameable per NPC
 - [ ] Patrol paths: series of waypoints defined per NPC in the editor
 - [ ] Awareness states: `Idle → Alert → Chase → Combat` transitions
 - [ ] Turn-based AI: action selection (attack / use item / move) driven by heuristics or Lua script
@@ -491,7 +499,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Basic combat animations (Phase 17 clip playback) for attack and hurt reactions
 - [ ] Rewards: XP, gold, item drops via loot tables (Phase 29)
 - [ ] Lua hooks: `OnBattleStart`, `OnTurnStart`, `OnActionResolved`, `OnBattleEnd`
-- [ ] Publishes `Combat.Started` and `Combat.Ended` events via the Event Bus (Phase 24)
+- [ ] Publishes `engine.combat.started` and `engine.combat.ended` via the Event Bus (Phase 24)
 
 ---
 
@@ -506,7 +514,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Combo system: input sequence maps to chained attacks (optional; data-driven per weapon type)
 - [ ] Screen effects: hit-stop (brief time-scale reduction), screen flash, camera shake (Phase 15)
 - [ ] Boss encounter flag: phase transitions at HP thresholds, scripted via Lua
-- [ ] Publishes `Combat.Started`, `Combat.Ended`, `Player.Died`, and `Player.Respawned` events via the Event Bus (Phase 24)
+- [ ] Publishes `engine.combat.started`, `engine.combat.ended`, `engine.player.died` and `engine.player.respawned` via the Event Bus (Phase 24); per-entity death through `EntityEvents` (a renameable "died" event, opt-in per enemy)
 
 ---
 
@@ -532,7 +540,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
   - `Outline` — renders a colored rim around the sprite boundary; used to show silhouettes of entities occluded behind walls
   - `HitFlash` — RGBA tint pulse driven by a timer; wired to the combat hurt reaction
 - [ ] **Line renderer**: `DrawLine(start, end, width, color, style)` for lasers, lightning, and ropes; rendered as a screen-aligned quad with SDF-based anti-aliasing; style variants: solid, dashed, glow
-- [ ] **Weather overlay**: `WeatherSystem` drives a configurable overlay layer — rain (particle shower + screen-space streak pass), snow (particle drift), fog (animated Perlin noise fullscreen overlay with density and tint); weather type changes publish `Weather.Changed` via the Event Bus (Phase 24)
+- [ ] **Weather overlay**: `WeatherSystem` drives a configurable overlay layer — rain (particle shower + screen-space streak pass), snow (particle drift), fog (animated Perlin noise fullscreen overlay with density and tint); weather type changes publish `engine.weather.changed` via the Event Bus (Phase 24)
 
 ---
 
@@ -606,7 +614,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 
 - [ ] Steamworks SDK integration (dynamic DLL load; gracefully no-ops when Steam is not running)
 - [ ] Steam initialization: `SteamAPI_Init` on startup, `SteamAPI_RunCallbacks` each tick, `SteamAPI_Shutdown` on exit
-- [ ] Achievements: `AchievementManager` with named achievements defined in `project.arcbit`; unlock via `AchievementManager::Unlock("ACH_FIRST_BATTLE")`; synced to Steam backend; publishes `Achievement.Unlocked` via Event Bus (Phase 24)
+- [ ] Achievements: `AchievementManager` with named achievements defined in `project.arcbit`; unlock via `AchievementManager::Unlock("ACH_FIRST_BATTLE")`; synced to Steam backend; publishes `engine.achievement.unlocked` via Event Bus (Phase 24)
 - [ ] Stats: integer / float stats (playtime, enemies defeated, etc.) submitted to Steam leaderboards
 - [ ] Cloud saves: `SteamRemoteStorage` mirrors the save slot files from Phase 25; conflict resolution (newest wins or user prompt)
 - [ ] Rich presence: set activity string shown in Steam friends list (e.g. "Exploring the Forest")

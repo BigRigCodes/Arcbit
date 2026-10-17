@@ -3,6 +3,7 @@
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/ScenePreloader.h>
 
 #include <algorithm>
@@ -100,6 +101,7 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
     _stack.clear();
     if (!scene) return;
     scene->SetInput(_host.Input);
+    scene->_events      = _host.Events;
     scene->_musicPlayer = _host.Music;
     scene->_musicFade   = MusicFadeTime;
     _stack.push_back(std::move(scene));
@@ -189,6 +191,7 @@ std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
     std::unique_ptr<Scene> scene = _factories.at(name)();
     scene->_name                 = name;
     scene->_app                  = _host.App;
+    scene->_events               = _host.Events;
     scene->SetInput(_host.Input);
     return scene;
 }
@@ -291,7 +294,7 @@ void SceneManager::Swap()
 void SceneManager::SwapReplace()
 {
     std::unique_ptr<Scene> next = TakePrepared();
-    for (const std::unique_ptr<Scene>& scene : _stack | std::views::reverse) scene->OnUnload();
+    for (const std::unique_ptr<Scene>& scene : _stack | std::views::reverse) Unload(*scene);
     std::vector<std::unique_ptr<Scene>> old = std::move(_stack);
 
     _stack.clear();
@@ -300,6 +303,8 @@ void SceneManager::SwapReplace()
     LOG_INFO(Engine, "Scene '{}' loaded", _stack.back()->GetName());
     const bool ownerLeft = std::ranges::any_of(old, [](const std::unique_ptr<Scene>& s) { return s->_ownsMusic; });
     HandOverMusic(old.empty() ? nullptr : old.back().get(), *_stack.back(), ownerLeft);
+    for (const std::unique_ptr<Scene>& scene : old | std::views::reverse) Announce(EngineEvents::SceneUnloaded, *scene);
+    Announce(EngineEvents::SceneLoaded, *_stack.back());
 
     while (!old.empty()) {
         old.back()->ReleaseResources();
@@ -323,6 +328,8 @@ void SceneManager::SwapPush()
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
     HandOverMusic(below, *_stack.back(), false); // a scene without music of its own keeps the one below's
+    if (below) Announce(EngineEvents::SceneSuspended, *below);
+    Announce(EngineEvents::SceneLoaded, *_stack.back());
     LOG_INFO(Engine, "Scene '{}' pushed ({} deep)", _stack.back()->GetName(), _stack.size());
 }
 
@@ -334,9 +341,11 @@ void SceneManager::SwapPop()
     std::unique_ptr<Scene> top = std::move(_stack.back());
     _stack.pop_back();
 
-    top->OnUnload();
+    Unload(*top);
     _stack.back()->OnResume();
     HandOverMusic(top.get(), *_stack.back(), top->_ownsMusic);
+    Announce(EngineEvents::SceneUnloaded, *top);
+    Announce(EngineEvents::SceneResumed, *_stack.back());
     top->ReleaseResources();
     LOG_INFO(Engine, "Scene '{}' resumed", _stack.back()->GetName());
 }
@@ -361,10 +370,26 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
     to._musicResume = 0.0f;
 }
 
+// Subscriptions end straight after OnUnload, so nothing - not even an event
+// published now from the next scene's OnLoad - reaches an unloaded scene.
+void SceneManager::Unload(Scene& scene)
+{
+    scene.OnUnload();
+    scene._subscriptions.clear();
+}
+
+void SceneManager::Announce(const EventId id, const Scene& scene) const
+{
+    if (!_host.Events || scene.GetName().empty()) return;
+    EventPayload payload{ { "name", scene.GetName() } };
+    if (id == EngineEvents::SceneLoaded) payload.Set("entry", scene.GetEntryPoint());
+    _host.Events->PublishEngine(id, std::move(payload));
+}
+
 void SceneManager::UnloadAll()
 {
     while (!_stack.empty()) {
-        _stack.back()->OnUnload();
+        Unload(*_stack.back());
         _stack.back()->ReleaseResources();
         _stack.pop_back();
     }

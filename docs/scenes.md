@@ -44,6 +44,11 @@ A scene's life, in order:
 | `OnSuspend` / `OnResume` | another scene is pushed over it / popped off | main |
 | `OnUnload` | at the swap that removes it - free what `OnLoad` made directly | main (render thread idle) |
 
+A scene listens on the event bus with `Scene::Subscribe(event, handler)`; the
+subscription ends with its unload, and a suspended scene keeps listening (see
+[events.md](events.md#subscribing)). Scene changes are themselves announced
+as `engine.scene.*` events.
+
 Every hook is optional. A scene is never moved (systems capture it), and
 nothing outside `OnPrepare` runs off the main thread.
 
@@ -240,8 +245,9 @@ MyGame() : Application({ ... })
 - **Credits** (`CreditsScreen`) scroll a JSON file: `title`, `sections` of
   `heading` + `names`, `scroll_speed`.
 
-The splash `StaysOnTop`: screens pushed while it's up (a HUD the first scene
-pushes in `OnLoad`) go beneath it, so it keeps ticking and finishes.
+The splash is on the `System` UI layer: screens pushed while it's up (a HUD
+the first scene pushes in `OnLoad`) go beneath it, so it keeps ticking and
+finishes (see [gui.md](gui.md#screen-management)).
 
 ---
 
@@ -374,7 +380,7 @@ Built-in components: `Tag`, `Name`, `Transform2D`, `SpriteRenderer`,
 `LightEmitter`, `Parallax`, `CameraTarget`, `Disabled`, `Lifetime`,
 `AudioSource`, `Animator`, `Collider2D`, `MoveIntent`, `InputMovement`,
 `AIMovement`, `FreeMovement`, `SmoothTileMovement`, `SnapTileMovement`,
-`Pushable`, `PendingMove`. `AnimatorStateMachine` and the callback components
+`Pushable`, `PendingMove`, `EntityEvents`. `AnimatorStateMachine` and the callback components
 aren't serializable yet.
 
 Collision layers are written by name (`"layer": "Prop"`,

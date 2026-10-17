@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/core/Hash.h>
 #include <arcbit/core/Types.h>
 
 #include <string_view>
@@ -136,18 +137,21 @@ enum class GamepadAxis : u8
 // ---------------------------------------------------------------------------
 using ActionID = u32;
 
-// FNV-1a hash — produces the same ActionID for the same string at compile
-// time or runtime. Collisions are astronomically unlikely for short names but
-// prefer globally unique names (e.g. "Inventory_Open" not "Open") to be safe.
-constexpr ActionID MakeAction(const std::string_view name)
+// Same id for the same name at compile time or runtime (HashName). Prefer
+// globally unique names (e.g. "Inventory_Open" not "Open").
+constexpr ActionID MakeAction(const std::string_view name) { return HashName(name); }
+
+// The kind of device the player is using - what button hints to show.
+enum class InputDevice : u8
 {
-    u32 hash = 2166136261u; // FNV offset basis
-    for (const unsigned char c : name)
-    {
-        hash ^= c;
-        hash *= 16777619u; // FNV prime
-    }
-    return hash;
+    KeyboardMouse,
+    Gamepad,
+};
+
+// "keyboard_mouse" / "gamepad" - the engine.input.device_changed payload.
+constexpr std::string_view ToString(const InputDevice device)
+{
+    return device == InputDevice::Gamepad ? "gamepad" : "keyboard_mouse";
 }
 
 // Which part of an axis a binding reads. A stick axis spans -1..1, and any

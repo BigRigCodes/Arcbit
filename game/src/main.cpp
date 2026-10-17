@@ -17,11 +17,15 @@
 // `--load-delay <seconds>` makes every load take that much longer, to see
 // both. The battle is preloaded while a demo runs, so B stays instant.
 //
+// F3 toggles an overlay of the latest events on the event bus - engine events
+// (scene changes, device switches, settings) and the demos' own.
+//
 // `--mute` silences everything for the run (the saved volumes are untouched),
 // for unattended soak runs.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
+#include "EventLogScreen.h"
 
 #include <arcbit/app/Application.h>
 #include <arcbit/audio/AudioManager.h>
@@ -54,7 +58,8 @@ std::span<const Demo::Entry> Demo::Entries()
         { "Tile Arcs", "directional colliders, tile movement (22D)", "F2 colliders, G grid",
           &CreateTileMoveArcDemo },
         { "OBB", "rotated colliders (22E)", "R pause gate, C player shape, F2 colliders, G grid", &CreateObbDemo },
-        { "Triggers", "triggers and collision events (22F)", "M movement style, F2 colliders, G grid",
+        { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
+          "M movement style, F2 colliders, G grid, F3 events",
           &CreateTriggerDemo },
     };
     return entries;
@@ -66,6 +71,7 @@ constexpr ActionID ActionDemoMenu = MakeAction("Demo_Menu");
 constexpr ActionID ActionDemoNext = MakeAction("Demo_Next");
 constexpr ActionID ActionDemoPrev   = MakeAction("Demo_Prev");
 constexpr ActionID ActionDemoBattle = MakeAction("Demo_Battle");
+constexpr ActionID ActionEventLog   = MakeAction("Demo_EventLog");
 
 constexpr const char* BattleScene = "Battle";
 
@@ -98,6 +104,7 @@ protected:
         GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
         Demo::RegisterInput(GetInput());
         Demo::RegisterSceneTypes(GetSceneRegistry());
+        _eventHistory = std::make_unique<EventHistory>(GetEvents()); // from the start, so F3 shows the boot too
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
@@ -110,11 +117,14 @@ protected:
         // Load the battle ahead while a demo runs, so B only has to build it.
         if (!GetScenes().IsTransitioning() && GetScenes().GetDepth() == 1) GetScenes().Preload(BattleScene);
 
-        if (GetUI().HasBlockingScreen()) return; // a menu owns the keys (the demo menu closes itself)
+        if (GetInput().JustPressed(ActionEventLog)) ToggleEventLog(); // works over menus too
+        // F1 opens the demo menu over any other menu, swapping it out (the
+        // demo menu closes itself on F1).
+        if (GetInput().JustPressed(ActionDemoMenu) && !GetUI().IsOpen(_demoMenu)) ShowMenu();
+        if (GetUI().HasBlockingScreen()) return; // a menu owns the other keys
 
         const size_t count = Demo::Entries().size();
         if (CycleDue(dt)) CycleStep(count);
-        else if (GetInput().JustPressed(ActionDemoMenu)) ShowMenu();
         else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoBattle)) ToggleBattle();
@@ -132,7 +142,7 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle", demo.Name,
+        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle, F3 events", demo.Name,
                                    demo.Keys));
     }
 
@@ -150,6 +160,19 @@ private:
         SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
     }
 
+    void ToggleEventLog()
+    {
+        if (_eventLog) {
+            GetUI().Close(_eventLog);
+            _eventLog = nullptr;
+            return;
+        }
+        auto screen     = std::make_unique<EventLogScreen>();
+        screen->History = _eventHistory.get();
+        _eventLog       = screen.get();
+        GetUI().Push(std::move(screen));
+    }
+
     [[nodiscard]] size_t LastOpenedIndex() const
     {
         const std::string last    = Settings::Get<std::string>(LastDemoKey, "");
@@ -162,15 +185,16 @@ private:
     void ShowMenu()
     {
         auto menu     = std::make_unique<DemoSelectScreen>();
+        _demoMenu     = menu.get();
         menu->Current = _current;
-        menu->OnClose = [this] { GetUI().Pop(); };
+        menu->OnClose = [this] { GetUI().Close(_demoMenu); };
         menu->OnPick  = [this](const size_t index) {
-            GetUI().Pop();
+            GetUI().Close(_demoMenu);
             // Under a pushed battle, the current demo is suspended: picking
             // it still switches (back) to it.
             if (index != _current || GetScenes().GetDepth() > 1) Open(index);
         };
-        GetUI().Push(std::move(menu));
+        GetUI().OpenMenu(std::move(menu)); // swaps out the pause menu, if it's open
     }
 
     // --cycle: push the battle, pop it, next demo, repeat.
@@ -189,6 +213,10 @@ private:
         _cycleTimer = 0.0f;
         return true;
     }
+
+    std::unique_ptr<EventHistory> _eventHistory;
+    const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
+    const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
 
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;

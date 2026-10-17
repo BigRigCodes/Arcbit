@@ -286,3 +286,23 @@ TEST_CASE("A scene file that isn't an object, or has a string version, fails cle
         CHECK_FALSE(SceneFile::Load(scene, json::parse(text), registry, assets, ids)); // no throw
     }
 }
+
+TEST_CASE("EntityEvents reads from and writes to scene files", "[scene][events]")
+{
+    const SceneRegistry registry = MakeRegistry();
+    FakeAssets          assets;
+    const json          doc = json::parse(R"({ "version": 1, "entities": { "boss": {
+        "EntityEvents": { "destroyed_event": "boss.defeated", "spawned": false } } } })");
+
+    Scene            scene;
+    SceneFile::IdMap ids;
+    REQUIRE(SceneFile::Load(scene, doc, registry, assets, ids));
+    const EntityEvents* ev = scene.GetWorld().GetComponent<EntityEvents>(ids.at("boss"));
+    REQUIRE(ev);
+    CHECK_FALSE(ev->Spawned);
+    CHECK(ev->Destroyed);
+    CHECK(ev->DestroyedEvent == "boss.defeated");
+
+    const json saved = SceneFile::Save(scene, registry, assets, {}, ids)["entities"]["boss"]["EntityEvents"];
+    CHECK(saved == doc["entities"]["boss"]["EntityEvents"]); // only the non-default fields
+}

@@ -92,7 +92,11 @@ public:
     // for this widget's OnCollect call. See UISkinOverride in UISkin.h.
     UISkinOverride SkinOverride;
 
-    virtual ~UIWidget() = default;
+    virtual ~UIWidget() { ++s_destroyedCount; }
+
+    // How many widgets have ever been destroyed - lets a screen notice, for
+    // free, when its focused widget might be gone (UIScreen::GetFocusedWidget).
+    [[nodiscard]] static u64 DestroyedCount() { return s_destroyedCount; }
 
     // Text and control-key events forwarded by UIManager to the focused widget.
     virtual void OnTextInput(std::string_view /*chars*/) {}
@@ -102,8 +106,21 @@ public:
     // widget to handle cursor movement directly. TextInput sets this when focused.
     [[nodiscard]] virtual bool ConsumesFocusNav() const { return false; }
 
+    // The rect this widget lays its children out in, given its own: itself
+    // for most widgets, a ScrollPanel's scrolled content area. Everything that
+    // places children - update, draw, click-to-focus - goes through it, so a
+    // click finds what is actually drawn under it.
+    [[nodiscard]] virtual UIRect ChildRect(const UIRect myRect) const { return myRect; }
+
+    // True when children outside this widget's own rect are cut off (a
+    // ScrollPanel): they can't be seen there, so they can't be clicked there.
+    [[nodiscard]] virtual bool ClipsChildren() const { return false; }
+
     // Compute this widget's pixel rect relative to parentRect.
     [[nodiscard]] UIRect ComputeRect(UIRect parent) const;
+
+    // True while this widget has keyboard / gamepad focus.
+    [[nodiscard]] bool IsFocused() const { return _focused; }
 
     // Returns a copy of base with this widget's SkinOverride fields applied.
     // Called automatically by CollectTree before OnCollect — no need to call
@@ -172,5 +189,12 @@ protected:
 
 private:
     friend class UIScreen;
+
+    inline static u64 s_destroyedCount = 0;
+    inline static u64 s_lastSerial     = 0;
+
+    // Unique per widget ever made: a new widget can reuse a destroyed one's
+    // address, but never its serial (UIScreen's focus check needs both).
+    const u64 _serial = ++s_lastSerial;
 };
 } // namespace Arcbit

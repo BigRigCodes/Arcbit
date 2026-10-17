@@ -1,4 +1,6 @@
 #include <arcbit/ui/InputRebindScreen.h>
+
+#include <arcbit/settings/Settings.h>
 #include <arcbit/ui/Widgets.h>
 #include <arcbit/input/InputManager.h>
 
@@ -68,6 +70,10 @@ void InputRebindScreen::OnEnter()
         };
 }
 
+// However the screen closes - back, or swapped out by another menu (which
+// skips the back path) - a binding taken away to be replaced comes back.
+void InputRebindScreen::OnExit() { CancelListening(); }
+
 // ---------------------------------------------------------------------------
 // CountBindings / AddChipColumn helpers
 // ---------------------------------------------------------------------------
@@ -134,6 +140,7 @@ void InputRebindScreen::RebuildScroll()
 {
     if (!_scroll) return;
     const f32 savedOffset = _scroll->ScrollOffset;
+    const i32 focusIndex  = GetFocusIndex(); // the rows are rebuilt; keep the controller's place
     _scroll->ClearChildren();
 
     const f32 chipH    = 22.0f;
@@ -202,6 +209,7 @@ void InputRebindScreen::RebuildScroll()
     _scroll->ContentHeight = y + 4.0f;
     _scroll->ScrollOffset  = std::min(savedOffset,
                                       std::max(0.0f, _scroll->ContentHeight - _scroll->Size.Y));
+    FocusAt(focusIndex);
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +261,7 @@ void InputRebindScreen::StopListening(const bool commit)
         return;
     }
     if (!commit && _hadRemoved) Input->AddBinding(_listeningAction, _removedBinding);
+    if (commit) Settings::MarkDirty("input");
     _isListening     = false;
     _listeningButton = nullptr;
     _hadRemoved      = false;
@@ -264,6 +273,7 @@ void InputRebindScreen::RemoveChip(const ActionID action, const Binding& b)
 {
     CancelListening(); // restores any in-flight removal, no rebuild yet
     Input->RemoveBinding(action, b);
+    Settings::MarkDirty("input");
     _pendingRebuild = true;
 }
 
@@ -289,23 +299,25 @@ void InputRebindScreen::OnTick(const f32 dt, const InputManager& input)
         const MouseButton mb = input.GetAnyJustReleasedMouseButton();
         if (k == Key::Unknown && mb == MouseButton::Count) return;
 
-        if (k != Key::Unknown) {
-            Input->UnbindKey(k);
-            Input->BindKey(_listeningAction, k);
-        }
-        else {
-            Input->UnbindMouseButton(mb);
-            Input->BindMouseButton(_listeningAction, mb);
-        }
+        TakeBinding(k != Key::Unknown ? Binding::FromKey(k) : Binding::FromMouseButton(mb));
     }
     else {
         const GamepadButton btn = input.GetAnyJustReleasedGamepadButton();
         if (btn == GamepadButton::Count) return;
-        Input->UnbindGamepadButton(btn);
-        Input->BindGamepadButton(_listeningAction, btn);
+        TakeBinding(Binding::FromGamepadButton(btn));
     }
 
     StopListening(true);
+}
+
+// A binding belongs to one of the actions on this screen at a time, so it
+// moves from whichever had it. Only those, though: the hidden UI_ / Engine_
+// actions keep theirs - binding A to Interact used to take A away from menu
+// confirm, and the D-pad from menu navigation.
+void InputRebindScreen::TakeBinding(const Binding& b)
+{
+    for (const ActionEntry& e : _entries) Input->RemoveBinding(e.id, b);
+    Input->AddBinding(_listeningAction, b);
 }
 
 void InputRebindScreen::OnBackPressed()

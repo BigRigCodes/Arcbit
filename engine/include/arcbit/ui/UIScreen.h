@@ -21,6 +21,17 @@ class  InputManager;
 // visible screens are collected each frame.  Push transitions fade in; Pop
 // transitions fade out before the screen is removed from the stack.
 // ---------------------------------------------------------------------------
+// Where a screen sits in the UI stack, bottom to top. A screen is pushed on
+// top of its own layer - so a menu opened while an overlay is up goes beneath
+// the overlay, and a HUD a scene pushes never covers a menu.
+enum class UILayer : u8
+{
+    Hud,     // always-there game info: health, coins
+    Menu,    // menus and their sub-screens (settings); UIManager::OpenMenu swaps them
+    Overlay, // above menus: debug overlays, the loading screen
+    System,  // above everything: the splash
+};
+
 class UIScreen
 {
 public:
@@ -39,6 +50,12 @@ public:
     // opened it is never seen here.
     virtual void OnTick(f32 /*dt*/, const InputManager& /*input*/) {}
 
+    // Called once per game tick for every screen on the stack - including
+    // display-only ones that never take input (TakesInput = false), which
+    // never get OnTick. Animate and refresh what the screen shows here; read
+    // input in OnTick.
+    virtual void OnUpdate(f32 /*dt*/) {}
+
     // Rate at which transition opacity changes (units/second). 0 = instant.
     f32 TransitionSpeed = 3.0f;
 
@@ -51,12 +68,13 @@ public:
     // and any screen that must appear before game content is visible.
     bool BlocksGame = false;
 
-    // Keeps the screen above everything pushed after it: other screens are
-    // inserted beneath it, and Pop() skips it. For screens that must stay in
-    // front while the game sets itself up underneath - the splash, during
-    // which the first scene loads and may push its HUD. Remove it with
-    // UIManager::Remove.
-    bool StaysOnTop = false;
+    // Where the screen sits in the stack (see UILayer).
+    UILayer Layer = UILayer::Menu;
+
+    // False for display-only screens (HUDs, an event log): keys, buttons and
+    // the mouse go to the topmost screen that takes input, so a menu beneath
+    // stays usable.
+    bool TakesInput = true;
 
     // For BlocksGame screens: true while the screen fully hides the game, so
     // a scene can load beneath it (the main thread stalls while it does) with
@@ -121,7 +139,14 @@ public:
     void ActivateFocused();
     void ClearFocus();
 
-    [[nodiscard]] UIWidget* GetFocusedWidget() const { return _focusedWidget; }
+    // The focused widget; null if none - or if it has been destroyed since
+    // (a screen rebuilding its layout), so focus never points at freed memory.
+    [[nodiscard]] UIWidget* GetFocusedWidget() const;
+
+    // The focused widget's place in the focus order (-1 if none), and focusing
+    // by place (clamped) - for keeping focus where it was across a rebuild.
+    [[nodiscard]] i32 GetFocusIndex() const;
+    void              FocusAt(i32 index);
 
     // --- Visibility / transition state --------------------------------------
 
@@ -144,13 +169,16 @@ private:
     bool            _skipInputThisFrame = false; // true on the frame the screen was pushed
     TransitionState _transitionState   = TransitionState::Idle;
     f32             _transitionOpacity = 1.0f;
-    UIWidget*       _focusedWidget     = nullptr;
+    mutable UIWidget* _focusedWidget = nullptr;
+    mutable u64       _focusCheckedAt = 0; // UIWidget::DestroyedCount() when focus was last known valid
+    mutable u64       _focusedSerial  = 0; // the focused widget's serial: tells it from one reusing its address
 
     void AdvanceTransition(f32 dt);
     void ApplyFocus(UIWidget* widget);
 
     std::vector<UIWidget*> GatherFocusables() const;
     static void CollectFocusables(UIWidget& w, std::vector<UIWidget*>& out);
+    static bool InTree(const UIWidget& w, const UIWidget* target); // pointer compare only
 
     // Hit-test the widget tree for the deepest Focusable widget under pos.
     [[nodiscard]] UIWidget* FindFocusableHit(UIWidget& w, UIRect parent, Vec2 pos) const;

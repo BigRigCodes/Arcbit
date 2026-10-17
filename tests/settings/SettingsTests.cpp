@@ -6,6 +6,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace Arcbit;
 
@@ -204,4 +207,22 @@ TEST_CASE("Loading bindings without a saved section reports nothing loaded", "[s
     input.BindKey(Jump, Key::W);
     CHECK_FALSE(Settings::LoadInputBindings(input));
     CHECK(input.GetBindings(Jump).size() == 1);
+}
+
+TEST_CASE("The change listener hears player-facing changes only", "[settings]")
+{
+    SettingsScope                                    scope;
+    std::vector<std::pair<std::string, std::string>> heard;
+    Settings::SetChangeListener([&](const std::string_view section, const std::string_view key) {
+        heard.emplace_back(section, key);
+    });
+
+    Settings::MarkDirty("audio");
+    Settings::MarkDirty(); // internal: dirty, but not announced
+    Settings::Set<i32>("demo.level", 3);
+    Settings::SetChangeListener({});
+    Settings::MarkDirty("graphics"); // no listener any more
+
+    CHECK(heard == std::vector<std::pair<std::string, std::string>>{ { "audio", "" }, { "game", "demo.level" } });
+    CHECK(Settings::IsDirty());
 }

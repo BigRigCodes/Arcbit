@@ -125,8 +125,8 @@ protected:
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
-        world.AddComponent<InputMovement>(_player, InputMovement{ActionMoveLeft, ActionMoveRight,
-                                                                 ActionMoveUp, ActionMoveDown});
+        world.AddComponent<InputMovement>(_player, InputMovement{.MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
+                                                                 .MoveUp   = ActionMoveUp, .MoveDown    = ActionMoveDown});
 
         // Half-extents slightly less than half a tile so corner approaches don't
         // get caught on the rounded broadphase AABB of a circle obstacle.

@@ -26,7 +26,7 @@ struct SplashEntry
 // SplashScreen — plays a sequence of full-screen images before transitioning.
 //
 // Add SplashEntry items to Entries before pushing. Wire OnComplete to remove
-// the splash (GetUI().Remove(splash) - it StaysOnTop, so Pop() skips it) and
+// the splash (GetUI().Remove(splash) - it's on the System layer, which Pop() never touches) and
 // carry on to the next screen.
 //
 // The screen appears and fades per-entry via Image.Opacity — the screen-level
@@ -43,7 +43,7 @@ public:
     {
         BlocksInput     = true;
         BlocksGame      = true;
-        StaysOnTop      = true; // the first scene loads (and may push a HUD) underneath
+        Layer           = UILayer::System; // the first scene loads (and may push a HUD) underneath
         TransitionSpeed = 0.0f;
     }
 

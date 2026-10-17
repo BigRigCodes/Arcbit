@@ -38,6 +38,7 @@ public:
     InputRebindScreen() { BlocksInput = true; TransitionSpeed = 6.0f; }
 
     void OnEnter() override;
+    void OnExit() override;
     void OnBackPressed() override;
     void OnTick(f32 dt, const InputManager& input) override;
 
@@ -68,6 +69,7 @@ private:
     void CancelListening();  // restores removed binding, does NOT rebuild
     void StopListening(bool commit);
     void RemoveChip(ActionID action, const Binding& b);
+    void TakeBinding(const Binding& b); // from every action listed here, then to the listening one
 };
 
 } // namespace Arcbit

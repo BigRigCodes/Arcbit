@@ -57,7 +57,7 @@ void Application::PushSplash()
         FinishSplash();
         return;
     }
-    // StaysOnTop: removed by pointer, not Pop() (which skips it).
+    // On the System layer: removed by pointer (Pop() only closes menus).
     splash->OnComplete = [this, screen = splash.get()] {
         _ui.Remove(screen);
         FinishSplash();
@@ -84,10 +84,11 @@ void Application::FinishSplash()
 // already behind the menu and New Game just closes it.
 void Application::ShowTitle()
 {
-    auto title         = std::make_unique<MainMenuScreen>();
+    auto      title    = std::make_unique<MainMenuScreen>();
+    UIScreen* screen   = title.get();
     title->ShowCredits = !_boot.CreditsPath.empty();
-    title->OnNewGame   = [this] {
-        _ui.Pop();
+    title->OnNewGame   = [this, screen] {
+        _ui.Close(screen);
         if (!_boot.TitleScene.empty() && !_boot.FirstScene.empty()) _scenes.Switch(_boot.FirstScene);
     };
     title->OnControls         = [this] { ShowControlsScreen(); };
@@ -95,7 +96,7 @@ void Application::ShowTitle()
     title->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
     title->OnCredits          = [this] { ShowCredits(); };
     title->OnQuit             = [this] { RequestShutdown(); };
-    _ui.Push(std::move(title));
+    _ui.OpenMenu(std::move(title));
 }
 
 void Application::ShowCredits()
@@ -103,7 +104,7 @@ void Application::ShowCredits()
     auto credits        = std::make_unique<CreditsScreen>();
     credits->Path       = _boot.CreditsPath;
     credits->ViewHeight = static_cast<f32>(GetWindowHeight());
-    credits->OnClose    = [this] { _ui.Pop(); };
+    credits->OnClose    = [this, screen = credits.get()] { _ui.Close(screen); };
     _ui.Push(std::move(credits));
 }
 
@@ -111,21 +112,21 @@ void Application::ShowControlsScreen()
 {
     auto rebind    = std::make_unique<InputRebindScreen>();
     rebind->Input  = &_input;
-    rebind->OnBack = [this] { _ui.Pop(); };
+    rebind->OnBack = [this, screen = rebind.get()] { _ui.Close(screen); };
     _ui.Push(std::move(rebind));
 }
 
 void Application::ShowAudioScreen()
 {
     auto audio    = std::make_unique<AudioSettingsScreen>();
-    audio->OnBack = [this] { _ui.Pop(); };
+    audio->OnBack = [this, screen = audio.get()] { _ui.Close(screen); };
     _ui.Push(std::move(audio));
 }
 
 void Application::ShowGraphicsScreen()
 {
     auto graphics                = std::make_unique<GraphicsSettingsScreen>();
-    graphics->OnBack             = [this] { _ui.Pop(); };
+    graphics->OnBack             = [this, screen = graphics.get()] { _ui.Close(screen); };
     graphics->OnToggleFullscreen = [this] { ToggleFullscreen(); };
     _ui.Push(std::move(graphics));
 }

@@ -7,6 +7,7 @@
 #include <arcbit/render/Font.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
+#include <arcbit/events/EventBus.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
@@ -160,6 +161,10 @@ public:
     // The UI manager — push screens in OnStart; query widgets in OnUpdate.
     [[nodiscard]] UIManager& GetUI() { return _ui; }
 
+    // The event bus (docs/events.md). Published events are delivered once per
+    // fixed tick, after the scene update.
+    [[nodiscard]] EventBus& GetEvents() { return _events; }
+
     // Color format of the swapchain — pass to PipelineDesc::ColorFormat so
     // pipelines match the actual surface format chosen by the driver.
     [[nodiscard]] Format GetSwapchainFormat() const;
@@ -259,7 +264,9 @@ private:
     FontAtlas   _debugFont;
     RenderStats _renderStats{};
 
-    UIManager _ui;
+    UIManager    _ui;
+    EventBus     _events;   // before _scenes: scenes' subscriptions end before the bus goes
+    Subscription _eventLog; // every delivered event, on the EventBus log channel (debug level)
 
     SceneManager                    _scenes;
     SceneRegistry                   _sceneRegistry;
@@ -271,6 +278,9 @@ private:
     RenderThread                    _renderThread;
     std::unique_ptr<Window>         _window;
     InputManager                    _input;
+
+    // Device, focus and resize changes this frame, as engine events.
+    void PublishFrameEvents();
 
     // Full-window black quad over the world while a scene switch fades.
     void CollectSceneFade(FramePacket& packet) const;

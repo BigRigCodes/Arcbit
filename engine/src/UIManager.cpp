@@ -6,7 +6,10 @@
 #include <arcbit/input/InputTypes.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
+#include <limits>
+#include <tuple>
 
 namespace Arcbit
 {
@@ -32,6 +35,21 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     input.BindKey(ActionFocusPrev, Key::Left);
 
     input.BindGamepadButton(ActionConfirm, GamepadButton::South);
+
+    // The gamepad cursor and right-stick scrolling (UpdatePointer).
+    for (const auto& [action, name, axis, half] : {
+             std::tuple{ ActionCursorLeft, "UI_CursorLeft", GamepadAxis::LeftX, AxisHalf::Negative },
+             std::tuple{ ActionCursorRight, "UI_CursorRight", GamepadAxis::LeftX, AxisHalf::Positive },
+             std::tuple{ ActionCursorUp, "UI_CursorUp", GamepadAxis::LeftY, AxisHalf::Negative },
+             std::tuple{ ActionCursorDown, "UI_CursorDown", GamepadAxis::LeftY, AxisHalf::Positive },
+             std::tuple{ ActionScrollUp, "UI_ScrollUp", GamepadAxis::RightY, AxisHalf::Negative },
+             std::tuple{ ActionScrollDown, "UI_ScrollDown", GamepadAxis::RightY, AxisHalf::Positive },
+         }) {
+        input.RegisterAction(action, name);
+        input.BindGamepadAxis(action, axis, half, 0.2f);
+    }
+    input.RegisterAction(ActionCursorClick, "UI_CursorClick");
+    input.BindGamepadButton(ActionCursorClick, GamepadButton::South);
     input.BindGamepadButton(ActionFocusNext, GamepadButton::DPadDown);
     input.BindGamepadButton(ActionFocusNext, GamepadButton::DPadRight);
     input.BindGamepadButton(ActionFocusPrev, GamepadButton::DPadUp);
@@ -79,24 +97,52 @@ void UIManager::Push(std::unique_ptr<UIScreen> screen)
     screen->_skipInputThisFrame = true;
     screen->OnEnter();
 
-    // Below the StaysOnTop screens (they sit at the top of the stack).
-    auto at = _stack.end();
-    if (!screen->StaysOnTop)
-        while (at != _stack.begin() && (*std::prev(at))->StaysOnTop) --at;
+    // On top of its layer: before the first screen of a higher one (the stack
+    // is kept sorted by layer).
+    const UILayer layer = screen->Layer;
+    const auto    at    = std::ranges::find_if(_stack, [layer](const auto& s) { return s->Layer > layer; });
     _stack.insert(at, std::move(screen));
+}
+
+void UIManager::OpenMenu(std::unique_ptr<UIScreen> screen)
+{
+    CloseMenus();
+    screen->Layer = UILayer::Menu;
+    Push(std::move(screen));
+}
+
+void UIManager::CloseMenus()
+{
+    std::vector<const UIScreen*> menus;
+    for (const auto& s : _stack)
+        if (s->Layer == UILayer::Menu && IsOpen(s.get())) menus.push_back(s.get());
+    for (const UIScreen* menu : menus) Close(menu);
 }
 
 void UIManager::Pop()
 {
-    // The topmost screen that isn't StaysOnTop or already on its way out.
-    auto it = _stack.end();
-    while (it != _stack.begin()) {
-        const UIScreen* s = std::prev(it)->get();
-        if (!s->StaysOnTop && std::ranges::find(_deferredRemovals, s) == _deferredRemovals.end()) break;
-        --it;
-    }
-    if (it == _stack.begin()) return;
-    Close(std::prev(it)->get());
+    for (auto it = _stack.rbegin(); it != _stack.rend(); ++it)
+        if ((*it)->Layer == UILayer::Menu && IsOpen(it->get())) {
+            Close(it->get());
+            return;
+        }
+}
+
+bool UIManager::IsOpen(const UIScreen* screen) const
+{
+    if (std::ranges::find(_deferredRemovals, screen) != _deferredRemovals.end()) return false;
+    const auto it = std::ranges::find_if(_stack, [screen](const auto& s) { return s.get() == screen; });
+    return it != _stack.end() && !(*it)->IsFadingOut();
+}
+
+bool UIManager::HasOpenMenu() const
+{
+    return std::ranges::any_of(_stack, [this](const auto& s) { return s->Layer == UILayer::Menu && IsOpen(s.get()); });
+}
+
+bool UIManager::IsBackPressed(const InputManager& input)
+{
+    return input.JustPressed(ActionTextEscape) || input.JustPressed(ActionBack);
 }
 
 void UIManager::Close(const UIScreen* screen)
@@ -148,13 +194,36 @@ bool UIManager::CoversLoading() const
 }
 
 // ---------------------------------------------------------------------------
+// NavRepeat
+// ---------------------------------------------------------------------------
+
+i32 NavRepeat::Step(const bool justNext, const bool justPrev, const bool heldNext, const bool heldPrev,
+                    const f32 dt)
+{
+    if (justNext || justPrev) {
+        _held  = justNext ? 1 : -1;
+        _timer = Delay;
+        return _held;
+    }
+    if (_held == 0 || !(_held > 0 ? heldNext : heldPrev)) {
+        _held = 0;
+        return 0;
+    }
+    _timer -= dt;
+    if (_timer > 0.0f) return 0;
+    _timer += Interval;
+    return _held;
+}
+
+// ---------------------------------------------------------------------------
 // Update
 // ---------------------------------------------------------------------------
 
+// The topmost screen that takes input and isn't on its way out.
 UIScreen* UIManager::ActiveInputScreen() const
 {
     for (auto it = _stack.rbegin(); it != _stack.rend(); ++it)
-        if (!(*it)->IsFadingOut()) return it->get();
+        if ((*it)->TakesInput && !(*it)->IsFadingOut()) return it->get();
     return nullptr;
 }
 
@@ -179,17 +248,57 @@ void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& 
     _deferredRemovals.clear();
 }
 
-void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputManager& input)
+// The pointer widgets see. The gamepad cursor takes over when the left stick
+// moves while a screen takes input, and hands back as soon as the player
+// uses the mouse, keyboard or D-pad (anything that makes the last-used device
+// keyboard / mouse, or moves focus). While it's shown, South clicks under it.
+void UIManager::UpdatePointer(const f32 dt, const Vec2 windowSize, const InputManager& input)
 {
+    constexpr f32 CursorSpeed = 1100.0f; // px/s at full tilt, for a 1080-high window
+    constexpr f32 ScrollRate  = 10.0f;   // wheel notches per second at full tilt
+
+    const Vec2 stick{ input.AxisValue(ActionCursorRight) - input.AxisValue(ActionCursorLeft),
+                      input.AxisValue(ActionCursorDown) - input.AxisValue(ActionCursorUp) };
+    const bool focusKeys = input.JustPressed(ActionFocusNext) || input.JustPressed(ActionFocusPrev);
+    if (!ActiveInputScreen() || input.GetLastDevice() == InputDevice::KeyboardMouse || focusKeys)
+        _cursorActive = false;
+    else if (stick.X != 0.0f || stick.Y != 0.0f) {
+        if (!_cursorActive && _cursorPos.X < 0.0f) _cursorPos = windowSize * 0.5f;
+        _cursorActive = true;
+        // Squared tilt: slow and precise near the center, fast at the edge.
+        const f32 tilt = std::min(1.0f, std::sqrt(stick.X * stick.X + stick.Y * stick.Y));
+        _cursorPos += stick * (CursorSpeed * tilt * dt * windowSize.Y / 1080.0f);
+        _cursorPos  = { std::clamp(_cursorPos.X, 0.0f, windowSize.X), std::clamp(_cursorPos.Y, 0.0f, windowSize.Y) };
+    }
+
+    _scrollDelta = input.GetScrollDelta() +
+                   (input.AxisValue(ActionScrollUp) - input.AxisValue(ActionScrollDown)) * ScrollRate * dt;
+    if (_cursorActive) {
+        _mousePos      = _cursorPos;
+        _mouseDown     = input.IsPressed(ActionCursorClick);
+        _mouseJustDown = input.JustPressed(ActionCursorClick);
+        _mouseJustUp   = input.JustReleased(ActionCursorClick);
+        return;
+    }
     i32 mx = 0, my = 0;
     input.GetMousePosition(mx, my);
     _mousePos      = {static_cast<f32>(mx), static_cast<f32>(my)};
     _mouseDown     = input.IsMouseButtonDown(MouseButton::Left);
     _mouseJustDown = input.IsMouseButtonJustDown(MouseButton::Left);
     _mouseJustUp   = input.IsMouseButtonJustUp(MouseButton::Left);
+}
 
+void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputManager& input)
+{
     for (const auto& s : _stack) s->AdvanceTransition(dt);
     RemoveCompletedFadeOuts();
+
+    // Every screen refreshes, input or not (a snapshot: one may push another).
+    std::vector<UIScreen*> screens;
+    for (const auto& s : _stack) screens.push_back(s.get());
+    for (UIScreen* s : screens) s->OnUpdate(dt);
+
+    UpdatePointer(dt, windowSize, input);
 
     UIScreen* active = ActiveInputScreen();
     if (!active) return;
@@ -204,8 +313,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
 
     const UIRect screenRect = {0.0f, 0.0f, windowSize.X, windowSize.Y};
     if (!skipInput) active->OnTick(dt, input);
-    active->Update(dt, screenRect, _mousePos, _mouseDown, _mouseJustDown, _mouseJustUp,
-                   input.GetScrollDelta());
+    active->Update(dt, screenRect, _mousePos, _mouseDown, _mouseJustDown, _mouseJustUp, _scrollDelta);
 
     if (skipInput) return;
 
@@ -216,11 +324,18 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     UIWidget* const prevFocused      = active->GetFocusedWidget();
     const bool      prevConsumesNav  = prevFocused && prevFocused->ConsumesFocusNav();
 
+    // Arrow keys / D-pad, repeating while held. A direction held into a new
+    // screen starts over rather than racing through it.
+    if (active != _navScreen) _nav = NavRepeat{};
+    _navScreen     = active;
+    const i32 step = _nav.Step(input.JustPressed(ActionFocusNext), input.JustPressed(ActionFocusPrev),
+                               input.IsPressed(ActionFocusNext), input.IsPressed(ActionFocusPrev), dt);
+
     // Tab always moves focus regardless of whether a text widget is focused.
     if (input.JustPressed(ActionTabNext)) active->FocusNext();
     else if (!prevConsumesNav) {
-        if (input.JustPressed(ActionFocusNext)) active->FocusNext();
-        if (input.JustPressed(ActionFocusPrev)) active->FocusPrev();
+        if (step > 0) active->FocusNext();
+        else if (step < 0) active->FocusPrev();
     }
 
     // Focus-move sound — read from the newly-focused widget's effective skin so
@@ -230,15 +345,15 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
         if (!src.SoundFocusMove.empty()) AudioManager::PlayOneShot(src.SoundFocusMove);
     }
 
-    // Enter activates the focused widget (fires OnClick for buttons, OnConfirm for TextInput).
-    if (input.JustPressed(ActionConfirm)) active->ActivateFocused();
+    // Enter activates the focused widget (fires OnClick for buttons, OnConfirm
+    // for TextInput) - unless the gamepad cursor is up, when South clicks
+    // under the cursor instead.
+    if (input.JustPressed(ActionConfirm) && !_cursorActive) active->ActivateFocused();
 
     // Escape / gamepad East: clear text focus or navigate back.
     // ActionTextEscape = Key::Escape; ActionBack = GamepadButton::East.
     // Both share the same behavior: cancel text editing when focused, else back.
-    const bool backPressed = input.JustPressed(ActionTextEscape) ||
-            input.JustPressed(ActionBack);
-    if (backPressed) {
+    if (IsBackPressed(input)) {
         if (prevConsumesNav) active->ClearFocus();
         else {
             if (!_skin.SoundBack.empty()) AudioManager::PlayOneShot(_skin.SoundBack);
@@ -310,6 +425,27 @@ void UIManager::CollectRenderData(FramePacket& packet, const Vec2 windowSize)
         UISkin screenSkin          = _skin;
         screenSkin.ScreenLayerBase = i * 1000;
         _stack[i]->Collect(packet, screenRect, screenSkin, _whiteTex, _whiteSampler);
+    }
+    CollectCursor(packet);
+}
+
+// A small diamond - light, with a dark rim so it reads on any background.
+void UIManager::CollectCursor(FramePacket& packet) const
+{
+    if (!_cursorActive) return;
+    constexpr f32 Diamond = 0.785398f; // 45 degrees
+    const i32     top     = std::numeric_limits<i32>::max() - 1;
+    for (const auto& [size, tint, layer] : { std::tuple{ 18.0f, Color{ 0.05f, 0.05f, 0.08f, 0.9f }, top - 1 },
+                                             std::tuple{ 12.0f, Color{ 1.0f, 0.95f, 0.75f, 1.0f }, top } }) {
+        Sprite s{};
+        s.Texture  = _whiteTex;
+        s.Sampler  = _whiteSampler;
+        s.Position = _cursorPos;
+        s.Size     = { size, size };
+        s.Tint     = tint;
+        s.Rotation = Diamond;
+        s.Layer    = layer;
+        packet.UISprites.push_back(s);
     }
 }
 } // namespace Arcbit

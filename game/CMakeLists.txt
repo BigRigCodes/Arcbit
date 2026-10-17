@@ -2,6 +2,7 @@ add_executable(arcbit-game
     src/main.cpp
     src/Common.cpp
     src/DemoSelectScreen.cpp
+    src/EventLogScreen.cpp
     src/ArcDemo.cpp
     src/ObbDemo.cpp
     src/TriggerDemo.cpp

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ranges>
+#include <utility>
 
 namespace Arcbit {
 
@@ -361,18 +362,46 @@ void InputManager::InjectKeyEvent(const i32 scancode, const bool down)
 {
     if (down) _pendingKeyDown.insert(scancode);
     else       _pendingKeyUp.insert(scancode);
+    if (down) NoteDevice(InputDevice::KeyboardMouse);
 }
 
 void InputManager::InjectMouseButton(const i32 sdlButton, const bool down)
 {
     if (down) _pendingMouseDown.insert(sdlButton);
     else       _pendingMouseUp.insert(sdlButton);
+    if (down) NoteDevice(InputDevice::KeyboardMouse);
 }
 
 void InputManager::InjectGamepadButton(const u32 joystickId, const i32 sdlButton, const bool down)
 {
     if (down) _pendingGamepadDown.push_back({ joystickId, sdlButton });
     else       _pendingGamepadUp.push_back({ joystickId, sdlButton });
+    if (down) NoteDevice(InputDevice::Gamepad);
+}
+
+// Real mouse movement (not a pixel of jitter) means keyboard / mouse; a stick
+// or trigger *pushed* past half way means gamepad - so a player who only moves
+// the stick or the mouse still switches the button hints. Only the crossing
+// counts: a stick or trigger merely held there doesn't keep reclaiming the
+// device from a newer key press or mouse movement.
+void InputManager::DetectDeviceFromMotion()
+{
+    constexpr i32 MouseMovePixels = 4;
+    constexpr i16 StickPush       = 16384; // half of SDL's axis range
+
+    const bool seen = std::exchange(_mouseSeen, true);
+    if (seen && std::abs(_mouseX - _prevMouseX) + std::abs(_mouseY - _prevMouseY) >= MouseMovePixels)
+        NoteDevice(InputDevice::KeyboardMouse);
+
+    u32 pushed = 0; // a bit per axis past half way, on any gamepad
+    for (void* handle : _gamepads | std::views::values) {
+        auto* gamepad = static_cast<SDL_Gamepad*>(handle);
+        for (int axis = 0; axis < SDL_GAMEPAD_AXIS_COUNT; ++axis)
+            if (std::abs(SDL_GetGamepadAxis(gamepad, static_cast<SDL_GamepadAxis>(axis))) >= StickPush)
+                pushed |= 1u << axis;
+    }
+    if (pushed & ~_axesPushed) NoteDevice(InputDevice::Gamepad);
+    _axesPushed = pushed;
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +460,8 @@ void InputManager::Update()
             }
         }
     }
+
+    DetectDeviceFromMotion();
 
     // --- Evaluate actions ---------------------------------------------------
     // Compute IsPressed and AxisValue from current SDL state.

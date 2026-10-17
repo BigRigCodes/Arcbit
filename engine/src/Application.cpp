@@ -2,6 +2,7 @@
 #include <arcbit/app/Window.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/LoadingScreen.h>
@@ -26,6 +27,12 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
 
+    // Every delivered event goes to the log (debug level) - what fired, when,
+    // with what payload.
+    _eventLog = _events.SubscribeAll([this](const Event& e) {
+        LOG_DEBUG(EventBus, "{} {}", _events.Describe(e.Id), e.Payload.ToString());
+    });
+
     // The engine's loading screen, its bar following the scene load.
     _loadingScreenFactory = [this] {
         auto screen      = std::make_unique<LoadingScreen>();
@@ -39,6 +46,11 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     Settings::Graphics.ResolutionWidth  = config.Width;
     Settings::Graphics.ResolutionHeight = config.Height;
     Settings::Init(config.SettingsPath);
+    Settings::SetChangeListener([this](const std::string_view section, const std::string_view key) {
+        EventPayload payload{ { "section", std::string(section) } };
+        if (!key.empty()) payload.Set("key", std::string(key));
+        _events.PublishEngine(EngineEvents::SettingsChanged, std::move(payload));
+    });
     AudioManager::Init();
 
     _window = std::make_unique<Window>(Window::Desc{
@@ -102,7 +114,7 @@ void Application::ToggleFullscreen()
 {
     _window->ToggleFullscreen();
     Settings::Graphics.Fullscreen = !Settings::Graphics.Fullscreen;
-    Settings::MarkDirty();
+    Settings::MarkDirty("graphics");
 }
 
 SamplerHandle Application::GetStockSampler(const StockSampler which) const
@@ -111,6 +123,21 @@ SamplerHandle Application::GetStockSampler(const StockSampler which) const
 }
 
 void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
+
+// Engine events from this frame's window and input changes, delivered at
+// the next flush.
+void Application::PublishFrameEvents()
+{
+    if (_input.ConsumeDeviceChanged())
+        _events.PublishEngine(EngineEvents::InputDeviceChanged,
+                              { { "device", std::string(ToString(_input.GetLastDevice())) } });
+    if (_window->WasFocusChangedThisFrame())
+        _events.PublishEngine(EngineEvents::WindowFocusChanged, { { "focused", _window->HasFocus() } });
+    if (_window->WasResizedThisFrame()) {
+        const Vec2 size{ static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) };
+        _events.PublishEngine(EngineEvents::WindowResized, { { "size", size } });
+    }
+}
 
 // Show the loading screen once a scene change has held at black for a
 // moment, and fade it out as the new scene fades in. Never over a
@@ -130,7 +157,7 @@ void Application::UpdateLoadingScreen(const f32 dt)
 
     std::unique_ptr<UIScreen> screen = _loadingScreenFactory();
     if (!screen) return;
-    screen->StaysOnTop = true; // a Pop() meant for another screen mustn't close it
+    screen->Layer      = UILayer::Overlay; // above menus; a Pop() meant for a menu can't close it
     _loadingScreen     = screen.get();
     _ui.Push(std::move(screen));
     LOG_DEBUG(Engine, "Loading screen shown");
@@ -182,7 +209,8 @@ void Application::Run()
                       .Quiesce         = [this] { _renderThread.WaitIdle(); },
                       .Textures        = _textures.get(),
                       .PrepareOnThread = true,
-                      .Music           = &AudioManager::GetMusicPlayer() });
+                      .Music           = &AudioManager::GetMusicPlayer(),
+                      .Events          = &_events });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -247,6 +275,7 @@ void Application::Run()
         // Input must be updated after PollEvents so SDL's internal state
         // reflects all events from this tick.
         _input.Update();
+        PublishFrameEvents();
 
         // --- Fixed-timestep update -------------------------------------------
         // Accumulate real elapsed time and drain it in fixed-size chunks so
@@ -280,6 +309,10 @@ void Application::Run()
                 _scenes.Update(0.0f);
             }
             UpdateLoadingScreen(_fixedTimestep);
+
+            // Deliver this tick's events - after the scene has updated, so a
+            // handler never runs mid-update, and before the UI reacts.
+            _events.Flush();
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
@@ -398,6 +431,7 @@ void Application::Run()
 
     // Capture any runtime rebinds before writing the settings file.
     Settings::SaveInputBindings(_input);
+    Settings::SetChangeListener({}); // it publishes to this application's bus
     Settings::Shutdown();
 
     LOG_INFO(Engine, "Arcbit shutdown complete");

@@ -52,15 +52,15 @@ void AudioSettingsScreen::OnEnter()
 
     WireVolumeRow("master",
         []()      { return Settings::Audio.MasterVolume; },
-        [](f32 v) { Settings::Audio.MasterVolume = v; Settings::MarkDirty(); AudioManager::SetMasterVolume(v); });
+        [](f32 v) { Settings::Audio.MasterVolume = v; Settings::MarkDirty("audio"); AudioManager::SetMasterVolume(v); });
 
     WireVolumeRow("music",
         []()      { return Settings::Audio.MusicVolume; },
-        [](f32 v) { Settings::Audio.MusicVolume = v; Settings::MarkDirty(); AudioManager::SetMusicVolume(v); });
+        [](f32 v) { Settings::Audio.MusicVolume = v; Settings::MarkDirty("audio"); AudioManager::SetMusicVolume(v); });
 
     WireVolumeRow("sfx",
         []()      { return Settings::Audio.SfxVolume; },
-        [](f32 v) { Settings::Audio.SfxVolume = v; Settings::MarkDirty(); AudioManager::SetSfxVolume(v); });
+        [](f32 v) { Settings::Audio.SfxVolume = v; Settings::MarkDirty("audio"); AudioManager::SetSfxVolume(v); });
 
     if (auto* back = FindWidget<Button>("back-btn"))
         back->OnClick = [this] { if (OnBack) OnBack(); };

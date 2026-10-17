@@ -15,6 +15,9 @@ add_executable(arcbit-tests
     ecs/PhysicsResponseTests.cpp
     ecs/SystemsTests.cpp
     ecs/WorldTests.cpp
+    events/EntityEventsTests.cpp
+    events/EventBusTests.cpp
+    events/EventPayloadTests.cpp
     input/InputManagerTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp
