@@ -64,7 +64,7 @@ void EventLogScreen::OnEnter()
     Refresh();
 }
 
-void EventLogScreen::OnTick(f32 /*dt*/, const InputManager& /*input*/) { Refresh(); }
+void EventLogScreen::OnUpdate(f32 /*dt*/) { Refresh(); }
 
 // Newest at the bottom: the last lines fill the last rows.
 void EventLogScreen::Refresh()

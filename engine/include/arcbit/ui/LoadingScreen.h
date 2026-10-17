@@ -35,7 +35,7 @@ public:
     }
 
     void OnEnter() override;
-    void OnTick(f32 dt, const InputManager& input) override;
+    void OnUpdate(f32 dt) override; // display only: it never gets OnTick
 
 private:
     Label*       _label = nullptr;

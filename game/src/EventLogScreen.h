@@ -59,7 +59,7 @@ public:
     }
 
     void OnEnter() override;
-    void OnTick(Arcbit::f32 dt, const Arcbit::InputManager& input) override;
+    void OnUpdate(Arcbit::f32 dt) override; // display only: it never gets OnTick
 
 private:
     std::vector<Arcbit::Label*> _rows;

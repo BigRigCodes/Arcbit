@@ -42,7 +42,7 @@ void LoadingScreen::OnEnter()
     UpdateText();
 }
 
-void LoadingScreen::OnTick(const f32 dt, const InputManager& /*input*/)
+void LoadingScreen::OnUpdate(const f32 dt)
 {
     _time += dt;
     UpdateText();

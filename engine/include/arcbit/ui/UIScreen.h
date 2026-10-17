@@ -50,6 +50,12 @@ public:
     // opened it is never seen here.
     virtual void OnTick(f32 /*dt*/, const InputManager& /*input*/) {}
 
+    // Called once per game tick for every screen on the stack - including
+    // display-only ones that never take input (TakesInput = false), which
+    // never get OnTick. Animate and refresh what the screen shows here; read
+    // input in OnTick.
+    virtual void OnUpdate(f32 /*dt*/) {}
+
     // Rate at which transition opacity changes (units/second). 0 = instant.
     f32 TransitionSpeed = 3.0f;
 

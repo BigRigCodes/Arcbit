@@ -571,6 +571,11 @@ display-only overlays (the demo's F3 event log, the loading screen) turn it
 off, so the menu under them still gets the keys. `BlocksInput` is separate: it
 holds the *game* still while the screen is up (`HasBlockingScreen`).
 
+**Ticks.** Every screen on the stack gets `OnUpdate(dt)` each tick - animate
+and refresh there. Only the screen input goes to also gets `OnTick(dt, input)`
+and its widget updates - read input there. A display-only screen (the event
+log, the loading screen's dots and bar) does all its work in `OnUpdate`.
+
 **Menus swap each other out.** Open a top-level menu with `OpenMenu`: it
 closes every open Menu-layer screen - another menu and whatever settings
 screens it opened - then pushes the new one. Screens a menu opens on top of

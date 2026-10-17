@@ -292,6 +292,12 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
 {
     for (const auto& s : _stack) s->AdvanceTransition(dt);
     RemoveCompletedFadeOuts();
+
+    // Every screen refreshes, input or not (a snapshot: one may push another).
+    std::vector<UIScreen*> screens;
+    for (const auto& s : _stack) screens.push_back(s.get());
+    for (UIScreen* s : screens) s->OnUpdate(dt);
+
     UpdatePointer(dt, windowSize, input);
 
     UIScreen* active = ActiveInputScreen();

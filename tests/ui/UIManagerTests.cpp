@@ -30,11 +30,14 @@ UIScreen* PushScreen(UIManager& ui, std::unique_ptr<UIScreen> screen)
     return raw;
 }
 
-// Counts the ticks it gets - the screen input goes to is the one ticked.
+// Counts its input ticks (only the screen input goes to gets them) and its
+// display updates (every screen gets them).
 struct CountingScreen : UIScreen
 {
-    int Ticks = 0;
+    int Ticks   = 0;
+    int Updates = 0;
     void OnTick(f32, const InputManager&) override { ++Ticks; }
+    void OnUpdate(f32) override { ++Updates; }
 };
 
 void Tick(UIManager& ui, InputManager& input) { ui.Update(1.0f / 60.0f, { 640.0f, 360.0f }, input); }
@@ -109,6 +112,11 @@ TEST_CASE("Input goes to the topmost screen that takes it", "[ui]")
     Tick(ui, input);
     CHECK(menuPtr->Ticks == 1);
     CHECK(logPtr->Ticks == 0);
+
+    // Regression (PR #5 review): the log took no input, so it got no updates
+    // either and froze on its first frame - so did the loading screen.
+    CHECK(logPtr->Updates == 2);
+    CHECK(menuPtr->Updates == 2);
 }
 
 TEST_CASE("A screen can remove itself from its own tick", "[ui]")
