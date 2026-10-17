@@ -58,7 +58,8 @@ std::span<const Demo::Entry> Demo::Entries()
         { "Tile Arcs", "directional colliders, tile movement (22D)", "F2 colliders, G grid",
           &CreateTileMoveArcDemo },
         { "OBB", "rotated colliders (22E)", "R pause gate, C player shape, F2 colliders, G grid", &CreateObbDemo },
-        { "Triggers", "triggers and collision events (22F)", "M movement style, F2 colliders, G grid",
+        { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
+          "M movement style, F2 colliders, G grid, F3 events",
           &CreateTriggerDemo },
     };
     return entries;
