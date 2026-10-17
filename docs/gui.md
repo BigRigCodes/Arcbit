@@ -588,6 +588,15 @@ by pointer can't close the wrong one; `CloseMenus` closes them all; `Remove`
 drops a screen at once (a scene's HUD as it unloads). `IsOpen(screen)` and
 `HasOpenMenu()` tell what's up.
 
+**Gamepad.** In menus the D-pad moves focus (like the arrow keys), South (A)
+confirms and East (B) goes back. The left stick moves an on-screen cursor -
+South then clicks what's under it - and the right stick scrolls lists. The
+cursor appears when the stick moves while a screen takes input, and hides
+again as soon as the mouse, keyboard or D-pad is used. A scroll panel keeps
+its focused child in view, so D-pad navigation down a long list (the controls
+screen) scrolls with it. These are the hidden `UI_` actions (`UI_Cursor*`,
+`UI_Scroll*`), which rebinding a game action never takes away.
+
 **Keys that open menus** work while another menu is open, swapping it - but
 a key that is also the UI's back (`UIManager::IsBackPressed`: Escape, gamepad
 East) should be read as back while a menu is open. The World demo's pause key

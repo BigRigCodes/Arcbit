@@ -46,6 +46,16 @@ public:
     // Fires UIScreen::OnBackPressed() when no text widget has focus.
     static constexpr ActionID ActionBack     = MakeAction("UI_Back");
 
+    // Gamepad pointer: the left stick moves a cursor over menus and South
+    // clicks what's under it; the right stick scrolls (see UpdatePointer).
+    static constexpr ActionID ActionCursorLeft  = MakeAction("UI_CursorLeft");
+    static constexpr ActionID ActionCursorRight = MakeAction("UI_CursorRight");
+    static constexpr ActionID ActionCursorUp    = MakeAction("UI_CursorUp");
+    static constexpr ActionID ActionCursorDown  = MakeAction("UI_CursorDown");
+    static constexpr ActionID ActionCursorClick = MakeAction("UI_CursorClick");
+    static constexpr ActionID ActionScrollUp    = MakeAction("UI_ScrollUp");
+    static constexpr ActionID ActionScrollDown  = MakeAction("UI_ScrollDown");
+
     // Modifier state — used to dispatch Shift/Ctrl variants of control keys.
     static constexpr ActionID ActionShiftMod = MakeAction("UI_ShiftMod");
     static constexpr ActionID ActionCtrlMod  = MakeAction("UI_CtrlMod");
@@ -146,10 +156,22 @@ private:
     TextureHandle _whiteTex;
     SamplerHandle _whiteSampler;
 
-    Vec2 _mousePos      = {0, 0};
+    Vec2 _mousePos      = {0, 0}; // the pointer: the mouse, or the gamepad cursor while it's shown
     bool _mouseDown     = false;
     bool _mouseJustDown = false;
     bool _mouseJustUp   = false;
+    f32  _scrollDelta   = 0.0f;   // wheel plus right stick
+
+    // The gamepad cursor: shown once the left stick moves while a screen
+    // takes input; hidden again by the mouse, keys or the D-pad.
+    Vec2 _cursorPos    = {-1.0f, -1.0f}; // negative until first shown: starts mid-window
+    bool _cursorActive = false;
+
+    // Fill the pointer fields from the mouse or the gamepad cursor.
+    void UpdatePointer(f32 dt, Vec2 windowSize, const InputManager& input);
+
+    // The gamepad cursor, drawn above every screen while it's shown.
+    void CollectCursor(FramePacket& packet) const;
 
     std::function<void(bool)> _textInputActiveCallback;
     bool _textInputActive = false; // tracks current SDL text input mode
