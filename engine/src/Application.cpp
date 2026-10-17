@@ -27,6 +27,12 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
 
+    // Every delivered event goes to the log (debug level) - what fired, when,
+    // with what payload.
+    _eventLog = _events.SubscribeAll([this](const Event& e) {
+        LOG_DEBUG(EventBus, "{} {}", _events.Describe(e.Id), e.Payload.ToString());
+    });
+
     // The engine's loading screen, its bar following the scene load.
     _loadingScreenFactory = [this] {
         auto screen      = std::make_unique<LoadingScreen>();

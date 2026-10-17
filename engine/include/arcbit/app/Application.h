@@ -264,8 +264,9 @@ private:
     FontAtlas   _debugFont;
     RenderStats _renderStats{};
 
-    UIManager _ui;
-    EventBus  _events; // before _scenes: scenes' subscriptions end before the bus goes
+    UIManager    _ui;
+    EventBus     _events;   // before _scenes: scenes' subscriptions end before the bus goes
+    Subscription _eventLog; // every delivered event, on the EventBus log channel (debug level)
 
     SceneManager                    _scenes;
     SceneRegistry                   _sceneRegistry;
