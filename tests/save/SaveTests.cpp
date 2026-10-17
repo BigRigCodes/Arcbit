@@ -173,6 +173,33 @@ TEST_CASE("Slots list newest first, and delete with their backups", "[save]")
     CHECK(saves.List().size() == 2);
 }
 
+TEST_CASE("A thumbnail is scaled down beside its save, listed, and deleted with it", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    saves.ThumbnailWidth = 32;
+    REQUIRE(saves.Write(SaveSlot::Manual(2), saves.Capture(Meta("a", 100))));
+
+    const std::vector<u8> frame(128 * 72 * 4, 200); // a 16:9 grey frame
+    REQUIRE(saves.WriteThumbnail(SaveSlot::Manual(2), 128, 72, frame));
+    const std::filesystem::path png = saves.ThumbnailOf(SaveSlot::Manual(2));
+    CHECK(png.filename() == "slot_02.png");
+
+    // The PNG header: signature, then IHDR's big-endian width and height.
+    std::vector<u8> head(24);
+    {
+        std::ifstream file(png, std::ios::binary); // closed again before the delete below
+        REQUIRE(file.read(reinterpret_cast<char*>(head.data()), 24));
+    }
+    CHECK(head[1] == 'P');
+    CHECK(head[19] == 32); // width
+    CHECK(head[23] == 18); // height: the aspect kept
+
+    CHECK(saves.List().front().Thumbnail == png);
+    saves.Delete(SaveSlot::Manual(2));
+    CHECK_FALSE(std::filesystem::exists(png));
+}
+
 TEST_CASE("Slots name themselves for logs and events", "[save]")
 {
     CHECK(ToString(SaveSlot::Manual(3)) == "manual_3");

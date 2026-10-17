@@ -217,6 +217,7 @@ bool SaveManager::Delete(const SaveSlot slot)
     std::error_code ec;
     const bool      removed = std::filesystem::remove(PathOf(slot), ec);
     std::filesystem::remove(WithExtension(PathOf(slot), ".bak"), ec);
+    std::filesystem::remove(ThumbnailOf(slot), ec);
     return removed;
 }
 
@@ -234,7 +235,10 @@ std::vector<SaveSlotInfo> SaveManager::List() const
     std::vector<SaveSlotInfo> infos;
     for (const SaveSlot slot : AllSlots())
         if (Exists(slot))
-            if (const std::optional<SaveGame> game = Read(slot)) infos.push_back({ slot, game->Meta });
+            if (const std::optional<SaveGame> game = Read(slot)) {
+                const std::filesystem::path picture = ThumbnailOf(slot);
+                infos.push_back({ slot, game->Meta, std::filesystem::exists(picture) ? picture : std::filesystem::path{} });
+            }
     std::ranges::stable_sort(infos, [](const SaveSlotInfo& a, const SaveSlotInfo& b) { return a.Meta.SavedAt > b.Meta.SavedAt; });
     return infos;
 }

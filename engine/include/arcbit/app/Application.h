@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,7 @@ namespace Arcbit
 {
 class Window;          // full type only needed in Application.cpp
 class SavingIndicator; // ApplicationSaves.cpp
+class SaveSlotScreen;
 
 // ---------------------------------------------------------------------------
 // How the game starts once the engine's own splash has played: the game's
@@ -340,6 +342,8 @@ private:
     void StartSaving();          // the indicator, once OnStart has set _saving
     void AfterSwap();            // a scene change finished: queue an autosave?
     void UpdateAutoSave();       // run a queued autosave once the game is idle
+    void WriteThumbnail();       // a frame captured for the last save arrived: write it
+    void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
 
@@ -347,6 +351,8 @@ private:
     TextureHandle          _savingIcon;
     bool                   _autoSavePending = false;
     bool                   _restoredSave    = false; // the last swap loaded a save: no autosave
+    std::optional<SaveSlot> _thumbnailFor;            // saved, its picture not yet written
+    bool                    _captureNextFrame = false; // ask the render thread for the next frame
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

@@ -10,6 +10,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -43,8 +44,9 @@ struct SaveSlot
 // A slot with a save in it, for the slot list.
 struct SaveSlotInfo
 {
-    SaveSlot     Slot;
-    SaveMetadata Meta;
+    SaveSlot              Slot;
+    SaveMetadata          Meta;
+    std::filesystem::path Thumbnail; // its picture (WriteThumbnail); empty if it has none
 };
 
 // ---------------------------------------------------------------------------
@@ -89,6 +91,7 @@ public:
     u32 ManualSlots        = 10;
     u32 AutoSlots          = 3;
     u32 CurrentGameVersion = 1;
+    u32 ThumbnailWidth     = 320; // pixels; the height keeps the frame's aspect
 
 #ifdef ARCBIT_DEBUG
     bool SealSaves        = false; // write plain JSON while developing
@@ -131,7 +134,12 @@ public:
     bool                                  Write(SaveSlot slot, const SaveGame& game);
     [[nodiscard]] std::optional<SaveGame> Read(SaveSlot slot) const;
     [[nodiscard]] bool                    Exists(SaveSlot slot) const;
-    bool                                  Delete(SaveSlot slot); // and its .bak
+    bool                                  Delete(SaveSlot slot); // and its .bak and thumbnail
+
+    // The slot's picture, from a captured frame (RGBA8, top row first):
+    // scaled to ThumbnailWidth and written as a PNG beside the save
+    // ("slot_01.png"). Application writes one after each save.
+    bool WriteThumbnail(SaveSlot slot, u32 width, u32 height, std::span<const u8> rgba);
 
     // Every slot with a save in it, newest first.
     [[nodiscard]] std::vector<SaveSlotInfo> List() const;
@@ -141,6 +149,9 @@ public:
 
     // The slot's file ("slot_01.arcsave", "auto_2.arcsave", "quick.arcsave").
     [[nodiscard]] std::filesystem::path PathOf(SaveSlot slot) const;
+
+    // Its thumbnail's file, whether or not one exists ("slot_01.png").
+    [[nodiscard]] std::filesystem::path ThumbnailOf(SaveSlot slot) const;
 
 private:
     struct Participant

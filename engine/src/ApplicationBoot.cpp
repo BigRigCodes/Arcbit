@@ -124,11 +124,24 @@ void Application::ShowCredits()
     _ui.Push(std::move(credits));
 }
 
+// The slot lists' thumbnails: loaded as a list opens; released once it
+// closes, after the render thread is done drawing them.
+void Application::WireThumbnails(SaveSlotScreen& screen)
+{
+    screen.ThumbnailSampler = GetStockSampler(StockSampler::Linear);
+    screen.LoadThumbnail    = [this](const std::filesystem::path& path) { return _textures->Acquire(path.string()); };
+    screen.ReleaseThumbnails = [this](const std::vector<TextureHandle>& textures) {
+        _renderThread.WaitIdle();
+        for (const TextureHandle texture : textures) _textures->Release(texture);
+    };
+}
+
 void Application::ShowSaveScreen()
 {
     auto save    = std::make_unique<SaveSlotScreen>();
     save->For    = SaveSlotScreen::Purpose::Save;
     save->Saves  = &_saves;
+    WireThumbnails(*save);
     save->OnBack = [this, screen = save.get()] { _ui.Close(screen); };
     save->OnPick = [this, screen = save.get()](const SaveSlot slot, const bool hasSave) {
         const auto write = [this, screen, slot] {
@@ -145,6 +158,7 @@ void Application::ShowLoadScreen()
     auto load    = std::make_unique<SaveSlotScreen>();
     load->For    = SaveSlotScreen::Purpose::Load;
     load->Saves  = &_saves;
+    WireThumbnails(*load);
     load->OnBack = [this, screen = load.get()] { _ui.Close(screen); };
     load->OnPick = [this](const SaveSlot slot, bool) {
         if (LoadFrom(slot)) _ui.CloseMenus();

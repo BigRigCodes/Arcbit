@@ -17,6 +17,7 @@
 #include <chrono>
 #include <limits>
 #include <thread>
+#include <utility>
 
 namespace Arcbit
 {
@@ -350,6 +351,7 @@ void Application::Run()
         packet.Height      = _window->GetHeight();
         packet.ClearColor  = _clearColor;
         packet.NeedsResize = _window->WasResizedThisFrame();
+        packet.CaptureWorld = std::exchange(_captureNextFrame, false); // a save's thumbnail
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
@@ -380,6 +382,7 @@ void Application::Run()
         }
 
         _renderThread.SubmitFrame(std::move(packet));
+        WriteThumbnail(); // a frame captured for a save, once the render thread has it
 
         // --- FPS counter + render stats --------------------------------------
         // Count completed frames; report once per second alongside the most

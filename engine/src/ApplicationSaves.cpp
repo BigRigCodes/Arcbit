@@ -81,6 +81,8 @@ bool Application::SaveTo(const SaveSlot slot, std::string name)
     std::string label = meta.Name;
     if (_savingIndicator) _savingIndicator->Show(_saving.IndicatorSeconds);
     if (!_saves.Write(slot, _saves.Capture(std::move(meta)))) return false;
+    _thumbnailFor     = slot; // the frame being built now, without the UI
+    _captureNextFrame = true;
     _events.PublishEngine(EngineEvents::GameSaved, { { "slot", ToString(slot) }, { "name", std::move(label) } });
     return true;
 }
@@ -151,6 +153,14 @@ void Application::UpdateAutoSave()
     if (!_autoSavePending || _scenes.IsTransitioning() || _ui.HasBlockingScreen()) return;
     _autoSavePending = false;
     AutoSave();
+}
+
+void Application::WriteThumbnail()
+{
+    std::optional<CapturedFrame> frame = _renderThread.TakeCapture();
+    if (!frame || !_thumbnailFor) return;
+    _saves.WriteThumbnail(*_thumbnailFor, frame->Width, frame->Height, frame->Rgba);
+    _thumbnailFor.reset();
 }
 
 bool Application::NeedsSaveNotice() const
