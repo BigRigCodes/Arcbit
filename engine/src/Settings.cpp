@@ -16,9 +16,17 @@ namespace Arcbit {
 GraphicsSettings Settings::Graphics{};
 AudioSettings    Settings::Audio{};
 bool             Settings::s_dirty   = false;
+
+Settings::ChangeListener Settings::s_changeListener;
 std::string      Settings::s_filePath;
 
 std::unordered_map<std::string, Settings::Value> Settings::s_store;
+
+void Settings::MarkDirty(const std::string_view section)
+{
+    s_dirty = true;
+    if (!section.empty() && s_changeListener) s_changeListener(section, {});
+}
 
 // ---------------------------------------------------------------------------
 // Input section

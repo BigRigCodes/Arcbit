@@ -3,6 +3,7 @@
 #include <arcbit/core/Types.h>
 
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -110,8 +111,16 @@ public:
     [[nodiscard]] static bool IsDirty() { return s_dirty; }
 
     // Mark settings as modified. Call after writing directly to Graphics or
-    // Audio fields so Shutdown()/Flush() knows to persist the change.
-    static void MarkDirty() { s_dirty = true; }
+    // Audio fields so Shutdown()/Flush() knows to persist the change. Name
+    // the section ("audio", "graphics", "input") when the player changed it,
+    // so the change listener hears about it.
+    static void MarkDirty(std::string_view section = {});
+
+    // Told about every player-facing change: MarkDirty with a section, and
+    // Set<T> (section "game", plus the key). Application publishes these as
+    // engine.settings.changed. Empty to clear.
+    using ChangeListener = std::function<void(std::string_view section, std::string_view key)>;
+    static void SetChangeListener(ChangeListener listener) { s_changeListener = std::move(listener); }
 
     // -----------------------------------------------------------------------
     // Well-known settings sections
@@ -152,6 +161,7 @@ public:
     {
         s_store[std::string(key)] = Value(value);
         s_dirty = true;
+        if (s_changeListener) s_changeListener("game", key);
     }
 
     // -----------------------------------------------------------------------
@@ -174,6 +184,7 @@ private:
     using Value = std::variant<bool, i32, u32, f32, std::string>;
 
     static bool                                   s_dirty;
+    static ChangeListener                         s_changeListener;
     static std::string                            s_filePath;
     static std::unordered_map<std::string, Value> s_store;
 

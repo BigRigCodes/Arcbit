@@ -30,7 +30,7 @@ void GraphicsSettingsScreen::CycleFps(const int dir)
 
     idx = (idx + dir + FpsPresetCount) % FpsPresetCount;
     Settings::Graphics.FpsLimit = FpsPresets[idx];
-    Settings::MarkDirty();
+    Settings::MarkDirty("graphics");
 
     if (_fpsLabel) _fpsLabel->Text = FpsPresetText(Settings::Graphics.FpsLimit);
 }
@@ -64,7 +64,7 @@ void GraphicsSettingsScreen::OnEnter()
         _vsyncSwitch->On        = Settings::Graphics.VSync;
         _vsyncSwitch->OnChanged = [](const bool on) {
             Settings::Graphics.VSync = on;
-            Settings::MarkDirty();
+            Settings::MarkDirty("graphics");
         };
     }
 
@@ -72,7 +72,7 @@ void GraphicsSettingsScreen::OnEnter()
         _showFpsSwitch->On        = Settings::Graphics.ShowFps;
         _showFpsSwitch->OnChanged = [](const bool on) {
             Settings::Graphics.ShowFps = on;
-            Settings::MarkDirty();
+            Settings::MarkDirty("graphics");
         };
     }
 
@@ -80,7 +80,7 @@ void GraphicsSettingsScreen::OnEnter()
         _showDebugSwitch->On        = Settings::Graphics.ShowDebugInfo;
         _showDebugSwitch->OnChanged = [](const bool on) {
             Settings::Graphics.ShowDebugInfo = on;
-            Settings::MarkDirty();
+            Settings::MarkDirty("graphics");
         };
     }
 

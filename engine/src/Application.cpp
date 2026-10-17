@@ -40,6 +40,11 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     Settings::Graphics.ResolutionWidth  = config.Width;
     Settings::Graphics.ResolutionHeight = config.Height;
     Settings::Init(config.SettingsPath);
+    Settings::SetChangeListener([this](const std::string_view section, const std::string_view key) {
+        EventPayload payload{ { "section", std::string(section) } };
+        if (!key.empty()) payload.Set("key", std::string(key));
+        _events.PublishEngine(EngineEvents::SettingsChanged, std::move(payload));
+    });
     AudioManager::Init();
 
     _window = std::make_unique<Window>(Window::Desc{
@@ -103,7 +108,7 @@ void Application::ToggleFullscreen()
 {
     _window->ToggleFullscreen();
     Settings::Graphics.Fullscreen = !Settings::Graphics.Fullscreen;
-    Settings::MarkDirty();
+    Settings::MarkDirty("graphics");
 }
 
 SamplerHandle Application::GetStockSampler(const StockSampler which) const
@@ -420,6 +425,7 @@ void Application::Run()
 
     // Capture any runtime rebinds before writing the settings file.
     Settings::SaveInputBindings(_input);
+    Settings::SetChangeListener({}); // it publishes to this application's bus
     Settings::Shutdown();
 
     LOG_INFO(Engine, "Arcbit shutdown complete");

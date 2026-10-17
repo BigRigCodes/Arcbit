@@ -1,4 +1,6 @@
 #include <arcbit/ui/InputRebindScreen.h>
+
+#include <arcbit/settings/Settings.h>
 #include <arcbit/ui/Widgets.h>
 #include <arcbit/input/InputManager.h>
 
@@ -253,6 +255,7 @@ void InputRebindScreen::StopListening(const bool commit)
         return;
     }
     if (!commit && _hadRemoved) Input->AddBinding(_listeningAction, _removedBinding);
+    if (commit) Settings::MarkDirty("input");
     _isListening     = false;
     _listeningButton = nullptr;
     _hadRemoved      = false;
@@ -264,6 +267,7 @@ void InputRebindScreen::RemoveChip(const ActionID action, const Binding& b)
 {
     CancelListening(); // restores any in-flight removal, no rebuild yet
     Input->RemoveBinding(action, b);
+    Settings::MarkDirty("input");
     _pendingRebuild = true;
 }
 
