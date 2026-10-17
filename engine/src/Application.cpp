@@ -338,7 +338,9 @@ void Application::Run()
             if (_scenes.ConsumeSwapped()) {
                 accumulator = 0.0;
                 prevTime    = Clock::now();
+                AfterSwap();
             }
+            UpdateAutoSave();
         }
 
         // --- Variable-rate render --------------------------------------------

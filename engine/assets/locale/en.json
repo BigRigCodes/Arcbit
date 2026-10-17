@@ -50,6 +50,9 @@
   "ui.saves.played":     "Played",
   "ui.saves.overwrite":  "Overwrite this save?",
 
+  "ui.saving":           "Saving...",
+  "ui.save_notice.text": "This game saves automatically. While this icon is showing, the game is saving - please don't close the game or turn off your system.",
+
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",
   "ui.rebind.col_key":    "Key / Mouse",

@@ -4,8 +4,11 @@
 
 #include <arcbit/app/Application.h>
 
+#include <arcbit/assets/TextureManager.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/settings/Settings.h>
+#include <arcbit/ui/SavingScreens.h>
 
 #include <chrono>
 #include <memory>
@@ -34,6 +37,9 @@ namespace
                 stack.push_back({ entry["name"].get<std::string>(), entry.value("entry", std::string{}) });
         return stack;
     }
+
+    // Set in the user's settings once the first-launch notice was seen.
+    constexpr const char* SaveNoticeSeenKey = "engine.save_notice_seen";
 
     i64 UnixNow()
     {
@@ -72,6 +78,7 @@ bool Application::SaveTo(const SaveSlot slot, std::string name)
                        .SavedAt  = UnixNow(),
                        .Playtime = _playtime };
     std::string label = meta.Name;
+    if (_savingIndicator) _savingIndicator->Show(_saving.IndicatorSeconds);
     if (!_saves.Write(slot, _saves.Capture(std::move(meta)))) return false;
     _events.PublishEngine(EngineEvents::GameSaved, { { "slot", ToString(slot) }, { "name", std::move(label) } });
     return true;
@@ -98,10 +105,70 @@ bool Application::LoadFrom(const SaveSlot slot)
     auto loaded = std::make_shared<const SaveGame>(std::move(*game));
     return _scenes.Restore(std::move(stack), [this, loaded, slot] {
         _saves.Restore(*loaded);
-        _playtime = loaded->Meta.Playtime;
+        _playtime        = loaded->Meta.Playtime;
+        _restoredSave    = true; // just loaded: nothing new to autosave
+        _autoSavePending = false;
         _events.PublishEngine(EngineEvents::GameLoaded, { { "slot", ToString(slot) } });
         LOG_INFO(Engine, "Loaded '{}' ({:.0f} s played)", ToString(slot), _playtime);
     });
+}
+
+bool Application::AutoSave()
+{
+    if (_saves.AutoSlots == 0) return false;
+    return SaveTo(_saves.NextAutoSlot());
+}
+
+// ---------------------------------------------------------------------------
+// The indicator, the first-launch notice, autosave on scene changes
+// ---------------------------------------------------------------------------
+
+void Application::StartSaving()
+{
+    auto indicator = std::make_unique<SavingIndicator>();
+    if (!_saving.IndicatorIcon.empty()) {
+        _savingIcon = _textures->Acquire(_saving.IndicatorIcon);
+        if (!_savingIcon.IsValid()) LOG_WARN(Engine, "Saving icon '{}' not found - text only", _saving.IndicatorIcon);
+    }
+    indicator->Icon    = _savingIcon;
+    indicator->Sampler = GetStockSampler(StockSampler::Linear);
+    indicator->Tint    = _saving.IndicatorTint;
+    _savingIndicator   = indicator.get();
+    _ui.Push(std::move(indicator));
+}
+
+void Application::AfterSwap()
+{
+    if (_saving.AutoSaveOnSceneChange && !_restoredSave) _autoSavePending = true;
+    _restoredSave = false;
+}
+
+// Waits until the scenes are idle and no menu is open (the title, a pause
+// menu): a scene loaded under the title autosaves once the game starts.
+void Application::UpdateAutoSave()
+{
+    if (!_autoSavePending || _scenes.IsTransitioning() || _ui.HasBlockingScreen()) return;
+    _autoSavePending = false;
+    AutoSave();
+}
+
+bool Application::NeedsSaveNotice() const
+{
+    return _saving.FirstLaunchNotice && !Settings::Get<bool>(SaveNoticeSeenKey, false);
+}
+
+void Application::ShowSaveNotice(std::function<void()> then)
+{
+    auto notice        = std::make_unique<SaveNoticeScreen>();
+    notice->Icon       = _savingIcon;
+    notice->Sampler    = GetStockSampler(StockSampler::Linear);
+    notice->Tint       = _saving.IndicatorTint;
+    notice->OnContinue = [this, screen = notice.get(), then = std::move(then)] {
+        Settings::Set<bool>(SaveNoticeSeenKey, true);
+        _ui.Close(screen);
+        if (then) then();
+    };
+    _ui.OpenMenu(std::move(notice));
 }
 
 // An empty save restored: SaveData cleared and every participant handed an
