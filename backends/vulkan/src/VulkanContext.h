@@ -66,6 +66,12 @@ struct VulkanTexture
     TextureUsage  Usage            = TextureUsage::None;
     bool          IsSwapchainImage = false; // swapchain images aren't VMA-owned; skip vmaDestroyImage
 
+    // The image's layout as of the last command recorded against it, tracked
+    // for swapchain images (BeginRendering / EndRendering / CopySwapchainImage).
+    // BeginRendering with LoadOp::Load transitions from this layout instead
+    // of UNDEFINED, which would let the driver discard what's already drawn.
+    VkImageLayout Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
     // True when the texture was created with TextureUsage::Sampled, i.e. it
     // may be bound to a shader through BindTexture.
     bool Sampled = false;
@@ -149,6 +155,10 @@ struct VulkanSwapchain
     u32  CurrentImageIndex = 0;    // index into Images[] of the currently acquired swapchain image
     u32  CurrentFrame      = 0;    // index into per-frame sync arrays; wraps at MaxFramesInFlight
     bool VSync             = true; // stored to allow ResizeSwapchain to recreate with same mode
+
+    // The images were created with TRANSFER_SRC usage, so CopySwapchainImage
+    // can read a frame back. Set by BuildSwapchain from the surface's caps.
+    bool CanCopyFrom = false;
 };
 
 // Wraps a VkCommandBuffer allocated from the context's command pool.

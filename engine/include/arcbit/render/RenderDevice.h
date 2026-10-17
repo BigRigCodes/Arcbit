@@ -74,6 +74,16 @@ public:
     // GPU work that references this buffer must have completed before calling.
     void DestroyBuffer(BufferHandle handle);
 
+    // Copy bytes out of a host-visible buffer the GPU wrote (BufferUsage::
+    // Readback). The GPU work that wrote it must have completed (WaitIdle, or
+    // the frame's fence) - this doesn't wait.
+    //
+    // @param handle  A HostVisible buffer created with BufferUsage::Readback.
+    // @param out     Destination; at least `size` bytes.
+    // @param size    Number of bytes to read.
+    // @param offset  Byte offset into the buffer to begin reading (default 0).
+    void ReadBuffer(BufferHandle handle, void* out, u64 size, u64 offset = 0);
+
     // =========================================================================
     // Textures
     //
@@ -223,6 +233,15 @@ public:
 
     // End the dynamic rendering pass started by BeginRendering.
     void EndRendering(CommandListHandle cmd);
+
+    // Record a copy of the swapchain image being rendered this frame into
+    // `dst` (a HostVisible BufferUsage::Readback buffer of at least width x
+    // height x 4 bytes): tightly packed rows, top row first, in the
+    // swapchain's format (GetSwapchainColorFormat - usually BGRA8). Call
+    // between EndRendering and the next BeginRendering; the image stays ready
+    // to present, or to render on with LoadOp::Load. Read `dst` once the
+    // frame's GPU work has finished.
+    void CopySwapchainImage(CommandListHandle cmd, BufferHandle dst);
 
     // Bind a pipeline — sets shaders, rasterizer state, depth state, etc.
     // Must be called before any draw commands within a rendering pass.
