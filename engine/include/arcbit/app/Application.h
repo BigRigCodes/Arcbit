@@ -226,6 +226,16 @@ public:
     // button, or the end of a game.
     void ShowCredits();
 
+    // The save slot list (SaveSlotScreen), for a pause menu's Save Game and
+    // the title's or a pause menu's Load Game. Saving over a slot asks first,
+    // then closes the list; loading closes every menu.
+    void ShowSaveScreen();
+    void ShowLoadScreen();
+
+    // Ask a yes / no question over the current menu (ConfirmScreen); onYes
+    // runs if the player agrees. Either answer closes it.
+    void Confirm(std::string message, std::function<void()> onYes);
+
     // The screen shown while a scene change waits at black for its scene to
     // load (SceneChange::ShowLoadingScreen), after a short grace period so a
     // quick load doesn't flash it. Defaults to the engine's LoadingScreen;

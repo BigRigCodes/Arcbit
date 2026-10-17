@@ -735,6 +735,10 @@ private:
         auto pause                  = std::make_unique<PauseMenuScreen>();
         _pauseMenu                  = pause.get();
         pause->OnResume             = [this] { GetApp().GetUI().Close(_pauseMenu); };
+        pause->ShowSaveGame         = true;
+        pause->ShowLoadGame         = true;
+        pause->OnSaveGame           = [this] { GetApp().ShowSaveScreen(); };
+        pause->OnLoadGame           = [this] { GetApp().ShowLoadScreen(); };
         pause->OnControls           = [this] { GetApp().ShowControlsScreen(); };
         pause->OnAudioSettings      = [this] { GetApp().ShowAudioScreen(); };
         pause->OnGraphicsSettings   = [this] { GetApp().ShowGraphicsScreen(); };
