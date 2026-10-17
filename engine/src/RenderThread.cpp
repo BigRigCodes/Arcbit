@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <utility>
 #include <vector>
 
 namespace Arcbit
@@ -359,7 +360,8 @@ void RenderThread::CreateUIResources()
 
 void RenderThread::Start(RenderDevice* device, const Format swapchainFormat)
 {
-    _device = device;
+    _device          = device;
+    _swapchainFormat = swapchainFormat;
 
     CreateDefaultNormalResources();
     CreateSpritePipeline(swapchainFormat);
@@ -1027,6 +1029,7 @@ void RenderThread::RenderFrame(const FramePacket& packet)
 
     const u32 batchCount = DrawSpriteBatches(cmd, sorted, frameSlot, corrected, lightCount, lb);
     DrawLegacyCalls(cmd, corrected, frameSlot, lightCount, lb);
+    if (packet.CaptureWorld) SplitForCapture(cmd, backbuffer, actualW, actualH);
     DrawUIBatches(cmd, uiSorted, corrected, frameSlot);
     DrawSDFBatches(cmd, sdfSorted, corrected, frameSlot);
 
@@ -1040,6 +1043,66 @@ void RenderThread::RenderFrame(const FramePacket& packet)
     _device->EndCommandList(cmd);
     _device->Submit({ cmd });
     _device->Present(packet.Swapchain);
+    if (packet.CaptureWorld) FinishCapture(actualW, actualH, lb);
+}
+
+// ---------------------------------------------------------------------------
+// Frame capture (FramePacket::CaptureWorld)
+// ---------------------------------------------------------------------------
+
+void RenderThread::SplitForCapture(const CommandListHandle cmd, const TextureHandle backBuffer, const u32 width,
+                                   const u32 height)
+{
+    _readback = _device->CreateBuffer(BufferDesc{ .Size        = u64(width) * height * 4,
+                                                  .Usage       = BufferUsage::Readback,
+                                                  .HostVisible = true,
+                                                  .DebugName   = "frame_capture" });
+    _device->EndRendering(cmd);
+    _device->CopySwapchainImage(cmd, _readback);
+
+    // Load, not Clear: the UI draws over the world already in the image.
+    // Pipeline, viewport and scissor are set again by each draw helper.
+    std::array<Attachment, 1> attachments = { Attachment{
+        .Texture = backBuffer, .Load = LoadOp::Load, .Store = StoreOp::Store } };
+    _device->BeginRendering(cmd, RenderingDesc{ .ColorAttachments = attachments });
+}
+
+// A full GPU stall, once per capture (a save): the frame must be finished
+// before its pixels can be read.
+void RenderThread::FinishCapture(const u32 width, const u32 height, const LetterboxRect& lb)
+{
+    if (!_readback.IsValid()) return;
+    _device->WaitIdle();
+    std::vector<u8> pixels(u64(width) * height * 4);
+    _device->ReadBuffer(_readback, pixels.data(), pixels.size());
+    _device->DestroyBuffer(_readback);
+    _readback = {};
+
+    const u32  x0   = std::min(static_cast<u32>(lb.X), width);
+    const u32  y0   = std::min(static_cast<u32>(lb.Y), height);
+    const u32  w    = std::min(static_cast<u32>(lb.W), width - x0);
+    const u32  h    = std::min(static_cast<u32>(lb.H), height - y0);
+    const bool bgra = _swapchainFormat == Format::BGRA8_UNorm || _swapchainFormat == Format::BGRA8_SRGB;
+
+    CapturedFrame frame{ .Width = w, .Height = h, .Rgba = std::vector<u8>(u64(w) * h * 4) };
+    for (u32 y = 0; y < h; ++y) {
+        const u8* src = pixels.data() + (u64(y0 + y) * width + x0) * 4;
+        u8*       dst = frame.Rgba.data() + u64(y) * w * 4;
+        for (u32 x = 0; x < w; ++x, src += 4, dst += 4) {
+            dst[0] = bgra ? src[2] : src[0];
+            dst[1] = src[1];
+            dst[2] = bgra ? src[0] : src[2];
+            dst[3] = 255;
+        }
+    }
+    std::lock_guard lock(_captureMutex);
+    _capture = std::move(frame);
+}
+
+std::optional<CapturedFrame> RenderThread::TakeCapture()
+{
+    std::lock_guard lock(_captureMutex);
+    return std::exchange(_capture, std::nullopt);
 }
 
 } // namespace Arcbit
