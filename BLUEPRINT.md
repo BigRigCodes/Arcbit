@@ -249,9 +249,10 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Localization: `Loc::Get(key)`, `en.json` engine strings, `text_key` in `.arcui`
 - [x] Engine asset pipeline: `.arcui`, fonts, skins, locale deployed under `assets/engine/` via CMake
 - [ ] Editor integration: GUI layouts designed and previewed in the AvaloniaUI editor (Phase 40)
-- [ ] Dialog screen (Phase 27), Inventory screen (Phase 25)
+- [ ] Dialog screen (Phase 27), Inventory screen (Phase 29)
+- [x] Save / load slot screens, a yes / no confirm screen, the saving indicator (Phase 25)
 
-### Phase 21B - Text styling & animation
+### Phase 21F - Text styling & animation
 *Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
 
 - [ ] Font styles: bold, italic, bold italic, and weights (thin to black) - a font family maps each style / weight to its own `.ttf`, falling back to faux bold (SDF threshold) and faux italic (shear) when a face is missing
@@ -409,13 +410,20 @@ The rest of the original event list moved to the phases that build those systems
 ---
 
 ## Phase 25: Save / Load System
-- [ ] `SaveSlot` — versioned binary or JSON snapshot of game state (separate from settings)
-- [ ] Captured state: player position + scene, inventory, quest flags, NPC states, world mutations
-- [ ] Multiple save slots with metadata (timestamp, playtime, thumbnail screenshot)
-- [ ] Auto-save trigger API (on scene transition, on rest, on checkpoint)
-- [ ] Migration / version-upgrade path so old saves stay compatible after content updates
-- [ ] Lua API exposure so scripts can read and write custom save keys
-- [ ] Publishes `engine.game.saved` and `engine.game.loaded` via the Event Bus (Phase 24) on completion
+*See [docs/saves.md](docs/saves.md).*
+
+- [x] Save files: one versioned JSON document per slot (`SaveGame`) - format and game versions, metadata, `SaveData` key / values, participant sections; crash-safe writes with a `.bak` fallback
+- [x] Sealed saves: zstd + XChaCha20-Poly1305 (libsodium) in release builds, so a save can't be edited by hand; plain JSON in debug; a per-game key (`SetSealKey`) until Phase 36's project keys
+- [x] Per-user data folder (`%APPDATA%\<Studio>\<Game>\`): saves and `settings.json` (moved from beside the executable)
+- [x] Save the changes, not the world: `Persistent` entities (and scene-level `persist_all` with per-entity opt-out) record field-level changes against the authored scene, destroyed and spawned entities, and tile changes; each scene's changes outlive it
+- [x] Captured state: the scene stack with entry points, every visited scene's changes, game data, participants, playtime
+- [x] Slots: 10 manual, 3 rotating autosaves, 1 quicksave by default, set per game; metadata (name, scene, date, playtime) and a thumbnail of the world without UI
+- [x] `Application::SaveTo` / `LoadFrom` / `AutoSave` / `ResetGame`; refused mid scene change; loading replaces the stack in one fade
+- [x] Auto-save API, with an opt-in autosave after scene changes; a saving indicator on every save and a saving notice splash card (first launch by default)
+- [x] Save / load slot screens; pause menu Save / Load, title Continue / Load Game
+- [x] Migration / version-upgrade path so old saves stay compatible after content updates
+- [x] Publishes `engine.game.saved` and `engine.game.loaded` via the Event Bus (Phase 24)
+- [ ] Lua API exposure so scripts can read and write custom save keys (Phase 26)
 
 ---
 
@@ -428,7 +436,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Engine API surface: ECS queries, entity create/destroy, component read/write
 - [ ] Tilemap API: read/write tile properties, trigger map mutations
 - [ ] Scene API: load scene, change entry point, spawn entities
-- [ ] Save API: read/write custom save keys (Phase 25)
+- [ ] Save API: read / write `SaveData` keys, `SaveTo` / `LoadFrom` / `AutoSave` (Phase 25)
 - [ ] Input API: query action state from scripts
 - [ ] Audio API: play sound/music from scripts
 - [ ] Event API: `Event.Subscribe`, `Event.Unsubscribe`, `Event.Publish` (Phase 24)
@@ -445,7 +453,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Interactable tile and NPC trigger: `OnInteract` starts a named dialog graph
 - [ ] All displayed text referenced by localization key (Phase 28); raw strings are never embedded
 - [ ] Variable substitution in text (`{player_name}`, `{gold_count}`, etc.) resolved via Localization interpolation
-- [ ] Typewriter reveal effect with configurable speed; skip on confirm input (the reusable reveal comes from Phase 21B)
+- [ ] Typewriter reveal effect with configurable speed; skip on confirm input (the reusable reveal comes from Phase 21F)
 - [ ] Portraits / speaker icons per node (optional; falls back to name-only if absent)
 - [ ] JSON authoring format; importable from editor (Phase 40)
 - [ ] Lua hook: `OnDialogEnd(graphId, lastChoice)` for scripted reactions
@@ -585,6 +593,7 @@ The rest of the original event list moved to the phases that build those systems
   - *Dev key*: generated per project, stored in the dev's `project.arcbit` (never shipped with the game); baked into the game binary by the packaging step at build time; required to open `.arcasset` files in full editor mode
   - *Mod key*: a separate per-project key included in the shipped `project.arcbit` only when `mod_support = true`; used to sign assets produced by end users in mod editor mode; engine distinguishes mod assets from dev assets by key
   - When `mod_support = false`, shipped builds contain no key material; `.arcasset` files are opaque to end users (obfuscation, not hard encryption — raises the bar for casual extraction)
+- [ ] **Save keys**: replace `SaveManager::SetSealKey`'s per-game secret with the project keys - saves sealed with the dev key, or the mod key when `mod_support = true` (Phase 25)
 - [ ] **Mod editor mode** (activated when the editor opens a shipped `project.arcbit` with `mod_support = true`):
   - Open and preview original dev assets (decrypted in memory via the mod key where possible, or by asking the game runtime)
   - Extract audio and image assets to standard formats (WAV, PNG, etc.) for use as mod source material
@@ -655,4 +664,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Event monitor panel**: live stream of Event Bus events from the running game (Phase 24); filterable by event name; shows payload and source entity
 - [ ] Content export to Phase 38 folder layout (`project.arcbit` + `.arcasset` files via Phase 36 content tools)
 - [ ] Asset importer UI: drag source files in, editor calls `arcbit-pack` and shows result
+- [ ] **Save settings**: per-project slot counts, the saving indicator icon / tint / duration, the saving notice (never / first launch / every launch) and autosave on scene changes (`SavingConfig`, Phase 25)
+- [ ] **Save editing in mod mode**: open, edit and reseal a player's `.arcsave` with the mod key (Phase 25, Phase 36)
+- [ ] **Persistence in the scene editor**: `Persistent` and `persist_all` as checkboxes, with the component list picker (Phase 25)
 - [ ] **Editor mode detection**: on open, inspect the loaded `project.arcbit` to determine mode — full dev mode (dev key present) or restricted mod mode (mod key only, `mod_support = true`); mod mode disables save-over-original and shows a clear "Mod Editor" banner so end users know what they are working with
