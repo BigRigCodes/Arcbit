@@ -81,15 +81,23 @@ void Application::FinishSplash()
 
 // The title menu over the running scene. With a separate TitleScene
 // backdrop, New Game switches to FirstScene; otherwise the first scene is
-// already behind the menu and New Game just closes it.
+// already behind the menu and New Game just closes it. Either way the game
+// starts over (ResetGame) - for the switch, once the backdrop has unloaded.
+// Continue, shown once there's a save, loads the newest one.
 void Application::ShowTitle()
 {
-    auto      title    = std::make_unique<MainMenuScreen>();
-    UIScreen* screen   = title.get();
-    title->ShowCredits = !_boot.CreditsPath.empty();
-    title->OnNewGame   = [this, screen] {
+    auto      title     = std::make_unique<MainMenuScreen>();
+    UIScreen* screen    = title.get();
+    title->ShowCredits  = !_boot.CreditsPath.empty();
+    title->ShowContinue = !_saves.List().empty();
+    title->OnNewGame    = [this, screen] {
         _ui.Close(screen);
-        if (!_boot.TitleScene.empty() && !_boot.FirstScene.empty()) _scenes.Switch(_boot.FirstScene);
+        if (_boot.TitleScene.empty() || _boot.FirstScene.empty()) ResetGame();
+        else _scenes.Restore({ { _boot.FirstScene, "" } }, [this] { ResetGame(); });
+    };
+    title->OnContinue = [this, screen] {
+        const std::vector<SaveSlotInfo> saves = _saves.List();
+        if (!saves.empty() && LoadFrom(saves.front().Slot)) _ui.Close(screen);
     };
     title->OnControls         = [this] { ShowControlsScreen(); };
     title->OnAudioSettings    = [this] { ShowAudioScreen(); };
