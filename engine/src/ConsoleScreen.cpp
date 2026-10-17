@@ -38,6 +38,7 @@ void ConsoleScreen::OnEnter()
     _scroll->ZOrder      = 2;
 
     _input              = bg->AddChild<TextInput>();
+    _input->Name        = "console-line";
     _input->SizePercent = { 0.98f, 0.0f };
     _input->Size        = { 0.0f, 36.0f };
     _input->Anchor      = { 0.0f, 1.0f };
@@ -60,7 +61,11 @@ void ConsoleScreen::OnTick(f32, const InputManager& input)
         if (OnClose) OnClose();
         return;
     }
-    std::erase_if(_input->Text, [](const char c) { return c == '`' || c == '~'; }); // the key that opened it
+    if (_input->Text.find_first_of("`~") != std::string::npos) { // the key that opened it
+        std::string text = _input->Text;
+        std::erase_if(text, [](const char c) { return c == '`' || c == '~'; });
+        _input->SetText(std::move(text));
+    }
     if (GetFocusedWidget() != _input) FocusAt(0);
     if (input.JustPressed(ActionHistoryUp)) Recall(-1);
     if (input.JustPressed(ActionHistoryDown)) Recall(1);
@@ -95,11 +100,14 @@ void ConsoleScreen::ShowLines()
     _scroll->ScrollOffset  = std::max(0.0f, y - _scroll->Size.Y); // the bottom
 }
 
+// `line` is the input's own text (OnConfirm passes it by reference): copied
+// before the input is cleared.
 void ConsoleScreen::Submit(const std::string& line)
 {
-    _input->Text   = "";
+    const std::string command = line;
+    _input->SetText("");
     _historyCursor = -1;
-    if (Console) Console->Execute(line);
+    if (Console) Console->Execute(command);
 }
 
 // Up: older lines; Down: newer, then back to an empty line.
@@ -110,7 +118,7 @@ void ConsoleScreen::Recall(const i32 step)
     i32       at    = _historyCursor < 0 ? count : _historyCursor;
     at              = std::clamp(at + step, 0, count);
     _historyCursor  = at == count ? -1 : at;
-    _input->Text    = _historyCursor < 0 ? "" : Console->GetHistory()[_historyCursor];
+    _input->SetText(_historyCursor < 0 ? "" : Console->GetHistory()[_historyCursor]);
 }
 
 // One match fills in; several are listed.
@@ -118,7 +126,7 @@ void ConsoleScreen::CompleteCommand()
 {
     if (!Console || _input->Text.empty() || _input->Text.find(' ') != std::string::npos) return;
     const std::vector<std::string> matches = Console->Complete(_input->Text);
-    if (matches.size() == 1) _input->Text = matches.front() + " ";
+    if (matches.size() == 1) _input->SetText(matches.front() + " ");
     else if (matches.size() > 1) {
         std::string list;
         for (const std::string& name : matches) list += name + "  ";
