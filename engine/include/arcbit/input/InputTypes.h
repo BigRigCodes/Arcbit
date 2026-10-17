@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/core/Hash.h>
 #include <arcbit/core/Types.h>
 
 #include <string_view>
@@ -136,19 +137,9 @@ enum class GamepadAxis : u8
 // ---------------------------------------------------------------------------
 using ActionID = u32;
 
-// FNV-1a hash — produces the same ActionID for the same string at compile
-// time or runtime. Collisions are astronomically unlikely for short names but
-// prefer globally unique names (e.g. "Inventory_Open" not "Open") to be safe.
-constexpr ActionID MakeAction(const std::string_view name)
-{
-    u32 hash = 2166136261u; // FNV offset basis
-    for (const unsigned char c : name)
-    {
-        hash ^= c;
-        hash *= 16777619u; // FNV prime
-    }
-    return hash;
-}
+// Same id for the same name at compile time or runtime (HashName). Prefer
+// globally unique names (e.g. "Inventory_Open" not "Open").
+constexpr ActionID MakeAction(const std::string_view name) { return HashName(name); }
 
 // Which part of an axis a binding reads. A stick axis spans -1..1, and any
 // nonzero value counts as pressed, so binding a whole axis to both Move_Left
