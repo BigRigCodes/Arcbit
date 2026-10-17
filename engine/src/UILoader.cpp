@@ -339,7 +339,15 @@ void UILoader::EnsureBuiltins()
 // Recursive widget builder
 // ---------------------------------------------------------------------------
 
-static std::unique_ptr<UIWidget> BuildWidget(const json& j)
+// "on_click" / "on_change": the Lua function a ScriptedScreen calls.
+static void RecordScriptHandlers(UIWidget& widget, const json& j, UIScreen& screen)
+{
+    for (const auto& [key, event] : { std::pair{ "on_click", "click" }, std::pair{ "on_change", "change" } })
+        if (const auto it = j.find(key); it != j.end() && it->is_string())
+            screen.AddScriptHandler({ &widget, event, it->get<std::string>() });
+}
+
+static std::unique_ptr<UIWidget> BuildWidget(const json& j, UIScreen& screen)
 {
     const auto typeIt = j.find("type");
     if (typeIt == j.end()) {
@@ -358,10 +366,11 @@ static std::unique_ptr<UIWidget> BuildWidget(const json& j)
     auto widget = entryIt->second.factory();
     ApplyBase(*widget, j);
     if (entryIt->second.apply) entryIt->second.apply(*widget, j);
+    RecordScriptHandlers(*widget, j, screen);
 
     if (const auto childIt = j.find("children"); childIt != j.end() && childIt->is_array())
         for (const auto& childJson : *childIt)
-            if (auto child = BuildWidget(childJson))
+            if (auto child = BuildWidget(childJson, screen))
                 widget->AddChildRaw(std::move(child));
 
     return widget;
@@ -391,8 +400,12 @@ bool UILoader::Load(const std::string_view path, UIScreen& screen)
     // Build widget tree
     if (const auto widgetsIt = root.find("widgets"); widgetsIt != root.end() && widgetsIt->is_array())
         for (const auto& wJson : *widgetsIt)
-            if (auto w = BuildWidget(wJson))
+            if (auto w = BuildWidget(wJson, screen))
                 screen.AddRaw(std::move(w));
+
+    // The Lua script behind a ScriptedScreen (a module name).
+    if (const auto scriptIt = root.find("script"); scriptIt != root.end() && scriptIt->is_string())
+        screen.SetMetaStr("script", scriptIt->get<std::string>());
 
     // Populate meta section — numbers become f32, strings become str
     if (const auto metaIt = root.find("meta"); metaIt != root.end() && metaIt->is_object()) {
