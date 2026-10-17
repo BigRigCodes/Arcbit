@@ -4,7 +4,10 @@
 // files that bind the engine's API. Never include this from a public header -
 // sol2 is template-heavy and would slow every build that saw it.
 
+#include <arcbit/ecs/Entity.h>
 #include <arcbit/script/ScriptEngine.h>
+
+#include <nlohmann/json.hpp>
 
 #define SOL_ALL_SAFETIES_ON 1 // check argument types: a script's mistake is an error, not a crash
 #define SOL_PRINT_ERRORS 0    // errors are logged by ScriptEngine, with the script's traceback
@@ -18,6 +21,17 @@
 
 namespace Arcbit
 {
+class Scene;
+
+// A script's handle to an entity: the entity plus the scene it lives in (by
+// serial, not pointer), so a handle kept past its entity or its scene is
+// recognised as stale instead of reaching freed memory.
+struct ScriptEntity
+{
+    Entity Id;
+    u64    SceneSerial = 0;
+};
+
 // Accounting shared with the allocator and the instruction hook, which reach
 // it through lua_getallocf - so it must outlive the sol::state.
 struct ScriptRuntime
@@ -40,6 +54,11 @@ struct ScriptEngine::State
 
     std::unordered_map<std::string, sol::object> Modules; // require's cache
     std::set<std::string>                        Loading; // modules mid-load (circular require)
+
+    // Scenes running scripts, by serial (SceneScripts registers itself) -
+    // what entity handles resolve against.
+    std::unordered_map<u64, Scene*> Scenes;
+    u64                             NextSceneSerial = 1;
 
     sol::environment                      Console;   // Run's globals, created on first use
     sol::reference                        Traceback; // error handler for Call: adds the stack traceback
@@ -73,6 +92,10 @@ struct ScriptEngine::State
     // tostring, protected - a failing __tostring becomes a Lua error.
     [[nodiscard]] std::string ToString(const sol::object& value);
 
+    // The scene a handle points into, if it's still running scripts and the
+    // entity is still alive; null otherwise.
+    [[nodiscard]] Scene* Resolve(const ScriptEntity& handle) const;
+
 private:
     struct CallScope
     {
@@ -85,7 +108,14 @@ private:
     void BindRequire();
     void BindLog();
     void BindVec2();
+    void BindEntity();
 };
+
+// JSON <-> Lua: objects and arrays become tables, and back - a table with
+// keys 1..n is an array, any other an object (string keys). Functions,
+// userdata and the like have no JSON form: they become null.
+[[nodiscard]] sol::object    JsonToLua(sol::state_view lua, const nlohmann::json& value);
+[[nodiscard]] nlohmann::json LuaToJson(const sol::object& value);
 
 // Instruction-count hook granularity: the budget is checked every HookStep
 // instructions.

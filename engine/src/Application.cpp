@@ -224,7 +224,8 @@ void Application::Run()
                       .Events          = &_events,
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
-                      .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); } });
+                      .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },
+                      .Scripts         = &_scriptEngine });
     RegisterSaveSections();
     _scenes.SetActive(std::make_unique<Scene>());
 

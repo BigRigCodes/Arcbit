@@ -224,6 +224,7 @@ std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
     scene->_name                 = name;
     scene->_app                  = _host.App;
     scene->_events               = _host.Events;
+    scene->_scriptEngine         = _host.Scripts;
     scene->SetInput(_host.Input);
     return scene;
 }
@@ -484,6 +485,7 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
 void SceneManager::Unload(Scene& scene)
 {
     CaptureState(scene);
+    scene.EndScripts();
     scene.OnUnload();
     scene._subscriptions.clear();
 }
@@ -495,7 +497,12 @@ bool SceneManager::TracksState(const Scene& scene) const
 
 void SceneManager::BeginState(Scene& scene)
 {
-    if (!TracksState(scene)) return;
+    if (TracksState(scene)) ApplySavedState(scene);
+    scene.StartScripts();
+}
+
+void SceneManager::ApplySavedState(Scene& scene)
+{
     const std::unique_ptr<SceneAssets> assets = _host.Assets(scene);
     scene._authored = std::make_unique<AuthoredState>(SceneStates::Snapshot(scene, *_host.Registry, *assets));
     scene.GetTileMap().BeginTrackingChanges();

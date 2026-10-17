@@ -21,7 +21,9 @@ class InputManager;
 class MusicPlayer;
 struct AuthoredState;
 class PhysicsWorld;
+class SceneScripts;
 class ScenePreloader;
+class ScriptEngine;
 class SpriteSheet;
 
 // ---------------------------------------------------------------------------
@@ -159,8 +161,14 @@ public:
     void               SetInputBlocked(const bool blocked) { _inputBlocked = blocked; }
     [[nodiscard]] bool IsInputBlocked() const { return _inputBlocked; }
 
-    // Called by Application each fixed tick: OnUpdate, the camera, then all
-    // registered update systems in registration order.
+    // The scene's own Lua script (docs/scripting.md) - hooks OnLoad,
+    // OnUpdate(dt) and OnUnload. Set it in the constructor or OnLoad (a scene
+    // file's "script"); it starts once the scene has loaded.
+    void                             SetScript(std::string module) { _scriptModule = std::move(module); }
+    [[nodiscard]] const std::string& GetScript() const { return _scriptModule; }
+
+    // Called by Application each fixed tick: OnUpdate, the scripts' OnUpdate,
+    // the camera, then all registered update systems in registration order.
     void Update(f32 dt);
 
     // Called by Application each frame after its own OnRender: sets camera
@@ -176,6 +184,11 @@ private:
     // Stop every AudioSource's sound; the audio system restarts the playing
     // ones once the scene updates again (SceneManager, on suspend).
     void StopSounds();
+
+    // Scripts (SceneManager): start them once the scene has loaded, with its
+    // saved state applied; end them (OnDestroy, OnUnload) as it unloads.
+    void StartScripts();
+    void EndScripts();
 
     World                         _world;
     Camera2D                      _camera;
@@ -202,6 +215,10 @@ private:
     f32          _musicFade   = 0.0f;
 
     std::unique_ptr<AuthoredState> _authored; // persistent entities as loaded (SceneManager; save state)
+
+    ScriptEngine*                 _scriptEngine = nullptr; // SceneManager's host; null = no scripts
+    std::string                   _scriptModule;           // SetScript
+    std::unique_ptr<SceneScripts> _scripts;                // running scripts, from StartScripts to EndScripts
 
     EventBus*                 _events = nullptr;
     std::vector<Entity>       _pendingSpawns; // EntityEvents added; announced at the next Update

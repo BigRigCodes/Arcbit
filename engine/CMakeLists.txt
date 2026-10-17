@@ -34,6 +34,9 @@ add_library(arcbit-engine STATIC
     src/SaveThumbnail.cpp
     src/ScriptEngine.cpp
     src/ScriptLibrary.cpp
+    src/ScriptEntity.cpp
+    src/ScriptJson.cpp
+    src/SceneScripts.cpp
     src/SaveSeal.cpp
     src/SceneState.cpp
     src/SceneComponents.cpp

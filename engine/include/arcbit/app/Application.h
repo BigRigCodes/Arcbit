@@ -11,6 +11,7 @@
 #include <arcbit/save/SaveManager.h>
 #include <arcbit/save/SceneState.h>
 #include <arcbit/scene/SceneManager.h>
+#include <arcbit/script/ScriptEngine.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
@@ -209,6 +210,10 @@ public:
     // folder is the per-user data folder's saves\.
     [[nodiscard]] SaveManager& GetSaves() { return _saves; }
 
+    // The Lua state scripts run in (docs/scripting.md); modules load from
+    // assets/scripts.
+    [[nodiscard]] ScriptEngine& GetScripts() { return _scriptEngine; }
+
     // The per-user data folder: settings, saves (see ApplicationConfig).
     [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
 
@@ -376,6 +381,7 @@ private:
 
     UIManager    _ui;
     EventBus     _events;   // before _scenes: scenes' subscriptions end before the bus goes
+    ScriptEngine _scriptEngine; // before _scenes: scenes' scripts hold references into its state
     Subscription _eventLog; // every delivered event, on the EventBus log channel (debug level)
 
     SceneManager                    _scenes;

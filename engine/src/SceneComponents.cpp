@@ -10,6 +10,7 @@
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
 #include <arcbit/scene/SceneAssets.h>
+#include <arcbit/script/Script.h>
 
 #include <array>
 #include <bit>
@@ -125,6 +126,18 @@ namespace
                 j["id"]         = c.Id;
                 j["enabled"]    = c.Enabled;
                 j["components"] = c.Components;
+            });
+        r.RegisterComponent<Script>(
+            "Script",
+            [](Script& c, const json& j, SceneAssets&) {
+                Read(j, "script", c.Module);
+                if (const auto it = j.find("properties"); it != j.end() && it->is_object()) c.Properties = *it;
+                if (const auto it = j.find("saved"); it != j.end() && it->is_object()) c.Saved = *it;
+            },
+            [](const Script& c, json& j, const SceneAssets&) {
+                j["script"]     = c.Module;
+                j["properties"] = c.Properties;
+                j["saved"]      = c.Saved;
             });
         r.RegisterComponent<EntityEvents>(
             "EntityEvents",

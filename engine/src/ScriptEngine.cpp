@@ -105,6 +105,7 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     OpenSandbox();
     BindLog();
     BindVec2();
+    BindEntity();
     BindRequire();
 }
 

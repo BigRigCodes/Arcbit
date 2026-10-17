@@ -8,6 +8,9 @@
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/save/SceneState.h>
+#include <arcbit/script/Script.h>
+
+#include "SceneScripts.h"
 #include <arcbit/render/RenderThread.h>
 
 #include <utility>
@@ -40,6 +43,12 @@ Scene::Scene()
     });
 
     HookEntityEvents();
+
+    // A Script leaving its entity (removed, or the entity destroyed) runs its
+    // OnDestroy - but not as the scene itself is torn down: EndScripts did that.
+    _world.OnRemove<Script>([this](const Entity e, Script&) {
+        if (_scripts && !_tearingDown) _scripts->Removed(e);
+    });
 }
 
 Scene::~Scene() // out-of-line: SpriteSheet and PhysicsWorld are complete here
@@ -141,6 +150,20 @@ void Scene::Subscribe(const EventId id, EventHandler handler)
     if (_events) _subscriptions.push_back(_events->Subscribe(id, std::move(handler)));
 }
 
+void Scene::StartScripts()
+{
+    if (!_scriptEngine || _scripts) return;
+    _scripts = std::make_unique<SceneScripts>(*_scriptEngine, *this, _scriptModule);
+    _scripts->Start();
+}
+
+void Scene::EndScripts()
+{
+    if (!_scripts) return;
+    _scripts->End();
+    _scripts.reset();
+}
+
 void Scene::ReleaseResources()
 {
     if (_app)
@@ -161,6 +184,7 @@ void Scene::Update(const f32 dt)
 {
     PublishPendingSpawns();
     OnUpdate(dt);
+    if (_scripts) _scripts->Update(dt);
     _camera.Update(dt);
     _world.RunUpdateSystems(*this, dt);
 }

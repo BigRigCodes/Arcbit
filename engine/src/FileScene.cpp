@@ -136,6 +136,8 @@ void FileScene::OnLoad()
         _ambient = ReadAmbient(*doc);
         if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
             SetMusic(music->value("path", std::string{}), music->value("loop", true));
+        if (const auto script = doc->find("script"); script != doc->end() && script->is_string())
+            SetScript(script->get<std::string>());
     }
     catch (const std::exception& e) {
         LOG_ERROR(Engine, "FileScene: '{}' has malformed render / music settings - {}", _path, e.what());
