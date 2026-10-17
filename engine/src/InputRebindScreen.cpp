@@ -70,6 +70,10 @@ void InputRebindScreen::OnEnter()
         };
 }
 
+// However the screen closes - back, or swapped out by another menu (which
+// skips the back path) - a binding taken away to be replaced comes back.
+void InputRebindScreen::OnExit() { CancelListening(); }
+
 // ---------------------------------------------------------------------------
 // CountBindings / AddChipColumn helpers
 // ---------------------------------------------------------------------------

@@ -38,6 +38,7 @@ public:
     InputRebindScreen() { BlocksInput = true; TransitionSpeed = 6.0f; }
 
     void OnEnter() override;
+    void OnExit() override;
     void OnBackPressed() override;
     void OnTick(f32 dt, const InputManager& input) override;
 
