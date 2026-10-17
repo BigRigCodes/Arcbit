@@ -1,6 +1,7 @@
 // EventBus: queued and immediate delivery, subscription lifetime, changes to
 // the subscriber list during delivery, and the reserved engine names.
 
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/events/EventBus.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -150,7 +151,7 @@ TEST_CASE("Handlers publishing to each other forever are cut off per flush", "[e
 TEST_CASE("Game code can't publish engine events, but can hear them", "[events]")
 {
     EventBus      bus;
-    const EventId loaded = bus.Register("engine.scene.loaded");
+    const EventId loaded = EngineEvents::SceneLoaded; // registered by every bus
     int           heard  = 0;
     Subscription  sub    = bus.Subscribe(loaded, [&](const Event&) { ++heard; });
 
@@ -199,4 +200,10 @@ TEST_CASE("A subscription outliving its bus is harmless", "[events]")
     }
     CHECK_FALSE(survivor.IsActive());
     survivor.Reset(); // no crash
+}
+
+TEST_CASE("Every engine event is named from the start", "[events]")
+{
+    const EventBus bus;
+    for (const std::string_view name : EngineEvents::AllNames) CHECK(bus.GetName(MakeEvent(name)) == name);
 }

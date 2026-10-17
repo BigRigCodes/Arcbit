@@ -1,5 +1,7 @@
 #include <arcbit/events/EventBus.h>
 
+#include <arcbit/events/EngineEvents.h>
+
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Log.h>
 
@@ -94,7 +96,10 @@ bool Subscription::IsActive() const
 // EventBus
 // ---------------------------------------------------------------------------
 
-EventBus::EventBus() : _subscribers(std::make_shared<Detail::EventSubscribers>()), _owner(std::this_thread::get_id()) {}
+EventBus::EventBus() : _subscribers(std::make_shared<Detail::EventSubscribers>()), _owner(std::this_thread::get_id())
+{
+    for (const std::string_view name : EngineEvents::AllNames) Register(name);
+}
 
 EventBus::~EventBus() = default;
 
