@@ -42,6 +42,7 @@ add_library(arcbit-engine STATIC
     src/GraphicsSettingsScreen.cpp
     src/SplashScreen.cpp
     src/CreditsScreen.cpp
+    src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp

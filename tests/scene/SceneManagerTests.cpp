@@ -420,3 +420,52 @@ TEST_CASE("Preload is ignored while a scene change is queued", "[scene][async]")
     CHECK(f.ActiveName() == "C");
     CHECK(f.prepares == 2); // A and C only
 }
+
+TEST_CASE("A fade-first change asks for the loading screen while held at black", "[scene][async]")
+{
+    AsyncFixture f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("Slow");
+    f.Tick(5);
+    CHECK_FALSE(f.scenes.WantsLoadingScreen()); // still fading out
+    f.Tick(25);
+    CHECK(f.scenes.WantsLoadingScreen());
+
+    f.gate = true;
+    REQUIRE(f.TickUntil([&] { return f.ActiveName() == "Slow"; }));
+    CHECK_FALSE(f.scenes.WantsLoadingScreen());
+}
+
+TEST_CASE("ShowLoadingScreen = false keeps a long hold plain black", "[scene][async]")
+{
+    AsyncFixture f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("Slow", SceneChange{ .ShowLoadingScreen = false });
+    f.Tick(30);
+    CHECK(f.scenes.IsLoading());
+    CHECK_FALSE(f.scenes.WantsLoadingScreen());
+}
+
+TEST_CASE("WaitForLoad keeps the current scene running until the next is ready", "[scene][async]")
+{
+    AsyncFixture f;
+    f.SwitchAndSettle("A");
+
+    f.scenes.Switch("Slow", SceneChange{ .WaitForLoad = true });
+    f.Tick(30);
+    CHECK(f.ActiveName() == "A");
+    CHECK(f.scenes.GetFadeAlpha() == 0.0f); // no fade yet
+    CHECK_FALSE(f.scenes.IsFading());       // so the player keeps control
+    CHECK(f.scenes.IsLoading());
+    CHECK(f.scenes.IsTransitioning());
+    CHECK_FALSE(f.scenes.WantsLoadingScreen());
+
+    f.gate = true;
+    REQUIRE(f.TickUntil([&] { return f.scenes.GetFadeAlpha() > 0.0f; })); // ready: now it fades out
+    CHECK(f.ActiveName() == "A");
+    REQUIRE(f.TickUntil([&] { return !f.scenes.IsTransitioning(); }));
+    CHECK(f.ActiveName() == "Slow");
+    CHECK(f.log == std::vector<std::string>{ "unload:A", "load:Slow" });
+}

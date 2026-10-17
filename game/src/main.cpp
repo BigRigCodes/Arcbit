@@ -10,9 +10,12 @@
 // a timer it pushes the battle, pops it, and moves to the next demo, so every
 // scene loads, suspends, resumes and unloads over and over.
 //
-// `--load-delay <seconds>` makes every scene's background load take that much
-// longer, to watch the splash and fades keep animating over a slow load. The
-// battle is preloaded while a demo runs, so B stays instant even then.
+// The two ways to cover a scene's load: PgUp / PgDn keep the current demo
+// running (and playable) until the next one is ready, then fade
+// (SceneChange::WaitForLoad); picking from the F1 menu fades out at once, like
+// a door, and shows the loading screen if the load outlasts the fade.
+// `--load-delay <seconds>` makes every load take that much longer, to see
+// both. The battle is preloaded while a demo runs, so B stays instant.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
@@ -106,17 +109,17 @@ protected:
         const size_t count = Demo::Entries().size();
         if (CycleDue(dt)) CycleStep(count);
         else if (GetInput().JustPressed(ActionDemoMenu)) ShowMenu();
-        else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count);
-        else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count);
+        else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count, { .WaitForLoad = true });
+        else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoBattle)) ToggleBattle();
     }
 
 private:
-    void Open(const size_t index)
+    void Open(const size_t index, SceneChange change = {})
     {
         _current               = index;
         const Demo::Entry& demo = Demo::Entries()[index];
-        GetScenes().Switch(demo.Name);
+        GetScenes().Switch(demo.Name, std::move(change));
         SetDemoTitle(demo);
         Settings::Set<std::string>(LastDemoKey, demo.Name);
     }

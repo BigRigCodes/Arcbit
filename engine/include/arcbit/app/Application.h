@@ -11,6 +11,7 @@
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -178,6 +179,14 @@ public:
     void ShowAudioScreen();
     void ShowGraphicsScreen();
 
+    // The screen shown while a scene change waits at black for its scene to
+    // load (SceneChange::ShowLoadingScreen), after a short grace period so a
+    // quick load doesn't flash it. Defaults to the engine's LoadingScreen;
+    // pass a factory for your own (any UIScreen, BlocksGame off) or null for
+    // plain black.
+    using ScreenFactory = std::function<std::unique_ptr<UIScreen>()>;
+    void SetLoadingScreen(ScreenFactory factory) { _loadingScreenFactory = std::move(factory); }
+
 protected:
     
     void ToggleDebugGrid() { _showGrid = !_showGrid; }
@@ -269,6 +278,12 @@ private:
     void ShowTitle();
     void ShowCredits();
     std::vector<TextureHandle> _splashTextures; // released once the splash ends
+
+    // Loading screen over a scene change held at black.
+    void            UpdateLoadingScreen(f32 dt);
+    ScreenFactory   _loadingScreenFactory;    // the engine's LoadingScreen unless the game changes it
+    const UIScreen* _loadingScreen = nullptr; // on the UI stack while shown
+    f32             _loadingHeld   = 0.0f;    // seconds held at black so far
 
     // Accumulates real time to rate-limit hot-reload checks to once per second.
     f64 _hotReloadAccumulator = 0.0;

@@ -72,6 +72,10 @@ public:
     // transition).
     void Pop();
 
+    // Close a specific screen, wherever it sits in the stack - fading out if
+    // it has a transition, like Pop. No-op if the screen isn't on the stack.
+    void Close(const UIScreen* screen);
+
     // Remove a specific screen immediately, wherever it sits in the stack (no
     // fade). For screens owned by something going away — a scene's HUD when
     // the scene unloads. No-op if the screen isn't on the stack.

@@ -47,14 +47,14 @@ bool SceneManager::IsRegistered(const std::string_view name) const
     return _factories.contains(std::string(name));
 }
 
-void SceneManager::Switch(const std::string_view name, std::string entry)
+void SceneManager::Switch(const std::string_view name, SceneChange change)
 {
-    Queue(Request::Switch, name, std::move(entry));
+    Queue(Request::Switch, name, std::move(change));
 }
 
-void SceneManager::Push(const std::string_view name, std::string entry)
+void SceneManager::Push(const std::string_view name, SceneChange change)
 {
-    Queue(Request::Push, name, std::move(entry));
+    Queue(Request::Push, name, std::move(change));
 }
 
 void SceneManager::Pop()
@@ -65,7 +65,7 @@ void SceneManager::Pop()
     }
     _pendingKind = Request::Pop;
     _pendingName.clear();
-    _pendingEntry.clear();
+    _pendingChange = {};
     _hasPending = true;
 }
 
@@ -82,7 +82,7 @@ void SceneManager::Preload(const std::string_view name)
     if (!_prepared || _prepared->Name != name) StartPrepare(name);
 }
 
-void SceneManager::Queue(const Request kind, const std::string_view name, std::string entry)
+void SceneManager::Queue(const Request kind, const std::string_view name, SceneChange change)
 {
     if (!IsRegistered(name)) {
         LOG_WARN(Engine, "SceneManager: no scene registered as '{}'", name);
@@ -91,7 +91,7 @@ void SceneManager::Queue(const Request kind, const std::string_view name, std::s
     if (!_prepared || _prepared->Name != name) StartPrepare(name);
     _pendingKind  = kind;
     _pendingName  = std::string(name);
-    _pendingEntry = std::move(entry);
+    _pendingChange = std::move(change);
     _hasPending   = true;
 }
 
@@ -117,7 +117,7 @@ void SceneManager::Update(const f32 dt)
             return;
 
         case Phase::FadingIn:
-            if (_hasPending) {
+            if (_hasPending && !WaitsToStart()) {
                 _phase = Phase::FadingOut; // reverse from the current alpha
                 return;
             }
@@ -136,7 +136,17 @@ bool SceneManager::ConsumeSwapped()
 
 bool SceneManager::IsLoading() const
 {
-    return _hasPending && _phase == Phase::FadingOut && _alpha >= 1.0f && !IsReady();
+    return _hasPending && !IsReady();
+}
+
+bool SceneManager::WantsLoadingScreen() const
+{
+    return IsLoading() && _phase == Phase::FadingOut && _alpha >= 1.0f && _pendingChange.ShowLoadingScreen;
+}
+
+bool SceneManager::WaitsToStart() const
+{
+    return _pendingChange.WaitForLoad && !IsReady();
 }
 
 void SceneManager::Shutdown()
@@ -151,12 +161,16 @@ void SceneManager::Shutdown()
 
 // Begin a queued request. Leaving an unnamed scene (or none) has nothing
 // worth fading out, so it cuts to black and swaps as soon as the next scene
-// is prepared.
+// is prepared. A WaitForLoad change keeps the active scene running (Idle)
+// until its scene is ready.
 void SceneManager::StartPending()
 {
-    _phase              = Phase::FadingOut;
     const Scene* active = GetActive();
-    if (active && !active->GetName().empty()) return;
+    if (active && !active->GetName().empty()) {
+        if (!WaitsToStart()) _phase = Phase::FadingOut;
+        return;
+    }
+    _phase = Phase::FadingOut;
     _alpha = 1.0f;
     if (IsReady()) Swap();
 }
@@ -238,7 +252,7 @@ std::unique_ptr<Scene> SceneManager::TakePrepared()
     else {
         scene = Create(_pendingName);
     }
-    scene->_entryPoint = std::move(_pendingEntry);
+    scene->_entryPoint = std::move(_pendingChange.Entry);
     return scene;
 }
 

@@ -32,6 +32,8 @@
 
   "ui.credits.unavailable": "Credits could not be loaded.",
 
+  "ui.loading": "Loading",
+
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",
   "ui.rebind.col_key":    "Key / Mouse",

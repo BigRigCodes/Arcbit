@@ -96,14 +96,20 @@ void UIManager::Pop()
         --it;
     }
     if (it == _stack.begin()) return;
-    --it;
+    Close(std::prev(it)->get());
+}
 
-    UIScreen& top = **it;
-    if (top.TransitionSpeed > 0.0f) {
-        top._transitionOpacity = 1.0f;
-        top._transitionState   = UIScreen::TransitionState::FadingOut;
+void UIManager::Close(const UIScreen* screen)
+{
+    const auto it = std::ranges::find_if(_stack, [&](const auto& s) { return s.get() == screen; });
+    if (it == _stack.end()) return;
+
+    UIScreen& target = **it;
+    if (target.TransitionSpeed > 0.0f) {
+        target._transitionOpacity = 1.0f;
+        target._transitionState   = UIScreen::TransitionState::FadingOut;
     }
-    else Remove(&top);
+    else Remove(&target);
 }
 
 void UIManager::Remove(const UIScreen* screen)

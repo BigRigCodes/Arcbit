@@ -73,3 +73,20 @@ TEST_CASE("A screen can remove itself from its own tick", "[ui]")
     ui.Update(1.0f / 60.0f, { 640.0f, 360.0f }, input); // removes itself; must not crash
     CHECK(ui.Empty());
 }
+
+TEST_CASE("Close removes a specific screen wherever it sits", "[ui]")
+{
+    UIManager ui;
+    auto      bottom    = MakeScreen();
+    UIScreen* bottomPtr = bottom.get();
+    ui.Push(std::move(bottom));
+    auto      top    = MakeScreen(true);
+    UIScreen* topPtr = top.get();
+    ui.Push(std::move(top));
+
+    ui.Close(bottomPtr); // no transition: removed at once
+    CHECK(ui.Top() == topPtr);
+    ui.Close(topPtr); // StaysOnTop screens close too (Pop skips them)
+    CHECK(ui.Empty());
+    ui.Close(topPtr); // no longer on the stack: no-op
+}

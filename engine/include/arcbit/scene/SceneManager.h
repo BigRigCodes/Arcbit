@@ -19,6 +19,28 @@ class InputManager;
 class TextureManager;
 
 // ---------------------------------------------------------------------------
+// SceneChange - how a Switch or Push goes.
+//
+// Two ways to cover the next scene's load (its OnPrepare, on the loader
+// thread):
+//
+//   Fade first (default)  The fade-out starts at once and the load runs under
+//                         it; if the load outlasts the fade, the screen holds
+//                         at black and Application shows its loading screen.
+//                         For doors: instant feedback, nowhere to wander off.
+//   WaitForLoad           The current scene stays on screen and playable while
+//                         the next one loads; the fade-out starts once it's
+//                         ready. For menu jumps, or a game that keeps playing
+//                         while it loads where you're going.
+// ---------------------------------------------------------------------------
+struct SceneChange
+{
+    std::string Entry;                     // handed to the new scene (Scene::GetEntryPoint)
+    bool        WaitForLoad       = false; // keep the current scene running until the next is ready
+    bool        ShowLoadingScreen = true;  // fade first: the loading screen over a long hold at black
+};
+
+// ---------------------------------------------------------------------------
 // SceneManager — owns a stack of scenes and switches between registered ones.
 //
 // Scenes are registered by name with a factory, so the same call covers a
@@ -42,12 +64,12 @@ class TextureManager;
 // share alive instead of freeing and reloading them.
 //
 // Loading ahead: a Switch or Push creates the next scene at once and runs its
-// OnPrepare (file reads, image decodes) on a loader thread while the fade-out
-// plays. The swap itself - OnLoad, which then only uploads and builds
-// entities - waits at black until the prepare is done, so a slow load holds
-// the screen black instead of freezing a fade or the splash. Preload(name)
-// starts that work early, with the current scene still running, so the
-// switch later finds it done.
+// OnPrepare (file reads, image decodes) on a loader thread. The swap itself -
+// OnLoad, which then only uploads and builds entities - waits until the
+// prepare is done. SceneChange picks what the player sees meanwhile: the
+// fade-out and then black with a loading screen (the default), or the current
+// scene still running (WaitForLoad). Preload(name) starts that work early,
+// with the current scene still running, so the switch later finds it done.
 //
 // Scene stack: Push loads a scene on top and suspends the one under it
 // (OnSuspend; it isn't updated or drawn and its sounds stop, but its state
@@ -89,11 +111,13 @@ public:
     // Queue a switch to the scene registered as `name`, replacing every scene
     // on the stack. `entry` is handed to the new scene (Scene::GetEntryPoint).
     // Unknown names are logged and ignored.
-    void Switch(std::string_view name, std::string entry = {});
+    void Switch(std::string_view name, std::string entry = {}) { Switch(name, SceneChange{ .Entry = std::move(entry) }); }
+    void Switch(std::string_view name, SceneChange change);
 
     // Queue loading `name` on top of the active scene, which is suspended
     // rather than unloaded.
-    void Push(std::string_view name, std::string entry = {});
+    void Push(std::string_view name, std::string entry = {}) { Push(name, SceneChange{ .Entry = std::move(entry) }); }
+    void Push(std::string_view name, SceneChange change);
 
     // Queue unloading the active scene and resuming the one below it. Ignored
     // (with a warning) when there's nothing below.
@@ -130,11 +154,19 @@ public:
 
     // Fade overlay opacity: 0 = clear, 1 = fully black.
     [[nodiscard]] f32  GetFadeAlpha() const { return _alpha; }
+    // A scene change is queued or under way (loading, fading or both).
     [[nodiscard]] bool IsTransitioning() const { return _phase != Phase::Idle || _hasPending; }
 
-    // True while a swap is held at black, waiting for the next scene's
-    // OnPrepare to finish.
+    // The screen is fading out or in. Application holds the player still
+    // only then, so a WaitForLoad switch leaves them in control while it loads.
+    [[nodiscard]] bool IsFading() const { return _phase != Phase::Idle; }
+
+    // The queued scene's OnPrepare is still running.
     [[nodiscard]] bool IsLoading() const;
+
+    // Held at black waiting for a load, and the change asked for a loading
+    // screen. Application shows its loading screen while this holds.
+    [[nodiscard]] bool WantsLoadingScreen() const;
 
     f32 FadeOutTime = 0.3f; // seconds; 0 = cut to black
     f32 FadeInTime  = 0.3f; // seconds; 0 = cut in
@@ -170,7 +202,8 @@ private:
         std::future<void>               Done;           // invalid when it ran inline; destroyed first, so it waits
     };
 
-    void Queue(Request kind, std::string_view name, std::string entry);
+    void Queue(Request kind, std::string_view name, SceneChange change);
+    [[nodiscard]] bool WaitsToStart() const; // a WaitForLoad change whose scene is still loading
     void StartPrepare(std::string_view name);
     void Abandon(); // drop the prepared scene; one still loading waits in _abandoned
     void ReapAbandoned();
@@ -194,7 +227,7 @@ private:
 
     Request     _pendingKind = Request::Switch;
     std::string _pendingName;
-    std::string _pendingEntry;
+    SceneChange _pendingChange;
     bool        _hasPending = false;
     bool        _swapped    = false;
 

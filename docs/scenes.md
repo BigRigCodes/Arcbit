@@ -63,8 +63,7 @@ sounds).
 ### Loading ahead
 
 A switch or push creates the next scene at once and runs its `OnPrepare` on a
-loader thread while the fade-out plays and the current scene keeps running.
-`OnPrepare` reads and parses files into the scene's own members and names the
+loader thread. `OnPrepare` reads and parses files into the scene's own members and names the
 assets `OnLoad` will use, so their images decode there:
 
 ```cpp
@@ -82,17 +81,42 @@ only upload them. Images already on the GPU are skipped. `OnPrepare` must
 touch nothing outside its scene object: no World, `GetApp()`, GPU, UI or
 audio - those stay in `OnLoad`, which runs on the main thread.
 
-The swap waits at black until `OnPrepare` is done, so a slow load holds the
-screen black (`SceneManager::IsLoading`) instead of freezing a fade or the
-splash. `FileScene` prepares itself: it parses the `.arcscene` and decodes the
-tilemap's atlases and every `texture` / `sheet` component field.
+The swap waits until `OnPrepare` is done (`SceneManager::IsLoading`). What
+the player sees meanwhile is up to the change (`SceneChange`):
+
+```cpp
+scenes.Switch("House", "front_door");                          // fade first (default)
+scenes.Switch("Cave", SceneChange{ .WaitForLoad = true });     // keep playing until it's ready
+scenes.Switch("Shop", SceneChange{ .ShowLoadingScreen = false }); // fade first, plain black
+```
+
+- **Fade first** (the default) - for doors. The fade-out starts at once and
+  the load runs under it. If the load outlasts the fade, the screen holds at
+  black, and after a short grace period (so quick loads don't flash it)
+  Application shows its loading screen, which fades out as the new scene
+  fades in. The engine's `LoadingScreen` shows "Loading" with animated dots;
+  `Application::SetLoadingScreen(factory)` swaps in any `UIScreen` (leave
+  `BlocksGame` off), or null for plain black.
+- **`WaitForLoad`** - for menu jumps, or a game that keeps playing while it
+  loads where you're going. The current scene stays on screen, updating and
+  playable (the player is held still only during the fades,
+  `SceneManager::IsFading`), and the fade-out starts once the next scene is
+  ready.
+
+Either way the splash and fades never freeze. `FileScene` prepares itself: it
+parses the `.arcscene` and decodes the tilemap's atlases and every `texture` /
+`sheet` component field.
 
 `Preload(name)` starts that work early, with the current scene still running
 (e.g. as the player nears a door), and the later `Switch` / `Push` to that
 name finds it done. One scene is prepared at a time; preloading or switching
-to another name discards it. The demo app preloads the battle while a demo
-runs, and `arcbit-game --load-delay <seconds>` (`SceneManager::PrepareDelay`)
-slows every prepare down to show the splash and fades animating over a load.
+to another name discards it.
+
+The demo app shows all three: PgUp / PgDn switch with `WaitForLoad`, the F1
+menu fades first (with the loading screen on a long load), and the battle is
+preloaded while a demo runs, so B is instant. `arcbit-game --load-delay
+<seconds>` (`SceneManager::PrepareDelay`) slows every prepare down so the
+difference is visible.
 
 ---
 

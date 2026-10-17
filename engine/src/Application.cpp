@@ -4,6 +4,7 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
+#include <arcbit/ui/LoadingScreen.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/core/Assert.h>
@@ -20,7 +21,8 @@ namespace Arcbit
 // Constructor — initializes all engine systems in dependency order.
 // ---------------------------------------------------------------------------
 
-Application::Application(const ApplicationConfig& config) : _config(config)
+Application::Application(const ApplicationConfig& config) :
+    _config(config), _loadingScreenFactory([] { return std::make_unique<LoadingScreen>(); })
 {
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
@@ -103,6 +105,30 @@ SamplerHandle Application::GetStockSampler(const StockSampler which) const
 }
 
 void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
+
+// Show the loading screen once a scene change has held at black for a
+// moment, and fade it out as the new scene fades in. Never over a
+// game-blocking screen (the splash): that already covers the load.
+void Application::UpdateLoadingScreen(const f32 dt)
+{
+    constexpr f32 GraceSeconds = 0.25f;
+
+    if (!_scenes.WantsLoadingScreen() || _ui.HasGameBlockingScreen()) {
+        _loadingHeld = 0.0f;
+        if (_loadingScreen) _ui.Close(_loadingScreen);
+        _loadingScreen = nullptr;
+        return;
+    }
+    _loadingHeld += dt;
+    if (_loadingScreen || !_loadingScreenFactory || _loadingHeld < GraceSeconds) return;
+
+    std::unique_ptr<UIScreen> screen = _loadingScreenFactory();
+    if (!screen) return;
+    screen->StaysOnTop = true; // a Pop() meant for another screen mustn't close it
+    _loadingScreen     = screen.get();
+    _ui.Push(std::move(screen));
+    LOG_DEBUG(Engine, "Loading screen shown");
+}
 
 void Application::CollectSceneFade(FramePacket& packet) const
 {
@@ -236,7 +262,7 @@ void Application::Run()
                 _scenes.Update(_fixedTimestep);
                 if (Scene* scene = _scenes.GetActive()) {
                     // An input-capturing overlay or a scene fade holds the player still.
-                    scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsTransitioning());
+                    scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
                     scene->Update(_fixedTimestep);
                 }
             }
@@ -246,6 +272,7 @@ void Application::Run()
             else if (_ui.CoversLoading()) {
                 _scenes.Update(0.0f);
             }
+            UpdateLoadingScreen(_fixedTimestep);
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
