@@ -2,6 +2,7 @@
 
 #include <arcbit/core/Types.h>
 #include <arcbit/save/SaveGame.h>
+#include <arcbit/save/SaveSeal.h>
 
 #include <nlohmann/json.hpp>
 
@@ -63,6 +64,13 @@ struct SaveSlotInfo
 //
 // Participants: a system with its own state (inventory, quests) registers
 // write / read callbacks under a name and gets a JSON section of the save.
+//
+// Sealing (SaveSeal): release builds seal every save and refuse plain ones -
+// a hand-written JSON save would otherwise be a free cheat. Debug builds
+// write plain JSON and read both, so saves stay readable while developing.
+// A sealed save that fails its check (edited, damaged, another key) counts
+// as unreadable: the slot's backup loads instead. Set the game's own key with
+// SetSealKey; without one, a shared engine default is used (logged).
 // ---------------------------------------------------------------------------
 class SaveManager
 {
@@ -78,6 +86,18 @@ public:
     u32 ManualSlots        = 10;
     u32 AutoSlots          = 3;
     u32 CurrentGameVersion = 1;
+
+#ifdef ARCBIT_DEBUG
+    bool SealSaves        = false; // write plain JSON while developing
+    bool AcceptPlainSaves = true;
+#else
+    bool SealSaves        = true;
+    bool AcceptPlainSaves = false;
+#endif
+
+    // The key saves are sealed with, from a secret only the game knows (a
+    // stand-in until Phase 36's project keys).
+    void SetSealKey(std::string_view secret) { _key = SaveSeal::DeriveKey(secret); }
 
     void                                       SetDirectory(std::filesystem::path directory) { _directory = std::move(directory); }
     [[nodiscard]] const std::filesystem::path& GetDirectory() const { return _directory; }
@@ -130,8 +150,12 @@ private:
     SaveData                           _data;
     std::map<std::string, Participant> _participants; // sorted: stable section order
     std::map<u32, Migration>           _migrations;   // by the version each upgrades from
+    std::optional<SaveSeal::Key>       _key;          // SetSealKey; else the engine default
 
     [[nodiscard]] bool                  Migrate(nlohmann::json& save, const std::filesystem::path& path) const;
+    [[nodiscard]] const SaveSeal::Key&  Key() const;
+    [[nodiscard]] std::string           Encode(const SaveGame& game) const; // the file's bytes
+    [[nodiscard]] std::optional<nlohmann::json> Decode(const std::filesystem::path& path) const;
     [[nodiscard]] std::vector<SaveSlot> AllSlots() const;
 };
 } // namespace Arcbit

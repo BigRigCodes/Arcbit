@@ -1,5 +1,7 @@
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
+find_package(unofficial-sodium CONFIG REQUIRED) # libsodium: sealed saves (SaveSeal)
+find_package(zstd CONFIG REQUIRED)              # compression for sealed saves
 # miniaudio is header-only; vcpkg adds its include path automatically — no find_package needed.
 
 # arcbit-engine is a STATIC library that provides the engine's public API:
@@ -25,6 +27,7 @@ add_library(arcbit-engine STATIC
     src/SaveData.cpp
     src/SaveGame.cpp
     src/SaveManager.cpp
+    src/SaveSeal.cpp
     src/SceneComponents.cpp
     src/SceneFile.cpp
     src/FileScene.cpp
@@ -71,6 +74,8 @@ target_link_libraries(arcbit-engine
         nlohmann_json::nlohmann_json  # public headers use it: SceneRegistry / SceneFile take JSON, SpriteSheet::FromJson
     PRIVATE
         SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
+        unofficial-sodium::sodium     # SaveSeal.cpp only
+        zstd::libzstd                 # SaveSeal.cpp only
 )
 
 # stb is header-only; vcpkg exposes it as an include directory, not a CMake target.

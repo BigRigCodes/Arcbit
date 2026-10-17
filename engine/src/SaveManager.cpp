@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <system_error>
+#include <utility>
 
 namespace Arcbit
 {
@@ -18,13 +20,11 @@ namespace
         return path;
     }
 
-    std::optional<nlohmann::json> ParseFile(const std::filesystem::path& path)
+    std::optional<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     {
         std::ifstream file(path, std::ios::binary);
         if (!file) return std::nullopt;
-        nlohmann::json json = nlohmann::json::parse(file, nullptr, false);
-        if (json.is_discarded()) return std::nullopt;
-        return json;
+        return std::vector<u8>(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     }
 } // namespace
 
@@ -90,8 +90,9 @@ bool SaveManager::Write(const SaveSlot slot, const SaveGame& game)
     std::error_code             ec;
     std::filesystem::create_directories(_directory, ec);
     {
-        std::ofstream file(temp, std::ios::binary | std::ios::trunc);
-        file << game.ToJson().dump(2);
+        const std::string bytes = Encode(game);
+        std::ofstream     file(temp, std::ios::binary | std::ios::trunc);
+        file.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
         if (!file.flush()) {
             LOG_ERROR(Engine, "SaveManager: can't write '{}'", temp.string());
             return false;
@@ -114,16 +115,63 @@ bool SaveManager::Write(const SaveSlot slot, const SaveGame& game)
 std::optional<SaveGame> SaveManager::Read(const SaveSlot slot) const
 {
     std::filesystem::path         from = PathOf(slot);
-    std::optional<nlohmann::json> json = ParseFile(from);
+    std::optional<nlohmann::json> json = Decode(from);
     if (!json) {
         const std::filesystem::path bak = WithExtension(from, ".bak");
-        json                            = ParseFile(bak);
+        json                            = Decode(bak);
         if (!json) return std::nullopt;
         LOG_WARN(Engine, "SaveManager: '{}' missing or unreadable - loading its backup", from.string());
         from = bak;
     }
     if (!Migrate(*json, from)) return std::nullopt;
     return SaveGame::FromJson(*json);
+}
+
+const SaveSeal::Key& SaveManager::Key() const
+{
+    if (_key) return *_key;
+    static bool warned = false;
+    if (!std::exchange(warned, true))
+        LOG_WARN(Engine, "SaveManager: no seal key set (SetSealKey) - using the engine default, shared by every game");
+    static const SaveSeal::Key fallback = SaveSeal::DeriveKey("arcbit.default-save-key");
+    return fallback;
+}
+
+std::string SaveManager::Encode(const SaveGame& game) const
+{
+    const std::string json = game.ToJson().dump(2);
+    if (!SealSaves) return json;
+    const std::vector<u8> sealed = SaveSeal::Seal(json, Key());
+    return { sealed.begin(), sealed.end() };
+}
+
+// A slot file's JSON: unsealed and checked, or plain where this build takes
+// plain saves. Null - so Read falls back to the backup - for a missing file,
+// one that fails its seal check, a plain one this build refuses, or bad JSON.
+std::optional<nlohmann::json> SaveManager::Decode(const std::filesystem::path& path) const
+{
+    const std::optional<std::vector<u8>> bytes = ReadBytes(path);
+    if (!bytes) return std::nullopt;
+
+    std::string text;
+    if (SaveSeal::IsSealed(*bytes)) {
+        std::optional<std::string> opened = SaveSeal::Open(*bytes, Key());
+        if (!opened) {
+            LOG_WARN(Engine, "SaveManager: '{}' failed its seal check (edited, damaged, or another key)", path.string());
+            return std::nullopt;
+        }
+        text = std::move(*opened);
+    }
+    else if (AcceptPlainSaves) {
+        text.assign(bytes->begin(), bytes->end());
+    }
+    else {
+        LOG_WARN(Engine, "SaveManager: '{}' isn't sealed - plain saves aren't accepted in this build", path.string());
+        return std::nullopt;
+    }
+    nlohmann::json json = nlohmann::json::parse(text, nullptr, false);
+    if (json.is_discarded()) return std::nullopt;
+    return json;
 }
 
 // Apply the registered steps from the save's game version up to the current
