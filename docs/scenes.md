@@ -28,6 +28,30 @@ app.GetScenes().Register("Cave", [] { return std::make_unique<FileScene>("assets
 app.GetScenes().Switch("Village", "north_gate"); // queued; fade out, swap, fade in
 ```
 
+### Scene stack
+
+```cpp
+app.GetScenes().Push("Battle", "arena"); // suspend the active scene, load Battle on top
+app.GetScenes().Pop();                   // unload Battle, resume the scene below
+```
+
+`Push` suspends the active scene rather than unloading it: `OnSuspend` runs,
+it stops being updated or drawn, and its sounds stop (they restart on resume),
+but its entities, resources and state stay as they are. `Pop` unloads the top
+scene and calls `OnResume` on the one below. Use it for a scene you come back
+from with the world as you left it, e.g. a battle over the overworld.
+`Switch` replaces the whole stack, top first. All three fade the same way,
+and a request made while another is queued replaces it.
+
+Only the top scene is drawn. A frame has one camera, so letting a scene show
+through the one above it needs offscreen render targets (Phase 34). Overlays
+that keep the world visible (inventory, pause menu) are UI screens.
+
+The demo app shows it: B pushes `assets/scenes/battle.arcscene` over any demo
+and B again pops back to the demo exactly as it was left.
+
+### Swap rules
+
 The swap runs while the render thread is idle, so `OnLoad` / `OnUnload` may
 create and destroy GPU resources. Order: old `OnUnload`, new `OnLoad`, old
 scene's resources released, old scene destroyed. Scene teardown destroys every

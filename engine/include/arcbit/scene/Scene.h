@@ -54,6 +54,14 @@ public:
     // resources here is safe.
     virtual void OnUnload() {}
 
+    // Another scene was pushed on top of this one: from now until OnResume
+    // it isn't updated or drawn, and its sounds are stopped. Its entities and
+    // resources stay as they are.
+    virtual void OnSuspend() {}
+
+    // The scene above was popped and this one is active again.
+    virtual void OnResume() {}
+
     // Per-scene game logic, each fixed tick before the scene's systems run.
     virtual void OnUpdate(f32 /*dt*/) {}
 
@@ -127,6 +135,10 @@ private:
 
     // Drop this scene's LoadTexture references (SceneManager, on unload).
     void ReleaseResources();
+
+    // Stop every AudioSource's sound; the audio system restarts the playing
+    // ones once the scene updates again (SceneManager, on suspend).
+    void StopSounds();
 
     World                         _world;
     Camera2D                      _camera;

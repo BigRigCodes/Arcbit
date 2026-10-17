@@ -29,7 +29,11 @@ public:
         _log.push_back("load:" + GetName() + (GetEntryPoint().empty() ? "" : "@" + GetEntryPoint()));
     }
     void OnUnload() override { _log.push_back("unload:" + GetName()); }
+    void OnSuspend() override { _log.push_back("suspend:" + GetName()); }
+    void OnResume() override { _log.push_back("resume:" + GetName()); }
     void OnUpdate(f32) override { _log.push_back("update:" + GetName()); }
+
+    int Counter = 0; // stand-in for scene state that must survive a suspend
 
 private:
     std::vector<std::string>& _log;
@@ -187,4 +191,90 @@ TEST_CASE("Scene::Update runs OnUpdate before the scene's systems", "[scene]")
 
     scene.Update(Dt);
     CHECK(log == std::vector<std::string>{ "update:", "system" });
+}
+
+// ---------------------------------------------------------------------------
+// Scene stack
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Push suspends the active scene instead of unloading it", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    static_cast<LogScene*>(f.scenes.GetActive())->Counter = 42;
+
+    f.scenes.Push("B", "arena");
+    f.Tick(40);
+    CHECK(f.ActiveName() == "B");
+    CHECK(f.scenes.GetDepth() == 2);
+    CHECK(f.log == std::vector<std::string>{ "suspend:A", "load:B@arena" }); // A was never unloaded
+}
+
+TEST_CASE("Pop unloads the top scene and resumes the one below with its state", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    auto* a    = static_cast<LogScene*>(f.scenes.GetActive());
+    a->Counter = 7;
+    f.scenes.Push("B");
+    f.Tick(40);
+    f.log.clear();
+
+    f.scenes.Pop();
+    f.Tick(40);
+    CHECK(f.scenes.GetActive() == a); // the same scene object, not a reload
+    CHECK(a->Counter == 7);
+    CHECK(f.scenes.GetDepth() == 1);
+    CHECK(f.log == std::vector<std::string>{ "unload:B", "resume:A" });
+}
+
+TEST_CASE("Only the top of the stack updates", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Push("B");
+    f.Tick(40);
+    f.log.clear();
+
+    f.scenes.GetActive()->Update(Dt); // what Application does each tick
+    CHECK(f.log == std::vector<std::string>{ "update:B" });
+}
+
+TEST_CASE("Switch replaces the whole stack, top first", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Push("B");
+    f.Tick(40);
+    f.log.clear();
+
+    f.scenes.Switch("C");
+    f.Tick(40);
+    CHECK(f.scenes.GetDepth() == 1);
+    CHECK(f.ActiveName() == "C");
+    CHECK(f.log == std::vector<std::string>{ "unload:B", "unload:A", "load:C" });
+}
+
+TEST_CASE("Pop with nothing below is ignored", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Pop();
+    CHECK_FALSE(f.scenes.IsTransitioning());
+    f.Tick(40);
+    CHECK(f.ActiveName() == "A");
+    CHECK(f.log.empty());
+}
+
+TEST_CASE("Shutdown unloads every scene on the stack, top first", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    f.scenes.Push("B");
+    f.Tick(40);
+    f.log.clear();
+
+    f.scenes.Shutdown();
+    CHECK(f.scenes.GetDepth() == 0);
+    CHECK(f.log == std::vector<std::string>{ "unload:B", "unload:A" });
 }

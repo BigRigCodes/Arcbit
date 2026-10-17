@@ -71,6 +71,15 @@ std::string Scene::GetSpriteSheetPath(const SpriteSheet* sheet) const
     return {};
 }
 
+void Scene::StopSounds()
+{
+    _world.Query<AudioSource>().ForEach([](AudioSource& src) {
+        if (!src._handle) return;
+        AudioManager::DestroySpatialSound(src._handle);
+        src._handle = nullptr;
+    });
+}
+
 void Scene::ReleaseResources()
 {
     if (_app)

@@ -334,7 +334,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
 - [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
 - [ ] Async streaming: load the next scene in the background while the current one keeps running
-- [ ] Scene stack — a scene suspended under another without unloading (e.g. a battle scene over the overworld, resumed with state intact). UI overlays like inventory stay on the UI screen stack
+- [x] Scene stack — `Push` suspends the active scene (`OnSuspend`; not updated or drawn, sounds stopped, state kept) and loads one on top; `Pop` unloads it and resumes the one below (`OnResume`); `Switch` replaces the whole stack. B in the demo app pushes a battle arena over any demo. UI overlays like inventory stay on the UI screen stack
+- [ ] Draw a suspended scene under the one above (e.g. a battle over a dimmed overworld) - needs the outgoing scene rendered to an offscreen target (Phase 34), like crossfade
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
 
 **Demo switcher**

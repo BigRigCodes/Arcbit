@@ -2,8 +2,13 @@
 // the demo menu, PgUp / PgDn cycle, and the last demo opened is remembered in
 // settings. Each demo lives in its own TU and exposes a Demo::Create* factory.
 //
-// `arcbit-game --cycle <seconds>` switches to the next demo on a timer — a
-// soak test for scene loading / unloading that needs no keyboard.
+// B pushes a small battle arena (assets/scenes/battle.arcscene) over whichever
+// demo is running and B again pops back to it, exactly as it was left: the
+// scene stack.
+//
+// `arcbit-game --cycle <seconds>` runs a soak test that needs no keyboard: on
+// a timer it pushes the battle, pops it, and moves to the next demo, so every
+// scene loads, suspends, resumes and unloads over and over.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
@@ -48,7 +53,10 @@ namespace
 {
 constexpr ActionID ActionDemoMenu = MakeAction("Demo_Menu");
 constexpr ActionID ActionDemoNext = MakeAction("Demo_Next");
-constexpr ActionID ActionDemoPrev = MakeAction("Demo_Prev");
+constexpr ActionID ActionDemoPrev   = MakeAction("Demo_Prev");
+constexpr ActionID ActionDemoBattle = MakeAction("Demo_Battle");
+
+constexpr const char* BattleScene = "Battle";
 
 constexpr const char* LastDemoKey = "demo.last";
 } // namespace
@@ -67,6 +75,7 @@ protected:
         Demo::RegisterInput(GetInput());
         Demo::RegisterSceneTypes(GetSceneRegistry());
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
+        GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         Open(LastOpenedIndex());
     }
 
@@ -75,10 +84,11 @@ protected:
         if (GetUI().HasBlockingScreen()) return; // a menu owns the keys (the demo menu closes itself)
 
         const size_t count = Demo::Entries().size();
-        if (CycleDue(dt)) Open((_current + 1) % count);
+        if (CycleDue(dt)) CycleStep(count);
         else if (GetInput().JustPressed(ActionDemoMenu)) ShowMenu();
         else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count);
         else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count);
+        else if (GetInput().JustPressed(ActionDemoBattle)) ToggleBattle();
     }
 
 private:
@@ -87,8 +97,28 @@ private:
         _current               = index;
         const Demo::Entry& demo = Demo::Entries()[index];
         GetScenes().Switch(demo.Name);
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle", demo.Name, demo.Keys));
+        SetDemoTitle(demo);
         Settings::Set<std::string>(LastDemoKey, demo.Name);
+    }
+
+    void SetDemoTitle(const Demo::Entry& demo)
+    {
+        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle", demo.Name,
+                                   demo.Keys));
+    }
+
+    // B: push the battle arena over the running demo; B again pops back to
+    // the demo, which was suspended rather than unloaded.
+    void ToggleBattle()
+    {
+        if (GetScenes().IsTransitioning()) return;
+        if (GetScenes().GetDepth() > 1) {
+            GetScenes().Pop();
+            SetDemoTitle(Demo::Entries()[_current]);
+            return;
+        }
+        GetScenes().Push(BattleScene);
+        SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
     }
 
     [[nodiscard]] size_t LastOpenedIndex() const
@@ -112,6 +142,13 @@ private:
         GetUI().Push(std::move(menu));
     }
 
+    // --cycle: push the battle, pop it, next demo, repeat.
+    void CycleStep(const size_t count)
+    {
+        if (_cycleStep++ % 3 == 2) Open((_current + 1) % count);
+        else ToggleBattle();
+    }
+
     // --cycle: true once per interval, counted only while no switch is running.
     bool CycleDue(const f32 dt)
     {
@@ -125,6 +162,7 @@ private:
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;
     f32    _cycleTimer   = 0.0f;
+    u32    _cycleStep    = 0;
 };
 
 int main(const int argc, char* argv[])

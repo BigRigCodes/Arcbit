@@ -135,6 +135,19 @@ TEST_CASE("The shipped physics scene loads its world and entities", "[scene][shi
         CHECK(scene.GetPhysics().FindColliderForEntity(e) != PhysicsWorld::InvalidId);
 }
 
+TEST_CASE("The shipped battle scene loads", "[scene][shipped]")
+{
+    std::ifstream f(ArcbitTests::SourcePath("game/assets/scenes/battle.arcscene"));
+    REQUIRE(f);
+    const SceneRegistry registry = MakeRegistry();
+    FakeAssets          assets;
+    Scene               scene;
+    SceneFile::IdMap    ids;
+    REQUIRE(SceneFile::Load(scene, json::parse(f), registry, assets, ids));
+    CHECK(ids.size() == 8);
+    CHECK(scene.GetWorld().GetComponent<InputMovement>(ids.at("player")) != nullptr);
+}
+
 TEST_CASE("Saving a loaded scene reproduces the file exactly", "[scene][shipped]")
 {
     // The shipped file is kept in the saver's canonical form (sorted keys,

@@ -91,6 +91,7 @@ namespace
             { "Demo_Menu", "Demo Menu", "Demo", { Key::F1 } },
             { "Demo_Next", "Next Demo", "Demo", { Key::PageDown } },
             { "Demo_Prev", "Previous Demo", "Demo", { Key::PageUp } },
+            { "Demo_Battle", "Push / Pop Battle", "Demo", { Key::B } },
         };
         return defs;
     }
