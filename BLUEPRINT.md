@@ -251,6 +251,16 @@ define *how* it gets there. Any controller pairs with any style.
 - [ ] Editor integration: GUI layouts designed and previewed in the AvaloniaUI editor (Phase 40)
 - [ ] Dialog screen (Phase 27), Inventory screen (Phase 25)
 
+### Phase 21B - Text styling & animation
+*Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
+
+- [ ] Font styles: bold, italic, bold italic, and weights (thin to black) - a font family maps each style / weight to its own `.ttf`, falling back to faux bold (SDF threshold) and faux italic (shear) when a face is missing
+- [ ] Text decorations: outline / stroke (color, width), drop shadow (offset, color, softness), glow, underline and strikethrough
+- [ ] Styles in `UISkin` and per widget (`SkinOverride`, `.arcui`), so a skin sets the look of every label at once
+- [ ] Inline rich text markup for mixed styles in one string (`<b>`, `<i>`, `<color=#f00>`, `<outline>`), shared with localized strings
+- [ ] Animated text: typewriter reveal (characters per second, a sound per character, skip to the end on confirm - the dialog box's reveal in Phase 27 uses it), and per-character effects - wave, wobble / shake, rainbow, fade-in - on a whole label or a marked span
+- [ ] Editor: font, style and effect pickers with a live preview (Phase 40)
+
 ---
 
 ## Phase 22: 2D Collision
@@ -435,7 +445,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Interactable tile and NPC trigger: `OnInteract` starts a named dialog graph
 - [ ] All displayed text referenced by localization key (Phase 28); raw strings are never embedded
 - [ ] Variable substitution in text (`{player_name}`, `{gold_count}`, etc.) resolved via Localization interpolation
-- [ ] Typewriter reveal effect with configurable speed; skip on confirm input
+- [ ] Typewriter reveal effect with configurable speed; skip on confirm input (the reusable reveal comes from Phase 21B)
 - [ ] Portraits / speaker icons per node (optional; falls back to name-only if absent)
 - [ ] JSON authoring format; importable from editor (Phase 40)
 - [ ] Lua hook: `OnDialogEnd(graphId, lastChoice)` for scripted reactions
