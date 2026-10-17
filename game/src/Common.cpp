@@ -165,6 +165,7 @@ void RegisterInput(InputManager& input)
     }
 
     input.BindGamepadButton(MakeAction("Interact"), GamepadButton::South);
+    input.BindGamepadButton(MakeAction("Pause"), GamepadButton::Start); // the pause / start menu
     input.BindGamepadButton(MakeAction("Sprint"), GamepadButton::RightShoulder);
     // One half of each stick axis per direction — a whole axis on both
     // actions would press both whenever the stick moved, and they'd cancel.
