@@ -68,6 +68,7 @@ private:
     void CancelListening();  // restores removed binding, does NOT rebuild
     void StopListening(bool commit);
     void RemoveChip(ActionID action, const Binding& b);
+    void TakeBinding(const Binding& b); // from every action listed here, then to the listening one
 };
 
 } // namespace Arcbit

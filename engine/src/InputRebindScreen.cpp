@@ -295,23 +295,25 @@ void InputRebindScreen::OnTick(const f32 dt, const InputManager& input)
         const MouseButton mb = input.GetAnyJustReleasedMouseButton();
         if (k == Key::Unknown && mb == MouseButton::Count) return;
 
-        if (k != Key::Unknown) {
-            Input->UnbindKey(k);
-            Input->BindKey(_listeningAction, k);
-        }
-        else {
-            Input->UnbindMouseButton(mb);
-            Input->BindMouseButton(_listeningAction, mb);
-        }
+        TakeBinding(k != Key::Unknown ? Binding::FromKey(k) : Binding::FromMouseButton(mb));
     }
     else {
         const GamepadButton btn = input.GetAnyJustReleasedGamepadButton();
         if (btn == GamepadButton::Count) return;
-        Input->UnbindGamepadButton(btn);
-        Input->BindGamepadButton(_listeningAction, btn);
+        TakeBinding(Binding::FromGamepadButton(btn));
     }
 
     StopListening(true);
+}
+
+// A binding belongs to one of the actions on this screen at a time, so it
+// moves from whichever had it. Only those, though: the hidden UI_ / Engine_
+// actions keep theirs - binding A to Interact used to take A away from menu
+// confirm, and the D-pad from menu navigation.
+void InputRebindScreen::TakeBinding(const Binding& b)
+{
+    for (const ActionEntry& e : _entries) Input->RemoveBinding(e.id, b);
+    Input->AddBinding(_listeningAction, b);
 }
 
 void InputRebindScreen::OnBackPressed()
