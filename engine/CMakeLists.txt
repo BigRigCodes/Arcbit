@@ -13,6 +13,7 @@ add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
     src/ApplicationSaves.cpp
+    src/DebugConsole.cpp
     src/UserFolder.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp

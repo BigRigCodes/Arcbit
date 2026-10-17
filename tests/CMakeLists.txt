@@ -6,6 +6,7 @@ find_package(nlohmann_json CONFIG REQUIRED) # JSON format tests build documents 
 # render device, or assets are created.
 add_executable(arcbit-tests
     main.cpp
+    app/DebugConsoleTests.cpp
     assets/SpriteSheetTests.cpp
     audio/VolumeTests.cpp
     core/LocTests.cpp
