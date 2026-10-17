@@ -21,6 +21,7 @@ namespace
 // One scripted entity's instance: `self`, and the module it reads hooks from.
 struct ScriptInstance
 {
+    u64         Id = 0; // owns the event subscriptions it makes
     sol::table  Self;
     sol::table  Module;
     std::string Name;               // "chest (Entity 3:1)", for logs
@@ -50,12 +51,15 @@ struct SceneScripts::Impl
     void                      StartEntity(Entity e);
     void                      StartNew();
 
-    // Call module[hook](args...) if the module has it. False if it failed (logged).
+    // Call module[hook](args...) if the module has it, acting on this scene
+    // as this instance. False if it failed (logged).
     template<typename... Args>
     bool CallHook(const ScriptInstance& instance, const char* hook, Args&&... args)
     {
         const sol::object fn = instance.Module[hook];
         if (fn.get_type() != sol::type::function) return true;
+        const ScriptEngine::State::ContextScope scope(
+            Lua, ScriptContext{ .Scene = &Owner, .Serial = Serial, .Owner = instance.Id, .Self = instance.Self });
         const sol::protected_function_result result = Lua.Call(fn.as<sol::protected_function>(), std::forward<Args>(args)...);
         if (result.valid()) return true;
         LOG_ERROR(Scripting, "{} {}: {}", instance.Name, hook, result.get<sol::error>().what());
@@ -102,6 +106,7 @@ void SceneScripts::Impl::StartEntity(const Entity e)
     const Script* script = Owner.GetWorld().GetComponent<Script>(e);
     if (!script) return; // gone since StartNew listed it
     ScriptInstance instance;
+    instance.Id   = Lua.NextOwnerId++;
     instance.Name = std::format("{} (Entity {}:{})", script->Module, e.Index, e.Generation);
 
     const std::optional<sol::table> module = LoadModule(script->Module, instance.Name);
@@ -144,6 +149,7 @@ void SceneScripts::Start()
     Impl& s = *_impl;
     if (!s.SceneModule.empty()) {
         ScriptInstance instance;
+        instance.Id   = s.Lua.NextOwnerId++;
         instance.Name = std::format("scene '{}' ({})", s.Owner.GetName(), s.SceneModule);
         if (const std::optional<sol::table> module = s.LoadModule(s.SceneModule, instance.Name)) {
             instance.Module = *module;
@@ -176,6 +182,8 @@ void SceneScripts::Update(const f32 dt)
     }
 }
 
+// While its OnDestroy runs the entity is "dying": readable, but the script
+// can't destroy it again or reshape it mid-removal.
 void SceneScripts::Removed(const Entity entity)
 {
     Impl&      s  = *_impl;
@@ -183,7 +191,11 @@ void SceneScripts::Removed(const Entity entity)
     if (it == s.Instances.end()) return;
     const ScriptInstance instance = std::move(it->second);
     s.Instances.erase(it);
+    const std::pair<u64, u64> dying{ s.Serial, InstanceKey(entity) };
+    s.Lua.Dying.insert(dying);
     if (!instance.Broken) s.CallHook(instance, "OnDestroy", instance.Self);
+    s.Lua.Dying.erase(dying);
+    s.Lua.EndSubscriptions(instance.Id);
 }
 
 void SceneScripts::End()
@@ -194,8 +206,12 @@ void SceneScripts::End()
         const ScriptInstance instance = std::move(it->second);
         s.Instances.erase(it);
         if (!instance.Broken) s.CallHook(instance, "OnDestroy", instance.Self);
+        s.Lua.EndSubscriptions(instance.Id);
     }
-    if (s.SceneScript) s.CallHook(*s.SceneScript, "OnUnload", s.SceneScript->Self);
+    if (s.SceneScript) {
+        s.CallHook(*s.SceneScript, "OnUnload", s.SceneScript->Self);
+        s.Lua.EndSubscriptions(s.SceneScript->Id);
+    }
     s.SceneScript.reset();
 }
 } // namespace Arcbit

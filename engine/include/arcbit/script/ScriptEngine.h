@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/core/Types.h>
+#include <arcbit/save/SaveManager.h>
 
 #include <filesystem>
 #include <functional>
@@ -11,6 +12,31 @@
 
 namespace Arcbit
 {
+class EventBus;
+class InputManager;
+class Scene;
+class SceneAssets;
+class SceneManager;
+class SceneRegistry;
+
+// What the engine API scripts call reaches (Application wires all of it;
+// tests wire what they need). Anything left empty makes the matching calls
+// do nothing, with a warning.
+struct ScriptServices
+{
+    SceneManager*        Scenes   = nullptr; // Scene.*, and the scene the console acts on
+    const InputManager*  Input    = nullptr; // Input.*
+    EventBus*            Events   = nullptr; // Event.*
+    SaveManager*         Saves    = nullptr; // Save.Get / Set
+    const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
+
+    std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets; // component reads / writes
+    std::function<void(std::string_view path, f32 volume)> PlaySound;
+    std::function<bool(SaveSlot)> SaveTo;
+    std::function<bool(SaveSlot)> LoadFrom;
+    std::function<bool()>         AutoSave;
+};
+
 // Limits on what one call into Lua may use - a runaway script becomes a
 // logged error instead of a frozen or exhausted game.
 struct ScriptLimits
@@ -68,6 +94,9 @@ public:
 
     // Where print and Log output goes, besides the log - the console.
     void SetOutput(std::function<void(std::string_view line)> output);
+
+    // What the engine API reaches (see ScriptServices).
+    void SetServices(ScriptServices services);
 
     // Bytes the Lua state is using.
     [[nodiscard]] size_t GetMemoryUsed() const;

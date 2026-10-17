@@ -227,6 +227,18 @@ void Application::Run()
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },
                       .Scripts         = &_scriptEngine });
     RegisterSaveSections();
+    _scriptEngine.SetServices({ .Scenes    = &_scenes,
+                                .Input     = &_input,
+                                .Events    = &_events,
+                                .Saves     = &_saves,
+                                .Registry  = &_sceneRegistry,
+                                .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
+                                .PlaySound = [](const std::string_view path, const f32 volume) {
+                                    AudioManager::PlayOneShot(path, volume);
+                                },
+                                .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
+                                .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
+                                .AutoSave = [this] { return AutoSave(); } });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses

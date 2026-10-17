@@ -3,6 +3,8 @@
 
 #include "ScriptState.h"
 
+#include <arcbit/core/Math.h>
+
 #include <cmath>
 
 namespace Arcbit
@@ -69,7 +71,12 @@ nlohmann::json LuaToJson(const sol::object& value)
                 else if (key.get_type() == sol::type::number) object[std::to_string(key.as<i64>())] = LuaToJson(item);
             return object;
         }
-        default: return nullptr;
+        default:
+            if (value.is<Vec2>()) { // a position in a component's fields
+                const Vec2 v = value.as<Vec2>();
+                return nlohmann::json::array({ v.X, v.Y });
+            }
+            return nullptr;
     }
 }
 } // namespace Arcbit

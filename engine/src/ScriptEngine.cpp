@@ -106,6 +106,12 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     BindLog();
     BindVec2();
     BindEntity();
+    BindScene();
+    BindTilemap();
+    BindInput();
+    BindAudio();
+    BindSave();
+    BindEvents();
     BindRequire();
 }
 
@@ -180,6 +186,8 @@ ScriptEngine::~ScriptEngine() = default;
 const std::filesystem::path& ScriptEngine::GetRoot() const { return _state->Root; }
 
 void ScriptEngine::SetOutput(std::function<void(std::string_view)> output) { _state->Output = std::move(output); }
+
+void ScriptEngine::SetServices(ScriptServices services) { _state->Services = std::move(services); }
 
 size_t ScriptEngine::GetMemoryUsed() const { return _state->Runtime.MemoryUsed; }
 

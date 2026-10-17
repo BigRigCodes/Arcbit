@@ -34,6 +34,7 @@ add_executable(arcbit-tests
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp
     script/SceneScriptTests.cpp
+    script/ScriptApiTests.cpp
     script/ScriptEngineTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
