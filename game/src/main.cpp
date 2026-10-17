@@ -26,6 +26,7 @@
 #include "Common.h"
 #include "DemoSelectScreen.h"
 #include "EventLogScreen.h"
+#include "WidgetTestScreen.h"
 
 #include <arcbit/app/Application.h>
 #include <arcbit/audio/AudioManager.h>
@@ -34,6 +35,7 @@
 #include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
+#include <arcbit/ui/PauseMenuScreen.h>
 #include <arcbit/ui/UISkin.h>
 
 #include <cstdlib>
@@ -47,7 +49,7 @@ std::span<const Demo::Entry> Demo::Entries()
 {
     static const Entry entries[] = {
         { "World", "tilemap world: lights, audio, ships, HUD",
-          "Esc pause, T widgets, Space attack, E shake, G grid", &CreateWorldDemo },
+          "Space attack, E shake, G grid", &CreateWorldDemo },
         { "Physics", "free movement, knockback bumper, pushable crate (22B, 22I)", "F2 colliders, G grid",
           &CreatePhysicsDemo },
         { "Physics File", "the Physics demo as a scene file - no C++ scene class (23)", "F2 colliders",
@@ -75,6 +77,8 @@ constexpr ActionID ActionDemoBattle = MakeAction("Demo_Battle");
 constexpr ActionID ActionEventLog   = MakeAction("Demo_EventLog");
 constexpr ActionID ActionQuickSave  = MakeAction("Demo_QuickSave");
 constexpr ActionID ActionQuickLoad  = MakeAction("Demo_QuickLoad");
+constexpr ActionID ActionPause      = MakeAction("Pause");
+constexpr ActionID ActionWidgetTest = MakeAction("Debug_WidgetTest");
 
 constexpr const char* BattleScene = "Battle";
 
@@ -134,7 +138,9 @@ protected:
         // F1 opens the demo menu over any other menu, swapping it out (the
         // demo menu closes itself on F1).
         if (GetInput().JustPressed(ActionDemoMenu) && !GetUI().IsOpen(_demoMenu)) ShowMenu();
+        HandlePauseKey();
         if (GetUI().HasBlockingScreen()) return; // a menu owns the other keys
+        if (GetInput().JustPressed(ActionWidgetTest)) ShowWidgetTest();
 
         const size_t count = Demo::Entries().size();
         if (GetInput().JustPressed(ActionQuickSave)) (void)SaveTo(SaveSlot::Quick());
@@ -157,8 +163,8 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle, F3 events, "
-                                   "F5 / F9 quicksave / load",
+        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   Esc pause, F1 demos, PgUp/PgDn cycle, B battle, "
+                                   "T widgets, F3 events, F5 / F9 quicksave / load",
                                    demo.Name, demo.Keys));
     }
 
@@ -187,6 +193,48 @@ private:
         }
         GetScenes().Push(BattleScene);
         SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
+    }
+
+    // Pause opens the pause menu - over any demo, the battle too - swapping out
+    // any other menu, like the demo switcher, and closes it again (with
+    // whatever settings screen it has open). While a menu is open, a pause key
+    // that is also "back" (Escape) is that menu's back, not a new pause:
+    // gamepad Start swaps, Escape closes.
+    void HandlePauseKey()
+    {
+        UIManager& ui = GetUI();
+        if (!GetInput().JustPressed(ActionPause)) return;
+        if (ui.IsOpen(_pauseMenu)) {
+            if (!UIManager::IsBackPressed(GetInput())) ui.CloseMenus(); // Escape: the menu's own back
+            return;
+        }
+        if (ui.HasOpenMenu() && UIManager::IsBackPressed(GetInput())) return;
+        ShowPauseMenu();
+    }
+
+    void ShowPauseMenu()
+    {
+        auto pause                = std::make_unique<PauseMenuScreen>();
+        _pauseMenu                = pause.get();
+        pause->OnResume           = [this] { GetUI().Close(_pauseMenu); };
+        pause->ShowSaveGame       = true;
+        pause->ShowLoadGame       = true;
+        pause->OnSaveGame         = [this] { ShowSaveScreen(); };
+        pause->OnLoadGame         = [this] { ShowLoadScreen(); };
+        pause->OnControls         = [this] { ShowControlsScreen(); };
+        pause->OnAudioSettings    = [this] { ShowAudioScreen(); };
+        pause->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
+        pause->OnQuit             = [this] { RequestShutdown(); };
+        GetUI().OpenMenu(std::move(pause));
+    }
+
+    // T: the widget test screen, every widget in one place.
+    void ShowWidgetTest()
+    {
+        auto      screen = std::make_unique<WidgetTestScreen>();
+        UIScreen* ptr    = screen.get();
+        screen->OnClose  = [this, ptr] { GetUI().Close(ptr); };
+        GetUI().OpenMenu(std::move(screen));
     }
 
     void ToggleEventLog()
@@ -247,6 +295,7 @@ private:
     Subscription                  _sceneLoaded; // FollowLoadedScene
     const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
     const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
+    const UIScreen*               _pauseMenu = nullptr; // Esc / Start (check GetUI().IsOpen)
 
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;
