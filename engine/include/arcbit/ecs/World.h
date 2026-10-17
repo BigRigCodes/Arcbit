@@ -146,6 +146,23 @@ struct Archetype
     std::vector<Entity>                                 Entities;
 };
 
+namespace Internal
+{
+// Counts one QueryView::ForEach in flight on a World for as long as it lives,
+// so the count unwinds even when a callback throws.
+class IterationScope
+{
+public:
+    explicit IterationScope(u32& depth) : _depth(depth) { ++_depth; }
+    ~IterationScope() { --_depth; }
+    IterationScope(const IterationScope&)            = delete;
+    IterationScope& operator=(const IterationScope&) = delete;
+
+private:
+    u32& _depth;
+};
+} // namespace Internal
+
 // Forward-declare QueryView so World::Query() can return it.
 template<typename... Ts>
 class QueryView;
@@ -201,10 +218,15 @@ public:
     // Returns true if the entity is alive and its generation matches the table.
     [[nodiscard]] bool IsValid(Entity entity) const;
 
+    // True while a QueryView::ForEach is running over this world - when
+    // CreateEntity, DestroyEntity, AddComponent and RemoveComponent assert.
+    [[nodiscard]] bool IsIterating() const { return _iterationDepth > 0; }
+
     // Add a component. Moves the entity to a larger archetype. Asserts if already present.
     template<typename T>
     void AddComponent(const Entity entity, T value = {})
     {
+        ARCBIT_ASSERT(!IsIterating(), "AddComponent: called inside ForEach - collect the entities, add after");
         ARCBIT_ASSERT(IsValid(entity), "AddComponent: invalid entity");
         auto&                 rec = _entityTable[entity.Index];
         const ComponentTypeID tid = TypeOf<T>();
@@ -234,6 +256,7 @@ public:
     template<typename T>
     void RemoveComponent(const Entity entity)
     {
+        ARCBIT_ASSERT(!IsIterating(), "RemoveComponent: called inside ForEach - collect the entities, remove after");
         ARCBIT_ASSERT(IsValid(entity), "RemoveComponent: invalid entity");
         auto& rec = _entityTable[entity.Index];
         ARCBIT_ASSERT(rec.mask & (1ULL << TypeOf<T>()), "RemoveComponent: component not present");
@@ -273,7 +296,7 @@ public:
     {
         ComponentMask mask = 0;
         ((mask |= (1ULL << TypeOf<std::remove_const_t<Ts>>())), ...);
-        return QueryView<Ts...>(_archetypes, mask);
+        return QueryView<Ts...>(_archetypes, _iterationDepth, mask);
     }
 
     void RegisterSystem(std::string_view name, UpdateFn fn);
@@ -295,6 +318,7 @@ private:
     std::vector<EntityRecord>                    _entityTable;
     std::vector<u32>                             _freeList;
     std::unordered_map<ComponentMask, Archetype> _archetypes;
+    u32                                          _iterationDepth = 0; // ForEach calls in flight (they nest)
 
     std::vector<std::pair<std::string, UpdateFn>> _updateSystems;
     std::vector<std::pair<std::string, RenderFn>> _renderSystems;
@@ -323,8 +347,9 @@ class QueryView
     using Elem = std::remove_const_t<std::tuple_element_t<I, std::tuple<Ts...>>>;
 
 public:
-    QueryView(std::unordered_map<ComponentMask, Archetype>& archetypes, const ComponentMask include) :
-        _archetypes(archetypes), _includeMask(include)
+    QueryView(std::unordered_map<ComponentMask, Archetype>& archetypes, u32& iterationDepth,
+              const ComponentMask include) :
+        _archetypes(archetypes), _iterationDepth(iterationDepth), _includeMask(include)
     {}
 
     // Exclude archetypes containing U.
@@ -344,9 +369,18 @@ public:
 
     // Invoke fn for each entity in matching archetypes.
     // fn may take (Entity, T0&, T1&...) or just (T0&, T1&...).
+    //
+    // fn must not change the world's structure: no CreateEntity,
+    // DestroyEntity, AddComponent or RemoveComponent, on any entity. Those
+    // move entities between archetype slots under the loop, so it skips or
+    // re-visits entities, reads past the end, and leaves fn's component
+    // references dangling. Debug builds assert. Collect the entities in a
+    // vector and change them after ForEach returns. Reading and writing
+    // component values, GetComponent and nested queries are fine.
     template<typename Fn>
     void ForEach(Fn&& fn)
     {
+        const Internal::IterationScope scope(_iterationDepth);
         for (auto& [mask, arch] : _archetypes)
         {
             if ((mask & _includeMask) != _includeMask)
@@ -388,6 +422,7 @@ private:
     }
 
     std::unordered_map<ComponentMask, Archetype>& _archetypes;
+    u32&                                          _iterationDepth; // the owning World's
     ComponentMask                                 _includeMask = 0;
     ComponentMask                                 _excludeMask = 0;
     std::string                                   _tag;

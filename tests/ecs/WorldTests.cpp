@@ -190,3 +190,54 @@ TEST_CASE("OnDestroy hooks run for destroyed entities, not removed components", 
     world.DestroyAllEntities();
     CHECK(destroyed == std::vector<Entity>{ a, b });
 }
+
+// Structural changes inside ForEach swap-remove entities under the loop, so it
+// skips one and reads past the end (the debug STL aborts). World tracks
+// iteration so those calls assert instead; the assert itself breaks into the
+// debugger, so these cover the tracking it relies on and the safe pattern.
+TEST_CASE("ForEach marks the world as iterating, including nested and throwing", "[ecs]")
+{
+    World world;
+    world.AddComponent<Lifetime>(world.CreateEntity());
+    CHECK_FALSE(world.IsIterating());
+
+    bool seenInside = false, seenNested = false, stillAfterNested = false;
+    world.Query<Lifetime>().ForEach([&](Lifetime&) {
+        seenInside = world.IsIterating();
+        world.Query<Transform2D>().ForEach([&](Transform2D&) { seenNested = world.IsIterating(); });
+        stillAfterNested = world.IsIterating(); // the inner scope must not end the outer one
+    });
+    CHECK(seenInside);
+    CHECK(seenNested);
+    CHECK(stillAfterNested);
+    CHECK_FALSE(world.IsIterating());
+
+    world.Query<Disabled>().ForEach([](Disabled&) {}); // no matches still opens and closes a scope
+    CHECK_FALSE(world.IsIterating());
+
+    CHECK_THROWS(world.Query<Lifetime>().ForEach([](Lifetime&) { throw 1; }));
+    CHECK_FALSE(world.IsIterating()); // a throwing callback unwinds the count
+}
+
+TEST_CASE("Collecting inside ForEach then destroying visits and removes the right entities", "[ecs]")
+{
+    World               world;
+    std::vector<Entity> coins;
+    for (int i = 0; i < 3; ++i) {
+        coins.push_back(world.CreateEntity());
+        world.AddComponent<Lifetime>(coins.back(), Lifetime{ .Remaining = static_cast<f32>(i) });
+    }
+
+    std::vector<f32>    visited;
+    std::vector<Entity> toDestroy;
+    world.Query<Lifetime>().ForEach([&](const Entity e, const Lifetime& lt) {
+        visited.push_back(lt.Remaining);
+        if (lt.Remaining == 0.0f) toDestroy.push_back(e);
+    });
+    for (const Entity e : toDestroy) world.DestroyEntity(e);
+
+    CHECK(visited.size() == 3); // destroying in the loop would have skipped one
+    CHECK_FALSE(world.IsValid(coins[0]));
+    REQUIRE(world.GetComponent<Lifetime>(coins[2]) != nullptr);
+    CHECK(world.GetComponent<Lifetime>(coins[2])->Remaining == 2.0f);
+}
