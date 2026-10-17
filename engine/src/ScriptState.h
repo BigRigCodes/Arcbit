@@ -112,6 +112,9 @@ struct ScriptEngine::State
     std::unordered_map<u64, LuaSubscription> Subscriptions;
     u64                                      NextSubscriptionId = 1;
 
+    // Console commands scripts registered, by name -> owner (they end with it).
+    std::unordered_map<std::string, u64> ConsoleOwners;
+
     // Scripted screens open, by id (ScriptedScreen registers itself).
     std::unordered_map<u64, ScriptedScreen*> Screens;
     u64                                      NextScreenId = 1;
@@ -123,6 +126,17 @@ struct ScriptEngine::State
     sol::environment                      Console;   // Run's globals, created on first use
     sol::reference                        Traceback; // error handler for Call: adds the stack traceback
     std::function<void(std::string_view)> Output;
+    std::function<void(std::string_view)> OnError;
+
+    // Hot reload: each loaded module's file and when it last changed;
+    // ReloadGeneration counts reloads, so instances can turn OnUpdate back on.
+    struct ModuleFile
+    {
+        std::filesystem::path           Path;
+        std::filesystem::file_time_type Changed;
+    };
+    std::unordered_map<std::string, ModuleFile> ModuleFiles;
+    u32                                         ReloadGeneration = 0;
 
     explicit State(std::filesystem::path root, ScriptLimits limits);
 
@@ -149,6 +163,12 @@ struct ScriptEngine::State
     // print / Log output: the log and, if set, Output.
     void Print(std::string_view line) const;
 
+    // A script error: logged, and handed to OnError.
+    void ReportError(const std::string& error) const;
+
+    // Reload one changed module in place (ScriptEngine::CheckReloads).
+    bool ReloadModule(const std::string& name, ModuleFile& file);
+
     // tostring, protected - a failing __tostring becomes a Lua error.
     [[nodiscard]] std::string ToString(const sol::object& value);
 
@@ -162,8 +182,10 @@ struct ScriptEngine::State
     [[nodiscard]] u64    SerialOf(const Scene* scene) const; // 0 = not running scripts
     [[nodiscard]] ScriptEntity Handle(const Scene& scene, Entity entity) const { return { entity, SerialOf(&scene) }; }
 
-    // End every subscription and task the instance made (it's going away).
+    // End every subscription, task and console command the instance made
+    // (it's going away).
     void EndSubscriptions(u64 owner);
+    void EndConsoleCommands(u64 owner);
 
     // Tasks (ScriptTasks.cpp).
     u64  StartTask(lua_State* L, const sol::protected_function& fn, const sol::variadic_args& args);
@@ -211,6 +233,7 @@ private:
     void BindEvents();
     void BindTasks();
     void BindUI();
+    void BindConsole();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with

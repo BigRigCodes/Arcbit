@@ -37,7 +37,8 @@ struct ScriptedScreen::Impl
     std::string          Layout;
     sol::table           Self;
     sol::table           Module;
-    bool                 UpdateOff = false;
+    bool                 UpdateOff  = false;
+    u32                  Generation = 0; // Lua->ReloadGeneration last seen
 
     Impl(ScriptEngine::State& lua, ScriptedScreen& owner, std::string layout)
         : Lua(&lua), Owner(owner), Id(lua.NextScreenId++), OwnerId(lua.NextOwnerId++), Layout(std::move(layout))
@@ -67,7 +68,7 @@ struct ScriptedScreen::Impl
         const ScriptEngine::State::ContextScope scope(*Lua, ScriptContext{ .Owner = OwnerId, .Self = Self });
         const sol::protected_function_result result = Lua->Call(fn.as<sol::protected_function>(), Self, std::forward<Args>(args)...);
         if (result.valid()) return true;
-        LOG_ERROR(Scripting, "UI '{}' {}: {}", Layout, hook, result.get<sol::error>().what());
+        Lua->ReportError(std::format("UI '{}' {}: {}", Layout, hook, result.get<sol::error>().what()));
         return false;
     }
 
@@ -97,7 +98,7 @@ void ScriptedScreen::Impl::Start()
         Module = loaded;
     }
     catch (const std::exception& e) {
-        LOG_ERROR(Scripting, "UI '{}': {}", Layout, e.what());
+        Lua->ReportError(std::format("UI '{}': {}", Layout, e.what()));
         return;
     }
     Self                     = Lua->Lua.create_table();
@@ -138,7 +139,7 @@ ScriptedScreen::ScriptedScreen(ScriptEngine& engine, std::string layoutPath)
     : _impl(std::make_unique<Impl>(engine.GetState(), *this, layoutPath))
 {
     TransitionSpeed = 6.0f;
-    if (!LoadLayout(layoutPath)) LOG_ERROR(Scripting, "ScriptedScreen: can't load '{}'", layoutPath);
+    if (!LoadLayout(layoutPath)) _impl->Lua->ReportError(std::format("ScriptedScreen: can't load '{}'", layoutPath));
     const std::string layer = GetMetaStr("layer", "menu");
     if (layer == "hud" || layer == "overlay") {
         Layer           = layer == "hud" ? UILayer::Hud : UILayer::Overlay;
@@ -169,6 +170,10 @@ void ScriptedScreen::OnExit()
 
 void ScriptedScreen::OnUpdate(const f32 dt)
 {
+    if (_impl->Lua && _impl->Generation != _impl->Lua->ReloadGeneration) {
+        _impl->Generation = _impl->Lua->ReloadGeneration;
+        _impl->UpdateOff  = false;
+    }
     if (_impl->UpdateOff || _impl->CallHook("OnUpdate", dt)) return;
     _impl->UpdateOff = true;
     LOG_WARN(Scripting, "UI '{}': OnUpdate turned off after its error", _impl->Layout);

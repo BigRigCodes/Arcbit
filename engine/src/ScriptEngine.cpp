@@ -84,9 +84,9 @@ namespace
         return to;
     }
 
-    ScriptResult Fail(std::string error)
+    ScriptResult Fail(const ScriptEngine::State& s, std::string error)
     {
-        LOG_ERROR(Scripting, "{}", error);
+        s.ReportError(error);
         return ScriptResult{ .Ok = false, .Error = std::move(error) };
     }
 } // namespace
@@ -116,6 +116,7 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     BindEvents();
     BindTasks();
     BindUI();
+    BindConsole();
     BindRequire();
 }
 
@@ -176,6 +177,12 @@ void ScriptEngine::State::Print(const std::string_view line) const
     if (Output) Output(line);
 }
 
+void ScriptEngine::State::ReportError(const std::string& error) const
+{
+    LOG_ERROR(Scripting, "{}", error);
+    if (OnError) OnError(error);
+}
+
 // ---------------------------------------------------------------------------
 // ScriptEngine
 // ---------------------------------------------------------------------------
@@ -199,6 +206,8 @@ void ScriptEngine::SetOutput(std::function<void(std::string_view)> output) { _st
 
 void ScriptEngine::SetServices(ScriptServices services) { _state->Services = std::move(services); }
 
+void ScriptEngine::SetErrorHandler(std::function<void(std::string_view)> handler) { _state->OnError = std::move(handler); }
+
 size_t ScriptEngine::GetMemoryUsed() const { return _state->Runtime.MemoryUsed; }
 
 // Tried as an expression first ("return 1 + 2"), so the console shows values
@@ -210,19 +219,19 @@ ScriptResult ScriptEngine::Run(const std::string_view code, const std::string_vi
     const std::string name  = "=" + std::string(chunkName);
     sol::load_result  chunk = s.Lua.load("return " + std::string(code), name, sol::load_mode::text);
     if (!chunk.valid()) chunk = s.Lua.load(code, name, sol::load_mode::text);
-    if (!chunk.valid()) return Fail(chunk.get<sol::error>().what());
+    if (!chunk.valid()) return Fail(s, chunk.get<sol::error>().what());
 
     sol::protected_function fn = chunk;
     s.Console.set_on(fn);
     try {
         sol::protected_function_result result = s.Call(fn);
-        if (!result.valid()) return Fail(result.get<sol::error>().what());
+        if (!result.valid()) return Fail(s, result.get<sol::error>().what());
         ScriptResult out;
         for (int i = 0; i < result.return_count(); ++i) out.Values.push_back(s.ToString(result.get<sol::object>(i)));
         return out;
     }
     catch (const std::exception& e) {
-        return Fail(e.what());
+        return Fail(s, e.what());
     }
 }
 
@@ -233,7 +242,7 @@ ScriptResult ScriptEngine::Require(const std::string_view module)
         return {};
     }
     catch (const std::exception& e) {
-        return Fail(e.what());
+        return Fail(*_state, e.what());
     }
 }
 } // namespace Arcbit

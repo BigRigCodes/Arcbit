@@ -18,7 +18,7 @@ namespace Arcbit
 // decides who may open it (ConsoleAccess).
 //
 //   console.Register({ .Name = "heal", .Help = "heal <amount> - restore health",
-//                      .Run = [](const std::vector<std::string>& args) { ... }, .Cheat = true });
+//                      .Cheat = true, .Run = [](const std::vector<std::string>& args) { ... } });
 //   console.Execute("heal 50");
 //
 // A command marked Cheat (and any Lua typed in) calls OnCheat when it runs -
@@ -31,10 +31,10 @@ public:
 
     struct Command
     {
-        std::string                     Name;
-        std::string                     Help; // "tp <x> <y> - move the player"
-        std::function<void(const Args&)> Run;  // throw std::exception to report a mistake
-        bool                            Cheat = false;
+        std::string                      Name;
+        std::string                      Help; // "tp <x> <y> - move the player"
+        bool                             Cheat = false;
+        std::function<void(const Args&)> Run; // throw std::exception to report a mistake
     };
 
     DebugConsole(); // registers help and clear

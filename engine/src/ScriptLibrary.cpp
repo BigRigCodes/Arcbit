@@ -132,6 +132,8 @@ sol::object ScriptEngine::State::RequireModule(const std::string& name)
 
     sol::object value = result.return_count() > 0 ? result.get<sol::object>(0) : sol::object{};
     if (value.get_type() == sol::type::lua_nil || value.get_type() == sol::type::none) value = sol::make_object(Lua, true);
+    std::error_code ec;
+    ModuleFiles[name] = ModuleFile{ path, std::filesystem::last_write_time(path, ec) }; // hot reload watches it
     return Modules[name] = value;
 }
 } // namespace Arcbit

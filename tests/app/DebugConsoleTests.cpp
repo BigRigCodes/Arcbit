@@ -39,7 +39,7 @@ TEST_CASE("Cheat commands and typed Lua are reported", "[console]")
     Strings      cheats;
     console.OnCheat = [&](const std::string_view what) { cheats.emplace_back(what); };
     console.RunLua  = [](std::string_view) {};
-    console.Register({ .Name = "god", .Help = "god", .Run = [](const DebugConsole::Args&) {}, .Cheat = true });
+    console.Register({ .Name = "god", .Help = "god", .Cheat = true, .Run = [](const DebugConsole::Args&) {} });
     console.Register({ .Name = "fps", .Help = "fps", .Run = [](const DebugConsole::Args&) {} });
     console.Execute("fps");
     console.Execute("god");

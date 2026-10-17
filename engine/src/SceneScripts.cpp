@@ -41,6 +41,7 @@ struct SceneScripts::Impl
     std::optional<ScriptInstance>   SceneScript;
     std::map<u64, ScriptInstance>   Instances; // by entity; ordered, so hooks run in a stable order
     bool                            Listening = false; // the physics contact listener is ours
+    u32                             Generation = 0;    // Lua.ReloadGeneration last seen
 
     Impl(ScriptEngine::State& lua, Scene& owner, std::string sceneModule)
         : Lua(lua), Owner(owner), Serial(lua.NextSceneSerial++), SceneModule(std::move(sceneModule))
@@ -75,7 +76,7 @@ struct SceneScripts::Impl
             Lua, ScriptContext{ .Scene = &Owner, .Serial = Serial, .Owner = instance.Id, .Self = instance.Self });
         const sol::protected_function_result result = Lua.Call(fn.as<sol::protected_function>(), std::forward<Args>(args)...);
         if (result.valid()) return true;
-        LOG_ERROR(Scripting, "{} {}: {}", instance.Name, hook, result.get<sol::error>().what());
+        Lua.ReportError(std::format("{} {}: {}", instance.Name, hook, result.get<sol::error>().what()));
         return false;
     }
 };
@@ -85,10 +86,10 @@ std::optional<sol::table> SceneScripts::Impl::LoadModule(const std::string& name
     try {
         const sol::object module = Lua.RequireModule(name);
         if (module.get_type() == sol::type::table) return module.as<sol::table>();
-        LOG_ERROR(Scripting, "{}: script '{}' must return a table of hooks", who, name);
+        Lua.ReportError(std::format("{}: script '{}' must return a table of hooks", who, name));
     }
     catch (const std::exception& e) {
-        LOG_ERROR(Scripting, "{}: {}", who, e.what());
+        Lua.ReportError(std::format("{}: {}", who, e.what()));
     }
     return std::nullopt;
 }
@@ -240,6 +241,11 @@ void SceneScripts::SyncSaved()
 void SceneScripts::Update(const f32 dt)
 {
     Impl& s = *_impl;
+    if (s.Generation != s.Lua.ReloadGeneration) { // scripts reloaded: a fixed OnUpdate may run again
+        s.Generation = s.Lua.ReloadGeneration;
+        if (s.SceneScript) s.SceneScript->UpdateOff = false;
+        for (ScriptInstance& instance : s.Instances | std::views::values) instance.UpdateOff = false;
+    }
     s.StartNew();
     if (s.SceneScript && !s.SceneScript->UpdateOff && !s.CallHook(*s.SceneScript, "OnUpdate", s.SceneScript->Self, dt))
         s.SceneScript->UpdateOff = true;

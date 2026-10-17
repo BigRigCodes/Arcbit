@@ -12,6 +12,7 @@
 
 namespace Arcbit
 {
+class DebugConsole;
 class EventBus;
 class InputManager;
 class Scene;
@@ -31,6 +32,7 @@ struct ScriptServices
     SaveManager*         Saves    = nullptr; // Save.Get / Set
     const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
+    DebugConsole*        Console  = nullptr; // Console.Register / Print
 
     std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets; // component reads / writes
     std::function<void(std::string_view path, f32 volume)> PlaySound;
@@ -99,6 +101,16 @@ public:
 
     // What the engine API reaches (see ScriptServices).
     void SetServices(ScriptServices services);
+
+    // Every script error (a failed hook, task, handler or console line), as
+    // logged with its traceback - for the console and debug builds' toasts.
+    void SetErrorHandler(std::function<void(std::string_view error)> handler);
+
+    // Debug builds: reload scripts whose files changed (Application, once a
+    // second). Running instances keep their state and pick up the new
+    // functions; an OnUpdate turned off by an error comes back on. Returns
+    // how many modules reloaded.
+    u32 CheckReloads();
 
     // Bytes the Lua state is using.
     [[nodiscard]] size_t GetMemoryUsed() const;

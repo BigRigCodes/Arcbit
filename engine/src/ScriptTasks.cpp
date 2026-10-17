@@ -6,6 +6,8 @@
 
 #include "ScriptState.h"
 
+#include <format>
+
 #include <arcbit/core/Log.h>
 #include <arcbit/scene/Scene.h>
 
@@ -62,7 +64,7 @@ bool ScriptEngine::State::ResumeTask(ScriptTask& task, lua_State* from)
     }
     if (status != LUA_OK) {
         luaL_traceback(from, T, lua_tostring(T, -1), 0);
-        LOG_ERROR(Scripting, "Task: {}", lua_tostring(from, -1));
+        ReportError(std::format("Task: {}", lua_tostring(from, -1)));
         lua_pop(from, 1);
     }
     return false;

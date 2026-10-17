@@ -7,6 +7,7 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/scene/SceneAssets.h>
 #include <arcbit/settings/Settings.h>
+#include <arcbit/ui/ConsoleScreen.h>
 #include <arcbit/ui/LoadingScreen.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
@@ -203,6 +204,14 @@ void Application::Run()
     //   b) game code cannot accidentally stomp the same ActionID before they exist.
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
+    _input.RegisterAction(ActionEngineConsole, "Engine_Console", "Console", "System");
+    _input.BindKey(ActionEngineConsole, Key::Grave);
+    _input.RegisterAction(ConsoleScreen::ActionHistoryUp, "Console_HistoryUp");
+    _input.BindKey(ConsoleScreen::ActionHistoryUp, Key::Up);
+    _input.RegisterAction(ConsoleScreen::ActionHistoryDown, "Console_HistoryDown");
+    _input.BindKey(ConsoleScreen::ActionHistoryDown, Key::Down);
+    _input.RegisterAction(ConsoleScreen::ActionComplete, "Console_Complete");
+    _input.BindKey(ConsoleScreen::ActionComplete, Key::Tab);
 
     // Stock samplers and the scene registry's built-ins, before any scene loads.
     _nearestSampler = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Nearest, .MagFilter = Filter::Nearest,
@@ -233,6 +242,7 @@ void Application::Run()
                                 .Saves     = &_saves,
                                 .Registry  = &_sceneRegistry,
                                 .UI        = &_ui,
+                                .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
                                 .PlaySound = [](const std::string_view path, const f32 volume) {
                                     AudioManager::PlayOneShot(path, volume);
@@ -250,6 +260,7 @@ void Application::Run()
     // Registers UI navigation actions (UI_Confirm, UI_FocusNext, UI_FocusPrev) before OnStart
     // so games can rebind them via Settings::LoadInputBindings after OnStart.
     _ui.Init(_renderThread, _debugFont, _input);
+    StartConsole(); // after the UI (error toasts), before OnStart (games add their own commands)
 
     // Load engine locale strings before OnStart so built-in screens display correctly.
     if (!Loc::Load("assets/engine/locale/en.json"))
@@ -322,13 +333,14 @@ void Application::Run()
             // where the accumulator doesn't reach the threshold.
             _input.ProcessEdges();
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
+            if (_input.JustPressed(ActionEngineConsole) && IsConsoleAllowed()) ToggleConsole();
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
                 _scenes.Update(_fixedTimestep);
                 if (Scene* scene = _scenes.GetActive()) {
                     // An input-capturing overlay or a scene fade holds the player still.
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
-                    scene->Update(_fixedTimestep);
+                    scene->Update(_fixedTimestep * _timeScale);
                 }
                 if (!_ui.HasBlockingScreen() && !_scenes.IsFading()) _playtime += _fixedTimestep;
             }
@@ -415,6 +427,9 @@ void Application::Run()
         _hotReloadAccumulator += dt;
         if (_hotReloadAccumulator >= 1.0) {
             _textures->CheckReloads([this] { _renderThread.WaitIdle(); });
+#ifdef ARCBIT_DEBUG
+            _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
+#endif
             _hotReloadAccumulator -= 1.0;
         }
 

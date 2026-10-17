@@ -114,6 +114,7 @@ void ScriptEngine::State::EndSubscriptions(const u64 owner)
     if (owner == 0) return;
     std::erase_if(Subscriptions, [owner](const auto& entry) { return entry.second.Owner == owner; });
     StopTasks(owner, 0);
+    EndConsoleCommands(owner);
 }
 
 // Event.Subscribe(name, fn) calls fn(payload, name); without fn, the
@@ -144,7 +145,7 @@ void ScriptEngine::State::BindEvents()
                     field.Value);
             const sol::protected_function_result result =
                 handler ? Call(*handler, payload, name) : Call(context.Self["OnEvent"], context.Self, name, payload);
-            if (!result.valid()) LOG_ERROR(Scripting, "Event handler for '{}': {}", name, result.get<sol::error>().what());
+            if (!result.valid()) ReportError(std::format("Event handler for '{}': {}", name, result.get<sol::error>().what()));
         });
         Subscriptions[id] = LuaSubscription{ .Owner = context.Owner, .Handle = std::move(handle) };
         return ScriptSubscriptionHandle{ id };
