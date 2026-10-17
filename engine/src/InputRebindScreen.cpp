@@ -136,6 +136,7 @@ void InputRebindScreen::RebuildScroll()
 {
     if (!_scroll) return;
     const f32 savedOffset = _scroll->ScrollOffset;
+    const i32 focusIndex  = GetFocusIndex(); // the rows are rebuilt; keep the controller's place
     _scroll->ClearChildren();
 
     const f32 chipH    = 22.0f;
@@ -204,6 +205,7 @@ void InputRebindScreen::RebuildScroll()
     _scroll->ContentHeight = y + 4.0f;
     _scroll->ScrollOffset  = std::min(savedOffset,
                                       std::max(0.0f, _scroll->ContentHeight - _scroll->Size.Y));
+    FocusAt(focusIndex);
 }
 
 // ---------------------------------------------------------------------------

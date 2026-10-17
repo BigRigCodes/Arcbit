@@ -4,8 +4,11 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/UIScreen.h>
+#include <arcbit/ui/Widgets.h>
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <vector>
 
 using namespace Arcbit;
 
@@ -89,4 +92,44 @@ TEST_CASE("Close removes a specific screen wherever it sits", "[ui]")
     ui.Close(topPtr); // StaysOnTop screens close too (Pop skips them)
     CHECK(ui.Empty());
     ui.Close(topPtr); // no longer on the stack: no-op
+}
+
+TEST_CASE("Focus is dropped when the focused widget is destroyed", "[ui]")
+{
+    // Regression: rebinding with a controller rebuilt the controls list while
+    // a chip button had focus; the screen kept the dangling pointer and the
+    // next UI update crashed on it.
+    UIScreen screen;
+    auto*    list      = screen.Add<Panel>();
+    auto*    button    = list->AddChild<Button>();
+    button->Focusable = true;
+    screen.FocusNext();
+    REQUIRE(screen.GetFocusedWidget() == button);
+
+    list->ClearChildren(); // the rebuild
+    CHECK(screen.GetFocusedWidget() == nullptr);
+    screen.FocusNext(); // and nothing touches the old widget
+    screen.ActivateFocused();
+}
+
+TEST_CASE("Focus can be put back by its place in the focus order", "[ui]")
+{
+    UIScreen screen;
+    auto*    list = screen.Add<Panel>();
+    for (int i = 0; i < 3; ++i) list->AddChild<Button>()->Focusable = true;
+    screen.FocusNext();
+    screen.FocusNext();
+    const i32 place = screen.GetFocusIndex();
+    CHECK(place == 1);
+
+    list->ClearChildren();
+    std::vector<Button*> rebuilt;
+    for (int i = 0; i < 3; ++i) {
+        rebuilt.push_back(list->AddChild<Button>());
+        rebuilt.back()->Focusable = true;
+    }
+    screen.FocusAt(place);
+    CHECK(screen.GetFocusedWidget() == rebuilt[1]);
+    screen.FocusAt(10); // past the end: the last one
+    CHECK(screen.GetFocusedWidget() == rebuilt[2]);
 }

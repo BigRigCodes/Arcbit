@@ -92,7 +92,11 @@ public:
     // for this widget's OnCollect call. See UISkinOverride in UISkin.h.
     UISkinOverride SkinOverride;
 
-    virtual ~UIWidget() = default;
+    virtual ~UIWidget() { ++s_destroyedCount; }
+
+    // How many widgets have ever been destroyed - lets a screen notice, for
+    // free, when its focused widget might be gone (UIScreen::GetFocusedWidget).
+    [[nodiscard]] static u64 DestroyedCount() { return s_destroyedCount; }
 
     // Text and control-key events forwarded by UIManager to the focused widget.
     virtual void OnTextInput(std::string_view /*chars*/) {}
@@ -172,5 +176,7 @@ protected:
 
 private:
     friend class UIScreen;
+
+    inline static u64 s_destroyedCount = 0;
 };
 } // namespace Arcbit

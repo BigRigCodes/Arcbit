@@ -128,12 +128,12 @@ void UIScreen::AdvanceTransition(const f32 dt)
 
 void UIScreen::DispatchTextInput(const std::string_view chars)
 {
-    if (_focusedWidget) _focusedWidget->OnTextInput(chars);
+    if (UIWidget* focused = GetFocusedWidget()) focused->OnTextInput(chars);
 }
 
 void UIScreen::DispatchControlKey(const UIControlKey key)
 {
-    if (_focusedWidget) _focusedWidget->OnControlKey(key);
+    if (UIWidget* focused = GetFocusedWidget()) focused->OnControlKey(key);
 }
 
 // ---------------------------------------------------------------------------
@@ -164,11 +164,49 @@ std::vector<UIWidget*> UIScreen::GatherFocusables() const
     return result;
 }
 
+// Is `target` this widget or one of its descendants? Compares pointers only,
+// so `target` may already be destroyed.
+bool UIScreen::InTree(const UIWidget& w, const UIWidget* target)
+{
+    if (&w == target) return true;
+    return std::ranges::any_of(w._children, [&](const auto& child) { return InTree(*child, target); });
+}
+
+UIWidget* UIScreen::GetFocusedWidget() const
+{
+    // Only when some widget was destroyed since the last check: is the focused
+    // one still in the tree? Compares pointers, never dereferences the old one.
+    if (_focusedWidget && _focusCheckedAt != UIWidget::DestroyedCount()) {
+        _focusCheckedAt = UIWidget::DestroyedCount();
+        const bool alive = std::ranges::any_of(_roots, [&](const auto& root) { return InTree(*root, _focusedWidget); });
+        if (!alive) _focusedWidget = nullptr;
+    }
+    return _focusedWidget;
+}
+
+i32 UIScreen::GetFocusIndex() const
+{
+    const UIWidget* focused = GetFocusedWidget();
+    if (!focused) return -1;
+    const auto fs = GatherFocusables();
+    const auto it = std::ranges::find(fs, focused);
+    return it != fs.end() ? static_cast<i32>(it - fs.begin()) : -1;
+}
+
+void UIScreen::FocusAt(const i32 index)
+{
+    const auto fs = GatherFocusables();
+    if (fs.empty() || index < 0) return;
+    ApplyFocus(fs[std::min(static_cast<size_t>(index), fs.size() - 1)]);
+}
+
 void UIScreen::ApplyFocus(UIWidget* widget)
 {
-    if (_focusedWidget == widget) return;
-    if (_focusedWidget) { _focusedWidget->_focused = false; _focusedWidget->OnFocusLost(); }
-    _focusedWidget = widget;
+    UIWidget* old = GetFocusedWidget(); // drops a destroyed one first
+    if (old == widget) return;
+    if (old) { old->_focused = false; old->OnFocusLost(); }
+    _focusedWidget  = widget;
+    _focusCheckedAt = UIWidget::DestroyedCount();
     if (_focusedWidget) {
         LOG_DEBUG(UI, "Focus: {}", _focusedWidget->Name);
         _focusedWidget->_focused = true;  
@@ -180,9 +218,10 @@ void UIScreen::FocusNext()
 {
     const auto fs = GatherFocusables();
     if (fs.empty()) return;
-    i32 cur = -1;
+    const UIWidget* focused = GetFocusedWidget();
+    i32             cur     = -1;
     for (i32 i = 0; i < static_cast<i32>(fs.size()); ++i)
-        if (fs[i] == _focusedWidget) { cur = i; break; }
+        if (fs[i] == focused) { cur = i; break; }
     ApplyFocus(fs[static_cast<u32>(cur + 1) % fs.size()]);
 }
 
@@ -190,9 +229,10 @@ void UIScreen::FocusPrev()
 {
     const auto fs = GatherFocusables();
     if (fs.empty()) return;
-    i32 cur = 0;
+    const UIWidget* focused = GetFocusedWidget();
+    i32             cur     = 0;
     for (i32 i = 0; i < static_cast<i32>(fs.size()); ++i)
-        if (fs[i] == _focusedWidget) { cur = i; break; }
+        if (fs[i] == focused) { cur = i; break; }
     const i32 n = static_cast<i32>(fs.size());
     ApplyFocus(fs[static_cast<u32>((cur - 1 + n) % n)]);
 }
@@ -200,9 +240,9 @@ void UIScreen::FocusPrev()
 void UIScreen::ActivateFocused()
 {
     LOG_DEBUG(UI, "ActivateFocused");
-    if (_focusedWidget) {
-        LOG_DEBUG(UI, "Activate: {}", _focusedWidget->Name);
-        _focusedWidget->OnActivate();
+    if (UIWidget* focused = GetFocusedWidget()) {
+        LOG_DEBUG(UI, "Activate: {}", focused->Name);
+        focused->OnActivate();
     }
 }
 

@@ -121,7 +121,14 @@ public:
     void ActivateFocused();
     void ClearFocus();
 
-    [[nodiscard]] UIWidget* GetFocusedWidget() const { return _focusedWidget; }
+    // The focused widget; null if none - or if it has been destroyed since
+    // (a screen rebuilding its layout), so focus never points at freed memory.
+    [[nodiscard]] UIWidget* GetFocusedWidget() const;
+
+    // The focused widget's place in the focus order (-1 if none), and focusing
+    // by place (clamped) - for keeping focus where it was across a rebuild.
+    [[nodiscard]] i32 GetFocusIndex() const;
+    void              FocusAt(i32 index);
 
     // --- Visibility / transition state --------------------------------------
 
@@ -144,13 +151,15 @@ private:
     bool            _skipInputThisFrame = false; // true on the frame the screen was pushed
     TransitionState _transitionState   = TransitionState::Idle;
     f32             _transitionOpacity = 1.0f;
-    UIWidget*       _focusedWidget     = nullptr;
+    mutable UIWidget* _focusedWidget = nullptr;
+    mutable u64       _focusCheckedAt = 0; // UIWidget::DestroyedCount() when focus was last known valid
 
     void AdvanceTransition(f32 dt);
     void ApplyFocus(UIWidget* widget);
 
     std::vector<UIWidget*> GatherFocusables() const;
     static void CollectFocusables(UIWidget& w, std::vector<UIWidget*>& out);
+    static bool InTree(const UIWidget& w, const UIWidget* target); // pointer compare only
 
     // Hit-test the widget tree for the deepest Focusable widget under pos.
     [[nodiscard]] UIWidget* FindFocusableHit(UIWidget& w, UIRect parent, Vec2 pos) const;
