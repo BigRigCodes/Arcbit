@@ -14,6 +14,7 @@
 #define SOL_PRINT_ERRORS 0    // errors are logged by ScriptEngine, with the script's traceback
 #include <sol/sol.hpp>
 
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -43,6 +44,25 @@ struct ScriptContext
     u64        Serial = 0; // the scene's, for the handles it hands out
     u64        Owner  = 0; // instance id; 0 = the console (owned by nobody, ended by hand)
     sol::table Self;       // the instance, for OnEvent
+};
+
+// A running task (ScriptTasks.cpp): its coroutine, who it runs as, and how
+// long it still waits.
+struct ScriptTask
+{
+    sol::thread   Thread;
+    ScriptContext Context;
+    f64           Wait      = 0.0; // seconds until it resumes
+    int           Arguments = 0;   // passed on the first resume
+    bool          Started   = false;
+    bool          Running   = false; // being resumed right now
+    bool          Stopped   = false; // ended; dropped once it isn't running
+};
+
+// What Task.Run / Timer hand back: task:Stop(), task:IsRunning().
+struct ScriptTaskHandle
+{
+    u64 Id = 0;
 };
 
 // Accounting shared with the allocator and the instruction hook, which reach
@@ -90,6 +110,10 @@ struct ScriptEngine::State
     std::unordered_map<u64, LuaSubscription> Subscriptions;
     u64                                      NextSubscriptionId = 1;
 
+    std::map<u64, ScriptTask>           Tasks; // by id: tasks due on the same tick run in the order they started
+    u64                                 NextTaskId = 1;
+    sol::object                         SelfRun;   // self:Run, put on every instance
+
     sol::environment                      Console;   // Run's globals, created on first use
     sol::reference                        Traceback; // error handler for Call: adds the stack traceback
     std::function<void(std::string_view)> Output;
@@ -132,8 +156,14 @@ struct ScriptEngine::State
     [[nodiscard]] u64    SerialOf(const Scene* scene) const; // 0 = not running scripts
     [[nodiscard]] ScriptEntity Handle(const Scene& scene, Entity entity) const { return { entity, SerialOf(&scene) }; }
 
-    // End every subscription the instance made (it's going away).
+    // End every subscription and task the instance made (it's going away).
     void EndSubscriptions(u64 owner);
+
+    // Tasks (ScriptTasks.cpp).
+    u64  StartTask(lua_State* L, const sol::protected_function& fn, const sol::variadic_args& args);
+    bool ResumeTask(ScriptTask& task, lua_State* from);
+    void AdvanceTasks(u64 serial, f32 dt); // the scene's tasks whose wait is over
+    void StopTasks(u64 owner, u64 serial); // by owner (instance) and / or by scene; 0 = no match
 
     // Make `next` the context until the scope ends.
     class ContextScope
@@ -173,6 +203,7 @@ private:
     void BindAudio();
     void BindSave();
     void BindEvents();
+    void BindTasks();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with

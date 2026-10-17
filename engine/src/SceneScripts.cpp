@@ -50,6 +50,7 @@ struct SceneScripts::Impl
     ~Impl()
     {
         StopListening();
+        Lua.StopTasks(0, Serial);
         Lua.Scenes.erase(Serial);
     }
 
@@ -103,6 +104,7 @@ sol::table SceneScripts::Impl::NewSelf(const sol::table& module, const sol::obje
         for (const auto& [key, value] : overrides.items()) properties[key] = value;
 
     sol::table self       = Lua.Lua.create_table();
+    self["Run"]           = Lua.SelfRun; // self:Run(fn, ...) - a task owned by this instance
     self["Properties"]    = JsonToLua(Lua.Lua, properties);
     self["Saved"]         = JsonToLua(Lua.Lua, saved.is_object() ? saved : nlohmann::json::object());
     sol::table meta       = Lua.Lua.create_table();
@@ -252,6 +254,7 @@ void SceneScripts::Update(const f32 dt)
         it->second.UpdateOff = true;
         LOG_WARN(Scripting, "{}: OnUpdate turned off after its error", it->second.Name);
     }
+    s.Lua.AdvanceTasks(s.Serial, dt);
 }
 
 // While its OnDestroy runs the entity is "dying": readable, but the script
@@ -286,5 +289,6 @@ void SceneScripts::End()
         s.Lua.EndSubscriptions(s.SceneScript->Id);
     }
     s.SceneScript.reset();
+    s.Lua.StopTasks(0, s.Serial); // any left: started from the console
 }
 } // namespace Arcbit

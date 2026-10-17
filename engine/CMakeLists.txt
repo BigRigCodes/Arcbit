@@ -36,6 +36,7 @@ add_library(arcbit-engine STATIC
     src/ScriptLibrary.cpp
     src/ScriptEntity.cpp
     src/ScriptGame.cpp
+    src/ScriptTasks.cpp
     src/ScriptWorld.cpp
     src/ScriptJson.cpp
     src/SceneScripts.cpp

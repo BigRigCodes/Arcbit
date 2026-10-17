@@ -113,6 +113,7 @@ void ScriptEngine::State::EndSubscriptions(const u64 owner)
 {
     if (owner == 0) return;
     std::erase_if(Subscriptions, [owner](const auto& entry) { return entry.second.Owner == owner; });
+    StopTasks(owner, 0);
 }
 
 // Event.Subscribe(name, fn) calls fn(payload, name); without fn, the

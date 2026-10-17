@@ -112,6 +112,7 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     BindAudio();
     BindSave();
     BindEvents();
+    BindTasks();
     BindRequire();
 }
 
