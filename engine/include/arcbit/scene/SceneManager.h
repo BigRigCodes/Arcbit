@@ -78,6 +78,10 @@ struct SceneChange
 // on, and leaving a scene that owns music for one that doesn't fades it out.
 // A suspended scene's track resumes where it was when it's popped back to.
 //
+// Each swap is announced on the host's event bus (EngineEvents): unloaded,
+// suspended, loaded, resumed - delivered at the next flush, after the swap.
+// Unnamed scenes (Application's default) aren't announced.
+//
 // Scene stack: Push loads a scene on top and suspends the one under it
 // (OnSuspend; it isn't updated or drawn and its sounds stop, but its state
 // is kept); Pop unloads the top scene and resumes the one below (OnResume).
@@ -231,6 +235,7 @@ private:
     void SwapPop();
     void UnloadAll();
     static void Unload(Scene& scene); // OnUnload, then its subscriptions end
+    void        Announce(EventId id, const Scene& scene) const; // an engine scene event, if named
     // `to` became active in place of `from`; ownerLeft = a scene that owned
     // music went away (unloaded, not just covered by a push).
     void HandOverMusic(Scene* from, Scene& to, bool ownerLeft);

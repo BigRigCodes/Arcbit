@@ -3,6 +3,7 @@
 // the lifecycle order scenes see.
 
 #include <arcbit/audio/MusicPlayer.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/events/EventBus.h>
 #include <arcbit/scene/SceneManager.h>
 
@@ -719,4 +720,43 @@ TEST_CASE("A suspended scene keeps its subscriptions until it's popped off", "[s
     for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
     f.Ping();
     CHECK(f.heard == 1);
+}
+
+TEST_CASE("Scene changes are announced as engine events", "[scene][events]")
+{
+    EventFixture             f;
+    std::vector<std::string> log;
+    f.events.SetMonitor([&](const Event& e) {
+        log.push_back(std::format("{}:{}", f.events.GetName(e.Id), e.Payload.Get<std::string>("name", "")));
+    });
+    const auto settle = [&] { for (int i = 0; i < 10; ++i) f.scenes.Update(Dt); f.events.Flush(); };
+
+    f.scenes.Switch("Other", "gate");
+    settle();
+    f.scenes.Push("Listener");
+    settle();
+    f.scenes.Pop();
+    settle();
+    f.scenes.Switch("Listener");
+    settle();
+
+    CHECK(log == std::vector<std::string>{
+        "engine.scene.loaded:Other",
+        "engine.scene.suspended:Other", "engine.scene.loaded:Listener",
+        "engine.scene.unloaded:Listener", "engine.scene.resumed:Other",
+        "engine.scene.unloaded:Other", "engine.scene.loaded:Listener",
+    });
+}
+
+TEST_CASE("A loaded scene's event carries its entry point", "[scene][events]")
+{
+    EventFixture f;
+    std::string  entry;
+    Subscription sub = f.events.Subscribe(EngineEvents::SceneLoaded,
+                                          [&](const Event& e) { entry = e.Payload.Get<std::string>("entry", "?"); });
+    f.Go("Other");
+    f.scenes.Switch("Listener", "north_gate");
+    for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
+    f.events.Flush();
+    CHECK(entry == "north_gate");
 }

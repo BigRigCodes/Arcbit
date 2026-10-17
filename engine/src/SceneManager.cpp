@@ -3,6 +3,7 @@
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/ScenePreloader.h>
 
 #include <algorithm>
@@ -302,6 +303,8 @@ void SceneManager::SwapReplace()
     LOG_INFO(Engine, "Scene '{}' loaded", _stack.back()->GetName());
     const bool ownerLeft = std::ranges::any_of(old, [](const std::unique_ptr<Scene>& s) { return s->_ownsMusic; });
     HandOverMusic(old.empty() ? nullptr : old.back().get(), *_stack.back(), ownerLeft);
+    for (const std::unique_ptr<Scene>& scene : old | std::views::reverse) Announce(EngineEvents::SceneUnloaded, *scene);
+    Announce(EngineEvents::SceneLoaded, *_stack.back());
 
     while (!old.empty()) {
         old.back()->ReleaseResources();
@@ -325,6 +328,8 @@ void SceneManager::SwapPush()
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
     HandOverMusic(below, *_stack.back(), false); // a scene without music of its own keeps the one below's
+    if (below) Announce(EngineEvents::SceneSuspended, *below);
+    Announce(EngineEvents::SceneLoaded, *_stack.back());
     LOG_INFO(Engine, "Scene '{}' pushed ({} deep)", _stack.back()->GetName(), _stack.size());
 }
 
@@ -339,6 +344,8 @@ void SceneManager::SwapPop()
     Unload(*top);
     _stack.back()->OnResume();
     HandOverMusic(top.get(), *_stack.back(), top->_ownsMusic);
+    Announce(EngineEvents::SceneUnloaded, *top);
+    Announce(EngineEvents::SceneResumed, *_stack.back());
     top->ReleaseResources();
     LOG_INFO(Engine, "Scene '{}' resumed", _stack.back()->GetName());
 }
@@ -369,6 +376,14 @@ void SceneManager::Unload(Scene& scene)
 {
     scene.OnUnload();
     scene._subscriptions.clear();
+}
+
+void SceneManager::Announce(const EventId id, const Scene& scene) const
+{
+    if (!_host.Events || scene.GetName().empty()) return;
+    EventPayload payload{ { "name", scene.GetName() } };
+    if (id == EngineEvents::SceneLoaded) payload.Set("entry", scene.GetEntryPoint());
+    _host.Events->PublishEngine(id, std::move(payload));
 }
 
 void SceneManager::UnloadAll()
