@@ -513,6 +513,7 @@ void SceneManager::ApplySavedState(Scene& scene)
 void SceneManager::CaptureState(Scene& scene)
 {
     if (!TracksState(scene) || !scene._authored) return;
+    scene.SyncScriptState(); // scripts' self.Saved, into their components
     const std::unique_ptr<SceneAssets> assets = _host.Assets(scene);
     _host.World->Scenes[scene.GetName()] = SceneStates::Capture(scene, *scene._authored, *_host.Registry, *assets);
 }

@@ -37,6 +37,13 @@ public:
     // A Script left its entity (removed, or the entity destroyed): OnDestroy.
     void Removed(Entity entity);
 
+    // `by` interacted with `target`: target's OnInteract(by).
+    void Interact(Entity target, Entity by);
+
+    // Copy each script's self.Saved into its Script component - before the
+    // scene's state is captured, so a Persistent entity's script state saves.
+    void SyncSaved();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> _impl;

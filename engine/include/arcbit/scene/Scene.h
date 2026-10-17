@@ -186,9 +186,15 @@ private:
     void StopSounds();
 
     // Scripts (SceneManager): start them once the scene has loaded, with its
-    // saved state applied; end them (OnDestroy, OnUnload) as it unloads.
+    // saved state applied; end them (OnDestroy, OnUnload) as it unloads; copy
+    // their self.Saved into their components before the state is captured.
     void StartScripts();
     void EndScripts();
+    void SyncScriptState();
+
+    // Update: each Interactor whose action was pressed uses its target
+    // (FindInteractTarget) - OnInteract, engine.entity.interacted.
+    void UpdateInteraction();
 
     World                         _world;
     Camera2D                      _camera;

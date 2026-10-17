@@ -7,6 +7,9 @@
 #include <arcbit/core/Assert.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/ecs/Interaction.h>
+#include <arcbit/events/EngineEvents.h>
+#include <arcbit/input/InputManager.h>
 #include <arcbit/save/SceneState.h>
 #include <arcbit/script/Script.h>
 
@@ -164,6 +167,28 @@ void Scene::EndScripts()
     _scripts.reset();
 }
 
+void Scene::SyncScriptState()
+{
+    if (_scripts) _scripts->SyncSaved();
+}
+
+// Interactors are listed first and used after: OnInteract may change the world.
+void Scene::UpdateInteraction()
+{
+    if (!_input || _inputBlocked) return;
+    std::vector<Entity> pressed;
+    _world.Query<Interactor>().ForEach([&](const Entity e, const Interactor& interactor) {
+        if (_input->JustPressed(MakeAction(interactor.Action))) pressed.push_back(e);
+    });
+    for (const Entity by : pressed) {
+        if (!_world.IsValid(by)) continue;
+        const Entity target = FindInteractTarget(_world, by, _config.TileSize);
+        if (!target.IsValid()) continue;
+        if (_scripts) _scripts->Interact(target, by);
+        if (_events) _events->PublishEngine(EngineEvents::EntityInteracted, { { "entity", target }, { "by", by } });
+    }
+}
+
 void Scene::ReleaseResources()
 {
     if (_app)
@@ -184,6 +209,7 @@ void Scene::Update(const f32 dt)
 {
     PublishPendingSpawns();
     OnUpdate(dt);
+    UpdateInteraction();
     if (_scripts) _scripts->Update(dt);
     _camera.Update(dt);
     _world.RunUpdateSystems(*this, dt);

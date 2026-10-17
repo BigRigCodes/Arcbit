@@ -3,12 +3,14 @@
 #include "ScriptState.h"
 
 #include <arcbit/core/Log.h>
+#include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/script/Script.h>
 
 #include <format>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <vector>
 
 namespace Arcbit
@@ -22,6 +24,7 @@ namespace
 struct ScriptInstance
 {
     u64         Id = 0; // owns the event subscriptions it makes
+    Entity      Owner;  // its entity (invalid for the scene script)
     sol::table  Self;
     sol::table  Module;
     std::string Name;               // "chest (Entity 3:1)", for logs
@@ -37,13 +40,22 @@ struct SceneScripts::Impl
     std::string          SceneModule;
     std::optional<ScriptInstance>   SceneScript;
     std::map<u64, ScriptInstance>   Instances; // by entity; ordered, so hooks run in a stable order
+    bool                            Listening = false; // the physics contact listener is ours
 
     Impl(ScriptEngine::State& lua, Scene& owner, std::string sceneModule)
         : Lua(lua), Owner(owner), Serial(lua.NextSceneSerial++), SceneModule(std::move(sceneModule))
     {
         Lua.Scenes[Serial] = &Owner;
     }
-    ~Impl() { Lua.Scenes.erase(Serial); }
+    ~Impl()
+    {
+        StopListening();
+        Lua.Scenes.erase(Serial);
+    }
+
+    void StartListening();
+    void StopListening();
+    void Contact(PhysicsWorld::ContactEvent event, Entity self, Entity other, Vec2 normal);
 
     std::optional<sol::table> LoadModule(const std::string& name, const std::string& who);
     sol::table                NewSelf(const sol::table& module, const sol::object& defaults, const nlohmann::json& overrides,
@@ -106,8 +118,9 @@ void SceneScripts::Impl::StartEntity(const Entity e)
     const Script* script = Owner.GetWorld().GetComponent<Script>(e);
     if (!script) return; // gone since StartNew listed it
     ScriptInstance instance;
-    instance.Id   = Lua.NextOwnerId++;
-    instance.Name = std::format("{} (Entity {}:{})", script->Module, e.Index, e.Generation);
+    instance.Id    = Lua.NextOwnerId++;
+    instance.Owner = e;
+    instance.Name  = std::format("{} (Entity {}:{})", script->Module, e.Index, e.Generation);
 
     const std::optional<sol::table> module = LoadModule(script->Module, instance.Name);
     if (!module) {
@@ -131,6 +144,42 @@ void SceneScripts::Impl::StartNew()
         if (!Instances.contains(InstanceKey(e))) fresh.push_back(e);
     });
     for (const Entity e : fresh) StartEntity(e);
+}
+
+// Trigger and collision events reach the scripts on either entity:
+// OnTriggerEnter / Stay / Exit(other), OnCollisionEnter(other, normal),
+// OnCollisionExit(other).
+void SceneScripts::Impl::StartListening()
+{
+    Owner.GetPhysics().SetContactListener(
+        [this](const PhysicsWorld::ContactEvent event, const Entity self, const Entity other, const Vec2 normal) {
+            Contact(event, self, other, normal);
+        });
+    Listening = true;
+}
+
+void SceneScripts::Impl::StopListening()
+{
+    if (Listening) Owner.GetPhysics().SetContactListener({});
+    Listening = false;
+}
+
+void SceneScripts::Impl::Contact(const PhysicsWorld::ContactEvent event, const Entity self, const Entity other,
+                                 const Vec2 normal)
+{
+    const auto it = Instances.find(InstanceKey(self));
+    if (it == Instances.end() || it->second.Broken) return;
+    const ScriptInstance& instance = it->second;
+    const ScriptEntity    handle{ other, Serial };
+    switch (event) {
+        case PhysicsWorld::ContactEvent::TriggerEnter: CallHook(instance, "OnTriggerEnter", instance.Self, handle); break;
+        case PhysicsWorld::ContactEvent::TriggerStay: CallHook(instance, "OnTriggerStay", instance.Self, handle); break;
+        case PhysicsWorld::ContactEvent::TriggerExit: CallHook(instance, "OnTriggerExit", instance.Self, handle); break;
+        case PhysicsWorld::ContactEvent::CollisionEnter:
+            CallHook(instance, "OnCollisionEnter", instance.Self, handle, normal);
+            break;
+        case PhysicsWorld::ContactEvent::CollisionExit: CallHook(instance, "OnCollisionExit", instance.Self, handle); break;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +207,30 @@ void SceneScripts::Start()
             s.CallHook(*s.SceneScript, "OnLoad", s.SceneScript->Self);
         }
     }
+    s.StartListening();
     s.StartNew();
+}
+
+void SceneScripts::Interact(const Entity target, const Entity by)
+{
+    Impl&      s  = *_impl;
+    const auto it = s.Instances.find(InstanceKey(target));
+    if (it == s.Instances.end() || it->second.Broken) return;
+    s.CallHook(it->second, "OnInteract", it->second.Self, ScriptEntity{ by, s.Serial });
+}
+
+// Only plain values save (LuaToJson): numbers, text, booleans, tables of
+// them; a Vec2 becomes { x, y }.
+void SceneScripts::SyncSaved()
+{
+    Impl& s = *_impl;
+    for (const ScriptInstance& instance : s.Instances | std::views::values) {
+        if (instance.Broken) continue;
+        Script* script = s.Owner.GetWorld().GetComponent<Script>(instance.Owner);
+        if (!script) continue;
+        const nlohmann::json saved = LuaToJson(instance.Self["Saved"]);
+        script->Saved              = saved.is_object() ? saved : nlohmann::json::object();
+    }
 }
 
 // An OnUpdate that fails is turned off for that instance, so one broken
@@ -201,6 +273,7 @@ void SceneScripts::Removed(const Entity entity)
 void SceneScripts::End()
 {
     Impl& s = *_impl;
+    s.StopListening();
     while (!s.Instances.empty()) { // OnDestroy may destroy others: take one at a time
         const auto it = s.Instances.begin();
         const ScriptInstance instance = std::move(it->second);
