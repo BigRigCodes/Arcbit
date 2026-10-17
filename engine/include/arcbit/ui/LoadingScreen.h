@@ -29,6 +29,8 @@ public:
     LoadingScreen()
     {
         BlocksInput     = true; // nothing under it should react while loading
+        TakesInput      = false;
+        Layer           = UILayer::Overlay;
         TransitionSpeed = 4.0f;
     }
 

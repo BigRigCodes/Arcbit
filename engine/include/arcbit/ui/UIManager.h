@@ -64,12 +64,23 @@ public:
     }
     [[nodiscard]] const UISkin& GetSkin() const { return _skin; }
 
-    // Push a screen on top - beneath any StaysOnTop screens, unless it is
-    // one itself.
+    // Push a screen on top of its layer (UIScreen::Layer): above the screens
+    // of its own and lower layers, beneath those of higher ones. Settings
+    // screens a menu opens are pushed this way, on top of it.
     void Push(std::unique_ptr<UIScreen> screen);
 
-    // Close the topmost screen that isn't StaysOnTop (fading out if it has a
-    // transition).
+    // Open a top-level menu: close every open Menu-layer screen (another
+    // menu and its sub-screens), then push this one. The pause menu, the
+    // title menu and a game's own menus open this way, so opening one swaps
+    // out whichever was open.
+    void OpenMenu(std::unique_ptr<UIScreen> screen);
+
+    // Close every open Menu-layer screen.
+    void CloseMenus();
+
+    // Close the topmost Menu-layer screen (fading out if it has a
+    // transition). Prefer Close(screen): a screen closing itself by pointer
+    // can't close the wrong one.
     void Pop();
 
     // Close a specific screen, wherever it sits in the stack - fading out if
@@ -88,6 +99,17 @@ public:
 
     [[nodiscard]] UIScreen* Top()   const;
     [[nodiscard]] bool      Empty() const { return _stack.empty(); }
+
+    // True while the screen is on the stack and not closing.
+    [[nodiscard]] bool IsOpen(const UIScreen* screen) const;
+
+    // True while any Menu-layer screen is open (and not closing).
+    [[nodiscard]] bool HasOpenMenu() const;
+
+    // The UI's back input this tick (Escape, gamepad East). A key that also
+    // opens a menu (Escape for pause) should be read as "back" while a menu
+    // is open, so it closes that menu instead of swapping in its own.
+    [[nodiscard]] static bool IsBackPressed(const InputManager& input);
 
     // Returns true if any screen on the stack has BlocksInput = true.
     // Use this in OnUpdate to suppress game input when a menu is open.

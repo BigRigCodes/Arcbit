@@ -1,5 +1,5 @@
-// UIManager's screen stack, without a renderer: Push / Pop ordering and the
-// StaysOnTop rule.
+// UIManager's screen stack, without a renderer: layers, Push / Pop / Close,
+// menus swapping each other out, and which screen gets the input.
 
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/UIManager.h>
@@ -14,46 +14,101 @@ using namespace Arcbit;
 
 namespace
 {
-std::unique_ptr<UIScreen> MakeScreen(const bool staysOnTop = false)
+std::unique_ptr<UIScreen> MakeScreen(const UILayer layer = UILayer::Menu)
 {
     auto screen             = std::make_unique<UIScreen>();
-    screen->TransitionSpeed = 0.0f; // Pop removes at once
-    screen->StaysOnTop      = staysOnTop;
+    screen->TransitionSpeed = 0.0f; // closes at once
+    screen->Layer           = layer;
     return screen;
 }
-} // namespace
 
-TEST_CASE("Screens pushed under a StaysOnTop screen go beneath it", "[ui]")
+// Push and return the raw pointer (owned by the manager).
+UIScreen* PushScreen(UIManager& ui, std::unique_ptr<UIScreen> screen)
 {
-    // Regression: the first scene loads under the splash now, and a HUD it
-    // pushed landed on top - the splash stopped ticking and never finished.
-    UIManager ui;
-    auto      splash    = MakeScreen(true);
-    UIScreen* splashPtr = splash.get();
-    ui.Push(std::move(splash));
-    ui.Push(MakeScreen());
-    CHECK(ui.Top() == splashPtr);
-
-    auto      menu    = MakeScreen();
-    UIScreen* menuPtr = menu.get();
-    ui.Push(std::move(menu));
-    CHECK(ui.Top() == splashPtr);
-
-    ui.Pop(); // closes the topmost ordinary screen, not the splash
-    CHECK(ui.Top() == splashPtr);
-    ui.Remove(splashPtr);
-    CHECK(ui.Top() != menuPtr); // the menu was the one popped
-    CHECK(ui.Top() != nullptr); // the first ordinary screen remains
+    UIScreen* raw = screen.get();
+    ui.Push(std::move(screen));
+    return raw;
 }
 
-TEST_CASE("Pop with only StaysOnTop screens does nothing", "[ui]")
+// Counts the ticks it gets - the screen input goes to is the one ticked.
+struct CountingScreen : UIScreen
+{
+    int Ticks = 0;
+    void OnTick(f32, const InputManager&) override { ++Ticks; }
+};
+
+void Tick(UIManager& ui, InputManager& input) { ui.Update(1.0f / 60.0f, { 640.0f, 360.0f }, input); }
+} // namespace
+
+TEST_CASE("Screens are pushed on top of their own layer", "[ui]")
+{
+    // Regression (splash): the first scene loads under the splash and pushes
+    // its HUD; the HUD landed on top and the splash stopped ticking.
+    UIManager ui;
+    UIScreen* splash  = PushScreen(ui, MakeScreen(UILayer::System));
+    UIScreen* overlay = PushScreen(ui, MakeScreen(UILayer::Overlay));
+    UIScreen* hud     = PushScreen(ui, MakeScreen(UILayer::Hud));
+    UIScreen* menu    = PushScreen(ui, MakeScreen(UILayer::Menu));
+    CHECK(ui.Top() == splash);
+
+    ui.Remove(splash);
+    CHECK(ui.Top() == overlay); // the menu went under the overlay
+    ui.Remove(overlay);
+    CHECK(ui.Top() == menu); // and above the HUD
+    ui.Remove(menu);
+    CHECK(ui.Top() == hud);
+}
+
+TEST_CASE("Pop closes the topmost menu and nothing else", "[ui]")
 {
     UIManager ui;
-    auto      splash    = MakeScreen(true);
-    UIScreen* splashPtr = splash.get();
-    ui.Push(std::move(splash));
+    UIScreen* hud     = PushScreen(ui, MakeScreen(UILayer::Hud));
+    UIScreen* menu    = PushScreen(ui, MakeScreen(UILayer::Menu));
+    UIScreen* overlay = PushScreen(ui, MakeScreen(UILayer::Overlay));
     ui.Pop();
-    CHECK(ui.Top() == splashPtr);
+    CHECK_FALSE(ui.IsOpen(menu));
+    CHECK(ui.IsOpen(overlay));
+    ui.Pop(); // no menus left: the HUD and overlay stay
+    CHECK(ui.IsOpen(hud));
+    CHECK(ui.IsOpen(overlay));
+}
+
+TEST_CASE("OpenMenu swaps out the open menus, sub-screens included", "[ui]")
+{
+    UIManager ui;
+    UIScreen* hud      = PushScreen(ui, MakeScreen(UILayer::Hud));
+    UIScreen* pause    = PushScreen(ui, MakeScreen());
+    UIScreen* settings = PushScreen(ui, MakeScreen()); // opened from the pause menu
+    CHECK(ui.HasOpenMenu());
+
+    auto      picker    = MakeScreen();
+    UIScreen* pickerPtr = picker.get();
+    ui.OpenMenu(std::move(picker));
+    CHECK_FALSE(ui.IsOpen(pause));
+    CHECK_FALSE(ui.IsOpen(settings));
+    CHECK(ui.IsOpen(pickerPtr));
+    CHECK(ui.IsOpen(hud)); // not a menu
+}
+
+TEST_CASE("Input goes to the topmost screen that takes it", "[ui]")
+{
+    // Regression: the F3 event log sat on top and took the keys, so a menu
+    // opened under it couldn't be used.
+    UIManager    ui;
+    InputManager input;
+    auto         menu    = std::make_unique<CountingScreen>();
+    auto         log     = std::make_unique<CountingScreen>();
+    auto*        menuPtr = menu.get();
+    auto*        logPtr  = log.get();
+    log->Layer           = UILayer::Overlay;
+    log->TakesInput      = false;
+    ui.Push(std::move(menu));
+    ui.Push(std::move(log));
+
+    Tick(ui, input); // the push frame skips the tick
+    Tick(ui, input);
+    CHECK(menuPtr->Ticks == 1);
+    CHECK(logPtr->Ticks == 0);
 }
 
 TEST_CASE("A screen can remove itself from its own tick", "[ui]")
@@ -80,18 +135,14 @@ TEST_CASE("A screen can remove itself from its own tick", "[ui]")
 TEST_CASE("Close removes a specific screen wherever it sits", "[ui]")
 {
     UIManager ui;
-    auto      bottom    = MakeScreen();
-    UIScreen* bottomPtr = bottom.get();
-    ui.Push(std::move(bottom));
-    auto      top    = MakeScreen(true);
-    UIScreen* topPtr = top.get();
-    ui.Push(std::move(top));
+    UIScreen* bottom = PushScreen(ui, MakeScreen());
+    UIScreen* top    = PushScreen(ui, MakeScreen(UILayer::System));
 
-    ui.Close(bottomPtr); // no transition: removed at once
-    CHECK(ui.Top() == topPtr);
-    ui.Close(topPtr); // StaysOnTop screens close too (Pop skips them)
+    ui.Close(bottom); // no transition: removed at once
+    CHECK(ui.Top() == top);
+    ui.Close(top); // any layer (Pop only touches menus)
     CHECK(ui.Empty());
-    ui.Close(topPtr); // no longer on the stack: no-op
+    ui.Close(top); // no longer on the stack: no-op
 }
 
 TEST_CASE("Focus is dropped when the focused widget is destroyed", "[ui]")

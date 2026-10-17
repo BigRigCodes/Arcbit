@@ -21,6 +21,17 @@ class  InputManager;
 // visible screens are collected each frame.  Push transitions fade in; Pop
 // transitions fade out before the screen is removed from the stack.
 // ---------------------------------------------------------------------------
+// Where a screen sits in the UI stack, bottom to top. A screen is pushed on
+// top of its own layer - so a menu opened while an overlay is up goes beneath
+// the overlay, and a HUD a scene pushes never covers a menu.
+enum class UILayer : u8
+{
+    Hud,     // always-there game info: health, coins
+    Menu,    // menus and their sub-screens (settings); UIManager::OpenMenu swaps them
+    Overlay, // above menus: debug overlays, the loading screen
+    System,  // above everything: the splash
+};
+
 class UIScreen
 {
 public:
@@ -51,12 +62,13 @@ public:
     // and any screen that must appear before game content is visible.
     bool BlocksGame = false;
 
-    // Keeps the screen above everything pushed after it: other screens are
-    // inserted beneath it, and Pop() skips it. For screens that must stay in
-    // front while the game sets itself up underneath - the splash, during
-    // which the first scene loads and may push its HUD. Remove it with
-    // UIManager::Remove.
-    bool StaysOnTop = false;
+    // Where the screen sits in the stack (see UILayer).
+    UILayer Layer = UILayer::Menu;
+
+    // False for display-only screens (HUDs, an event log): keys, buttons and
+    // the mouse go to the topmost screen that takes input, so a menu beneath
+    // stays usable.
+    bool TakesInput = true;
 
     // For BlocksGame screens: true while the screen fully hides the game, so
     // a scene can load beneath it (the main thread stalls while it does) with

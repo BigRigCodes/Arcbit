@@ -79,24 +79,52 @@ void UIManager::Push(std::unique_ptr<UIScreen> screen)
     screen->_skipInputThisFrame = true;
     screen->OnEnter();
 
-    // Below the StaysOnTop screens (they sit at the top of the stack).
-    auto at = _stack.end();
-    if (!screen->StaysOnTop)
-        while (at != _stack.begin() && (*std::prev(at))->StaysOnTop) --at;
+    // On top of its layer: before the first screen of a higher one (the stack
+    // is kept sorted by layer).
+    const UILayer layer = screen->Layer;
+    const auto    at    = std::ranges::find_if(_stack, [layer](const auto& s) { return s->Layer > layer; });
     _stack.insert(at, std::move(screen));
+}
+
+void UIManager::OpenMenu(std::unique_ptr<UIScreen> screen)
+{
+    CloseMenus();
+    screen->Layer = UILayer::Menu;
+    Push(std::move(screen));
+}
+
+void UIManager::CloseMenus()
+{
+    std::vector<const UIScreen*> menus;
+    for (const auto& s : _stack)
+        if (s->Layer == UILayer::Menu && IsOpen(s.get())) menus.push_back(s.get());
+    for (const UIScreen* menu : menus) Close(menu);
 }
 
 void UIManager::Pop()
 {
-    // The topmost screen that isn't StaysOnTop or already on its way out.
-    auto it = _stack.end();
-    while (it != _stack.begin()) {
-        const UIScreen* s = std::prev(it)->get();
-        if (!s->StaysOnTop && std::ranges::find(_deferredRemovals, s) == _deferredRemovals.end()) break;
-        --it;
-    }
-    if (it == _stack.begin()) return;
-    Close(std::prev(it)->get());
+    for (auto it = _stack.rbegin(); it != _stack.rend(); ++it)
+        if ((*it)->Layer == UILayer::Menu && IsOpen(it->get())) {
+            Close(it->get());
+            return;
+        }
+}
+
+bool UIManager::IsOpen(const UIScreen* screen) const
+{
+    if (std::ranges::find(_deferredRemovals, screen) != _deferredRemovals.end()) return false;
+    const auto it = std::ranges::find_if(_stack, [screen](const auto& s) { return s.get() == screen; });
+    return it != _stack.end() && !(*it)->IsFadingOut();
+}
+
+bool UIManager::HasOpenMenu() const
+{
+    return std::ranges::any_of(_stack, [this](const auto& s) { return s->Layer == UILayer::Menu && IsOpen(s.get()); });
+}
+
+bool UIManager::IsBackPressed(const InputManager& input)
+{
+    return input.JustPressed(ActionTextEscape) || input.JustPressed(ActionBack);
 }
 
 void UIManager::Close(const UIScreen* screen)
@@ -151,10 +179,11 @@ bool UIManager::CoversLoading() const
 // Update
 // ---------------------------------------------------------------------------
 
+// The topmost screen that takes input and isn't on its way out.
 UIScreen* UIManager::ActiveInputScreen() const
 {
     for (auto it = _stack.rbegin(); it != _stack.rend(); ++it)
-        if (!(*it)->IsFadingOut()) return it->get();
+        if ((*it)->TakesInput && !(*it)->IsFadingOut()) return it->get();
     return nullptr;
 }
 
@@ -236,9 +265,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // Escape / gamepad East: clear text focus or navigate back.
     // ActionTextEscape = Key::Escape; ActionBack = GamepadButton::East.
     // Both share the same behavior: cancel text editing when focused, else back.
-    const bool backPressed = input.JustPressed(ActionTextEscape) ||
-            input.JustPressed(ActionBack);
-    if (backPressed) {
+    if (IsBackPressed(input)) {
         if (prevConsumesNav) active->ClearFocus();
         else {
             if (!_skin.SoundBack.empty()) AudioManager::PlayOneShot(_skin.SoundBack);

@@ -240,8 +240,9 @@ MyGame() : Application({ ... })
 - **Credits** (`CreditsScreen`) scroll a JSON file: `title`, `sections` of
   `heading` + `names`, `scroll_speed`.
 
-The splash `StaysOnTop`: screens pushed while it's up (a HUD the first scene
-pushes in `OnLoad`) go beneath it, so it keeps ticking and finishes.
+The splash is on the `System` UI layer: screens pushed while it's up (a HUD
+the first scene pushes in `OnLoad`) go beneath it, so it keeps ticking and
+finishes (see [gui.md](gui.md#screen-management)).
 
 ---
 

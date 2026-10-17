@@ -157,7 +157,7 @@ void Application::UpdateLoadingScreen(const f32 dt)
 
     std::unique_ptr<UIScreen> screen = _loadingScreenFactory();
     if (!screen) return;
-    screen->StaysOnTop = true; // a Pop() meant for another screen mustn't close it
+    screen->Layer      = UILayer::Overlay; // above menus; a Pop() meant for a menu can't close it
     _loadingScreen     = screen.get();
     _ui.Push(std::move(screen));
     LOG_DEBUG(Engine, "Loading screen shown");

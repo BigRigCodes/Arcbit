@@ -467,7 +467,7 @@ layout, set `LayoutPath` before pushing:
 
 ```cpp
 pause->LayoutPath = "assets/ui/my_pause_menu.arcui";
-GetUI().Push(std::move(pause));
+GetUI().OpenMenu(std::move(pause));
 ```
 
 ### Custom widget types
@@ -558,9 +558,41 @@ std::string GetMetaStr(std::string_view key, std::string_view def = "") const;
 template<typename T> T* Add();
 ```
 
-`UIManager` maintains a **stack** of active screens. The top-most screen receives
-input; all visible screens are collected each frame. Screens with `BlocksInput=true`
-prevent input from propagating to lower screens (used for pause menus, dialogs).
+`UIManager` maintains a **stack** of active screens, drawn bottom to top.
+
+**Layers.** Every screen has a `Layer`, bottom to top: `Hud` (health, coins),
+`Menu` (the default: menus and their settings screens), `Overlay` (debug
+overlays, the loading screen) and `System` (the splash). `Push` puts a screen
+on top of its own layer, so a menu opened while an overlay is up goes beneath
+it, and a HUD a scene pushes never covers a menu.
+
+**Input** goes to the topmost screen with `TakesInput` (the default). HUDs and
+display-only overlays (the demo's F3 event log, the loading screen) turn it
+off, so the menu under them still gets the keys. `BlocksInput` is separate: it
+holds the *game* still while the screen is up (`HasBlockingScreen`).
+
+**Menus swap each other out.** Open a top-level menu with `OpenMenu`: it
+closes every open Menu-layer screen - another menu and whatever settings
+screens it opened - then pushes the new one. Screens a menu opens on top of
+itself (Controls, Audio) use `Push`.
+
+```cpp
+ui.OpenMenu(std::move(pause));          // replaces the demo switcher, if it's open
+ui.Push(std::move(controls));           // on top of the pause menu
+controls->OnBack = [&ui, screen] { ui.Close(screen); }; // close yourself, by pointer
+```
+
+**Closing.** A screen closes itself with `Close(this-screen)` (fading out if it
+has a transition). `Pop` closes the topmost menu, but a screen closing itself
+by pointer can't close the wrong one; `CloseMenus` closes them all; `Remove`
+drops a screen at once (a scene's HUD as it unloads). `IsOpen(screen)` and
+`HasOpenMenu()` tell what's up.
+
+**Keys that open menus** work while another menu is open, swapping it - but
+a key that is also the UI's back (`UIManager::IsBackPressed`: Escape, gamepad
+East) should be read as back while a menu is open. The World demo's pause key
+does this: gamepad Start swaps the demo switcher for the pause menu, Escape
+just closes the switcher.
 
 ---
 
@@ -726,7 +758,7 @@ Game assets go in `game/assets/`.
 - [x] `SplashScreen`: ordered image sequence; per-entry fade-in/hold/fade-out; skip on confirm; `BlocksGame` suppresses game scene and UI below while active
 - [x] `MainMenuScreen`: data-driven via `main_menu.arcui`; `ShowContinue` / `ShowControls` / `ShowAudioSettings` / `ShowGraphicsSettings` / `ShowCredits` flags; C++ fallback
 - [x] `CreditsScreen`: scrolling credits from a JSON file (`title`, `sections` of `heading` + `names`, `scroll_speed`); closes when the roll ends or on back
-- [x] `StaysOnTop` screens (the splash): pushes go beneath them and `Pop()` skips them; a screen removing itself during `UIManager::Update` is deferred until the update returns
+- [x] Screen layers (`Hud` / `Menu` / `Overlay` / `System`) replace `StaysOnTop`: a screen is pushed on top of its layer; `TakesInput = false` lets input through to the menu beneath; `OpenMenu` swaps menus out, `Close(screen)` closes by pointer and `Pop()` only touches menus; a screen removing itself during `UIManager::Update` is deferred until the update returns
 - [ ] `DialogScreen`: portrait + speaker name + scrolling text + choice buttons (deferred to Phase 27 dialog system)
 - [ ] `InventoryScreen` stub (deferred to Phase 25 item system)
 - [x] `GraphicsSettingsScreen` extended: VSync, Show FPS, and Show Debug Info all use `Switch` widgets; `Settings::Graphics.ShowFps` and `ShowDebugInfo` drive live HUD and debug overlay
