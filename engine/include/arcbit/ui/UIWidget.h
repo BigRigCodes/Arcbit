@@ -181,5 +181,10 @@ private:
     friend class UIScreen;
 
     inline static u64 s_destroyedCount = 0;
+    inline static u64 s_lastSerial     = 0;
+
+    // Unique per widget ever made: a new widget can reuse a destroyed one's
+    // address, but never its serial (UIScreen's focus check needs both).
+    const u64 _serial = ++s_lastSerial;
 };
 } // namespace Arcbit

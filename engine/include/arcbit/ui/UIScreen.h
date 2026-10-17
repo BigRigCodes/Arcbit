@@ -171,6 +171,7 @@ private:
     f32             _transitionOpacity = 1.0f;
     mutable UIWidget* _focusedWidget = nullptr;
     mutable u64       _focusCheckedAt = 0; // UIWidget::DestroyedCount() when focus was last known valid
+    mutable u64       _focusedSerial  = 0; // the focused widget's serial: tells it from one reusing its address
 
     void AdvanceTransition(f32 dt);
     void ApplyFocus(UIWidget* widget);

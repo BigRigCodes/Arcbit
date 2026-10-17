@@ -175,11 +175,13 @@ bool UIScreen::InTree(const UIWidget& w, const UIWidget* target)
 UIWidget* UIScreen::GetFocusedWidget() const
 {
     // Only when some widget was destroyed since the last check: is the focused
-    // one still in the tree? Compares pointers, never dereferences the old one.
+    // one still in the tree? The address alone can't say - a rebuild may put a
+    // new widget where it was - so the serial must match too. The widget is
+    // only dereferenced once the address is known to be in the tree (alive).
     if (_focusedWidget && _focusCheckedAt != UIWidget::DestroyedCount()) {
-        _focusCheckedAt = UIWidget::DestroyedCount();
-        const bool alive = std::ranges::any_of(_roots, [&](const auto& root) { return InTree(*root, _focusedWidget); });
-        if (!alive) _focusedWidget = nullptr;
+        _focusCheckedAt  = UIWidget::DestroyedCount();
+        const bool inTree = std::ranges::any_of(_roots, [&](const auto& root) { return InTree(*root, _focusedWidget); });
+        if (!inTree || _focusedWidget->_serial != _focusedSerial) _focusedWidget = nullptr;
     }
     return _focusedWidget;
 }
@@ -206,6 +208,7 @@ void UIScreen::ApplyFocus(UIWidget* widget)
     if (old == widget) return;
     if (old) { old->_focused = false; old->OnFocusLost(); }
     _focusedWidget  = widget;
+    _focusedSerial  = widget ? widget->_serial : 0;
     _focusCheckedAt = UIWidget::DestroyedCount();
     if (_focusedWidget) {
         LOG_DEBUG(UI, "Focus: {}", _focusedWidget->Name);

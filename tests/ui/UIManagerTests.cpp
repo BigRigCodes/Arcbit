@@ -189,6 +189,9 @@ TEST_CASE("Focus can be put back by its place in the focus order", "[ui]")
     }
     screen.FocusAt(place);
     CHECK(screen.GetFocusedWidget() == rebuilt[1]);
+    // Regression (PR #5 review): a rebuilt widget can reuse the old focused
+    // one's address; it must still be properly focused, not taken for the old.
+    CHECK(rebuilt[1]->IsFocused());
     screen.FocusAt(10); // past the end: the last one
     CHECK(screen.GetFocusedWidget() == rebuilt[2]);
 }
