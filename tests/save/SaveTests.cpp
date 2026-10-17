@@ -173,6 +173,13 @@ TEST_CASE("Slots list newest first, and delete with their backups", "[save]")
     CHECK(saves.List().size() == 2);
 }
 
+TEST_CASE("Slots name themselves for logs and events", "[save]")
+{
+    CHECK(ToString(SaveSlot::Manual(3)) == "manual_3");
+    CHECK(ToString(SaveSlot::Auto(1)) == "auto_1");
+    CHECK(ToString(SaveSlot::Quick()) == "quick");
+}
+
 TEST_CASE("Autosaves fill the empty slots, then replace the oldest", "[save]")
 {
     const ArcbitTests::TempDir dir;

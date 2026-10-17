@@ -224,16 +224,7 @@ void Application::Run()
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); } });
-
-    // The world state travels in every save: the live scenes' changes are
-    // captured first (they haven't unloaded).
-    _saves.RegisterParticipant(
-        "world",
-        [this](nlohmann::json& section) {
-            _scenes.CaptureLive();
-            section = _world.ToJson();
-        },
-        [this](const nlohmann::json& section) { _world.FromJson(section); });
+    RegisterSaveSections();
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -324,6 +315,7 @@ void Application::Run()
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
                     scene->Update(_fixedTimestep);
                 }
+                if (!_ui.HasBlockingScreen() && !_scenes.IsFading()) _playtime += _fixedTimestep;
             }
             // Under a screen that hides the game (the splash on its logo), a
             // queued swap may run - its load stays out of sight - but the

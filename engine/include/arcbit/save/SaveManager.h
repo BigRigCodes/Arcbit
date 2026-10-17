@@ -37,6 +37,9 @@ struct SaveSlot
     bool operator==(const SaveSlot& other) const = default;
 };
 
+// "manual_3", "auto_1", "quick" - for logs and event payloads.
+[[nodiscard]] std::string ToString(SaveSlot slot);
+
 // A slot with a save in it, for the slot list.
 struct SaveSlotInfo
 {

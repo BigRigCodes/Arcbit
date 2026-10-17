@@ -28,6 +28,15 @@ namespace
     }
 } // namespace
 
+std::string ToString(const SaveSlot slot)
+{
+    switch (slot.Type) {
+        case SaveSlot::Kind::Auto: return std::format("auto_{}", slot.Index);
+        case SaveSlot::Kind::Quick: return "quick";
+        default: return std::format("manual_{}", slot.Index);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // What gets saved
 // ---------------------------------------------------------------------------

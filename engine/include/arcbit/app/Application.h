@@ -180,6 +180,29 @@ public:
     // The per-user data folder: settings, saves (see ApplicationConfig).
     [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
 
+    // --- Saving and loading the game (docs/saves.md) -------------------------
+
+    // Save the game to `slot`: SaveData, every participant's section, every
+    // visited scene's changes and the scene stack (the engine's own sections,
+    // "world" and "scenes"). `name` labels it in the slot list; empty = the
+    // active scene's name. Refused (false, logged) while a scene change is
+    // under way or with no named scene loaded. Publishes engine.game.saved.
+    bool SaveTo(SaveSlot slot, std::string name = {});
+
+    // Load the save in `slot`: the screen fades out, the current scenes
+    // unload, the save's state goes back and its scene stack loads. False
+    // (logged) if it can't be read or a scene change is under way. Publishes
+    // engine.game.loaded once the save's state is back.
+    bool LoadFrom(SaveSlot slot);
+
+    // Forget the current game: SaveData, every participant (handed an empty
+    // section), the world state and playtime. The title's New Game does this.
+    void ResetGame();
+
+    // Seconds of play this game, carried in its saves: counted while the
+    // player has control - not under a menu, a fade or the splash.
+    [[nodiscard]] f64 GetPlaytime() const { return _playtime; }
+
     // Color format of the swapchain — pass to PipelineDesc::ColorFormat so
     // pipelines match the actual surface format chosen by the driver.
     [[nodiscard]] Format GetSwapchainFormat() const;
@@ -261,6 +284,9 @@ private:
     std::filesystem::path _userFolder; // set first in the constructor: settings and saves live in it
     SaveManager           _saves;
     WorldState            _world; // every visited scene's changes; the saves' "world" section
+    f64                   _playtime = 0.0;
+
+    void RegisterSaveSections(); // "world" and "scenes" (ApplicationSaves.cpp)
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).
