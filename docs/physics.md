@@ -475,6 +475,14 @@ sweeping it against the world so it stops at walls. Then it sweeps the pusher
 again, so the pusher follows at the pushable's speed. Shoves don't chain:
 a crate pushed into a second crate stops.
 
+Tile movers push Sokoban-style: when a planned step is blocked by a
+`Pushable`, the crate moves one tile along the step if `QueryTileBlocked`
+clears the cell beyond it, and the step is planned again. A smooth mover
+carries the crate one tile ahead of itself until the step ends, rather than
+letting the crate lerp on its own: a self-moving crate could lag the mover by
+a tick, still be mid-step when the mover arrived, and stall a held push at
+every tile.
+
 ### Push-out (depenetration)
 
 Kinematic-first means nothing pushes a mover out of a collider. Normally that's

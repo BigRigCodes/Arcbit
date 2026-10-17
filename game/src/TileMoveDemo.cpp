@@ -10,6 +10,9 @@
 //   - Player as a small box collider with InputMovement; WASD becomes a
 //     MoveIntent, the tile-movement system rejects the step when the path
 //     is blocked. Holding two directions follows the one pressed last.
+//   - Two Pushable crates (22I), Sokoban-style: walking into one pushes it a
+//     tile if the cell beyond is free. One sits next to the water wall, so
+//     it jams after a single push; crates don't push each other.
 //
 // M swaps SmoothTileMovement (lerp between tiles) and SnapTileMovement
 // (instant steps, repeating while held) at the same tiles-per-second pace.
@@ -35,6 +38,7 @@
 #include <arcbit/tilemap/TileMap.h>
 
 #include <cmath>
+#include <vector>
 
 using namespace Arcbit;
 
@@ -94,6 +98,8 @@ protected:
         auto& world = GetWorld();
         CreatePlayer(world, physics);
         CreateRocks(world, physics);
+        CreateCrate({ TileSize * 1.0f, -TileSize * 1.0f }); // one push from the water wall
+        CreateCrate({ -TileSize * 2.0f, 0.0f });
 
         LOG_INFO(Game, "TileMoveDemo ready - WASD to step, M movement style, F2 collider overlay");
     }
@@ -161,8 +167,46 @@ protected:
         (void)physics.RegisterCollider(e, rockCol, rockPos);
     }
 
+    // A Pushable crate the size of the player's collider, so it fits a tile.
+    void CreateCrate(const Vec2 pos)
+    {
+        auto&        world                = GetWorld();
+        const Entity e                    = world.CreateEntity();
+        world.GetComponent<Tag>(e)->Value = "Crate";
+        auto* t                           = world.GetTransform(e);
+        t->Position                       = pos;
+        t->Scale                          = {TileSize * 0.8f, TileSize * 0.8f};
+        world.AddComponent<SpriteRenderer>(e, SpriteRenderer{
+                                               .Texture = _whiteTex,
+                                               .Sampler = _sampler,
+                                               .Tint    = {0.7f, 0.5f, 0.25f, 1.0f},
+                                               .Layer   = 0,
+                                           });
+        const Collider2D col{
+            .Shape       = ColliderShape::Box,
+            .HalfExtents = {TileSize * 0.4f, TileSize * 0.4f},
+            .Kind        = BodyKind::Kinematic,
+            .Layer       = CollisionLayers::Prop,
+        };
+        world.AddComponent<Collider2D>(e, col);
+        world.AddComponent<Pushable>(e);
+        (void)GetPhysics().RegisterCollider(e, col, pos);
+        _crates.push_back(e);
+    }
+
+    // Round an entity to its nearest tile center and refresh its collider.
+    void SnapToGrid(const Entity e)
+    {
+        auto& world = GetWorld();
+        Vec2& p     = world.GetTransform(e)->Position;
+        p           = {std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize};
+        PhysicsWorld& physics = GetPhysics();
+        physics.UpdateCollider(physics.FindColliderForEntity(e), *world.GetComponent<Collider2D>(e), p);
+    }
+
     // Swap SmoothTileMovement <-> SnapTileMovement. Leaving smooth mode
-    // mid-step lands on the nearest tile center so snap steps stay aligned.
+    // mid-step lands the player (and any crate it was pushing) on the nearest
+    // tile center so snap steps stay aligned.
     void ToggleMovementStyle()
     {
         auto& world = GetWorld();
@@ -174,11 +218,8 @@ protected:
         }
         world.RemoveComponent<SmoothTileMovement>(_player);
         world.AddComponent<SnapTileMovement>(_player, SnapTileMovement{.StepInterval = SnapStep});
-
-        Vec2& p = world.GetTransform(_player)->Position;
-        p       = {std::round(p.X / TileSize) * TileSize, std::round(p.Y / TileSize) * TileSize};
-        PhysicsWorld& physics = GetPhysics();
-        physics.UpdateCollider(physics.FindColliderForEntity(_player), *world.GetComponent<Collider2D>(_player), p);
+        SnapToGrid(_player);
+        for (const Entity crate : _crates) SnapToGrid(crate);
         LOG_INFO(Game, "Movement: snap");
     }
 
@@ -220,10 +261,11 @@ protected:
     }
 
 private:
-    SamplerHandle _sampler;
-    TextureHandle _whiteTex;
-    Entity        _player   = Entity::Invalid();
-    bool          _showGrid = false;
+    SamplerHandle       _sampler;
+    TextureHandle       _whiteTex;
+    Entity              _player   = Entity::Invalid();
+    std::vector<Entity> _crates;
+    bool                _showGrid = false;
 };
 
 std::unique_ptr<Scene> Demo::CreateTileMoveDemo() { return std::make_unique<TileMoveDemo>(); }

@@ -468,34 +468,106 @@ namespace
         return { std::round(p.X / ts) * ts, std::round(p.Y / ts) * ts };
     }
 
-    // Asks the resolver whether a one-tile step is clear. A step blocked by
-    // an entity reports the contact so ContactEvents fires for tile movers
-    // too. Movers without a Collider2D are never blocked.
-    bool TileStepClear(const Entity e, const Collider2D* col, PhysicsWorld& physics,
-                       const Vec2 origin, const Vec2 target)
+    // What a tile step needs to plan against the world.
+    struct TileStepContext
+    {
+        World&        Ecs;
+        PhysicsWorld& Physics;
+        f32           TileSize;
+    };
+
+    // Sokoban-style push: move a Pushable one tile along `dir` when the cell
+    // beyond it is free (tiles, entities, arcs — a second crate blocks, so
+    // pushes don't chain). Resistance only matters at 1 (immovable). The
+    // crate's collider moves to the new cell right away, so the pusher's own
+    // step then finds its target clear.
+    bool TryPushTile(TileStepContext& ctx, const Entity crate, const Vec2 dir)
+    {
+        const Pushable*   pushable = ctx.Ecs.GetComponent<Pushable>(crate);
+        const Collider2D* col      = ctx.Ecs.GetComponent<Collider2D>(crate);
+        Transform2D*      t        = ctx.Ecs.GetTransform(crate);
+        if (!pushable || !col || !t || pushable->Resistance >= 1.0f || ctx.Ecs.GetComponent<Disabled>(crate))
+            return false;
+
+        const Vec2 from = TileCenterUnder(t->Position, ctx.TileSize);
+        const Vec2 to   = from + dir * ctx.TileSize;
+        if (ctx.Physics.QueryTileBlocked(crate, *col, from, to)) return false;
+        t->Position = to;
+        RefreshCollider(crate, col, to, ctx.Physics);
+        return true;
+    }
+
+    // Asks the resolver whether a one-tile step is clear, pushing a Pushable
+    // out of the way if one is in it. A step that runs into an entity
+    // reports the contact (pushed or not) so ContactEvents fires for tile
+    // movers too. Movers without a Collider2D are never blocked. `pushed`
+    // receives the crate shoved, if any.
+    bool TileStepClear(TileStepContext& ctx, const Entity e, const Collider2D* col,
+                       const Vec2 origin, const Vec2 target, Entity* pushed = nullptr)
     {
         PhysicsWorld::BlockingHit hit;
-        if (!col || !physics.QueryTileBlocked(e, *col, origin, target, &hit)) return true;
-        if (hit.Other.IsValid()) physics.ReportContact(e, hit.Other, hit.Normal);
-        return false;
+        if (!col || !ctx.Physics.QueryTileBlocked(e, *col, origin, target, &hit)) return true;
+        if (!hit.Other.IsValid()) return false; // a tile
+
+        ctx.Physics.ReportContact(e, hit.Other, hit.Normal);
+        const Vec2 dir = (target - origin) * (1.0f / ctx.TileSize);
+        if (!TryPushTile(ctx, hit.Other, dir) || ctx.Physics.QueryTileBlocked(e, *col, origin, target)) return false;
+        if (pushed) *pushed = hit.Other;
+        return true;
     }
 
     // Consumes the queued direction and starts a step from the tile under the
     // mover. Returns false (and drops the queued move) when the step is
     // blocked. Progress is left untouched — the caller decides where the new
     // step starts so overshoot from the previous step can carry over.
-    bool TryBeginTileStep(const Entity       e, const Transform2D& t, SmoothTileMovement& stm,
-                          const Collider2D*  col, PhysicsWorld&    physics, const f32 ts)
+    bool TryBeginTileStep(TileStepContext& ctx, const Entity e, const Transform2D& t, SmoothTileMovement& stm,
+                          const Collider2D* col)
     {
-        const Vec2 origin = TileCenterUnder(t.Position, ts);
-        const Vec2 target = origin + stm.QueuedDir * ts;
+        const Vec2 origin = TileCenterUnder(t.Position, ctx.TileSize);
+        const Vec2 target = origin + stm.QueuedDir * ctx.TileSize;
 
         stm.HasQueued = false;
-        if (!TileStepClear(e, col, physics, origin, target)) return false;
+        stm._pushing  = Entity::Invalid();
+        if (!TileStepClear(ctx, e, col, origin, target, &stm._pushing)) return false;
 
         stm.OriginWorld = origin;
         stm.TargetWorld = target;
         return true;
+    }
+
+    // A crate pushed by a smooth mover rides one tile ahead of it for the
+    // whole step, so the two glide in lockstep. (If the crate moved on its
+    // own it would sometimes lag a tick, and a held push would stall at every
+    // tile.) At the end of the step it sits exactly on its new tile.
+    void CarryPushed(TileStepContext& ctx, const SmoothTileMovement& stm, const Vec2 pusherPos)
+    {
+        if (!ctx.Ecs.IsValid(stm._pushing)) return;
+        Transform2D* t = ctx.Ecs.GetTransform(stm._pushing);
+        t->Position    = pusherPos + (stm.TargetWorld - stm.OriginWorld);
+        RefreshCollider(stm._pushing, ctx.Ecs.GetComponent<Collider2D>(stm._pushing), t->Position, ctx.Physics);
+    }
+
+    void TickSmoothMover(TileStepContext& ctx, const Entity e, Transform2D& t, SmoothTileMovement& stm, const f32 dt)
+    {
+        const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
+
+        if (stm.Progress >= 1.0f) {
+            if (!stm.HasQueued || !TryBeginTileStep(ctx, e, t, stm, col)) return;
+            stm.Progress = 0.0f;
+        }
+
+        stm.Progress += stm.Speed * dt;
+        if (stm.Progress >= 1.0f && stm.HasQueued) {
+            const f32 overshoot = stm.Progress - 1.0f;
+            t.Position          = stm.TargetWorld; // round from the exact tile center
+            CarryPushed(ctx, stm, t.Position);     // finish the last push before planning the next
+            if (TryBeginTileStep(ctx, e, t, stm, col)) stm.Progress = overshoot;
+        }
+
+        const f32 alpha = std::min(stm.Progress, 1.0f);
+        t.Position      = stm.OriginWorld + (stm.TargetWorld - stm.OriginWorld) * alpha;
+        RefreshCollider(e, col, t.Position, ctx.Physics);
+        CarryPushed(ctx, stm, t.Position);
     }
 
     void RegisterSmoothTileMoveSystem(World& world)
@@ -512,36 +584,15 @@ namespace
         // Movers without a Collider2D bypass the query (and the cache update)
         // and behave the same as before — preserves stub behavior.
         world.RegisterSystem("SmoothTileMove", [](Scene& scene, const f32 dt) {
-            const f32     ts       = scene.GetTileMap().GetTileSize();
-            PhysicsWorld& physics  = scene.GetPhysics();
-            World&        ecsWorld = scene.GetWorld();
-            ApplyIntentToSmoothTileMovers(ecsWorld);
+            TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
+                                 .TileSize = scene.GetTileMap().GetTileSize() };
+            ApplyIntentToSmoothTileMovers(ctx.Ecs);
 
-            ecsWorld.Query<Transform2D, SmoothTileMovement>()
-                    .Without<Disabled>()
-                    .ForEach([&](const Entity e, Transform2D& t, SmoothTileMovement& stm) {
-                        const Collider2D* col = ecsWorld.GetComponent<Collider2D>(e);
-
-                        if (stm.Progress >= 1.0f) {
-                            if (!stm.HasQueued || !TryBeginTileStep(e, t, stm, col, physics, ts)) return;
-                            stm.Progress = 0.0f;
-                        }
-
-                        stm.Progress += stm.Speed * dt;
-                        if (stm.Progress >= 1.0f && stm.HasQueued) {
-                            const f32 overshoot = stm.Progress - 1.0f;
-                            t.Position          = stm.TargetWorld; // round from the exact tile center
-                            if (TryBeginTileStep(e, t, stm, col, physics, ts)) stm.Progress = overshoot;
-                        }
-
-                        const f32 alpha = std::min(stm.Progress, 1.0f);
-                        t.Position      = {
-                            stm.OriginWorld.X + (stm.TargetWorld.X - stm.OriginWorld.X) * alpha,
-                            stm.OriginWorld.Y + (stm.TargetWorld.Y - stm.OriginWorld.Y) * alpha,
-                        };
-
-                        RefreshCollider(e, col, t.Position, physics);
-                    });
+            ctx.Ecs.Query<Transform2D, SmoothTileMovement>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, SmoothTileMovement& stm) {
+                   TickSmoothMover(ctx, e, t, stm, dt);
+               });
         });
     }
 
@@ -552,9 +603,11 @@ namespace
     // One snap mover's tick. A fresh direction steps at once; a held one
     // repeats every StepInterval, carrying the remainder so the average rate
     // is exact. A blocked step clears the cooldown and retries next tick.
-    void TickSnapMover(const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent,
-                       const Collider2D* col, PhysicsWorld& physics, const f32 ts, const f32 dt)
+    void TickSnapMover(TileStepContext& ctx, const Entity e, Transform2D& t, SnapTileMovement& snap,
+                       const MoveIntent& intent, const f32 dt)
     {
+        const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
+        const f32         ts  = ctx.TileSize;
         const Vec2 dir = CardinalStep(intent.Direction);
         if (dir == Vec2{}) {
             snap.Cooldown = 0.0f;
@@ -563,12 +616,12 @@ namespace
         if (snap.Cooldown <= CooldownEpsilon) {
             const Vec2 origin = TileCenterUnder(t.Position, ts);
             const Vec2 target = origin + dir * ts;
-            if (!TileStepClear(e, col, physics, origin, target)) {
+            if (!TileStepClear(ctx, e, col, origin, target)) { // a pushed crate has already jumped ahead
                 snap.Cooldown = 0.0f;
                 return;
             }
             t.Position = target;
-            RefreshCollider(e, col, t.Position, physics);
+            RefreshCollider(e, col, t.Position, ctx.Physics);
             snap.Cooldown += snap.StepInterval;
         }
         snap.Cooldown -= dt;
@@ -579,15 +632,13 @@ namespace
     void RegisterSnapTileMoveSystem(World& world)
     {
         world.RegisterSystem("SnapTileMove", [](Scene& scene, const f32 dt) {
-            const f32     ts       = scene.GetTileMap().GetTileSize();
-            PhysicsWorld& physics  = scene.GetPhysics();
-            World&        ecsWorld = scene.GetWorld();
-
-            ecsWorld.Query<Transform2D, SnapTileMovement, const MoveIntent>()
-                    .Without<Disabled>()
-                    .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
-                        TickSnapMover(e, t, snap, intent, ecsWorld.GetComponent<Collider2D>(e), physics, ts, dt);
-                    });
+            TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
+                                 .TileSize = scene.GetTileMap().GetTileSize() };
+            ctx.Ecs.Query<Transform2D, SnapTileMovement, const MoveIntent>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
+                   TickSnapMover(ctx, e, t, snap, intent, dt);
+               });
         });
     }
 

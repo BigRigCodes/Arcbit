@@ -395,11 +395,17 @@ struct Pushable {
 };
 ```
 
-A free mover walking into a `Pushable` entity (which needs a `Collider2D`)
-shoves it along by the part of its motion that drives into it, scaled by
-`1 - Resistance`. The shove is swept against the world, so a crate stops at
-walls, and the pusher stops with it. Shoves don't chain through a second
-`Pushable`. Tile-mover pushing is a follow-up.
+A mover walking into a `Pushable` entity (which needs a `Collider2D`) shoves
+it instead of stopping. Pushes stop at walls, and the pusher with them; they
+don't chain through a second `Pushable`.
+
+- **Free movers** shove it along by the part of their motion that drives into
+  it, scaled by `1 - Resistance`, swept against the world.
+- **Tile movers** push it one tile, Sokoban-style, when the cell beyond is
+  free (`Resistance` only matters at 1: immovable). A smooth mover carries the
+  crate one tile ahead of itself for the whole step, so a held push glides
+  without stalling at each tile; a snap mover moves it instantly. Keep a
+  tile-pushed crate on the grid by not letting free movers shove it too.
 
 #### SmoothTileMovement
 

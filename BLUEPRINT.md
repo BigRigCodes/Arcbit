@@ -312,7 +312,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] External velocity on `FreeMovement` - an impulse channel added on top of the intent / authored velocity and decayed by `Friction`. Since 22H an intent-driven mover's `Velocity` is rewritten every tick, so an impulse written to `Velocity` would vanish next tick. Knockback, dash bursts, conveyors and bumpers all use it
 - [x] Push-out (depenetration) for obstacle-caused overlaps - a free mover overlapping a collider it didn't walk into (a rotating gate turning into it, a prop spawned or teleported onto it) is pushed out along the contact normal. Overlaps the mover made itself (entering a directional collider through a pass-through face) are left alone, so one-way colliders still work
 - [x] Pushable objects - a `Pushable` component; a free mover walking into one shoves it along (swept against the world, so it stops at walls) at a configurable resistance
-- [ ] Tile-mover pushing (Sokoban-style crates) - a tile step into a `Pushable` moves it one tile if the cell beyond is clear
+- [x] Tile-mover pushing (Sokoban-style crates) - a tile step into a `Pushable` moves it one tile if the cell beyond is clear; a smooth mover carries the crate one tile ahead in lockstep so a held push never stalls (crates in TileMoveDemo)
 - [x] Demos - a bumper and a pushable crate in PhysicsDemo; ObbDemo's gate rotates through the player instead of stalling
 
 ---

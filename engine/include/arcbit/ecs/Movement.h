@@ -2,6 +2,7 @@
 
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/ecs/Entity.h>
 #include <arcbit/input/InputTypes.h>
 
 namespace Arcbit {
@@ -110,6 +111,10 @@ struct SmoothTileMovement
     f32  Progress   = 1.0f;   // 0→1 lerp progress; 1.0 = arrived
     Vec2 QueuedDir;
     bool HasQueued  = false;
+
+    // Internal (managed by SmoothTileMoveSystem): the Pushable this step is
+    // shoving, carried one tile ahead of the mover until the step ends.
+    Entity _pushing = Entity::Invalid();
 };
 
 // Moves instantly to the adjacent tile. A fresh press steps at once; a held
@@ -120,13 +125,17 @@ struct SnapTileMovement
     f32 Cooldown     = 0.0f;  // time until the next step may start
 };
 
-// A free mover walking into this entity shoves it along instead of stopping
-// (crates, barrels). The entity needs a Collider2D; the shove is swept
-// against the world, so it stops at walls, and shoves don't chain through a
-// second Pushable. Free movers only for now — tile movers are a follow-up.
+// A mover walking into this entity shoves it instead of stopping (crates,
+// barrels). The entity needs a Collider2D. Pushes stop at walls and don't
+// chain through a second Pushable.
+//   - Free movers shove it along, swept against the world, at
+//     (1 - Resistance) of the speed they drive into it.
+//   - Tile movers push it one tile, Sokoban-style, when the cell beyond is
+//     free; a smooth mover carries it along in step. Keep tile-pushed crates
+//     on the grid: don't also let free movers shove them.
 struct Pushable
 {
-    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable
+    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable (tile pushes only check for 1)
 };
 
 // ---------------------------------------------------------------------------

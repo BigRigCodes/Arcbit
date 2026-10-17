@@ -2,6 +2,7 @@
 
 #include <arcbit/ecs/AnimatorStateMachine.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Entity.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Types.h>
@@ -20,22 +21,6 @@ namespace Arcbit
 
 class Scene;
 struct FramePacket;
-
-// ---------------------------------------------------------------------------
-// Entity — generational index that prevents use-after-free.
-// ---------------------------------------------------------------------------
-struct Entity
-{
-    u32 Index      = ~0u;
-    u32 Generation = 0;
-
-    [[nodiscard]] bool IsValid() const { return Index != ~0u; }
-
-    bool operator==(const Entity& o) const { return Index == o.Index && Generation == o.Generation; }
-    bool operator!=(const Entity& o) const { return !(*this == o); }
-
-    static Entity Invalid() { return {}; }
-};
 
 // ---------------------------------------------------------------------------
 // Component type IDs — assigned once per type at first use, no macros/RTTI.

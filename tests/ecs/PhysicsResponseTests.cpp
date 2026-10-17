@@ -232,3 +232,95 @@ TEST_CASE("A shoved Pushable stops at walls and a resistance of 1 doesn't move",
         CHECK(PositionOf(scene, mover).X == 0.0f);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tile pushing (Sokoban-style)
+// ---------------------------------------------------------------------------
+
+namespace
+{
+constexpr f32 Ts = 32.0f; // TileMap default
+
+Entity AddTileMover(Scene& scene, const Vec2 pos)
+{
+    const Entity e = AddBody(scene, pos, Box(12.0f, 12.0f));
+    scene.GetWorld().AddComponent<MoveIntent>(e);
+    scene.GetWorld().GetComponent<MoveIntent>(e)->Set({ 1.0f, 0.0f });
+    return e;
+}
+
+Entity AddCrate(Scene& scene, const Vec2 pos, const f32 resistance = 0.0f)
+{
+    const Entity e = AddBody(scene, pos, Box(12.0f, 12.0f));
+    scene.GetWorld().AddComponent<Pushable>(e, Pushable{ .Resistance = resistance });
+    return e;
+}
+
+void AddSolidTile(Scene& scene, const i32 x, const i32 y)
+{
+    TileDef wall{};
+    wall.Solid = true;
+    scene.GetTileMap().RegisterTile(1, wall);
+    scene.GetTileMap().SetTile(x, y, 1, 1);
+}
+} // namespace
+
+TEST_CASE("A snap mover pushes a crate one tile per step until a wall", "[ecs][physics][22i]")
+{
+    Scene        scene;
+    const Entity mover = AddTileMover(scene, {});
+    scene.GetWorld().AddComponent<SnapTileMovement>(mover, SnapTileMovement{ .StepInterval = 0.1f });
+    const Entity crate = AddCrate(scene, { Ts, 0.0f });
+    AddSolidTile(scene, 4, 0);
+
+    Step(scene);
+    CHECK(PositionOf(scene, mover) == Vec2{ Ts, 0.0f });
+    CHECK(PositionOf(scene, crate) == Vec2{ Ts * 2.0f, 0.0f });
+
+    Step(scene, 60); // crate reaches tile 3, against the wall at tile 4
+    CHECK(PositionOf(scene, crate) == Vec2{ Ts * 3.0f, 0.0f });
+    CHECK(PositionOf(scene, mover) == Vec2{ Ts * 2.0f, 0.0f });
+}
+
+TEST_CASE("A smooth mover carries a pushed crate in lockstep without stalling", "[ecs][physics][22i]")
+{
+    // A crate that moved on its own could lag the mover by a tick and still
+    // be mid-step when the mover arrived, stalling a held push at every tile.
+    Scene        scene;
+    const Entity mover = AddTileMover(scene, {});
+    scene.GetWorld().AddComponent<SmoothTileMovement>(mover, SmoothTileMovement{ .Speed = 4.0f });
+    const Entity crate = AddCrate(scene, { Ts, 0.0f });
+
+    for (int i = 0; i < 60; ++i) {
+        const f32 before = PositionOf(scene, mover).X;
+        Step(scene);
+        INFO("tick " << i);
+        CHECK_THAT(PositionOf(scene, mover).X - before, WithinAbs(Ts * 4.0f / 60.0f, 1e-3f));
+        CHECK_THAT(PositionOf(scene, crate).X - PositionOf(scene, mover).X, WithinAbs(Ts, 1e-3f));
+    }
+    CHECK_THAT(PositionOf(scene, crate).X, WithinAbs(Ts * 5.0f, 1e-2f)); // 4 tiles pushed in one second
+}
+
+TEST_CASE("Tile pushes don't chain, and a resistance of 1 can't be pushed", "[ecs][physics][22i]")
+{
+    SECTION("two crates in a row")
+    {
+        Scene        scene;
+        const Entity mover = AddTileMover(scene, {});
+        scene.GetWorld().AddComponent<SnapTileMovement>(mover);
+        (void)AddCrate(scene, { Ts, 0.0f });
+        (void)AddCrate(scene, { Ts * 2.0f, 0.0f });
+        Step(scene, 10);
+        CHECK(PositionOf(scene, mover) == Vec2{});
+    }
+    SECTION("resistance 1")
+    {
+        Scene        scene;
+        const Entity mover = AddTileMover(scene, {});
+        scene.GetWorld().AddComponent<SnapTileMovement>(mover);
+        const Entity crate = AddCrate(scene, { Ts, 0.0f }, 1.0f);
+        Step(scene, 10);
+        CHECK(PositionOf(scene, mover) == Vec2{});
+        CHECK(PositionOf(scene, crate) == Vec2{ Ts, 0.0f });
+    }
+}
