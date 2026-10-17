@@ -14,8 +14,9 @@
 //
 //   - **Spinning gate** — slowly rotating box with NorthOnly() arcs. The
 //     orange strip marks the blocking face; the arc turns with the gate.
-//     There is no depenetration pass, so the gate stalls rather than rotate
-//     into the player.
+//     Its arms sweep the player aside as they turn (push-out, 22I). Walk in
+//     through any face but the orange one and you can stand inside it while
+//     it turns around you.
 //
 // Keys: WASD move, R pauses/resumes the gate, C toggles the player collider
 // between Box and Circle, F2 toggles collider outlines, G toggles the grid.
@@ -32,7 +33,6 @@
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/DirectionArc.h>
-#include <arcbit/physics/Narrowphase.h>
 #include <arcbit/physics/OBB.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/Camera2D.h>
@@ -213,22 +213,16 @@ protected:
         strip->Rotation           = gateCol.Rotation;
     }
 
-    // Advance the gate's rotation unless the next pose would overlap the
-    // player — there's no depenetration, so rotating into them would trap them.
+    // Advance the gate's rotation. If an arm turns into the player, the
+    // engine's push-out system moves the player aside next tick.
     void SpinGate(const f32 dt)
     {
-        auto&             world     = GetWorld();
-        Collider2D&       gateCol   = *world.GetComponent<Collider2D>(_gate);
-        Transform2D&      gateT     = *world.GetTransform(_gate);
-        const Collider2D& playerCol = *world.GetComponent<Collider2D>(_player);
-        const Vec2        playerPos = world.GetTransform(_player)->Position;
+        auto&        world   = GetWorld();
+        Collider2D&  gateCol = *world.GetComponent<Collider2D>(_gate);
+        Transform2D& gateT   = *world.GetTransform(_gate);
 
-        Collider2D next = gateCol;
-        next.Rotation   = std::remainder(gateCol.Rotation + GateSpinRate * dt, TwoPi);
-        if (Narrowphase::Overlap(next, gateT.Position, playerCol, playerPos)) return;
-
-        gateCol.Rotation = next.Rotation;
-        gateT.Rotation   = next.Rotation;
+        gateCol.Rotation = std::remainder(gateCol.Rotation + GateSpinRate * dt, TwoPi);
+        gateT.Rotation   = gateCol.Rotation;
         PhysicsWorld& physics = GetPhysics();
         physics.UpdateCollider(physics.FindColliderForEntity(_gate), gateCol, gateT.Position);
         PlaceGateStrip();

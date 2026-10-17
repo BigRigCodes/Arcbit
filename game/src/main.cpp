@@ -26,7 +26,8 @@ std::span<const Demo::Entry> Demo::Entries()
     static const Entry entries[] = {
         { "World", "tilemap world: lights, audio, ships, HUD",
           "Esc pause, T widgets, Space attack, E shake, G grid", &CreateWorldDemo },
-        { "Physics", "free movement vs tiles and boxes (22B)", "F2 colliders, G grid", &CreatePhysicsDemo },
+        { "Physics", "free movement, knockback bumper, pushable crate (22B, 22I)", "F2 colliders, G grid",
+          &CreatePhysicsDemo },
         { "Tile Move", "tile movement, smooth and snap (22C, 22H)", "M smooth/snap, F2 colliders, G grid",
           &CreateTileMoveDemo },
         { "Arcs", "directional colliders, free movement (22D)", "F2 colliders, G grid", &CreateArcDemo },

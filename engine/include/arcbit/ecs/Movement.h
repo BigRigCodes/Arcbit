@@ -83,12 +83,21 @@ struct MoveKeys
 // Use for combat, platformers, or any sub-tile positioning. With a
 // MoveIntent, Velocity is set to Direction * Speed every tick (instant start
 // and stop); without one, Velocity is yours to drive and Friction decays it.
+//
+// External is a push from the world (knockback, a bumper, a conveyor) that
+// adds on top of Velocity and always decays with Friction — so it works on
+// intent-driven movers, whose Velocity is rewritten every tick. A burst of
+// speed v travels about v / Friction pixels; with Friction 0 it never stops.
 struct FreeMovement
 {
     Vec2 Velocity;
-    f32  Friction = 8.0f;   // velocity multiplied by exp(-Friction * dt) each tick
-    f32  MaxSpeed = 0.0f;   // clamp magnitude after integration; 0 = unlimited
+    f32  Friction = 8.0f;   // Velocity (without intent) and External scale by exp(-Friction * dt) each tick
+    f32  MaxSpeed = 0.0f;   // clamp |Velocity| after integration; 0 = unlimited; External isn't clamped
     f32  Speed    = 100.0f; // world pixels/s at full MoveIntent
+    Vec2 External;          // world push in px/s, added on top of Velocity
+
+    // Add a burst of external velocity (px/s), e.g. knockback along a hit normal.
+    void AddImpulse(const Vec2 velocity) { External = External + velocity; }
 };
 
 // Lerps from tile center to tile center. With a MoveIntent, QueuedDir /
@@ -109,6 +118,15 @@ struct SnapTileMovement
 {
     f32 StepInterval = 0.15f; // seconds between steps while a direction is held
     f32 Cooldown     = 0.0f;  // time until the next step may start
+};
+
+// A free mover walking into this entity shoves it along instead of stopping
+// (crates, barrels). The entity needs a Collider2D; the shove is swept
+// against the world, so it stops at walls, and shoves don't chain through a
+// second Pushable. Free movers only for now — tile movers are a follow-up.
+struct Pushable
+{
+    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable
 };
 
 // ---------------------------------------------------------------------------

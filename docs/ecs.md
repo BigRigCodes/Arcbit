@@ -367,16 +367,39 @@ any entity that needs sub-tile positioning.
 ```cpp
 struct FreeMovement {
     Vec2 Velocity;
-    f32  Friction = 8.0f;   // velocity multiplied by exp(-Friction * dt) each tick
-    f32  MaxSpeed = 0.0f;   // clamp magnitude after integration; 0 = unlimited
+    f32  Friction = 8.0f;   // Velocity (without intent) and External scale by exp(-Friction * dt)
+    f32  MaxSpeed = 0.0f;   // clamp |Velocity| after integration; 0 = unlimited; External isn't clamped
     f32  Speed    = 100.0f; // world pixels/s at full MoveIntent
+    Vec2 External;          // world push in px/s, added on top of Velocity
+    void AddImpulse(Vec2 velocity);
 };
 ```
 
 With a `MoveIntent`, `Velocity` is set to `Direction * Speed` every tick:
-instant start and stop, so `Friction` has no visible effect. Without one,
-`Velocity` is yours to drive (ships, projectiles) and `Friction` decays it.
-Acceleration curves and knockback are future work.
+instant start and stop, so `Friction` has no visible effect on it. Without
+one, `Velocity` is yours to drive (ships, projectiles) and `Friction` decays
+it.
+
+`External` (Phase 22I) is movement from the world: knockback, a bumper, a
+conveyor. `AddImpulse` adds to it; it moves the entity on top of `Velocity`
+and always decays with `Friction`, so it works on intent-driven movers too
+(writing an impulse to `Velocity` would be overwritten next tick). A burst of
+speed `v` travels about `v / Friction` pixels. Acceleration curves are future
+work.
+
+#### Pushable
+
+```cpp
+struct Pushable {
+    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable
+};
+```
+
+A free mover walking into a `Pushable` entity (which needs a `Collider2D`)
+shoves it along by the part of its motion that drives into it, scaled by
+`1 - Resistance`. The shove is swept against the world, so a crate stops at
+walls, and the pusher stops with it. Shoves don't chain through a second
+`Pushable`. Tile-mover pushing is a follow-up.
 
 #### SmoothTileMovement
 
@@ -463,16 +486,17 @@ systems first; game code registers its systems in `OnStart` and they run after.
 |-------|--------|-------|--------|--------|
 | 1 | `LifetimeSystem` | `Lifetime` | destroys entity (unregisters its collider) | ✓ Done |
 | 2 | `InputMovementSystem` | `InputMovement`, InputManager | `MoveIntent` | ✓ Done (22H) |
+| 3 | `PushOutSystem` | free movers' `Collider2D`, entered-overlap record | `Transform2D.Position` (out of colliders that moved into them) | ✓ Done (22I) |
 | — | `AIMovementSystem` | `AIMovement` | `MoveIntent` | Deferred (Phase 30) |
-| 3 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity`, `PendingMove` | ✓ Done |
-| 4 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
-| 5 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
-| 6 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`? | `Transform2D.Position` (swept clamp + slide) | ✓ Done (22B) |
-| 7 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
-| 8 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
-| 9 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
-| 10 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
-| 11 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
+| 4 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity` / `External`, `PendingMove` | ✓ Done |
+| 5 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
+| 6 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
+| 7 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) | ✓ Done (22B, 22I) |
+| 8 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
+| 9 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
+| 10 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
+| 11 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
+| 12 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
 
 `?` marks an optional component: the system reads it when present.
 

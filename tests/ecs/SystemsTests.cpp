@@ -332,13 +332,17 @@ TEST_CASE("A one-way gate blocks entry through its face but never traps a mover 
         Step(scene, 30);
         CHECK(Dot(PositionOf(scene, mover), north) > 16.0f + 19.0f - 1.0f); // stopped at the face
     }
-    SECTION("from inside, every direction is open")
+    SECTION("walked in through a pass-through face, every direction is open")
     {
         for (int i = 0; i < 8; ++i) {
             Scene scene;
             (void)AddBody(scene, {}, gateCol);
-            const Entity mover = AddFreeMover(scene, {}, 19.0f);
-            const f32    a     = static_cast<f32>(i) * QuarterPi;
+            const Entity mover = AddFreeMover(scene, north * -80.0f, 19.0f);
+            SetVelocity(scene, mover, north * 240.0f);
+            Step(scene, 20); // 80 px: in through the south face, to the gate's center
+            REQUIRE_THAT(Length(PositionOf(scene, mover)), WithinAbs(0.0f, 0.5f));
+
+            const f32 a = static_cast<f32>(i) * QuarterPi;
             SetVelocity(scene, mover, Vec2{ std::cos(a), std::sin(a) } * 240.0f);
             Step(scene, 6);
             INFO("direction " << i);
