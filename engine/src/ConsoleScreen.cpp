@@ -3,6 +3,7 @@
 #include <arcbit/app/DebugConsole.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/InputWidgets.h>
+#include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/Widgets.h>
 
 #include <algorithm>
@@ -54,6 +55,11 @@ void ConsoleScreen::OnEnter()
 void ConsoleScreen::OnTick(f32, const InputManager& input)
 {
     if (!_input) return;
+    // Back closes it - the text line would otherwise just lose focus, and get it straight back.
+    if (UIManager::IsBackPressed(input)) {
+        if (OnClose) OnClose();
+        return;
+    }
     std::erase_if(_input->Text, [](const char c) { return c == '`' || c == '~'; }); // the key that opened it
     if (GetFocusedWidget() != _input) FocusAt(0);
     if (input.JustPressed(ActionHistoryUp)) Recall(-1);
