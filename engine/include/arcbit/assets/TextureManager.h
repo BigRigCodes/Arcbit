@@ -104,6 +104,9 @@ public:
     // upload doesn't race a frame in flight.
     void CheckReloads(const std::function<void()>& beforeReload = {});
 
+    // The normalized path a cached texture was loaded from; empty if unknown.
+    [[nodiscard]] std::string GetPath(TextureHandle handle) const;
+
     // Returns width/height of a cached texture, or zeroes if not found.
     [[nodiscard]] TextureInfo GetInfo(TextureHandle handle) const;
 

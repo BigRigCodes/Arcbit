@@ -4,6 +4,7 @@
 #include <arcbit/core/Math.h>
 #include <arcbit/render/RenderHandle.h>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -79,6 +80,13 @@ public:
     // The texture path inside the JSON is resolved relative to metaPath's
     // directory. Returns an invalid SpriteSheet on any error — check IsValid().
     [[nodiscard]] static SpriteSheet Load(std::string_view metaPath, TextureManager& textures);
+
+    // Load, but the texture comes from `loadTexture` (given the resolved
+    // image path) instead of TextureManager::Load - e.g. Scene::LoadTexture,
+    // so the sheet's texture is owned by a scene. `textures` still answers
+    // the texture's size.
+    [[nodiscard]] static SpriteSheet Load(std::string_view metaPath, TextureManager& textures,
+                                          const std::function<TextureHandle(std::string_view)>& loadTexture);
 
     // Build a spritesheet from already-parsed sprite format JSON and an
     // already-loaded texture of texW × texH pixels. Load() is file I/O +

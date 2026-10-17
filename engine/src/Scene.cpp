@@ -1,5 +1,6 @@
 #include <arcbit/scene/Scene.h>
 #include <arcbit/app/Application.h>
+#include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/physics/PhysicsWorld.h>
@@ -33,7 +34,7 @@ Scene::Scene()
     });
 }
 
-Scene::~Scene()
+Scene::~Scene() // out-of-line: SpriteSheet and PhysicsWorld are complete here
 {
     // Run the OnRemove hooks while the members they use are still alive.
     _world.DestroyAllEntities();
@@ -50,6 +51,24 @@ TextureHandle Scene::LoadTexture(const std::string_view path)
     const TextureHandle handle = GetApp().GetTextures().Acquire(path);
     if (handle.IsValid()) _textures.push_back(handle);
     return handle;
+}
+
+const SpriteSheet* Scene::LoadSpriteSheet(const std::string_view path)
+{
+    const std::string key(path);
+    if (const auto it = _sheets.find(key); it != _sheets.end()) return it->second.get();
+
+    auto sheet = std::make_unique<SpriteSheet>(SpriteSheet::Load(
+        path, GetApp().GetTextures(), [this](const std::string_view texPath) { return LoadTexture(texPath); }));
+    if (!sheet->IsValid()) return nullptr;
+    return _sheets.emplace(key, std::move(sheet)).first->second.get();
+}
+
+std::string Scene::GetSpriteSheetPath(const SpriteSheet* sheet) const
+{
+    for (const auto& [path, owned] : _sheets)
+        if (owned.get() == sheet) return path;
+    return {};
 }
 
 void Scene::ReleaseResources()

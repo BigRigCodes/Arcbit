@@ -1,0 +1,106 @@
+#include <arcbit/scene/FileScene.h>
+
+#include <arcbit/app/Application.h>
+#include <arcbit/core/Log.h>
+#include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/render/RenderThread.h>
+#include <arcbit/scene/SceneAssets.h>
+#include <arcbit/tilemap/TileMap.h>
+
+namespace Arcbit
+{
+namespace
+{
+    constexpr std::string_view BuiltinWhite = "builtin:white";
+
+    // SceneAssets on top of a hosted scene: textures and sprite sheets owned
+    // by the scene (reference-counted), the application's stock samplers,
+    // white texture and input action names.
+    class AppSceneAssets final : public SceneAssets
+    {
+    public:
+        explicit AppSceneAssets(Scene& scene) : _scene(scene), _app(scene.GetApp()) {}
+
+        TextureHandle LoadTexture(const std::string_view path) override
+        {
+            return path == BuiltinWhite ? _app.GetWhiteTexture() : _scene.LoadTexture(path);
+        }
+        std::string TexturePath(const TextureHandle texture) const override
+        {
+            if (!texture.IsValid()) return {};
+            if (texture == _app.GetWhiteTexture()) return std::string(BuiltinWhite);
+            return _app.GetTextures().GetPath(texture);
+        }
+        SamplerHandle Sampler(const std::string_view name) override
+        {
+            return _app.GetStockSampler(name == "linear" ? Application::StockSampler::Linear
+                                                         : Application::StockSampler::Nearest);
+        }
+        std::string SamplerName(const SamplerHandle sampler) const override
+        {
+            if (sampler == _app.GetStockSampler(Application::StockSampler::Nearest)) return "nearest";
+            if (sampler == _app.GetStockSampler(Application::StockSampler::Linear)) return "linear";
+            return {};
+        }
+        const SpriteSheet* LoadSpriteSheet(const std::string_view path) override { return _scene.LoadSpriteSheet(path); }
+        std::string SpriteSheetPath(const SpriteSheet* sheet) const override { return _scene.GetSpriteSheetPath(sheet); }
+        std::string ActionName(const ActionID action) const override
+        {
+            return std::string(_app.GetInput().GetActionName(action));
+        }
+        bool LoadTileMap(TileMap& tilemap, const std::string_view path) override
+        {
+            return tilemap.LoadMap(path, _app.GetTextures(), Sampler("nearest"), Sampler("linear"));
+        }
+
+    private:
+        Scene&       _scene;
+        Application& _app;
+    };
+
+    std::optional<Color> ReadAmbient(const nlohmann::json& doc)
+    {
+        const auto render = doc.find("render");
+        if (render == doc.end() || !render->contains("ambient")) return std::nullopt;
+        const nlohmann::json& c = render->at("ambient");
+        return Color{ c.at(0).get<f32>(), c.at(1).get<f32>(), c.at(2).get<f32>(), c.size() > 3 ? c.at(3).get<f32>() : 1.0f };
+    }
+} // namespace
+
+void FileScene::OnLoad()
+{
+    std::optional<nlohmann::json> doc = SceneFile::ReadFile(_path);
+    if (!doc) return;
+
+    AppSceneAssets assets(*this);
+    _loaded = SceneFile::Load(*this, *doc, GetApp().GetSceneRegistry(), assets, _ids);
+    if (!_loaded) {
+        LOG_ERROR(Engine, "FileScene: '{}' failed to load", _path);
+        return;
+    }
+    _ambient = ReadAmbient(*doc);
+    doc->erase("entities"); // the rest is written back as-is by Save
+    _document = std::move(*doc);
+}
+
+void FileScene::OnRender(FramePacket& packet)
+{
+    if (_ambient) packet.AmbientColor = *_ambient;
+    if (PhysicsWorld& physics = GetPhysics(); physics.GetDebugDraw())
+        physics.CollectDebugDraw(packet, GetApp().GetWhiteTexture(),
+                                 GetApp().GetStockSampler(Application::StockSampler::Nearest));
+}
+
+Entity FileScene::FindEntity(const std::string_view id) const
+{
+    const auto it = _ids.find(std::string(id));
+    return it != _ids.end() ? it->second : Entity::Invalid();
+}
+
+bool FileScene::Save(const std::string_view path)
+{
+    AppSceneAssets       assets(*this);
+    const nlohmann::json doc = SceneFile::Save(*this, GetApp().GetSceneRegistry(), assets, _document, _ids);
+    return SceneFile::WriteFile(path.empty() ? std::string_view(_path) : path, doc);
+}
+} // namespace Arcbit

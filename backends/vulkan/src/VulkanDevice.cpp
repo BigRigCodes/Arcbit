@@ -536,25 +536,9 @@ TextureHandle RenderDevice::CreateTexture(const TextureDesc& desc)
     const VkResult viewResult = vkCreateImageView(_context->Device, &viewInfo, nullptr, &vkTex.View);
     ARCBIT_VERIFY(viewResult == VK_SUCCESS, "vkCreateImageView failed");
 
-    // Pre-allocate one descriptor set per frame-in-flight so BindTexture can safely
-    // update the current frame's set while the previous frame may still be in flight.
-    // AcquireNextImage waits on InFlight[CurrentFrame] before we touch that slot,
-    // guaranteeing the GPU is no longer reading from DescriptorSets[CurrentFrame].
-    if (HasFlag(desc.Usage, TextureUsage::Sampled))
-    {
-        // Allocate all MaxFramesInFlight sets in one call using the same layout.
-        std::array<VkDescriptorSetLayout, MaxFramesInFlight> layouts;
-        layouts.fill(_context->TextureSetLayout);
-
-        VkDescriptorSetAllocateInfo setAlloc{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-        setAlloc.descriptorPool     = _context->GlobalDescriptorPool;
-        setAlloc.descriptorSetCount = MaxFramesInFlight;
-        setAlloc.pSetLayouts        = layouts.data();
-
-        const VkResult setResult = vkAllocateDescriptorSets(_context->Device, &setAlloc,
-                                                             vkTex.DescriptorSets.data());
-        ARCBIT_VERIFY(setResult == VK_SUCCESS, "vkAllocateDescriptorSets failed");
-    }
+    // Descriptor sets are created lazily, one per sampler the texture is
+    // drawn with (see VulkanTexture::SamplerSets and BindTexture).
+    vkTex.Sampled = HasFlag(desc.Usage, TextureUsage::Sampled);
 
     return _context->Textures.Allocate<TextureTag>(std::move(vkTex));
 }
@@ -659,10 +643,10 @@ void RenderDevice::DestroyTexture(TextureHandle handle)
     auto resource = _context->Textures.Free(handle);
     if (!resource) return;
 
-    // Return all per-frame descriptor sets to the pool before destroying the image.
-    if (!resource->IsSwapchainImage && resource->DescriptorSets[0] != VK_NULL_HANDLE)
-        vkFreeDescriptorSets(_context->Device, _context->GlobalDescriptorPool,
-                             MaxFramesInFlight, resource->DescriptorSets.data());
+    // Return every per-sampler descriptor set to the pool before destroying
+    // the image they point at.
+    for (const VulkanTexture::SamplerSet& entry : resource->SamplerSets)
+        vkFreeDescriptorSets(_context->Device, _context->GlobalDescriptorPool, 1, &entry.Set);
 
     if (resource->View != VK_NULL_HANDLE)
         vkDestroyImageView(_context->Device, resource->View, nullptr);
@@ -710,8 +694,21 @@ void RenderDevice::DestroySampler(SamplerHandle handle)
 {
     auto resource = _context->Samplers.Free(handle);
     if (!resource) return;
-    if (resource->Sampler != VK_NULL_HANDLE)
-        vkDestroySampler(_context->Device, resource->Sampler, nullptr);
+    if (resource->Sampler == VK_NULL_HANDLE) return;
+
+    // Free every texture's descriptor set that was written with this sampler.
+    // The driver may hand the same VkSampler value to a sampler created
+    // later; BindTexture would then find the old set - which references the
+    // destroyed sampler - and bind it. Like all Destroy* calls, this runs
+    // while the render thread is idle, so no command buffer holds these sets.
+    _context->Textures.ForEach([&](VulkanTexture& tex) {
+        std::erase_if(tex.SamplerSets, [&](const VulkanTexture::SamplerSet& entry) {
+            if (entry.Sampler != resource->Sampler) return false;
+            vkFreeDescriptorSets(_context->Device, _context->GlobalDescriptorPool, 1, &entry.Set);
+            return true;
+        });
+    });
+    vkDestroySampler(_context->Device, resource->Sampler, nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -1363,15 +1360,50 @@ void RenderDevice::BindIndexBuffer(CommandListHandle cmd, BufferHandle buffer, I
     vkCmdBindIndexBuffer(cmdList->Buffer, buf->Buffer, offset, vkType);
 }
 
-// Update the texture's pre-allocated descriptor set with the given sampler,
-// then bind it to the pipeline at the specified descriptor set slot.
+// Find (or create) the texture's descriptor set for this sampler.
 //
-// vkUpdateDescriptorSets is skipped when the same texture+sampler pair was
-// already written into this frame's slot. This avoids the Vulkan rule that
-// updating a descriptor set while it is already recorded (bound) in the
-// current command buffer puts the command buffer into an invalid state —
-// which happens when the same texture (e.g. the default flat-normal) is
-// bound more than once per frame.
+// The set is allocated from the global pool and written with the texture's
+// image view and the sampler the first time this pair is drawn, then reused
+// unchanged forever after - see VulkanTexture::SamplerSets for why it must
+// never be rewritten. Allocation happens on the render thread while it records
+// a frame; the pool is otherwise only touched by Create* / Destroy* calls,
+// which run while the render thread is idle, so access never overlaps.
+static VkDescriptorSet SamplerSetFor(VulkanContext& ctx, VulkanTexture& tex, const VkSampler sampler)
+{
+    for (const VulkanTexture::SamplerSet& entry : tex.SamplerSets)
+        if (entry.Sampler == sampler) return entry.Set;
+
+    VkDescriptorSetAllocateInfo setAlloc{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+    setAlloc.descriptorPool     = ctx.GlobalDescriptorPool;
+    setAlloc.descriptorSetCount = 1;
+    setAlloc.pSetLayouts        = &ctx.TextureSetLayout;
+
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    ARCBIT_VERIFY(vkAllocateDescriptorSets(ctx.Device, &setAlloc, &set) == VK_SUCCESS,
+                  "vkAllocateDescriptorSets (texture) failed - descriptor pool exhausted?");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.sampler     = sampler;
+    imageInfo.imageView   = tex.View;
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    write.dstSet          = set;
+    write.dstBinding      = 0;
+    write.descriptorCount = 1;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo      = &imageInfo;
+    vkUpdateDescriptorSets(ctx.Device, 1, &write, 0, nullptr); // the only write this set ever gets
+
+    tex.SamplerSets.push_back({ sampler, set });
+    return set;
+}
+
+// Bind a texture + sampler pair to the pipeline at the given descriptor set
+// slot. Each pair has its own descriptor set, written once on first use (see
+// SamplerSetFor), so a texture may be bound with any mix of samplers, any
+// number of times per frame, without ever updating a set the command buffer
+// has already recorded.
 void RenderDevice::BindTexture(CommandListHandle cmd, TextureHandle texture,
                                 SamplerHandle sampler, u32 set, u32 /*binding*/)
 {
@@ -1379,39 +1411,9 @@ void RenderDevice::BindTexture(CommandListHandle cmd, TextureHandle texture,
     VulkanTexture*     tex     = _context->Textures.Get(texture);
     VulkanSampler*     samp    = _context->Samplers.Get(sampler);
     ARCBIT_ASSERT(cmdList && tex && samp, "BindTexture: invalid handle");
-    ARCBIT_ASSERT(tex->DescriptorSets[0] != VK_NULL_HANDLE,
-        "BindTexture: texture was not created with Sampled usage");
+    ARCBIT_ASSERT(tex->Sampled, "BindTexture: texture was not created with Sampled usage");
 
-    // Use the descriptor set for the current frame slot.
-    // AcquireNextImage already waited on InFlight[CurrentFrame], so the GPU
-    // is no longer reading from this slot's set — safe to update it now.
-    VulkanSwapchain* sc = _context->Swapchains.Get(_context->ActiveSwapchain);
-    ARCBIT_ASSERT(sc, "BindTexture: no active swapchain");
-    const u32 frame = sc->CurrentFrame;
-
-    VkDescriptorSet dstSet = tex->DescriptorSets[frame];
-
-    // Only call vkUpdateDescriptorSets if the sampler changed since last time.
-    // Updating a descriptor set that's already bound in the recording command
-    // buffer would invalidate the command buffer.
-    if (tex->LastSampler[frame] != samp->Sampler)
-    {
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.sampler     = samp->Sampler;
-        imageInfo.imageView   = tex->View;
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-        write.dstSet          = dstSet;
-        write.dstBinding      = 0;
-        write.descriptorCount = 1;
-        write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write.pImageInfo      = &imageInfo;
-
-        vkUpdateDescriptorSets(_context->Device, 1, &write, 0, nullptr);
-        tex->LastSampler[frame] = samp->Sampler;
-    }
-
+    const VkDescriptorSet dstSet = SamplerSetFor(*_context, *tex, samp->Sampler);
     vkCmdBindDescriptorSets(cmdList->Buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         cmdList->BoundLayout, set, 1, &dstSet, 0, nullptr);
 }

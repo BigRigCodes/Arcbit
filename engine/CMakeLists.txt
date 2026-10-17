@@ -19,6 +19,10 @@ add_library(arcbit-engine STATIC
     src/Movement.cpp
     src/Scene.cpp
     src/SceneManager.cpp
+    src/SceneRegistry.cpp
+    src/SceneComponents.cpp
+    src/SceneFile.cpp
+    src/FileScene.cpp
     src/AnimatorStateMachine.cpp
     src/AudioManager.cpp
     src/TileAtlas.cpp
@@ -55,9 +59,9 @@ target_include_directories(arcbit-engine
 target_link_libraries(arcbit-engine
     PUBLIC
         arcbit-core
+        nlohmann_json::nlohmann_json  # public headers use it: SceneRegistry / SceneFile take JSON, SpriteSheet::FromJson
     PRIVATE
         SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
-        nlohmann_json::nlohmann_json  # used in Settings.cpp and SpriteSheet.cpp
 )
 
 # stb is header-only; vcpkg exposes it as an include directory, not a CMake target.

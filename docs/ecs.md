@@ -588,49 +588,14 @@ systems process them.
 
 ---
 
-## Scene File Format and Merge Safety
+## Scene Files
 
-Scene files are JSON with one UUID-keyed object per entity. Each UUID is
-randomly generated at entity-creation time in the editor.
-
-```json
-{
-  "config": {
-    "TileSize": 16.0,
-    "Gravity": [0.0, 0.0]
-  },
-  "entities": {
-    "3f2504e0-4f89-11d3-9a0c-0305e82c3301": {
-      "Tag": "Player",
-      "Name": "Kael",
-      "Transform2D": { "Position": [0, 0], "Scale": [1, 1], "Rotation": 0 },
-      "SpriteRenderer": { "Texture": "assets/textures/player.png", "Layer": 1 },
-      "InputMovement": { "MoveLeft": "Move_Left", "MoveRight": "Move_Right",
-                         "MoveUp": "Move_Up", "MoveDown": "Move_Down" },
-      "SmoothTileMovement": { "Speed": 4.0 }
-    },
-    "7c9e6679-7425-40de-944b-e07fc1f90ae7": {
-      "Tag": "Wall",
-      "Transform2D": { "Position": [48, 0] },
-      "SpriteRenderer": { "Texture": "assets/textures/wall.png", "Layer": 0 }
-    }
-  }
-}
-```
-
-**Merge safety:** two developers adding entities each produce new UUID keys in
-the file. Git sees two new non-overlapping lines — no conflict. Conflicts only
-arise when both developers edited the **same entity's component values**, which
-is a genuine semantic conflict and is correctly surfaced for manual resolution.
-
-**UUID is an editor and serialization concern only.** The runtime ECS uses
-fast generational integer indices. The scene loader creates runtime entities from
-the file and maintains a short-lived `map<UUID, Entity>` during loading to
-resolve cross-references (e.g. a `CameraTarget` pointing to another entity by
-UUID). That map is discarded after load.
-
-The editor displays unnamed entities as `{Tag} #{uuid[0..3]}` (e.g.
-`Wall #3f25`) — unique, human-parseable, zero storage overhead.
+Scenes are saved as `.arcscene` JSON: entities keyed by a file id, with each
+component inline under its registered name. The format, merge-safety rules and
+the component registry are in [scenes.md](scenes.md#scene-file-format-arcscene).
+The file id is an editor and serialization concern only: the runtime ECS uses
+generational `Entity` handles, and `FileScene` keeps an id -> `Entity` table
+(`FindEntity`) for scripts and entry points.
 
 ---
 

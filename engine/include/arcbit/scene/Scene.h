@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace Arcbit {
@@ -17,6 +18,7 @@ struct FramePacket;
 class Application;
 class InputManager;
 class PhysicsWorld;
+class SpriteSheet;
 
 // ---------------------------------------------------------------------------
 // Scene — top-level container for a running game world.
@@ -74,6 +76,16 @@ public:
     // and destroyed once no scene (or app-wide TextureManager::Load) uses it.
     [[nodiscard]] TextureHandle LoadTexture(std::string_view path);
 
+    // Load a sprite sheet for this scene's lifetime (cached by path within
+    // the scene; its texture through LoadTexture). Null if it fails. The
+    // pointer stays valid until the scene unloads - what Animator::Sheet
+    // needs.
+    [[nodiscard]] const SpriteSheet* LoadSpriteSheet(std::string_view path);
+
+    // The path a sheet from LoadSpriteSheet was loaded from; empty if it
+    // isn't one of this scene's.
+    [[nodiscard]] std::string GetSpriteSheetPath(const SpriteSheet* sheet) const;
+
     // --- World access -------------------------------------------------------
 
     // ECS world — create/destroy entities, add/remove components, register systems.
@@ -128,6 +140,8 @@ private:
     std::string                _entryPoint;
     Application*               _app = nullptr;
     std::vector<TextureHandle> _textures; // LoadTexture references to release
+
+    std::unordered_map<std::string, std::unique_ptr<SpriteSheet>> _sheets; // LoadSpriteSheet, by path
 };
 
 } // namespace Arcbit

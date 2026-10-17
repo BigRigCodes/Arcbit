@@ -328,7 +328,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 **SceneManager**
 - [x] `SceneManager` — load / unload / switch the active scene by name (`Register(name, factory)`, queued `Switch(name)`); `Application` drives the active one instead of owning a single `Scene`
 - [x] Scene-owned resources — textures acquired through `Scene::LoadTexture` are reference-counted (`TextureManager::Acquire` / `Release`) and released automatically on unload; a data-driven scene can't hand-write cleanup
-- [ ] Scene-owned sprite sheets and audio — same ref-counted ownership for `SpriteSheet` and sounds (textures only so far)
+- [x] Scene-owned sprite sheets — `Scene::LoadSpriteSheet` caches sheets per scene and loads their textures through `LoadTexture`, so they're released on unload (`Animator.sheet` in scene files)
+- [ ] Scene-owned music / ambience — `AudioManager::PlayMusic` keeps playing across a switch; let a scene own its track (spatial `AudioSource` sounds already stop with their scene)
 - [x] Entry point on switch — `Switch(name, entry)` so a door or script can say where the player arrives (e.g. a named spawn marker)
 - [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
 - [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
@@ -341,11 +342,12 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Scene teardown releases outside resources — `Scene`'s destructor destroys its entities so `OnRemove` hooks run; an `AudioSource` hook stops its sound (a looping sound used to outlive its scene)
 
 **Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
-- [ ] One `.arcscene` format — `docs/ecs.md` (UUID-keyed entities, inline components) and `docs/tilemap.md` (entity array with templates / overrides, separate `.arcmap` reference) describe two different formats today; reconcile into `docs/scenes.md`
-- [ ] Component registry — component name ↔ C++ type ↔ JSON read / write, so the loader (and later the editor and Lua) handle components generically
-- [ ] `.arcscene` loader and saver (`FileScene`), with file ID → runtime `Entity` mapping for cross-references during load
-- [ ] Named systems — game code registers systems by name; a scene file lists the ones it uses (C++ lambdas can't live in a data file)
-- [ ] At least one demo converted to an `.arcscene` to prove an editor-style scene runs with no C++ scene class
+- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; templates / overrides reserved for prefabs
+- [x] Component registry — `SceneRegistry` maps component name ↔ C++ type ↔ JSON read / write; the engine registers its 20 built-ins, games add their own
+- [x] `.arcscene` loader and saver — `SceneFile::Load` / `Save` (headless, through a `SceneAssets` interface) and `FileScene` on top; file id → `Entity` table (`FindEntity`); exact load → save round trip tested
+- [x] Named systems — game code registers installers by name; a scene file lists the ones it uses
+- [x] At least one demo converted to an `.arcscene` — "Physics File" (`game/assets/scenes/physics.arcscene` + `maps/physics.arcmap`) runs with no C++ scene class
+- [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
 - [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading

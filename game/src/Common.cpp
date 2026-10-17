@@ -2,7 +2,12 @@
 
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/ecs/World.h>
 #include <arcbit/input/InputManager.h>
+#include <arcbit/physics/PhysicsCallbacks.h>
+#include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/scene/Scene.h>
+#include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/render/RenderTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/tilemap/TileMap.h>
@@ -90,6 +95,57 @@ namespace
         return defs;
     }
 } // namespace
+
+namespace
+{
+    // Kicks back whatever touches it: the scene-file version of PhysicsDemo's
+    // bumper, whose behavior is a CollisionCallback set up in C++.
+    struct DemoBumper
+    {
+        f32 Kick = 700.0f; // px/s impulse along the contact normal
+    };
+
+    // Give each DemoBumper its callback the first tick it exists. (Collected
+    // first: adding a component mid-query isn't safe.)
+    void WireBumpers(Scene& scene)
+    {
+        World&              world = scene.GetWorld();
+        std::vector<Entity> fresh;
+        world.Query<DemoBumper>().Without<CollisionCallback>().ForEach(
+            [&](const Entity e, DemoBumper&) { fresh.push_back(e); });
+
+        for (const Entity e : fresh)
+            world.AddComponent<CollisionCallback>(e, CollisionCallback{
+                .OnEnter = [&scene](const Entity self, const Entity other, const Vec2 normal) {
+                    const DemoBumper* bumper = scene.GetWorld().GetComponent<DemoBumper>(self);
+                    FreeMovement*     fm     = scene.GetWorld().GetComponent<FreeMovement>(other);
+                    if (bumper && fm) fm->AddImpulse(normal * -bumper->Kick); // normal points at the bumper
+                },
+            });
+    }
+
+    // F2 toggles collider outlines - what the C++ demos do in OnUpdate.
+    void ToggleDebugDraw(Scene& scene)
+    {
+        const InputManager* input = scene.GetInput();
+        if (!input || !input->JustPressed(MakeAction("Debug_Physics"))) return;
+        PhysicsWorld& physics = scene.GetPhysics();
+        physics.SetDebugDraw(!physics.GetDebugDraw());
+    }
+} // namespace
+
+void RegisterSceneTypes(SceneRegistry& registry)
+{
+    registry.RegisterComponent<DemoBumper>(
+        "DemoBumper", [](DemoBumper& c, const nlohmann::json& j, SceneAssets&) { c.Kick = j.value("kick", c.Kick); },
+        [](const DemoBumper& c, nlohmann::json& j, const SceneAssets&) { j["kick"] = c.Kick; });
+    registry.RegisterSystem("DemoBumpers", [](Scene& scene) {
+        scene.GetWorld().RegisterSystem("DemoBumpers", [](Scene& s, f32) { WireBumpers(s); });
+    });
+    registry.RegisterSystem("DemoDebugKeys", [](Scene& scene) {
+        scene.GetWorld().RegisterSystem("DemoDebugKeys", [](Scene& s, f32) { ToggleDebugDraw(s); });
+    });
+}
 
 void RegisterInput(InputManager& input)
 {

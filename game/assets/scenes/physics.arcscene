@@ -1,0 +1,48 @@
+{
+    "camera": { "position": [0.0, 0.0], "zoom": 1.5 },
+    "config": { "tile_size": 64.0 },
+    "entities": {
+        "bumper": {
+            "Collider2D": { "half_extents": [32.0, 32.0], "kind": "static", "layer": "Prop" },
+            "DemoBumper": { "kick": 700.0 },
+            "SpriteRenderer": { "layer": -224, "sampler": "nearest", "texture": "builtin:white", "tint": [0.95, 0.35, 0.75, 1.0] },
+            "Tag": { "value": "Bumper" },
+            "Transform2D": { "position": [320.0, -256.0], "scale": [64.0, 64.0] }
+        },
+        "crate": {
+            "Collider2D": { "half_extents": [25.6, 25.6], "layer": "Prop" },
+            "Pushable": {},
+            "SpriteRenderer": { "layer": 281, "sampler": "nearest", "texture": "builtin:white", "tint": [0.7, 0.5, 0.25, 1.0] },
+            "Tag": { "value": "Crate" },
+            "Transform2D": { "position": [192.0, 256.0], "scale": [51.2, 51.2] }
+        },
+        "player": {
+            "CameraTarget": { "lag": 0.05 },
+            "Collider2D": { "layer": "Player", "radius": 22.4, "shape": "circle" },
+            "FreeMovement": { "speed": 240.0 },
+            "InputMovement": { "move_down": "Move_Down", "move_left": "Move_Left", "move_right": "Move_Right", "move_up": "Move_Up" },
+            "PendingMove": {},
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.3, 0.5, 1.0, 1.0] },
+            "Tag": { "value": "Player" },
+            "Transform2D": { "position": [320.0, 0.0], "scale": [44.8, 44.8] }
+        },
+        "rock": {
+            "Collider2D": { "half_extents": [32.0, 32.0], "kind": "static", "layer": "Prop" },
+            "SpriteRenderer": { "layer": -64, "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
+            "Tag": { "value": "Rock" },
+            "Transform2D": { "position": [512.0, -96.0], "scale": [64.0, 64.0] }
+        },
+        "rock-2": {
+            "Collider2D": { "half_extents": [24.0, 48.0], "kind": "static", "layer": "Prop" },
+            "SpriteRenderer": { "layer": 208, "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
+            "Tag": { "value": "Rock" },
+            "Transform2D": { "position": [480.0, 160.0], "scale": [48.0, 96.0] }
+        }
+    },
+    "physics": { "debug_draw": true },
+    "render": { "ambient": [1.0, 1.0, 1.0, 1.0] },
+    "systems": ["DemoBumpers", "DemoDebugKeys"],
+    "tile_overrides": [{ "id": 409, "solid": true }],
+    "tilemap": "assets/maps/physics.arcmap",
+    "version": 1
+}

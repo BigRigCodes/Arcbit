@@ -8,6 +8,7 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/scene/SceneManager.h>
+#include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
 
 #include <memory>
@@ -112,6 +113,24 @@ public:
     // Register scenes and switch between them (fade out → swap → fade in).
     [[nodiscard]] SceneManager& GetScenes() { return _scenes; }
 
+    // Components and named systems scene files may use. Holds the engine's
+    // built-ins; register game components and systems in OnStart.
+    [[nodiscard]] SceneRegistry& GetSceneRegistry() { return _sceneRegistry; }
+
+    // Shared samplers scene files refer to by name: Nearest ("nearest", point
+    // filtering, repeat) and Linear ("linear", bilinear, clamp). Created
+    // before OnStart, destroyed at shutdown.
+    enum class StockSampler : u8
+    {
+        Nearest,
+        Linear,
+    };
+    [[nodiscard]] SamplerHandle GetStockSampler(StockSampler which) const;
+
+    // The engine's 1x1 white texture ("builtin:white" in scene files) - tint
+    // it for solid-color quads.
+    [[nodiscard]] TextureHandle GetWhiteTexture() const { return _renderThread.GetUIWhiteTexture(); }
+
     // The UI manager — push screens in OnStart; query widgets in OnUpdate.
     [[nodiscard]] UIManager& GetUI() { return _ui; }
 
@@ -195,6 +214,9 @@ private:
     UIManager _ui;
 
     SceneManager                    _scenes;
+    SceneRegistry                   _sceneRegistry;
+    SamplerHandle                   _nearestSampler;
+    SamplerHandle                   _linearSampler;
     RenderDevice*                   _device = nullptr;
     std::unique_ptr<TextureManager> _textures;
     SwapchainHandle                 _swapchain;

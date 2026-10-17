@@ -121,6 +121,12 @@ void TextureManager::CheckReloads(const std::function<void()>& beforeReload)
 // Info query
 // ---------------------------------------------------------------------------
 
+std::string TextureManager::GetPath(const TextureHandle handle) const
+{
+    const auto it = _handleToPath.find(handle.Value);
+    return it != _handleToPath.end() ? it->second : std::string{};
+}
+
 TextureInfo TextureManager::GetInfo(TextureHandle handle) const
 {
     const auto it = _handleToPath.find(handle.Value);

@@ -10,6 +10,7 @@
 
 #include <arcbit/app/Application.h>
 #include <arcbit/input/InputManager.h>
+#include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/UISkin.h>
@@ -28,6 +29,8 @@ std::span<const Demo::Entry> Demo::Entries()
           "Esc pause, T widgets, Space attack, E shake, G grid", &CreateWorldDemo },
         { "Physics", "free movement, knockback bumper, pushable crate (22B, 22I)", "F2 colliders, G grid",
           &CreatePhysicsDemo },
+        { "Physics File", "the Physics demo as a scene file - no C++ scene class (23)", "F2 colliders",
+          [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/physics.arcscene"); } },
         { "Tile Move", "tile movement, smooth and snap, pushable crates (22C, 22H, 22I)",
           "M smooth/snap, F2 colliders, G grid",
           &CreateTileMoveDemo },
@@ -62,6 +65,7 @@ protected:
     {
         GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
         Demo::RegisterInput(GetInput());
+        Demo::RegisterSceneTypes(GetSceneRegistry());
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         Open(LastOpenedIndex());
     }

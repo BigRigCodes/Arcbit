@@ -23,6 +23,7 @@ add_executable(arcbit-tests
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
     render/Camera2DTests.cpp
+    scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp

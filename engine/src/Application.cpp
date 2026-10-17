@@ -98,6 +98,11 @@ void Application::ToggleFullscreen()
     Settings::MarkDirty();
 }
 
+SamplerHandle Application::GetStockSampler(const StockSampler which) const
+{
+    return which == StockSampler::Linear ? _linearSampler : _nearestSampler;
+}
+
 void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
 
 void Application::CollectSceneFade(FramePacket& packet) const
@@ -129,6 +134,15 @@ void Application::Run()
     //   b) game code cannot accidentally stomp the same ActionID before they exist.
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
+
+    // Stock samplers and the scene registry's built-ins, before any scene loads.
+    _nearestSampler = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Nearest, .MagFilter = Filter::Nearest,
+                                                          .AddressU = AddressMode::Repeat, .AddressV = AddressMode::Repeat,
+                                                          .DebugName = "StockNearest" });
+    _linearSampler  = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Linear, .MagFilter = Filter::Linear,
+                                                          .AddressU = AddressMode::ClampToEdge,
+                                                          .AddressV = AddressMode::ClampToEdge, .DebugName = "StockLinear" });
+    RegisterBuiltinComponents(_sceneRegistry);
 
     // Install a default scene before OnStart so game code can use GetScene()
     // immediately; a game that registers scenes replaces it with Switch().
@@ -341,6 +355,8 @@ void Application::Run()
 
     OnShutdown();
     AudioManager::Shutdown();
+    _device->DestroySampler(_nearestSampler);
+    _device->DestroySampler(_linearSampler);
 
     // Destroy the debug font atlas resources before the device goes away.
     if (_debugFont.IsValid()) {

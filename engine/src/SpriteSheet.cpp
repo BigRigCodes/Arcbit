@@ -67,7 +67,13 @@ bool HasSupportedVersion(const nlohmann::json& json, const std::string_view sour
 // Load
 // ---------------------------------------------------------------------------
 
-SpriteSheet SpriteSheet::Load(std::string_view metaPath, TextureManager& textures)
+SpriteSheet SpriteSheet::Load(const std::string_view metaPath, TextureManager& textures)
+{
+    return Load(metaPath, textures, [&](const std::string_view path) { return textures.Load(path); });
+}
+
+SpriteSheet SpriteSheet::Load(const std::string_view metaPath, TextureManager& textures,
+                              const std::function<TextureHandle(std::string_view)>& loadTexture)
 {
     const auto jsonOpt = ParseJsonFile(metaPath);
     if (!jsonOpt)
@@ -87,7 +93,7 @@ SpriteSheet SpriteSheet::Load(std::string_view metaPath, TextureManager& texture
     const std::filesystem::path metaDir = std::filesystem::path(metaPath).parent_path();
     const std::string texPath = (metaDir / json["texture"].get<std::string>()).lexically_normal().string();
 
-    const TextureHandle texture = textures.Load(texPath);
+    const TextureHandle texture = loadTexture(texPath);
     if (!texture.IsValid())
         return {};
 

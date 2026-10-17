@@ -11,6 +11,7 @@ namespace Arcbit
 class InputManager;
 class RenderDevice;
 class Scene;
+class SceneRegistry;
 class TextureManager;
 class TileMap;
 } // namespace Arcbit
@@ -42,6 +43,10 @@ namespace Demo
 // The demos share one InputManager, so no scene registers its own (a reload
 // would bind every key twice). No two demos bind a key to different actions.
 void RegisterInput(Arcbit::InputManager& input);
+
+// Register the demos' own scene-file types: the DemoBumper component and the
+// DemoBumpers / DemoDebugKeys named systems (see assets/scenes/physics.arcscene).
+void RegisterSceneTypes(Arcbit::SceneRegistry& registry);
 
 // One demo scene in the switcher. Each demo TU defines its Create function.
 struct Entry
