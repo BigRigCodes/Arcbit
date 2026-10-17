@@ -5,6 +5,7 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/Scene.h>
+#include <arcbit/scene/SceneAssets.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/LoadingScreen.h>
 #include <arcbit/core/Loc.h>
@@ -219,7 +220,20 @@ void Application::Run()
                       .Textures        = _textures.get(),
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
-                      .Events          = &_events });
+                      .Events          = &_events,
+                      .World           = &_world,
+                      .Registry        = &_sceneRegistry,
+                      .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); } });
+
+    // The world state travels in every save: the live scenes' changes are
+    // captured first (they haven't unloaded).
+    _saves.RegisterParticipant(
+        "world",
+        [this](nlohmann::json& section) {
+            _scenes.CaptureLive();
+            section = _world.ToJson();
+        },
+        [this](const nlohmann::json& section) { _world.FromJson(section); });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses

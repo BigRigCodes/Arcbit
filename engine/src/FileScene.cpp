@@ -107,6 +107,8 @@ namespace
     }
 } // namespace
 
+std::unique_ptr<SceneAssets> MakeAppSceneAssets(Scene& scene) { return std::make_unique<AppSceneAssets>(scene); }
+
 void FileScene::OnPrepare(ScenePreloader& preload)
 {
     _parsed = SceneFile::ReadFile(_path);

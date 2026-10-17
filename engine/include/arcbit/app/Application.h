@@ -9,6 +9,7 @@
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/events/EventBus.h>
 #include <arcbit/save/SaveManager.h>
+#include <arcbit/save/SceneState.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
@@ -259,6 +260,7 @@ private:
     ApplicationConfig     _config;
     std::filesystem::path _userFolder; // set first in the constructor: settings and saves live in it
     SaveManager           _saves;
+    WorldState            _world; // every visited scene's changes; the saves' "world" section
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

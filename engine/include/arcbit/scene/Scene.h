@@ -19,6 +19,7 @@ struct FramePacket;
 class Application;
 class InputManager;
 class MusicPlayer;
+struct AuthoredState;
 class PhysicsWorld;
 class ScenePreloader;
 class SpriteSheet;
@@ -199,6 +200,8 @@ private:
     f32          _musicResume = 0.0f; // seconds into the track when suspended
     MusicPlayer* _musicPlayer = nullptr;
     f32          _musicFade   = 0.0f;
+
+    std::unique_ptr<AuthoredState> _authored; // persistent entities as loaded (SceneManager; save state)
 
     EventBus*                 _events = nullptr;
     std::vector<Entity>       _pendingSpawns; // EntityEvents added; announced at the next Update

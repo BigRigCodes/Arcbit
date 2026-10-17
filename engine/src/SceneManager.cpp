@@ -4,6 +4,8 @@
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/save/SceneState.h>
+#include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/ScenePreloader.h>
 
 #include <algorithm>
@@ -300,6 +302,7 @@ void SceneManager::SwapReplace()
     _stack.clear();
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
+    BeginState(*_stack.back());
     LOG_INFO(Engine, "Scene '{}' loaded", _stack.back()->GetName());
     const bool ownerLeft = std::ranges::any_of(old, [](const std::unique_ptr<Scene>& s) { return s->_ownsMusic; });
     HandOverMusic(old.empty() ? nullptr : old.back().get(), *_stack.back(), ownerLeft);
@@ -327,6 +330,7 @@ void SceneManager::SwapPush()
     }
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
+    BeginState(*_stack.back());
     HandOverMusic(below, *_stack.back(), false); // a scene without music of its own keeps the one below's
     if (below) Announce(EngineEvents::SceneSuspended, *below);
     Announce(EngineEvents::SceneLoaded, *_stack.back());
@@ -370,12 +374,41 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
     to._musicResume = 0.0f;
 }
 
-// Subscriptions end straight after OnUnload, so nothing - not even an event
-// published now from the next scene's OnLoad - reaches an unloaded scene.
+// Its changes are captured first, while its entities are as the player left
+// them. Subscriptions end straight after OnUnload, so nothing - not even an
+// event published now from the next scene's OnLoad - reaches an unloaded scene.
 void SceneManager::Unload(Scene& scene)
 {
+    CaptureState(scene);
     scene.OnUnload();
     scene._subscriptions.clear();
+}
+
+bool SceneManager::TracksState(const Scene& scene) const
+{
+    return _host.World && _host.Registry && _host.Assets && !scene.GetName().empty();
+}
+
+void SceneManager::BeginState(Scene& scene)
+{
+    if (!TracksState(scene)) return;
+    const std::unique_ptr<SceneAssets> assets = _host.Assets(scene);
+    scene._authored = std::make_unique<AuthoredState>(SceneStates::Snapshot(scene, *_host.Registry, *assets));
+    scene.GetTileMap().BeginTrackingChanges();
+    if (const auto it = _host.World->Scenes.find(scene.GetName()); it != _host.World->Scenes.end())
+        SceneStates::Apply(scene, it->second, *_host.Registry, *assets);
+}
+
+void SceneManager::CaptureState(Scene& scene)
+{
+    if (!TracksState(scene) || !scene._authored) return;
+    const std::unique_ptr<SceneAssets> assets = _host.Assets(scene);
+    _host.World->Scenes[scene.GetName()] = SceneStates::Capture(scene, *scene._authored, *_host.Registry, *assets);
+}
+
+void SceneManager::CaptureLive()
+{
+    for (const std::unique_ptr<Scene>& scene : _stack) CaptureState(*scene);
 }
 
 void SceneManager::Announce(const EventId id, const Scene& scene) const

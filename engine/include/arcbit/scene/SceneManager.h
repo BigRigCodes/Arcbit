@@ -17,6 +17,9 @@ namespace Arcbit {
 class Application;
 class EventBus;
 class InputManager;
+class SceneAssets;
+class SceneRegistry;
+struct WorldState;
 class MusicPlayer;
 class TextureManager;
 
@@ -78,6 +81,11 @@ struct SceneChange
 // on, and leaving a scene that owns music for one that doesn't fades it out.
 // A suspended scene's track resumes where it was when it's popped back to.
 //
+// Saved scene state (Host::World): right after a named scene's OnLoad, its
+// Persistent entities are snapshotted as authored and its saved changes
+// applied on top; just before it unloads, what changed is captured back into
+// the world state - so a scene remembers its changes after it's gone.
+//
 // Each swap is announced on the host's event bus (EngineEvents): unloaded,
 // suspended, loaded, resumed - delivered at the next flush, after the swap.
 // Unnamed scenes (Application's default) aren't announced.
@@ -108,6 +116,12 @@ public:
         bool                  PrepareOnThread = false; // OnPrepare on a loader thread; off = inline (tests)
         MusicPlayer*          Music = nullptr; // scene music (Scene::SetMusic); null = no music
         EventBus*             Events = nullptr; // Scene::Subscribe; null = scenes can't subscribe
+
+        // Saved scene state (docs/saves.md): every named scene's changes kept
+        // in World across unloads. All three set, or scene state is off.
+        WorldState*                                         World    = nullptr;
+        const SceneRegistry*                                Registry = nullptr;
+        std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets;
     };
 
     SceneManager() = default;
@@ -161,6 +175,10 @@ public:
 
     // The scene on top of the stack (updated and drawn); null when empty.
     [[nodiscard]] Scene* GetActive() const { return _stack.empty() ? nullptr : _stack.back().get(); }
+
+    // Capture every loaded scene's changes into the world state - what's on
+    // the stack hasn't unloaded yet, so a save needs this first.
+    void CaptureLive();
 
     // Number of scenes on the stack, the active one included.
     [[nodiscard]] size_t GetDepth() const { return _stack.size(); }
@@ -234,7 +252,10 @@ private:
     void SwapPush();
     void SwapPop();
     void UnloadAll();
-    static void Unload(Scene& scene); // OnUnload, then its subscriptions end
+    void               Unload(Scene& scene);     // capture its state, OnUnload, then its subscriptions end
+    void               BeginState(Scene& scene); // after OnLoad: snapshot, apply its saved changes, track tiles
+    void               CaptureState(Scene& scene);
+    [[nodiscard]] bool TracksState(const Scene& scene) const;
     void        Announce(EventId id, const Scene& scene) const; // an engine scene event, if named
     // `to` became active in place of `from`; ownerLeft = a scene that owned
     // music went away (unloaded, not just covered by a push).
