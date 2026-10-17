@@ -306,3 +306,22 @@ TEST_CASE("EntityEvents reads from and writes to scene files", "[scene][events]"
     const json saved = SceneFile::Save(scene, registry, assets, {}, ids)["entities"]["boss"]["EntityEvents"];
     CHECK(saved == doc["entities"]["boss"]["EntityEvents"]); // only the non-default fields
 }
+
+TEST_CASE("The registry can write every field and remove a component", "[scene]")
+{
+    const SceneRegistry registry = MakeRegistry();
+    FakeAssets          assets;
+    Scene               scene;
+    World&              world = scene.GetWorld();
+    const Entity        e     = world.CreateEntity();
+    world.AddComponent<DemoBumper>(e); // all defaults
+
+    const SceneRegistry::ComponentEntry* bumper = registry.FindComponent("DemoBumper");
+    REQUIRE(bumper);
+    CHECK(bumper->Write(world, e, assets).empty());                          // file form: defaults dropped
+    CHECK(bumper->WriteAll(world, e, assets) == json{ { "kick", 600.0f } }); // state form: every field
+
+    bumper->Remove(world, e);
+    CHECK_FALSE(bumper->Has(world, e));
+    bumper->Remove(world, e); // not there: no-op
+}

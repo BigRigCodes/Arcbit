@@ -45,8 +45,10 @@ public:
     {
         std::string                                                                Name;
         std::function<bool(World&, Entity)>                                        Has;
-        std::function<void(World&, Entity, const nlohmann::json&, SceneAssets&)>   Read;  // adds it if absent
-        std::function<nlohmann::json(World&, Entity, const SceneAssets&)>          Write; // non-default fields
+        std::function<void(World&, Entity, const nlohmann::json&, SceneAssets&)>   Read;     // adds it if absent
+        std::function<nlohmann::json(World&, Entity, const SceneAssets&)>          Write;    // non-default fields
+        std::function<nlohmann::json(World&, Entity, const SceneAssets&)>          WriteAll; // every field (scene state)
+        std::function<void(World&, Entity)>                                        Remove;   // if present
     };
 
     // Register (or replace) the component `name` as type T.
@@ -99,6 +101,14 @@ void SceneRegistry::RegisterComponent(std::string name, ReadFn<T> read, WriteFn<
         write(T{}, defaults, assets);
         DropDefaults(fields, defaults);
         return fields;
+    };
+    entry.WriteAll = [write](World& w, const Entity e, const SceneAssets& assets) {
+        nlohmann::json fields = nlohmann::json::object();
+        write(*w.GetComponent<T>(e), fields, assets);
+        return fields;
+    };
+    entry.Remove = [](World& w, const Entity e) {
+        if (w.GetComponent<T>(e)) w.RemoveComponent<T>(e);
     };
     Add(std::move(entry));
 }
