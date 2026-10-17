@@ -113,6 +113,21 @@ SamplerHandle Application::GetStockSampler(const StockSampler which) const
 
 void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
 
+// Engine events from this frame's window and input changes, delivered at
+// the next flush.
+void Application::PublishFrameEvents()
+{
+    if (_input.ConsumeDeviceChanged())
+        _events.PublishEngine(EngineEvents::InputDeviceChanged,
+                              { { "device", std::string(ToString(_input.GetLastDevice())) } });
+    if (_window->WasFocusChangedThisFrame())
+        _events.PublishEngine(EngineEvents::WindowFocusChanged, { { "focused", _window->HasFocus() } });
+    if (_window->WasResizedThisFrame()) {
+        const Vec2 size{ static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) };
+        _events.PublishEngine(EngineEvents::WindowResized, { { "size", size } });
+    }
+}
+
 // Show the loading screen once a scene change has held at black for a
 // moment, and fade it out as the new scene fades in. Never over a
 // game-blocking screen (the splash): that already covers the load.
@@ -249,9 +264,7 @@ void Application::Run()
         // Input must be updated after PollEvents so SDL's internal state
         // reflects all events from this tick.
         _input.Update();
-        if (_input.ConsumeDeviceChanged())
-            _events.PublishEngine(EngineEvents::InputDeviceChanged,
-                                  { { "device", std::string(ToString(_input.GetLastDevice())) } });
+        PublishFrameEvents();
 
         // --- Fixed-timestep update -------------------------------------------
         // Accumulate real elapsed time and drain it in fixed-size chunks so

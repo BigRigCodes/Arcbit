@@ -45,7 +45,8 @@ bool Window::PollEvents()
 {
     // Clear the resize flag at the start of every frame — it should only be
     // true for the single frame in which the resize event was received.
-    _resizedThisFrame = false;
+    _resizedThisFrame      = false;
+    _focusChangedThisFrame = false;
 
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -104,6 +105,14 @@ bool Window::PollEvents()
                 _resizedThisFrame = true;
                 LOG_DEBUG(Platform, "Window resized to {}x{}", _width, _height);
                 break;
+
+            case SDL_EVENT_WINDOW_FOCUS_GAINED:
+            case SDL_EVENT_WINDOW_FOCUS_LOST: {
+                const bool focused = event.type == SDL_EVENT_WINDOW_FOCUS_GAINED;
+                _focusChangedThisFrame |= focused != _hasFocus;
+                _hasFocus = focused;
+                break;
+            }
 
             default:
                 break;

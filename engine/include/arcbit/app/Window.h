@@ -81,6 +81,11 @@ public:
     // only ever true for one frame — the frame the resize was detected.
     [[nodiscard]] constexpr bool WasResizedThisFrame() const { return _resizedThisFrame; }
 
+    // Keyboard focus: whether the window has it, and whether that changed in
+    // the most recent PollEvents call (alt-tab away or back).
+    [[nodiscard]] constexpr bool HasFocus() const { return _hasFocus; }
+    [[nodiscard]] constexpr bool WasFocusChangedThisFrame() const { return _focusChangedThisFrame; }
+
     // Returns the underlying SDL_Window* as void* so that render backends can
     // cast it back without this header pulling in SDL3/SDL.h.
     // RenderDevice and SwapchainDesc accept this as NativeWindowHandle.
@@ -117,12 +122,14 @@ public:
 private:
     // SDL_Window* stored as void* to avoid including SDL3/SDL.h in this header.
     // Cast back to SDL_Window* in Window.cpp where SDL is included.
-    void* _window           = nullptr;
+    void* _window                = nullptr;
 
-    u32   _width            = 0;
-    u32   _height           = 0;
-    bool  _resizedThisFrame = false;
-    bool  _isFullscreen     = false;
+    u32   _width                 = 0;
+    u32   _height                = 0;
+    bool  _resizedThisFrame      = false;
+    bool  _hasFocus              = true;
+    bool  _focusChangedThisFrame = false;
+    bool  _isFullscreen          = false;
 
     std::function<void(i32, bool)>            _keyEventFn;
     std::function<void(i32, bool)>            _mouseButtonFn;

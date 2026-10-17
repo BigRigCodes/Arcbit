@@ -278,6 +278,9 @@ private:
     std::unique_ptr<Window>         _window;
     InputManager                    _input;
 
+    // Device, focus and resize changes this frame, as engine events.
+    void PublishFrameEvents();
+
     // Full-window black quad over the world while a scene switch fades.
     void CollectSceneFade(FramePacket& packet) const;
 
