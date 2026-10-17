@@ -3,6 +3,7 @@
 #include <arcbit/ui/UIWidget.h>
 #include <arcbit/ui/UISkin.h>
 
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -158,6 +159,12 @@ public:
 
 protected:
     std::vector<std::unique_ptr<UIWidget>> _roots;
+
+    // Close the gaps hidden buttons leave in a menu column: the visible
+    // widgets named in `names`, in order, go from startY every `gap`, and
+    // `panel` ends `bottom` below the last one.
+    void StackButtons(UIWidget* panel, std::initializer_list<std::string_view> names, f32 startY, f32 gap,
+                      f32 bottom);
 
 private:
     enum class TransitionState { Idle, FadingIn, FadingOut };

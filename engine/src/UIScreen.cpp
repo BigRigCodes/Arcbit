@@ -28,6 +28,21 @@ bool UIScreen::LoadLayout(const std::string_view path)
     return UILoader::Load(path, *this);
 }
 
+void UIScreen::StackButtons(UIWidget* panel, const std::initializer_list<std::string_view> names, const f32 startY,
+                            const f32 gap, const f32 bottom)
+{
+    f32             y    = startY;
+    const UIWidget* last = nullptr;
+    for (const std::string_view name : names) {
+        UIWidget* w = FindWidget<UIWidget>(name);
+        if (!w || !w->Visible) continue;
+        w->Offset.Y = y;
+        y += gap;
+        last = w;
+    }
+    if (panel && last) panel->Size.Y = last->Offset.Y + last->Size.Y + bottom;
+}
+
 f32 UIScreen::GetMetaF32(const std::string_view key, const f32 def) const
 {
     const auto it = _metaF32.find(std::string(key));
