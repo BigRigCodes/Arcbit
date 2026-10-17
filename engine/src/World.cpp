@@ -155,6 +155,7 @@ void World::SwapRemoveFromArchetype(Archetype& arch, const u32 slot)
 
 Entity World::CreateEntity()
 {
+    ARCBIT_ASSERT(!IsIterating(), "CreateEntity: called inside ForEach - create after it returns");
     const ComponentTypeID transformID = TypeOf<Transform2D>();
     const ComponentTypeID tagID       = TypeOf<Tag>();
     const ComponentMask   mask        = (1ULL << transformID) | (1ULL << tagID);
@@ -185,6 +186,7 @@ Entity World::CreateEntity()
 
 void World::DestroyEntity(const Entity entity)
 {
+    ARCBIT_ASSERT(!IsIterating(), "DestroyEntity: called inside ForEach - collect the entities, destroy after");
     if (!IsValid(entity)) return;
     for (const auto& hook : _destroyHooks) hook(entity);
     for (const ComponentTypeID type : _removeHooks | std::views::keys)
