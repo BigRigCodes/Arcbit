@@ -322,6 +322,7 @@ private:
     InputDevice   _lastDevice                    = InputDevice::KeyboardMouse;
     bool          _deviceChanged                 = false;
     bool          _mouseSeen                     = false; // Update has read the mouse once (no jump from 0,0)
+    u32           _axesPushed                    = 0;     // gamepad axes past half way last Update (a bit each)
     f32           _scrollDelta                   = 0.0f;
     std::string   _pendingTextInput;  // accumulates between ProcessEdges calls
     std::string   _textInput;         // available to read after ProcessEdges
