@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/core/NumberCast.h>
 #include <arcbit/core/Types.h>
 
 #include <cmath>
@@ -187,38 +188,6 @@ private:
     static ChangeListener                         s_changeListener;
     static std::string                            s_filePath;
     static std::unordered_map<std::string, Value> s_store;
-
-    // True when `value` truncates to a representable integer T. NaN,
-    // infinity, and out-of-range floats would make the cast undefined
-    // behavior. The bounds are powers of two (exact in floating point), so
-    // the upper check can't round up past T's max.
-    template<typename T, typename F>
-    [[nodiscard]] static bool FloatFitsInteger(const F value)
-    {
-        if (!std::isfinite(value)) return false;
-        const f64 v     = static_cast<f64>(value);
-        const f64 lower = static_cast<f64>((std::numeric_limits<T>::min)()) - 1.0; // exclusive: truncation
-        const f64 upper = std::ldexp(1.0, std::numeric_limits<T>::digits);       // max + 1, exclusive
-        return v > lower && v < upper;
-    }
-
-    // Numeric-to-numeric conversion for Get<T>; anything else (bool, string,
-    // or a value that doesn't fit in T, e.g. a negative value into u32 or NaN
-    // into i32) yields the fallback.
-    template<typename T, typename V>
-    [[nodiscard]] static T ConvertNumber(const V& stored, const T& fallback)
-    {
-        constexpr bool numericT = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
-        constexpr bool numericV = std::is_arithmetic_v<V> && !std::is_same_v<V, bool>;
-        if constexpr (numericT && numericV) {
-            if constexpr (std::is_integral_v<T> && std::is_integral_v<V>)
-                if (!std::in_range<T>(stored)) return fallback;
-            if constexpr (std::is_integral_v<T> && std::is_floating_point_v<V>)
-                if (!FloatFitsInteger<T>(stored)) return fallback;
-            return static_cast<T>(stored);
-        }
-        else { return fallback; }
-    }
 
     // Helpers called by Init() and Flush().
     static void ReadFile();

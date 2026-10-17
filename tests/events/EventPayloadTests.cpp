@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
 #include <string>
 
 using namespace Arcbit;
@@ -58,4 +59,24 @@ TEST_CASE("A payload prints as name=value pairs for logs", "[events]")
     const EventPayload p{ { "amount", 5 }, { "label", "gold" }, { "by", Entity{ 3, 1 } } };
     CHECK(p.ToString() == R"(amount=5 label="gold" by=entity(3:1))");
     CHECK(EventPayload{}.ToString().empty());
+}
+
+TEST_CASE("Numbers that don't fit the requested type give the fallback", "[events]")
+{
+    // Regression (PR #5 review): reading 1e100 or NaN as an integer cast
+    // straight through - undefined behavior.
+    const EventPayload p{ { "huge", 1e100 },
+                          { "nan", std::numeric_limits<f64>::quiet_NaN() },
+                          { "inf", std::numeric_limits<f64>::infinity() },
+                          { "negative", -5 },
+                          { "big", std::numeric_limits<i64>::max() },
+                          { "two63", 9223372036854775808.0 } }; // 2^63: i64's max rounds up to this as a double
+    CHECK(p.Get<i32>("huge", -7) == -7);
+    CHECK(p.Get<i32>("nan", -7) == -7);
+    CHECK(p.Get<i64>("inf", -7) == -7);
+    CHECK(p.Get<u32>("negative", 7u) == 7u);
+    CHECK(p.Get<i32>("big", -7) == -7);
+    CHECK(p.Get<i64>("big", -7) == std::numeric_limits<i64>::max()); // fits exactly
+    CHECK(p.Get<i64>("two63", -7) == -7);
+    CHECK(p.Get<f64>("huge", 0.0) == 1e100); // decimals into decimals are fine
 }

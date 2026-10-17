@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/core/Math.h>
+#include <arcbit/core/NumberCast.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/ecs/Entity.h>
 
@@ -28,7 +29,8 @@ using EventValue = std::variant<bool, i64, f64, std::string, Entity, Vec2>;
 // Small and flat on purpose: an event says what happened, it doesn't carry
 // game state. Integer literals are stored as i64 and decimals as f64; Get
 // converts between the number types, so Get<f32> or Get<i32> of either works.
-// A missing field, or one of another kind, returns the fallback.
+// A missing field, one of another kind, or a number that doesn't fit the
+// requested type (NaN, 1e100 as an i32, -5 as a u32) returns the fallback.
 // ---------------------------------------------------------------------------
 class EventPayload
 {
@@ -68,8 +70,9 @@ T EventPayload::Get(const std::string_view name, T fallback) const
     const EventValue* value = Find(name);
     if (!value) return fallback;
     if constexpr (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
-        if (const auto* i = std::get_if<i64>(value)) return static_cast<T>(*i);
-        if (const auto* f = std::get_if<f64>(value)) return static_cast<T>(*f);
+        // Range-checked: 1e100 or NaN read as an integer gives the fallback.
+        if (const auto* i = std::get_if<i64>(value)) return ConvertNumber<T>(*i, fallback);
+        if (const auto* f = std::get_if<f64>(value)) return ConvertNumber<T>(*f, fallback);
         return fallback;
     }
     else {
