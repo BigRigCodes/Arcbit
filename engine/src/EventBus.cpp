@@ -66,12 +66,11 @@ namespace Detail
 
 namespace
 {
-    // The list reference survives other lists being added (map references are
-    // stable); index it fresh each time, since a handler subscribing here can
-    // reallocate it. Handlers added now start with the next event.
-    void DeliverTo(std::vector<Detail::EventSubscribers::Entry>& list, const Event& event)
+    // The first `count` handlers of a list. The list reference survives other
+    // lists being added (map references are stable); index it fresh each
+    // time, since a handler subscribing here can reallocate it.
+    void DeliverTo(std::vector<Detail::EventSubscribers::Entry>& list, const size_t count, const Event& event)
     {
-        const size_t count = list.size();
         for (size_t i = 0; i < count; ++i) {
             const std::shared_ptr<EventHandler> handler = list[i].Handler;
             if (handler) (*handler)(event);
@@ -217,10 +216,18 @@ bool EventBus::AcceptsFromGame(const EventId id) const
 
 void EventBus::Deliver(const Event& event)
 {
-    Detail::EventSubscribers& table = *_subscribers;
+    // Both lists are measured before any handler runs: a handler subscribed
+    // during delivery - even to this event, from a SubscribeAll handler -
+    // starts with the next event.
+    Detail::EventSubscribers& table    = *_subscribers;
+    const auto                it       = table.ByEvent.find(event.Id);
+    auto* const               own      = it != table.ByEvent.end() ? &it->second : nullptr;
+    const size_t              allCount = table.All.size();
+    const size_t              ownCount = own ? own->size() : 0;
+
     ++table.Delivering;
-    DeliverTo(table.All, event);
-    if (const auto it = table.ByEvent.find(event.Id); it != table.ByEvent.end()) DeliverTo(it->second, event);
+    DeliverTo(table.All, allCount, event);
+    if (own) DeliverTo(*own, ownCount, event);
     if (--table.Delivering == 0) table.Compact();
 }
 

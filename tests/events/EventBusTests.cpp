@@ -223,3 +223,20 @@ TEST_CASE("Every engine event is named from the start", "[events]")
     const EventBus bus;
     for (const std::string_view name : EngineEvents::AllNames) CHECK(bus.GetName(MakeEvent(name)) == name);
 }
+
+TEST_CASE("A handler a SubscribeAll handler adds starts with the next event", "[events]")
+{
+    // Regression (PR #5 review): the event's own list was read after the
+    // all-events handlers ran, so a handler they added heard this event too.
+    EventBus     bus;
+    int          lateCalls = 0;
+    Subscription late;
+    Subscription existing = bus.Subscribe(Coin, [](const Event&) {}); // the list exists already
+    Subscription all      = bus.SubscribeAll([&](const Event&) {
+        if (!late.IsActive()) late = bus.Subscribe(Coin, [&](const Event&) { ++lateCalls; });
+    });
+    bus.PublishNow(Coin);
+    CHECK(lateCalls == 0);
+    bus.PublishNow(Coin);
+    CHECK(lateCalls == 1);
+}
