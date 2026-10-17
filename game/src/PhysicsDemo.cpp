@@ -112,6 +112,7 @@ protected:
     {
         _player                                 = world.CreateEntity();
         world.GetComponent<Tag>(_player)->Value = "Player";
+        world.AddComponent<Persistent>(_player, Persistent{ .Id = "player", .Components = { "Transform2D" } }); // saved
         auto* t                                 = world.GetTransform(_player);
         t->Position                             = {TileSize * 5.0f, 0.0f};
         t->Scale                                = {TileSize * 0.7f, TileSize * 0.7f};
@@ -196,6 +197,7 @@ protected:
         const Entity crate = MakeBox("Crate", {TileSize * 3.0f, TileSize * 4.0f}, {TileSize * 0.8f, TileSize * 0.8f},
                                      {0.7f, 0.5f, 0.25f, 1.0f}, BodyKind::Kinematic);
         GetWorld().AddComponent<Pushable>(crate, Pushable{ .Resistance = 0.5f });
+        GetWorld().AddComponent<Persistent>(crate, Persistent{ .Id = "crate", .Components = { "Transform2D" } });
     }
 
     void OnUpdate(const f32 /*dt*/) override

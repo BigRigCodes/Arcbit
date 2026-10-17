@@ -114,6 +114,7 @@ protected:
     {
         _player                                 = world.CreateEntity();
         world.GetComponent<Tag>(_player)->Value = "Player";
+        world.AddComponent<Persistent>(_player, Persistent{ .Id = "player", .Components = { "Transform2D" } }); // saved
         auto* t                                 = world.GetTransform(_player);
         t->Position                             = {0.0f, 0.0f}; // tile (0,0)
         t->Scale                                = {TileSize * 0.7f, TileSize * 0.7f};
@@ -192,6 +193,8 @@ protected:
         };
         world.AddComponent<Collider2D>(e, col);
         world.AddComponent<Pushable>(e);
+        world.AddComponent<Persistent>(e, Persistent{ .Id         = "crate." + std::to_string(_crates.size()),
+                                                      .Components = { "Transform2D" } });
         (void)GetPhysics().RegisterCollider(e, col, pos);
         _crates.push_back(e);
     }
