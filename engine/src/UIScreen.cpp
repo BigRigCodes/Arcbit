@@ -58,9 +58,15 @@ UIWidget* UIScreen::FindFocusableHit(UIWidget& w, const UIRect parent, const Vec
 {
     if (!w.Visible || !w.Enabled) return nullptr;
     const UIRect myRect = w.ComputeRect(parent);
-    // Children checked first in reverse ZOrder (highest = topmost visually)
-    for (auto it = w._children.rbegin(); it != w._children.rend(); ++it)
-        if (auto* hit = FindFocusableHit(**it, myRect, pos)) return hit;
+    // Children are placed where the widget draws them (a ScrollPanel's
+    // scrolled content - not its own rect, which put a click on the chip that
+    // would be there unscrolled), and a clipping widget's children only count
+    // inside it. Checked first, last child first (topmost visually).
+    if (!w.ClipsChildren() || myRect.Contains(pos)) {
+        const UIRect inner = w.ChildRect(myRect);
+        for (auto it = w._children.rbegin(); it != w._children.rend(); ++it)
+            if (auto* hit = FindFocusableHit(**it, inner, pos)) return hit;
+    }
     if (w.Focusable && myRect.Contains(pos)) return &w;
     return nullptr;
 }

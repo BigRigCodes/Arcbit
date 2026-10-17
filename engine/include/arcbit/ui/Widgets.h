@@ -266,12 +266,17 @@ protected:
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
 
+    // The content area: scrolled by ScrollOffset, narrowed by the scrollbar.
+    [[nodiscard]] UIRect ChildRect(UIRect myRect) const override;
+    [[nodiscard]] bool   ClipsChildren() const override { return true; }
+
 private:
     bool _dragging        = false;
     bool _thumbHovered    = false;
     f32  _dragStartY      = 0.0f;
     f32  _dragStartOffset = 0.0f;
     bool _needsScrollbar  = false; // set in CollectTree / UpdateTree before OnCollect
+
     const UIWidget* _shownFocus = nullptr; // the focused child last scrolled into view
 
     [[nodiscard]] f32    MaxScroll(f32 panelH) const { return std::max(0.0f, ContentHeight - panelH); }
@@ -279,6 +284,7 @@ private:
     // When focus moves to one of the children (D-pad / arrow navigation),
     // scroll it into view - otherwise focus walks off the visible part.
     void KeepFocusInView(UIRect myRect);
+
     [[nodiscard]] UIRect ThumbRect(UIRect track, f32 panelH) const;
 };
 } // namespace Arcbit

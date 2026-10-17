@@ -255,3 +255,39 @@ TEST_CASE("The newest direction pressed wins", "[ui]")
     for (int i = 0; i < 30; ++i) (void)nav.Step(false, false, true, true, Dt);
     CHECK(nav.Step(false, false, true, true, 0.1f) == -1); // repeating the previous direction
 }
+
+TEST_CASE("A click in a scrolled list focuses the row drawn under it", "[ui]")
+{
+    // Regression: click-to-focus ignored the scroll offset, so a click on a
+    // chip focused the one that would be there unscrolled - and with focus
+    // scrolled into view, the list jumped to that row instead.
+    UIScreen screen;
+    auto*    list       = screen.Add<ScrollPanel>();
+    list->Size          = { 300.0f, 200.0f };
+    list->ContentHeight = 1000.0f;
+    std::vector<Button*> rows;
+    for (int i = 0; i < 20; ++i) {
+        auto* row      = list->AddChild<Button>();
+        row->Size      = { 280.0f, 40.0f };
+        row->Offset    = { 0.0f, 50.0f * static_cast<f32>(i) };
+        row->Focusable = true;
+        rows.push_back(row);
+    }
+    list->ScrollOffset = 500.0f; // rows 10 (y 0..40) and 11 (y 50..90) are on screen
+
+    const UIRect window{ 0.0f, 0.0f, 640.0f, 360.0f };
+    const auto   click = [&](const Vec2 at) {
+        screen.Update(1.0f / 60.0f, window, at, true, true, false); // the press is what focuses
+    };
+
+    click({ 10.0f, 60.0f });
+    CHECK(screen.GetFocusedWidget() == rows[11]); // not rows[1], drawn there before scrolling
+    CHECK(list->ScrollOffset == 500.0f);          // already in view: no jump
+
+    click({ 10.0f, 45.0f }); // the gap between rows 10 and 11
+    CHECK(screen.GetFocusedWidget() == rows[11]); // nothing there: focus stays
+    CHECK(list->ScrollOffset == 500.0f);
+
+    click({ 10.0f, 250.0f }); // below the list: rows scrolled out of view can't be clicked
+    CHECK(screen.GetFocusedWidget() == rows[11]);
+}

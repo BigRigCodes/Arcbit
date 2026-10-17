@@ -106,6 +106,16 @@ public:
     // widget to handle cursor movement directly. TextInput sets this when focused.
     [[nodiscard]] virtual bool ConsumesFocusNav() const { return false; }
 
+    // The rect this widget lays its children out in, given its own: itself
+    // for most widgets, a ScrollPanel's scrolled content area. Everything that
+    // places children - update, draw, click-to-focus - goes through it, so a
+    // click finds what is actually drawn under it.
+    [[nodiscard]] virtual UIRect ChildRect(const UIRect myRect) const { return myRect; }
+
+    // True when children outside this widget's own rect are cut off (a
+    // ScrollPanel): they can't be seen there, so they can't be clicked there.
+    [[nodiscard]] virtual bool ClipsChildren() const { return false; }
+
     // Compute this widget's pixel rect relative to parentRect.
     [[nodiscard]] UIRect ComputeRect(UIRect parent) const;
 
