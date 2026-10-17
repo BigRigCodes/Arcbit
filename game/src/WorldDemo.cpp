@@ -421,6 +421,8 @@ private:
         world.AddComponent<InputMovement>(_playerEntity, InputMovement{.MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
                                                                        .MoveUp   = ActionMoveUp, .MoveDown    = ActionMoveDown});
         world.AddComponent<MoveIntent>(_playerEntity); // read by UpdatePlayerVisuals
+        // Saved and kept across scene changes: where the player stands.
+        world.AddComponent<Persistent>(_playerEntity, Persistent{ .Id = "player", .Components = { "Transform2D" } });
 
         world.AddComponent<AudioSource>(_playerEntity, AudioSource{
                                             .Path = "assets/sfx/footsteps.mp3", .Volume = 0.6f,

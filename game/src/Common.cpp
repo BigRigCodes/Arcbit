@@ -100,6 +100,8 @@ namespace
             { "Demo_Prev", "Previous Demo", "Demo", { Key::PageUp } },
             { "Demo_Battle", "Push / Pop Battle", "Demo", { Key::B } },
             { "Demo_EventLog", "Event Log", "Debug", { Key::F3 } },
+            { "Demo_QuickSave", "Quicksave", "Demo", { Key::F5 } },
+            { "Demo_QuickLoad", "Quickload", "Demo", { Key::F9 } },
         };
         return defs;
     }

@@ -29,6 +29,7 @@
 
 #include <arcbit/app/Application.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/Scene.h>
@@ -72,6 +73,8 @@ constexpr ActionID ActionDemoNext = MakeAction("Demo_Next");
 constexpr ActionID ActionDemoPrev   = MakeAction("Demo_Prev");
 constexpr ActionID ActionDemoBattle = MakeAction("Demo_Battle");
 constexpr ActionID ActionEventLog   = MakeAction("Demo_EventLog");
+constexpr ActionID ActionQuickSave  = MakeAction("Demo_QuickSave");
+constexpr ActionID ActionQuickLoad  = MakeAction("Demo_QuickLoad");
 
 constexpr const char* BattleScene = "Battle";
 
@@ -96,6 +99,11 @@ public:
         // behind it); the soak test skips the title so it can drive itself.
         _boot.ShowTitle   = _cycleSeconds <= 0.0f;
         _boot.CreditsPath = "assets/credits.json";
+
+        // Autosave whenever a demo or the battle finishes loading; the soak
+        // test skips that and the first-launch notice (nobody to read it).
+        _saving.AutoSaveOnSceneChange = _cycleSeconds <= 0.0f;
+        _saving.FirstLaunchNotice     = _cycleSeconds <= 0.0f;
     }
 
 protected:
@@ -109,6 +117,10 @@ protected:
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
+        // A loaded save picks its own demo: keep the title and F1 menu in step.
+        _sceneLoaded = GetEvents().Subscribe(EngineEvents::SceneLoaded, [this](const Event& e) {
+            FollowLoadedScene(e.Payload.Get<std::string>("name", ""));
+        });
         if (_mute) AudioManager::SetMasterVolume(0.0f); // this run only, not saved
         Open(LastOpenedIndex());
     }
@@ -125,7 +137,9 @@ protected:
         if (GetUI().HasBlockingScreen()) return; // a menu owns the other keys
 
         const size_t count = Demo::Entries().size();
-        if (CycleDue(dt)) CycleStep(count);
+        if (GetInput().JustPressed(ActionQuickSave)) (void)SaveTo(SaveSlot::Quick());
+        else if (GetInput().JustPressed(ActionQuickLoad)) (void)LoadFrom(SaveSlot::Quick());
+        else if (CycleDue(dt)) CycleStep(count);
         else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoBattle)) ToggleBattle();
@@ -143,8 +157,22 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle, F3 events", demo.Name,
-                                   demo.Keys));
+        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle, F3 events, "
+                                   "F5 / F9 quicksave / load",
+                                   demo.Name, demo.Keys));
+    }
+
+    // A scene loaded some other way than Open (a save loading): if it's one
+    // of the demos, it's the current one now.
+    void FollowLoadedScene(const std::string& name)
+    {
+        const auto entries = Demo::Entries();
+        for (size_t i = 0; i < entries.size(); ++i) {
+            if (entries[i].Name != name || i == _current) continue;
+            _current = i;
+            SetDemoTitle(entries[i]);
+            Settings::Set<std::string>(LastDemoKey, entries[i].Name);
+        }
     }
 
     // B: push the battle arena over the running demo; B again pops back to
@@ -216,6 +244,7 @@ private:
     }
 
     std::unique_ptr<EventHistory> _eventHistory;
+    Subscription                  _sceneLoaded; // FollowLoadedScene
     const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
     const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
 

@@ -20,6 +20,10 @@
 //     game.coin.all_collected. The player opts into EntityEvents, so its
 //     spawn shows up too - F3 lists them all.
 //
+//   - **Saving** (Phase 25) — the coins and the player are Persistent: a
+//     collected coin stays gone and the player stays put across scene
+//     changes and saves (F5 / F9), and the count lives in the save data.
+//
 //   - **Whirlpool tile** (north-east of spawn) — an Objects-layer tile over
 //     the grass whose TileDef is a two-frame flip-book (and `flat`, so it
 //     draws under entities) loaded from water.tileatlas.json. No entity
@@ -92,6 +96,8 @@ constexpr EventId CoinCollected     = MakeEvent("game.coin.collected");
 constexpr EventId AllCoinsCollected = MakeEvent("game.coin.all_collected");
 
 constexpr std::array<std::array<i32, 2>, 5> CoinTiles = { { { -2, -3 }, { 3, -4 }, { -6, 2 }, { 4, 3 }, { -1, 5 } } };
+
+constexpr const char* CoinsKey = "demo.trigger.coins"; // SaveData: coins collected so far
 
 constexpr Vec2 TileCenter(const i32 tx, const i32 ty) { return {static_cast<f32>(tx) * TileSize, static_cast<f32>(ty) * TileSize}; }
 
@@ -183,6 +189,7 @@ protected:
         auto& world = GetWorld();
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<EntityEvents>(_player); // announces its spawn (and its destruction, were it destroyed)
+        world.AddComponent<Persistent>(_player, Persistent{ .Id = "player", .Components = { "Transform2D" } });
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
         world.AddComponent<InputMovement>(_player, InputMovement{
                                               .MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
@@ -265,12 +272,16 @@ protected:
 
     // Each coin is a trigger: touching it publishes game.coin.collected and
     // removes it. The HUD counts them by listening, not by being told - the
-    // trigger doesn't know the HUD exists.
+    // trigger doesn't know the HUD exists. Coins are Persistent, so a
+    // collected one stays destroyed when the scene comes back.
     void CreateCoins()
     {
-        for (const auto& [tx, ty] : CoinTiles) {
+        for (size_t i = 0; i < CoinTiles.size(); ++i) {
+            const auto [tx, ty] = CoinTiles[i];
             const Entity coin = CreateBlock("Coin", TileCenter(tx, ty), {TileSize * 0.35f, TileSize * 0.35f}, CoinColor,
                                             -999997);
+            GetWorld().AddComponent<Persistent>(coin, Persistent{ .Id         = std::format("coin.{}", i),
+                                                                  .Components = { "Transform2D" } });
             AttachCollider(coin, Collider2D{
                                .HalfExtents = {TileSize * 0.2f, TileSize * 0.2f},
                                .Kind        = BodyKind::Static,
@@ -289,9 +300,12 @@ protected:
         auto hud = std::make_unique<CoinHud>();
         _hud     = hud.get();
         GetApp().GetUI().Push(std::move(hud));
+        SaveData& data = GetApp().GetSaves().Data();
+        _coins         = static_cast<i32>(data.Get<i64>(CoinsKey, 0));
         UpdateHud();
         Subscribe(CoinCollected, [this](const Event& e) {
             _coins += e.Payload.Get<i32>("amount", 1);
+            GetApp().GetSaves().Data().Set(CoinsKey, static_cast<i64>(_coins));
             UpdateHud();
             if (_coins == static_cast<i32>(CoinTiles.size()))
                 GetApp().GetEvents().Publish(AllCoinsCollected, {{"count", _coins}});
