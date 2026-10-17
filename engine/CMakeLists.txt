@@ -7,6 +7,7 @@ find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
 # Game and tool targets link against this; they never see Vulkan or SDL headers directly.
 add_library(arcbit-engine STATIC
     src/Application.cpp
+    src/ApplicationBoot.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp
     src/Window.cpp
@@ -39,6 +40,7 @@ add_library(arcbit-engine STATIC
     src/AudioSettingsScreen.cpp
     src/GraphicsSettingsScreen.cpp
     src/SplashScreen.cpp
+    src/CreditsScreen.cpp
     src/MainMenuScreen.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp

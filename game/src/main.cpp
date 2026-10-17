@@ -66,7 +66,12 @@ class DemoApp : public Application
 public:
     explicit DemoApp(const f32 cycleSeconds) :
         Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080 }), _cycleSeconds(cycleSeconds)
-    {}
+    {
+        // Splash, then the title menu over the last demo (already running
+        // behind it); the soak test skips the title so it can drive itself.
+        _boot.ShowTitle   = cycleSeconds <= 0.0f;
+        _boot.CreditsPath = "assets/credits.json";
+    }
 
 protected:
     void OnStart() override

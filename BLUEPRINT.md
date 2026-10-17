@@ -351,12 +351,13 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
-- [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading
-- [ ] Hand-off into the first scene fades in. Today the splash fades its image to black, pops, and the world appears at full brightness in one frame (skipping cuts straight to it)
-- [ ] Engine splash is engine-owned: its content and timing are defined inside the engine, not exposed to games. Games append their own splash entries after it but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
+- [x] First scene loads under the splash — scene swaps run while a game-blocking screen covers loading (`UIScreen::CoversLoading`; the splash only while its image is fully shown), instead of after the splash. Synchronous for now: the splash holds on its logo during the load (background loading is slice 7)
+- [x] Hand-off into the first scene fades in — fades hold while the scene is hidden, so it fades in from black as the splash ends (skipping too)
+- [x] Engine splash is engine-owned: its content and timing are defined inside the engine (`ApplicationBoot.cpp`), not exposed to games. Games append their own splash entries after it (`BootConfig::SplashImages`) but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
 - [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
-- [ ] Title screen as the default first stop after the splashes (`MainMenuScreen` exists; it becomes the boot flow's destination rather than something each game wires by hand)
-- [ ] Credits screen — data-driven scrolling credits (sections, names, optional logos), reachable from the title screen and usable as an end-of-game roll
+- [x] Title screen as the default first stop after the splashes — `BootConfig` (`FirstScene`, `ShowTitle`, `TitleScene`, `CreditsPath`) drives splash → title → game; the engine wires the title's buttons to its own settings / credits screens
+- [x] Credits screen — `CreditsScreen` scrolls a JSON file (title, sections of heading + names, speed), reachable from the title menu; `Application::ShowCredits` can roll it at the end of a game too
+- [ ] Credits logos — image entries in the credits roll
 
 ---
 

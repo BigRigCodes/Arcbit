@@ -1,6 +1,7 @@
 #include "TestSupport.h"
 
 #include <arcbit/core/Loc.h>
+#include <arcbit/ui/CreditsScreen.h>
 #include <arcbit/ui/UILoader.h>
 #include <arcbit/ui/UIScreen.h>
 #include <arcbit/ui/Widgets.h>
@@ -184,4 +185,41 @@ TEST_CASE("Every text_key in the shipped engine UI exists in en.json", "[ui][arc
         }
     }
     Loc::Clear();
+}
+
+// ---------------------------------------------------------------------------
+// Credits
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Credits lay out the title, then each section's heading and names", "[ui][credits]")
+{
+    const nlohmann::json doc = nlohmann::json::parse(R"({
+        "title": "Game",
+        "sections": [ { "heading": "Code", "names": ["A", "B"] }, { "names": ["C"] } ] })");
+    f32        height = 0.0f;
+    const auto lines  = CreditsScreen::Layout(doc, height);
+
+    REQUIRE(lines.size() == 5);
+    CHECK(lines[0].Text == "Game");
+    CHECK(lines[0].Style == CreditsScreen::Line::Kind::Title);
+    CHECK(lines[1].Style == CreditsScreen::Line::Kind::Heading);
+    CHECK(lines[2].Text == "A");
+    CHECK(lines[4].Text == "C"); // a section without a heading is just names
+    for (size_t i = 1; i < lines.size(); ++i) CHECK(lines[i].Y > lines[i - 1].Y); // top to bottom
+    CHECK(height > lines.back().Y);
+}
+
+TEST_CASE("Credits of something that isn't a credits document are empty", "[ui][credits]")
+{
+    f32 height = 1.0f;
+    CHECK(CreditsScreen::Layout(nlohmann::json::array(), height).empty());
+    CHECK(height == 0.0f);
+}
+
+TEST_CASE("The shipped demo credits lay out", "[ui][credits][shipped]")
+{
+    std::ifstream f(ArcbitTests::SourcePath("game/assets/credits.json"));
+    REQUIRE(f);
+    f32 height = 0.0f;
+    CHECK(CreditsScreen::Layout(nlohmann::json::parse(f), height).size() > 5);
 }

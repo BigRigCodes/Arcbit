@@ -6,6 +6,7 @@ subclass or a data-driven `FileScene` loaded from an `.arcscene` file; the
 are all scene files.
 
 - [Lifecycle and switching](#lifecycle-and-switching)
+- [Boot flow](#boot-flow)
 - [Scene file format (`.arcscene`)](#scene-file-format-arcscene)
 - [Component registry](#component-registry)
 - [Named systems](#named-systems)
@@ -57,6 +58,47 @@ create and destroy GPU resources. Order: old `OnUnload`, new `OnLoad`, old
 scene's resources released, old scene destroyed. Scene teardown destroys every
 entity, so component removal hooks release outside resources (colliders,
 sounds).
+
+---
+
+## Boot flow
+
+Engine splash, then the game's splashes, then the title menu or the first
+scene. A game describes it with `BootConfig` (Phase 38's `project.arcbit` will
+fill the same struct from data):
+
+```cpp
+MyGame() : Application({ ... })
+{
+    _boot.SplashImages = { "assets/ui/studio_logo.png" };
+    _boot.FirstScene   = "Village";
+    _boot.ShowTitle    = true;                 // title menu after the splashes
+    _boot.TitleScene   = "TitleBackdrop";      // optional; empty = title over FirstScene
+    _boot.CreditsPath  = "assets/credits.json";
+}
+```
+
+- **The engine splash comes first and is engine-owned**: its image and timing
+  are fixed in the engine (`ApplicationBoot.cpp`); a game adds splashes after
+  it but has no way to change or remove it.
+- **The first scene loads under the splash.** The main loop runs a queued
+  scene swap while a game-blocking screen *covers loading*
+  (`UIScreen::CoversLoading`); the splash covers it only while its image is
+  fully shown, so the load never stalls a fade. Fades hold while the scene is
+  hidden, so the scene fades in from black once the splash ends instead of
+  appearing at full brightness. (Loading is still synchronous: the splash
+  freezes on its logo while the scene loads. Slice 7 moves loading off the
+  main thread.)
+- **The title menu** (`MainMenuScreen`) opens when the splashes end, with
+  Controls / Audio / Graphics / Credits wired to the engine's screens. With
+  no `TitleScene` it sits over `FirstScene`, already running behind it, and
+  New Game just closes it; with a `TitleScene`, New Game switches to
+  `FirstScene`.
+- **Credits** (`CreditsScreen`) scroll a JSON file: `title`, `sections` of
+  `heading` + `names`, `scroll_speed`.
+
+The splash `StaysOnTop`: screens pushed while it's up (a HUD the first scene
+pushes in `OnLoad`) go beneath it, so it keeps ticking and finishes.
 
 ---
 

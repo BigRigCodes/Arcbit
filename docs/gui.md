@@ -648,6 +648,7 @@ engine/
     GraphicsSettingsScreen.h
     SplashScreen.h
     MainMenuScreen.h
+    CreditsScreen.h
   src/
     UIManager.cpp
     UIScreen.cpp
@@ -663,6 +664,7 @@ engine/
     GraphicsSettingsScreen.cpp
     SplashScreen.cpp
     MainMenuScreen.cpp
+    CreditsScreen.cpp
   assets/ui/                — engine-provided .arcui defaults
     pause_menu.arcui
     audio_settings.arcui
@@ -722,7 +724,9 @@ Game assets go in `game/assets/`.
 
 ### Phase 21D — Engine Screens ✓
 - [x] `SplashScreen`: ordered image sequence; per-entry fade-in/hold/fade-out; skip on confirm; `BlocksGame` suppresses game scene and UI below while active
-- [x] `MainMenuScreen`: data-driven via `main_menu.arcui`; `ShowContinue` / `ShowControls` / `ShowAudioSettings` / `ShowGraphicsSettings` flags; C++ fallback
+- [x] `MainMenuScreen`: data-driven via `main_menu.arcui`; `ShowContinue` / `ShowControls` / `ShowAudioSettings` / `ShowGraphicsSettings` / `ShowCredits` flags; C++ fallback
+- [x] `CreditsScreen`: scrolling credits from a JSON file (`title`, `sections` of `heading` + `names`, `scroll_speed`); closes when the roll ends or on back
+- [x] `StaysOnTop` screens (the splash): pushes go beneath them and `Pop()` skips them; a screen removing itself during `UIManager::Update` is deferred until the update returns
 - [ ] `DialogScreen`: portrait + speaker name + scrolling text + choice buttons (deferred to Phase 27 dialog system)
 - [ ] `InventoryScreen` stub (deferred to Phase 25 item system)
 - [x] `GraphicsSettingsScreen` extended: VSync, Show FPS, and Show Debug Info all use `Switch` widgets; `Settings::Graphics.ShowFps` and `ShowDebugInfo` drive live HUD and debug overlay

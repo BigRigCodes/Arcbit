@@ -25,8 +25,9 @@ struct SplashEntry
 // ---------------------------------------------------------------------------
 // SplashScreen — plays a sequence of full-screen images before transitioning.
 //
-// Add SplashEntry items to Entries before pushing. Wire OnComplete to push
-// the next screen (and call GetUI().Pop() to remove the splash).
+// Add SplashEntry items to Entries before pushing. Wire OnComplete to remove
+// the splash (GetUI().Remove(splash) - it StaysOnTop, so Pop() skips it) and
+// carry on to the next screen.
 //
 // The screen appears and fades per-entry via Image.Opacity — the screen-level
 // transition is bypassed (TransitionSpeed = 0). Skip is triggered by Escape
@@ -38,12 +39,22 @@ public:
     std::vector<SplashEntry> Entries;
     std::function<void()>    OnComplete;
 
-    SplashScreen() { BlocksInput = true; BlocksGame = true; TransitionSpeed = 0.0f; }
+    SplashScreen()
+    {
+        BlocksInput     = true;
+        BlocksGame      = true;
+        StaysOnTop      = true; // the first scene loads (and may push a HUD) underneath
+        TransitionSpeed = 0.0f;
+    }
 
     void OnEnter()    override;
     void OnBackPressed() override;
 
     void OnTick(f32 dt, const InputManager& input) override;
+
+    // Only while the current image is fully shown: a load then can't stall
+    // a fade.
+    [[nodiscard]] bool CoversLoading() const override;
 
     // Immediately finish the sequence and fire OnComplete.
     void Skip();

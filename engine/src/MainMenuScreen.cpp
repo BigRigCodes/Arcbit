@@ -39,6 +39,11 @@ void MainMenuScreen::OnEnter()
         btn->OnClick = OnGraphicsSettings;
     }
 
+    if (auto* btn = FindWidget<Button>("credits-btn")) {
+        btn->Visible = ShowCredits;
+        btn->OnClick = OnCredits;
+    }
+
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
 }
@@ -56,6 +61,7 @@ void MainMenuScreen::BuildFallback()
         + (ShowControls ? 1 : 0)
         + (ShowAudioSettings ? 1 : 0)
         + (ShowGraphicsSettings ? 1 : 0)
+        + (ShowCredits ? 1 : 0)
         + 1; // quit
 
     const f32 panelW = 360.0f;
@@ -118,6 +124,10 @@ void MainMenuScreen::BuildFallback()
     }
     if (ShowGraphicsSettings) {
         MakeButton("ui.pause.graphics", y, OnGraphicsSettings);
+        y += gap;
+    }
+    if (ShowCredits) {
+        MakeButton("ui.mainmenu.credits", y, OnCredits);
         y += gap;
     }
     MakeButton("ui.mainmenu.quit", y, OnQuit, {0.88f, 0.30f, 0.30f, 1.0f});

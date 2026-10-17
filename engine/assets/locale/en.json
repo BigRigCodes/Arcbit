@@ -27,7 +27,10 @@
   "ui.mainmenu.title":    "Main Menu",
   "ui.mainmenu.new_game": "New Game",
   "ui.mainmenu.continue": "Continue",
+  "ui.mainmenu.credits":  "Credits",
   "ui.mainmenu.quit":     "Quit",
+
+  "ui.credits.unavailable": "Credits could not be loaded.",
 
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",

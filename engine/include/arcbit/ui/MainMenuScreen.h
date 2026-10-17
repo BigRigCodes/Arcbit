@@ -27,12 +27,14 @@ public:
     std::function<void()> OnControls;
     std::function<void()> OnAudioSettings;
     std::function<void()> OnGraphicsSettings;
+    std::function<void()> OnCredits;
     std::function<void()> OnQuit;
 
     bool ShowContinue         = false;
     bool ShowControls         = true;
     bool ShowAudioSettings    = true;
     bool ShowGraphicsSettings = true;
+    bool ShowCredits          = false;
 
     MainMenuScreen() { BlocksInput = true; TransitionSpeed = 6.0f; }
 

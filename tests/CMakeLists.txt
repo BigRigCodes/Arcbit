@@ -28,6 +28,7 @@ add_executable(arcbit-tests
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
     ui/UILayoutTests.cpp
+    ui/UIManagerTests.cpp
     ui/UISkinTests.cpp
 )
 

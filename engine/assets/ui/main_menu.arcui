@@ -3,7 +3,7 @@
     {
       "type":   "Panel",
       "name":   "bg",
-      "size":   [360, 400],
+      "size":   [360, 452],
       "anchor": [0.5, 0.5],
       "pivot":  [0.5, 0.5],
       "zorder": 1,
@@ -34,6 +34,7 @@
         { "type": "Button", "name": "controls-btn", "text_key": "ui.pause.controls",    "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 174], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "audio-btn",    "text_key": "ui.pause.audio",       "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 226], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "graphics-btn", "text_key": "ui.pause.graphics",    "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 278], "focusable": true, "zorder": 2 },
+        { "type": "Button", "name": "credits-btn",  "text_key": "ui.mainmenu.credits",  "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 330], "focusable": true, "zorder": 2 },
         {
           "type":       "Button",
           "name":       "quit-btn",
@@ -41,7 +42,7 @@
           "size":       [260, 44],
           "anchor":     [0.5, 0.0],
           "pivot":      [0.5, 0.0],
-          "offset":     [0, 330],
+          "offset":     [0, 382],
           "text_color": [0.88, 0.30, 0.30, 1.0],
           "focusable":  true,
           "zorder":     2

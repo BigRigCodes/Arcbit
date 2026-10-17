@@ -64,12 +64,22 @@ public:
     }
     [[nodiscard]] const UISkin& GetSkin() const { return _skin; }
 
+    // Push a screen on top - beneath any StaysOnTop screens, unless it is
+    // one itself.
     void Push(std::unique_ptr<UIScreen> screen);
+
+    // Close the topmost screen that isn't StaysOnTop (fading out if it has a
+    // transition).
     void Pop();
 
     // Remove a specific screen immediately, wherever it sits in the stack (no
     // fade). For screens owned by something going away — a scene's HUD when
     // the scene unloads. No-op if the screen isn't on the stack.
+    //
+    // Called during Update (from a screen's own callback - a splash removing
+    // itself when it finishes), the removal waits until Update returns, so
+    // the screen isn't destroyed while it's still being ticked. Pop() of a
+    // screen without a transition is deferred the same way.
     void Remove(const UIScreen* screen);
 
     [[nodiscard]] UIScreen* Top()   const;
@@ -82,6 +92,10 @@ public:
     // Returns true if any screen on the stack has BlocksGame = true.
     // Application uses this to suppress OnUpdate, OnRender, and scene rendering.
     [[nodiscard]] bool HasGameBlockingScreen() const;
+
+    // True when every game-blocking screen on the stack covers loading (see
+    // UIScreen::CoversLoading): a scene may load beneath them now.
+    [[nodiscard]] bool CoversLoading() const;
 
     // Called with true when a text-consuming widget gains focus, false when it
     // loses focus. Wire to Window::SetTextInputActive so SDL text input mode is
@@ -97,6 +111,11 @@ public:
 
 private:
     std::vector<std::unique_ptr<UIScreen>> _stack;
+    std::vector<const UIScreen*>           _deferredRemovals; // Remove / Pop called during Update
+    bool                                   _updating = false;
+
+    // Update's body; Update wraps it to run deferred removals afterwards.
+    void UpdateScreens(f32 dt, Vec2 windowSize, const InputManager& input);
     UISkin        _skin;
     TextureHandle _whiteTex;
     SamplerHandle _whiteSampler;

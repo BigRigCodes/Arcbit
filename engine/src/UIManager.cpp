@@ -6,6 +6,7 @@
 #include <arcbit/input/InputTypes.h>
 
 #include <algorithm>
+#include <iterator>
 
 namespace Arcbit
 {
@@ -77,25 +78,40 @@ void UIManager::Push(std::unique_ptr<UIScreen> screen)
     }
     screen->_skipInputThisFrame = true;
     screen->OnEnter();
-    _stack.push_back(std::move(screen));
+
+    // Below the StaysOnTop screens (they sit at the top of the stack).
+    auto at = _stack.end();
+    if (!screen->StaysOnTop)
+        while (at != _stack.begin() && (*std::prev(at))->StaysOnTop) --at;
+    _stack.insert(at, std::move(screen));
 }
 
 void UIManager::Pop()
 {
-    if (_stack.empty()) return;
-    UIScreen& top = *_stack.back();
+    // The topmost screen that isn't StaysOnTop or already on its way out.
+    auto it = _stack.end();
+    while (it != _stack.begin()) {
+        const UIScreen* s = std::prev(it)->get();
+        if (!s->StaysOnTop && std::ranges::find(_deferredRemovals, s) == _deferredRemovals.end()) break;
+        --it;
+    }
+    if (it == _stack.begin()) return;
+    --it;
+
+    UIScreen& top = **it;
     if (top.TransitionSpeed > 0.0f) {
         top._transitionOpacity = 1.0f;
         top._transitionState   = UIScreen::TransitionState::FadingOut;
     }
-    else {
-        top.OnExit();
-        _stack.pop_back();
-    }
+    else Remove(&top);
 }
 
 void UIManager::Remove(const UIScreen* screen)
 {
+    if (_updating) {
+        if (std::ranges::find(_deferredRemovals, screen) == _deferredRemovals.end()) _deferredRemovals.push_back(screen);
+        return;
+    }
     const auto it = std::ranges::find_if(_stack, [&](const auto& s) { return s.get() == screen; });
     if (it == _stack.end()) return;
     (*it)->OnExit();
@@ -116,6 +132,13 @@ bool UIManager::HasGameBlockingScreen() const
     for (const auto& s : _stack)
         if (s->BlocksGame && !s->IsFadingOut()) return true;
     return false;
+}
+
+bool UIManager::CoversLoading() const
+{
+    for (const auto& s : _stack)
+        if (s->BlocksGame && !s->IsFadingOut() && !s->CoversLoading()) return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +164,16 @@ void UIManager::RemoveCompletedFadeOuts()
 }
 
 void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& input)
+{
+    _updating = true;
+    UpdateScreens(dt, windowSize, input);
+    _updating = false;
+
+    for (const UIScreen* screen : _deferredRemovals) Remove(screen);
+    _deferredRemovals.clear();
+}
+
+void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputManager& input)
 {
     i32 mx = 0, my = 0;
     input.GetMousePosition(mx, my);

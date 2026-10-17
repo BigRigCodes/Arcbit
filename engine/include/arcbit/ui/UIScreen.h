@@ -51,6 +51,20 @@ public:
     // and any screen that must appear before game content is visible.
     bool BlocksGame = false;
 
+    // Keeps the screen above everything pushed after it: other screens are
+    // inserted beneath it, and Pop() skips it. For screens that must stay in
+    // front while the game sets itself up underneath - the splash, during
+    // which the first scene loads and may push its HUD. Remove it with
+    // UIManager::Remove.
+    bool StaysOnTop = false;
+
+    // For BlocksGame screens: true while the screen fully hides the game, so
+    // a scene can load beneath it (the main thread stalls while it does) with
+    // no visible hitch. A splash says yes only while its image is fully
+    // shown, not while fading. Application holds scene swaps until every
+    // game-blocking screen agrees.
+    [[nodiscard]] virtual bool CoversLoading() const { return true; }
+
     // Add a root-level widget. Returns raw ptr; ownership stays here.
     template<typename T, typename... Args>
     T* Add(Args&&... args)

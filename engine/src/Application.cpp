@@ -4,7 +4,6 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
-#include <arcbit/ui/SplashScreen.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/core/Assert.h>
@@ -168,26 +167,9 @@ void Application::Run()
     OnStart();
     Settings::LoadInputBindings(_input);
 
-    // Push the engine-branded splash screen on top of any screens the game
-    // pushed in OnStart. It blocks input until complete, then pops itself.
-    SamplerHandle splashSampler;
-    {
-        TextureHandle splashTex = _textures->Load("assets/engine/ui/ArcbitA_withbackground.png");
-        if (splashTex.IsValid()) {
-            splashSampler = _device->CreateSampler(SamplerDesc{
-                .MinFilter = Filter::Linear,
-                .MagFilter = Filter::Linear,
-                .AddressU  = AddressMode::ClampToEdge,
-                .AddressV  = AddressMode::ClampToEdge,
-                .DebugName = "EngineSplashSampler",
-            });
-            auto splash = std::make_unique<SplashScreen>();
-            splash->Entries.push_back({splashTex, splashSampler, 8.0f, 0.5f, 0.5f});
-            splash->OnComplete = [this] { _ui.Pop(); };
-            _ui.Push(std::move(splash));
-        }
-        else { LOG_WARN(Engine, "Engine splash image not found - skipping splash screen"); }
-    }
+    // Engine splash, the game's splashes, then the title screen or first
+    // scene, as BootConfig asks (ApplicationBoot.cpp).
+    StartBoot();
 
     // Route Window input events to InputManager so JustPressed/JustReleased are
     // driven by the SDL event queue rather than polling-based state comparison.
@@ -253,6 +235,12 @@ void Application::Run()
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsTransitioning());
                     scene->Update(_fixedTimestep);
                 }
+            }
+            // Under a screen that hides the game (the splash on its logo), a
+            // queued swap may run - its load stays out of sight - but the
+            // fades hold (dt 0) so the scene still fades in once visible.
+            else if (_ui.CoversLoading()) {
+                _scenes.Update(0.0f);
             }
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
@@ -346,8 +334,6 @@ void Application::Run()
     _renderThread.Stop();
     _device->WaitIdle();
 
-    if (splashSampler.IsValid())
-        _device->DestroySampler(splashSampler);
 
     // Unload the active scene (OnUnload, scene textures, entities) before the
     // game's OnShutdown and the GPU teardown.

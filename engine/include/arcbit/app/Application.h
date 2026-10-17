@@ -12,10 +12,35 @@
 #include <arcbit/ui/UIManager.h>
 
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace Arcbit
 {
 class Window; // full type only needed in Application.cpp
+
+// ---------------------------------------------------------------------------
+// How the game starts once the engine's own splash has played: the game's
+// splash images, then either the first scene or a title menu. Set
+// Application::_boot in the subclass constructor or OnStart; Application runs
+// it right after OnStart. Phase 38's project.arcbit will fill this from data.
+//
+// The first scene loads underneath the splash and fades in when the splash
+// ends. With ShowTitle, the title menu (MainMenuScreen) opens over it:
+//   - TitleScene empty: the title sits over FirstScene, already running
+//     behind it; New Game just closes the title.
+//   - TitleScene set: the title sits over that scene (a backdrop); New Game
+//     switches to FirstScene.
+// ---------------------------------------------------------------------------
+struct BootConfig
+{
+    std::vector<std::string> SplashImages;          // the game's own splashes, after the engine's
+    f32                      SplashSeconds = 3.0f;  // each, fades included
+    std::string              FirstScene;            // registered scene to start; empty = none
+    std::string              TitleScene;            // backdrop for the title menu; empty = FirstScene
+    bool                     ShowTitle = false;     // open the title menu after the splashes
+    std::string              CreditsPath;           // credits JSON for the title's Credits button; empty hides it
+};
 
 // ---------------------------------------------------------------------------
 // ApplicationConfig
@@ -147,6 +172,12 @@ public:
     // Replace the window's title bar text.
     void SetWindowTitle(std::string_view title);
 
+    // Push one of the engine's settings screens (each pops itself on Back) -
+    // what the title menu's and a pause menu's buttons open.
+    void ShowControlsScreen();
+    void ShowAudioScreen();
+    void ShowGraphicsScreen();
+
 protected:
     
     void ToggleDebugGrid() { _showGrid = !_showGrid; }
@@ -182,6 +213,10 @@ protected:
     // Target rate for OnUpdate calls. Defaults to 60 Hz.
     // Change before Run() is called; modifying mid-loop is not recommended.
     f32 _fixedTimestep = 1.0f / 60.0f;
+
+    // How the game starts after the engine splash (see BootConfig). Set it in
+    // the constructor or OnStart.
+    BootConfig _boot;
 
     // The engine's built-in SDF debug font — Roboto loaded at engine startup.
     [[nodiscard]] const FontAtlas& GetDebugFont() const { return _debugFont; }
@@ -226,6 +261,14 @@ private:
 
     // Full-window black quad over the world while a scene switch fades.
     void CollectSceneFade(FramePacket& packet) const;
+
+    // Boot flow (ApplicationBoot.cpp).
+    void StartBoot();
+    void PushSplash();
+    void FinishSplash();
+    void ShowTitle();
+    void ShowCredits();
+    std::vector<TextureHandle> _splashTextures; // released once the splash ends
 
     // Accumulates real time to rate-limit hot-reload checks to once per second.
     f64 _hotReloadAccumulator = 0.0;
