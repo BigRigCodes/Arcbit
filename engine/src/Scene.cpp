@@ -93,6 +93,12 @@ void Scene::StopSounds()
     });
 }
 
+void Scene::Subscribe(const EventId id, EventHandler handler)
+{
+    ARCBIT_ASSERT(_events != nullptr, "Scene::Subscribe needs a scene hosted by a SceneManager with an event bus");
+    if (_events) _subscriptions.push_back(_events->Subscribe(id, std::move(handler)));
+}
+
 void Scene::ReleaseResources()
 {
     if (_app)

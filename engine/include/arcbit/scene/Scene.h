@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/ecs/World.h>
+#include <arcbit/events/EventBus.h>
 #include <arcbit/render/Camera2D.h>
 #include <arcbit/render/RenderHandle.h>
 #include <arcbit/scene/WorldConfig.h>
@@ -103,6 +104,18 @@ public:
     // isn't one of this scene's.
     [[nodiscard]] std::string GetSpriteSheetPath(const SpriteSheet* sheet) const;
 
+    // --- Events -------------------------------------------------------------
+
+    // The application's event bus (null for a scene with no host, e.g. in
+    // tests that don't give one).
+    [[nodiscard]] EventBus* GetEvents() const { return _events; }
+
+    // Subscribe for this scene's lifetime: the subscription ends when the
+    // scene unloads, so a handler capturing the scene never outlives it - no
+    // cleanup to write. A scene suspended under a push keeps receiving.
+    // Call from OnLoad or later (not OnPrepare: the bus is main-thread only).
+    void Subscribe(EventId id, EventHandler handler);
+
     // --- Music --------------------------------------------------------------
 
     // Give this scene its own music: `path` plays whenever this is the active
@@ -186,6 +199,9 @@ private:
     f32          _musicResume = 0.0f; // seconds into the track when suspended
     MusicPlayer* _musicPlayer = nullptr;
     f32          _musicFade   = 0.0f;
+
+    EventBus*                 _events = nullptr;
+    std::vector<Subscription> _subscriptions; // Subscribe; ended at unload (and destroyed first)
 };
 
 } // namespace Arcbit

@@ -15,6 +15,7 @@
 namespace Arcbit {
 
 class Application;
+class EventBus;
 class InputManager;
 class MusicPlayer;
 class TextureManager;
@@ -102,6 +103,7 @@ public:
         TextureManager*       Textures = nullptr; // images decoded ahead are staged here before OnLoad
         bool                  PrepareOnThread = false; // OnPrepare on a loader thread; off = inline (tests)
         MusicPlayer*          Music = nullptr; // scene music (Scene::SetMusic); null = no music
+        EventBus*             Events = nullptr; // Scene::Subscribe; null = scenes can't subscribe
     };
 
     SceneManager() = default;
@@ -228,6 +230,7 @@ private:
     void SwapPush();
     void SwapPop();
     void UnloadAll();
+    static void Unload(Scene& scene); // OnUnload, then its subscriptions end
     // `to` became active in place of `from`; ownerLeft = a scene that owned
     // music went away (unloaded, not just covered by a push).
     void HandOverMusic(Scene* from, Scene& to, bool ownerLeft);

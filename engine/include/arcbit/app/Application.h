@@ -7,6 +7,7 @@
 #include <arcbit/render/Font.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
+#include <arcbit/events/EventBus.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
@@ -160,6 +161,10 @@ public:
     // The UI manager — push screens in OnStart; query widgets in OnUpdate.
     [[nodiscard]] UIManager& GetUI() { return _ui; }
 
+    // The event bus (docs/events.md). Published events are delivered once per
+    // fixed tick, after the scene update.
+    [[nodiscard]] EventBus& GetEvents() { return _events; }
+
     // Color format of the swapchain — pass to PipelineDesc::ColorFormat so
     // pipelines match the actual surface format chosen by the driver.
     [[nodiscard]] Format GetSwapchainFormat() const;
@@ -260,6 +265,7 @@ private:
     RenderStats _renderStats{};
 
     UIManager _ui;
+    EventBus  _events; // before _scenes: scenes' subscriptions end before the bus goes
 
     SceneManager                    _scenes;
     SceneRegistry                   _sceneRegistry;

@@ -100,6 +100,7 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
     _stack.clear();
     if (!scene) return;
     scene->SetInput(_host.Input);
+    scene->_events      = _host.Events;
     scene->_musicPlayer = _host.Music;
     scene->_musicFade   = MusicFadeTime;
     _stack.push_back(std::move(scene));
@@ -189,6 +190,7 @@ std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
     std::unique_ptr<Scene> scene = _factories.at(name)();
     scene->_name                 = name;
     scene->_app                  = _host.App;
+    scene->_events               = _host.Events;
     scene->SetInput(_host.Input);
     return scene;
 }
@@ -291,7 +293,7 @@ void SceneManager::Swap()
 void SceneManager::SwapReplace()
 {
     std::unique_ptr<Scene> next = TakePrepared();
-    for (const std::unique_ptr<Scene>& scene : _stack | std::views::reverse) scene->OnUnload();
+    for (const std::unique_ptr<Scene>& scene : _stack | std::views::reverse) Unload(*scene);
     std::vector<std::unique_ptr<Scene>> old = std::move(_stack);
 
     _stack.clear();
@@ -334,7 +336,7 @@ void SceneManager::SwapPop()
     std::unique_ptr<Scene> top = std::move(_stack.back());
     _stack.pop_back();
 
-    top->OnUnload();
+    Unload(*top);
     _stack.back()->OnResume();
     HandOverMusic(top.get(), *_stack.back(), top->_ownsMusic);
     top->ReleaseResources();
@@ -361,10 +363,18 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
     to._musicResume = 0.0f;
 }
 
+// Subscriptions end straight after OnUnload, so nothing - not even an event
+// published now from the next scene's OnLoad - reaches an unloaded scene.
+void SceneManager::Unload(Scene& scene)
+{
+    scene.OnUnload();
+    scene._subscriptions.clear();
+}
+
 void SceneManager::UnloadAll()
 {
     while (!_stack.empty()) {
-        _stack.back()->OnUnload();
+        Unload(*_stack.back());
         _stack.back()->ReleaseResources();
         _stack.pop_back();
     }

@@ -3,6 +3,7 @@
 // the lifecycle order scenes see.
 
 #include <arcbit/audio/MusicPlayer.h>
+#include <arcbit/events/EventBus.h>
 #include <arcbit/scene/SceneManager.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -638,4 +639,84 @@ TEST_CASE("A track changed while suspended starts from its beginning", "[scene][
     f.scenes.Pop();
     f.Settle();
     CHECK(f.music.Calls.back() == "play:night.ogg@0");
+}
+
+// ---------------------------------------------------------------------------
+// Scene event subscriptions
+// ---------------------------------------------------------------------------
+
+namespace
+{
+constexpr EventId Ping = MakeEvent("test.ping");
+
+// Counts Ping deliveries; subscribes in OnLoad. On unload, records how many
+// it had seen, so a test can tell the subscription ended there.
+class ListeningScene : public Scene
+{
+public:
+    explicit ListeningScene(int& heard) : _heard(heard) {}
+    void OnLoad() override
+    {
+        Subscribe(Ping, [this](const Event&) { ++_heard; });
+    }
+
+private:
+    int& _heard;
+};
+
+struct EventFixture
+{
+    EventBus     events;
+    int          heard = 0;
+    SceneManager scenes;
+
+    EventFixture()
+    {
+        scenes.SetHost({ .Events = &events });
+        scenes.FadeOutTime = 0.0f;
+        scenes.FadeInTime  = 0.0f;
+        scenes.Register("Listener", [this] { return std::make_unique<ListeningScene>(heard); });
+        scenes.Register("Other", [] { return std::make_unique<Scene>(); });
+    }
+    void Go(const char* name, const bool push = false)
+    {
+        if (push) scenes.Push(name);
+        else scenes.Switch(name);
+        for (int i = 0; i < 10; ++i) scenes.Update(Dt);
+    }
+    void Ping()
+    {
+        events.Publish(::Ping);
+        events.Flush();
+    }
+};
+} // namespace
+
+TEST_CASE("A scene's subscriptions end when it unloads", "[scene][events]")
+{
+    EventFixture f;
+    f.Go("Listener");
+    f.Ping();
+    CHECK(f.heard == 1);
+
+    f.Go("Other");
+    f.Ping();
+    CHECK(f.heard == 1); // the listener is gone, and so is its handler
+}
+
+TEST_CASE("A suspended scene keeps its subscriptions until it's popped off", "[scene][events]")
+{
+    EventFixture f;
+    f.Go("Other");
+    f.Go("Listener", true);
+    f.Go("Other", true); // the listener is suspended under it
+    f.Ping();
+    CHECK(f.heard == 1); // paused, not gone
+
+    f.scenes.Pop(); // back to the listener
+    for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
+    f.scenes.Pop(); // the listener unloads
+    for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
+    f.Ping();
+    CHECK(f.heard == 1);
 }

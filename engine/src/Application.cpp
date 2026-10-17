@@ -182,7 +182,8 @@ void Application::Run()
                       .Quiesce         = [this] { _renderThread.WaitIdle(); },
                       .Textures        = _textures.get(),
                       .PrepareOnThread = true,
-                      .Music           = &AudioManager::GetMusicPlayer() });
+                      .Music           = &AudioManager::GetMusicPlayer(),
+                      .Events          = &_events });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -280,6 +281,10 @@ void Application::Run()
                 _scenes.Update(0.0f);
             }
             UpdateLoadingScreen(_fixedTimestep);
+
+            // Deliver this tick's events - after the scene has updated, so a
+            // handler never runs mid-update, and before the UI reacts.
+            _events.Flush();
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
