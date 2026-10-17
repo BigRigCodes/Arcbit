@@ -179,6 +179,10 @@ public:
     void ShowAudioScreen();
     void ShowGraphicsScreen();
 
+    // Roll the credits (BootConfig::CreditsPath) - the title menu's Credits
+    // button, or the end of a game.
+    void ShowCredits();
+
     // The screen shown while a scene change waits at black for its scene to
     // load (SceneChange::ShowLoadingScreen), after a short grace period so a
     // quick load doesn't flash it. Defaults to the engine's LoadingScreen;
@@ -276,7 +280,6 @@ private:
     void PushSplash();
     void FinishSplash();
     void ShowTitle();
-    void ShowCredits();
     std::vector<TextureHandle> _splashTextures; // released once the splash ends
 
     // Loading screen over a scene change held at black.

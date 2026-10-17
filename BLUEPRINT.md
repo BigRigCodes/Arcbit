@@ -323,7 +323,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 **Foundations**
 - [x] Entity destroy cleanup — `World::OnRemove<T>` hooks run whenever a component leaves an entity (`RemoveComponent` or `DestroyEntity`); `Scene` hooks `Collider2D` to drop the broadphase record, so no removal path leaves an invisible wall. `LifetimeSystem`'s manual unregister is gone
 - [x] Mid-run GPU resource safety — `RenderThread::WaitIdle()` parks the render thread and drains the GPU so the main thread can create / destroy resources between frames (scene switches); texture hot-reload now goes through it instead of racing the render thread
-- [x] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds. The hooks are engine extension points: a data-driven scene (below) is one generic `FileScene` class whose `OnLoad` reads an `.arcscene`, so editor-made games need no C++ scene subclasses
+- [x] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks (plus `OnPrepare` for background loading and `OnSuspend` / `OnResume` for the stack), so game setup that lives in `Application::OnStart` today moves onto the scene it builds. The hooks are engine extension points: a data-driven scene (below) is one generic `FileScene` class whose `OnLoad` reads an `.arcscene`, so editor-made games need no C++ scene subclasses
 
 **SceneManager**
 - [x] `SceneManager` — load / unload / switch the active scene by name (`Register(name, factory)`, queued `Switch(name)`); `Application` drives the active one instead of owning a single `Scene`
@@ -335,7 +335,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
 - [x] Async streaming: load the next scene in the background while the current one keeps running - `Scene::OnPrepare` runs on a loader thread (file reads, image decodes through `ScenePreloader`) while the fade-out plays; the main-thread `OnLoad` then only uploads and builds entities, and the swap holds at black until the prepare is done. `SceneManager::Preload(name)` starts it early with the current scene still running. `FileScene` and the demos prepare themselves
 - [x] Two ways to cover a load, per change (`SceneChange`): fade first (default, for doors - holds at black if the load outlasts the fade) or `WaitForLoad` (the current scene keeps running and playable until the next is ready, then fades - menu jumps, keep-playing loads)
-- [x] Loading screen over a long hold at black - the engine's `LoadingScreen` ("Loading" + animated dots) after a short grace period, fading out as the scene fades in; `Application::SetLoadingScreen` replaces it with any `UIScreen`, `SceneChange::ShowLoadingScreen = false` keeps plain black
+- [x] Loading screen over a long hold at black - the engine's `LoadingScreen` ("Loading" + animated dots + progress bar) after a short grace period, fading out as the scene fades in; `Application::SetLoadingScreen` replaces it with any `UIScreen`, `SceneChange::ShowLoadingScreen = false` keeps plain black
 - [x] Loading progress - `SceneManager::GetLoadProgress()` across three stages (prepare / decode / build). `OnPrepare` only names images and the loader decodes them afterwards, so the total is known up front and the bar is weighted by file size; scenes doing heavy work of their own claim a share (`SetShares`, `ReportPrepareProgress`). The default `LoadingScreen` draws a bar
 - [x] Measured load data in scene files - an optional `"load"` block (stage shares + the texture list they were measured with) replaces the default split; a stale texture list logs a warning to re-save
 - [x] Scene stack — `Push` suspends the active scene (`OnSuspend`; not updated or drawn, sounds stopped, state kept) and loads one on top; `Pop` unloads it and resumes the one below (`OnResume`); `Switch` replaces the whole stack. B in the demo app pushes a battle arena over any demo. UI overlays like inventory stay on the UI screen stack
@@ -362,6 +362,9 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Title screen as the default first stop after the splashes — `BootConfig` (`FirstScene`, `ShowTitle`, `TitleScene`, `CreditsPath`) drives splash → title → game; the engine wires the title's buttons to its own settings / credits screens
 - [x] Credits screen — `CreditsScreen` scrolls a JSON file (title, sections of heading + names, speed), reachable from the title menu; `Application::ShowCredits` can roll it at the end of a game too
 - [ ] Credits logos — image entries in the credits roll
+
+**Docs**
+- [x] `docs/scenes.md` covers the whole phase - lifecycle (hook order and threads), stack, swap rules, loading ahead and progress, boot flow, the `.arcscene` format with its `"load"` block, registry, named systems, asset ownership; `docs/ecs.md`'s Scene, removal-hook, Application-integration and file-layout sections brought up to date
 
 ---
 

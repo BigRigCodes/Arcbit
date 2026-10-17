@@ -82,25 +82,39 @@ simultaneously, keeping each array dense.
 Owns all archetypes and the entity table. Archetypes are looked up in O(1) via
 an `unordered_map<ComponentMask, Archetype>`.
 
+**Removal hooks.** `World::OnRemove<T>(callback)` runs whenever a `T` leaves
+an entity - `RemoveComponent<T>`, `DestroyEntity`, or `DestroyAllEntities` -
+so outside resources tied to a component are released on every path. `Scene`
+uses them to drop a `Collider2D` from the physics broadphase and stop an
+`AudioSource`'s sound; its destructor destroys every entity, so a scene that
+unloads leaves no invisible walls or orphaned loops behind.
+
 ---
 
 ## Scene
 
-`Scene` is the top-level container for a running game world. It owns the ECS
-`World`, the active `Camera2D`, and the `WorldConfig` resource. This is the
-abstraction that Phase 23 (`SceneManager`) will load, unload, and transition
-between.
+`Scene` is the top-level container for a running game world:
 
 ```
 Scene
 ├── World          — all entities, archetypes, and systems
 ├── Camera2D       — active camera (driven by CameraFollowSystem)
-└── WorldConfig    — scene-wide constants (tile size, gravity, bounds)
+├── WorldConfig    — scene-wide constants (tile size, gravity)
+├── TileMap        — the scene's tiles and atlases
+└── PhysicsWorld   — created on first GetPhysics(), wired to the TileMap
 ```
 
-`Application` holds a `std::unique_ptr<Scene>` and exposes `GetScene()`.
-Game code that previously accessed `Camera2D` directly now goes through
-`GetScene().GetCamera()`.
+`Application` owns a `SceneManager` (`GetScenes()`) holding a stack of scenes;
+`GetScene()` is the active one. A scene is a C++ subclass overriding the
+lifecycle hooks (`OnPrepare`, `OnLoad`, `OnUnload`, `OnSuspend`, `OnResume`,
+`OnUpdate`, `OnRender`) or a data-driven `FileScene` built from an
+`.arcscene` file. Registering scenes, switching with fades, the scene stack,
+loading in the background and the boot flow are in [scenes.md](scenes.md).
+A game that registers no scenes gets one plain, unnamed `Scene` it fills in
+`OnStart`.
+
+Textures and sprite sheets a scene loads through `Scene::LoadTexture` /
+`LoadSpriteSheet` are reference-counted and released when it unloads.
 
 ### WorldConfig
 
@@ -571,20 +585,26 @@ bitmask with zero per-entity branching.
 
 ```
 [fixed tick]
-  Scene::Update(dt)
-    → World runs all registered update systems in order
+  Application::OnUpdate(dt)
+  SceneManager::Update(dt)        — fades, and a pending swap
+  Scene::Update(dt)               — the active scene
+    → Scene::OnUpdate(dt), the camera, then the World's update systems in order
+  UIManager::Update(dt)
 
 [variable tick]
   FramePacket packet = ...
+  Application::OnRender(packet)
   Scene::CollectRenderData(packet)
-    → World runs all registered render systems in order
+    → Scene::OnRender(packet), then the World's render systems in order
+  scene fade quad, UI
   RenderThread::SubmitFrame(packet)
 ```
 
-Game code retains `OnUpdate(dt)` and `OnRender(packet)` hooks. These run
-**before** Scene::Update and Scene::CollectRenderData respectively, so they can
-push manual sprites (debug overlays, UI, etc.) or manipulate entities before
-systems process them.
+The app-level `OnUpdate(dt)` and `OnRender(packet)` hooks run **before** the
+scene, for global work (input actions, debug overlays); per-scene logic goes in
+the scene's own hooks. While a game-blocking UI screen is up (the splash), the
+game and scene steps are skipped. Only the top scene of the stack is updated
+and drawn.
 
 ---
 
@@ -603,7 +623,8 @@ generational `Entity` handles, and `FileScene` keeps an id -> `Entity` table
 
 ```
 engine/include/arcbit/ecs/
-    World.h       — Entity, World, archetype internals, ComponentTypeID
+    Entity.h      — Entity handle
+    World.h       — World, archetype internals, ComponentTypeID, OnRemove hooks
     Query.h       — Query<Ts...> template, WithTag(), Without<T>()
     System.h      — SystemRegistry, RegisterSystem / RegisterRenderSystem
     Components.h  — Transform2D, SpriteRenderer, LightEmitter, Parallax,
@@ -612,14 +633,22 @@ engine/include/arcbit/ecs/
                     SmoothTileMovement, SnapTileMovement, PendingMove
 
 engine/include/arcbit/scene/
-    Scene.h       — Scene class (owns World, Camera2D, WorldConfig)
-    WorldConfig.h — WorldConfig struct
+    Scene.h          — Scene class (owns World, Camera2D, WorldConfig, TileMap, PhysicsWorld)
+    WorldConfig.h    — WorldConfig struct
+    SceneManager.h   — scene stack, switching, fades, loading ahead (scenes.md)
+    ScenePreloader.h — what OnPrepare names for background decoding; load progress
+    FileScene.h      — a scene built from an .arcscene file
+    SceneFile.h      — .arcscene load / save
+    SceneRegistry.h  — component name <-> type <-> JSON, named systems
+    SceneAssets.h    — asset path <-> handle for scene files
 
 engine/src/
     World.cpp     — World implementation (archetype management, entity table)
     Systems.cpp   — built-in system implementations (all systems listed above)
     Movement.cpp  — ResolveInputDirection (input → direction, tie-break)
     Scene.cpp     — Scene::Update, Scene::CollectRenderData
+    SceneManager.cpp, ScenePreloader.cpp, FileScene.cpp, SceneFile.cpp,
+    SceneRegistry.cpp, SceneComponents.cpp (built-in component serializers)
 ```
 
 ---
@@ -769,8 +798,6 @@ component sharing practical.
 
 ## Out of Scope for This Phase
 
-- Scene serialization / load / save (Phase 23)
-- SceneManager, scene transitions (Phase 23)
 - Lua scripting of entities (Phase 26)
 - Physics integration — `Rigidbody2D`, `Collider2D` (Phase 22)
 - Animation system — `Animator` component, clip playback (Phase 17)

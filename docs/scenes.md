@@ -6,6 +6,8 @@ subclass or a data-driven `FileScene` loaded from an `.arcscene` file; the
 are all scene files.
 
 - [Lifecycle and switching](#lifecycle-and-switching)
+  - [Scene stack](#scene-stack), [Swap rules](#swap-rules),
+    [Loading ahead](#loading-ahead), [Load progress](#load-progress)
 - [Boot flow](#boot-flow)
 - [Scene file format (`.arcscene`)](#scene-file-format-arcscene)
 - [Component registry](#component-registry)
@@ -29,6 +31,20 @@ app.GetScenes().Register("Village", [] { return std::make_unique<MyScene>(); });
 app.GetScenes().Register("Cave", [] { return std::make_unique<FileScene>("assets/scenes/cave.arcscene"); });
 app.GetScenes().Switch("Village", "north_gate"); // queued; fade out, swap, fade in
 ```
+
+A scene's life, in order:
+
+| Hook | When | Thread |
+|------|------|--------|
+| factory | the switch / push / preload is requested | main |
+| `OnPrepare` | right after - read files, name images to decode | loader |
+| `OnLoad` | at the swap - build entities, `LoadTexture`, systems | main (render thread idle) |
+| `OnUpdate` / `OnRender` | every tick / frame while it's the top scene | main |
+| `OnSuspend` / `OnResume` | another scene is pushed over it / popped off | main |
+| `OnUnload` | at the swap that removes it - free what `OnLoad` made directly | main (render thread idle) |
+
+Every hook is optional. A scene is never moved (systems capture it), and
+nothing outside `OnPrepare` runs off the main thread.
 
 ### Scene stack
 
@@ -370,7 +386,10 @@ Scene files reference assets by path:
 Textures and sprite sheets a scene loads are owned by that scene and
 reference-counted: they are released when it unloads, and a texture another
 scene still uses stays loaded. `.arcmap` atlas textures are still loaded
-app-wide (not yet scene-owned).
+app-wide (not yet scene-owned). C++ scenes should load through
+`Scene::LoadTexture` / `LoadSpriteSheet` too: `TextureManager::Load` pins a
+texture for the app's lifetime. Music (`AudioManager::PlayMusic`) still plays
+across a switch; scene-owned music is planned.
 
 Loading and saving go through the `SceneAssets` interface (path ↔ handle),
 which `FileScene` implements on top of the application. Tests implement it
