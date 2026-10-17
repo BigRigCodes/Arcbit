@@ -10,6 +10,7 @@ find_package(zstd CONFIG REQUIRED)              # compression for sealed saves
 add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
+    src/UserFolder.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp
     src/Window.cpp

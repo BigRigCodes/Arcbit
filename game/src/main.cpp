@@ -104,6 +104,7 @@ protected:
         GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
         Demo::RegisterInput(GetInput());
         Demo::RegisterSceneTypes(GetSceneRegistry());
+        GetSaves().SetSealKey("arcbit-demos/saves"); // the demo's own save key (Phase 36 replaces it)
         _eventHistory = std::make_unique<EventHistory>(GetEvents()); // from the start, so F3 shows the boot too
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });

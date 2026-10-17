@@ -8,6 +8,7 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/events/EventBus.h>
+#include <arcbit/save/SaveManager.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
@@ -50,6 +51,10 @@ struct BootConfig
 // Passed to the Application constructor to set startup defaults.
 // These values act as fallbacks: if a settings.json file exists on disk,
 // the persisted graphics settings take precedence over Width/Height.
+//
+// Studio and GameName name the per-user data folder settings and saves live
+// in (UserDataFolder): %APPDATA%\<Studio>\<GameName>\ on Windows. A relative
+// SettingsPath is inside it.
 // ---------------------------------------------------------------------------
 struct ApplicationConfig
 {
@@ -58,6 +63,8 @@ struct ApplicationConfig
     u32         Height       = 720;
     bool        Resizable    = true;
     const char* SettingsPath = "settings.json";
+    const char* Studio       = "Arcbit";
+    const char* GameName     = nullptr; // null = Title
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +172,13 @@ public:
     // fixed tick, after the scene update.
     [[nodiscard]] EventBus& GetEvents() { return _events; }
 
+    // Save slots, migrations and the game's save data (docs/saves.md). Its
+    // folder is the per-user data folder's saves\.
+    [[nodiscard]] SaveManager& GetSaves() { return _saves; }
+
+    // The per-user data folder: settings, saves (see ApplicationConfig).
+    [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
+
     // Color format of the swapchain — pass to PipelineDesc::ColorFormat so
     // pipelines match the actual surface format chosen by the driver.
     [[nodiscard]] Format GetSwapchainFormat() const;
@@ -242,7 +256,9 @@ protected:
     bool        _showGrid = false;
 
 private:
-    ApplicationConfig _config;
+    ApplicationConfig     _config;
+    std::filesystem::path _userFolder; // set first in the constructor: settings and saves live in it
+    SaveManager           _saves;
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

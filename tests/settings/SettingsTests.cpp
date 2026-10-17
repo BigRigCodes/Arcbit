@@ -1,5 +1,6 @@
 #include "TestSupport.h"
 
+#include <arcbit/app/UserFolder.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/settings/Settings.h>
 
@@ -225,4 +226,21 @@ TEST_CASE("The change listener hears player-facing changes only", "[settings]")
 
     CHECK(heard == std::vector<std::pair<std::string, std::string>>{ { "audio", "" }, { "game", "demo.level" } });
     CHECK(Settings::IsDirty());
+}
+
+TEST_CASE("Settings from next to the executable move to the user folder once", "[settings]")
+{
+    const ArcbitTests::TempDir  dir;
+    const std::string           legacy  = dir.Write("settings.json", R"({ "audio": { "master": 0.5 } })");
+    const std::filesystem::path current = dir.File("user") / "settings.json";
+
+    MoveLegacyFile(legacy, current);
+    REQUIRE(std::filesystem::exists(current));
+    CHECK(std::filesystem::file_size(current) == std::filesystem::file_size(legacy));
+
+    // Once there, the user folder's copy is the one that counts: never overwritten.
+    dir.Write("settings.json", R"({ "audio": { "master": 1.0 } })");
+    const auto before = std::filesystem::file_size(current);
+    MoveLegacyFile(legacy, current);
+    CHECK(std::filesystem::file_size(current) == before);
 }

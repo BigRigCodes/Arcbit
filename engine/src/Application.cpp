@@ -1,4 +1,5 @@
 #include <arcbit/app/Application.h>
+#include <arcbit/app/UserFolder.h>
 #include <arcbit/app/Window.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/AudioManager.h>
@@ -27,6 +28,12 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
 
+    // Settings and saves live in the per-user data folder (it may log, so
+    // after Log::Init).
+    _userFolder = UserDataFolder(config.Studio, config.GameName ? config.GameName : config.Title);
+    _saves.SetDirectory(_userFolder / "saves");
+    LOG_INFO(Engine, "User data folder: '{}'", _userFolder.string());
+
     // Every delivered event goes to the log (debug level) - what fired, when,
     // with what payload.
     _eventLog = _events.SubscribeAll([this](const Event& e) {
@@ -45,7 +52,9 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     // overwrite these with any persisted values.
     Settings::Graphics.ResolutionWidth  = config.Width;
     Settings::Graphics.ResolutionHeight = config.Height;
-    Settings::Init(config.SettingsPath);
+    const std::filesystem::path settingsPath = _userFolder / config.SettingsPath;
+    MoveLegacyFile(config.SettingsPath, settingsPath); // it used to sit next to the executable
+    Settings::Init(settingsPath.string());
     Settings::SetChangeListener([this](const std::string_view section, const std::string_view key) {
         EventPayload payload{ { "section", std::string(section) } };
         if (!key.empty()) payload.Set("key", std::string(key));
