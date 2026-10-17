@@ -291,6 +291,45 @@ TEST_CASE("Shutdown unloads every scene on the stack, top first", "[scene]")
     CHECK(f.log == std::vector<std::string>{ "unload:B", "unload:A" });
 }
 
+TEST_CASE("Restore rebuilds a saved stack, the scenes under the top suspended", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    REQUIRE(f.scenes.Restore({ { "B", "gate" }, { "C", "" } }, [&] { f.log.emplace_back("between"); }));
+    f.Tick(40);
+
+    CHECK(f.log == std::vector<std::string>{ "unload:A", "between", "load:B@gate", "suspend:B", "load:C" });
+    CHECK(f.ActiveName() == "C");
+    CHECK(f.scenes.GetStack() == std::vector<SceneStackEntry>{ { "B", "gate" }, { "C", "" } });
+
+    f.log.clear();
+    f.scenes.Pop(); // the restored scene below resumes like a pushed-over one
+    f.Tick(40);
+    CHECK(f.log == std::vector<std::string>{ "unload:C", "resume:B" });
+}
+
+TEST_CASE("Restore refuses a stack naming an unknown scene", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    CHECK_FALSE(f.scenes.Restore({ { "B", "" }, { "Nope", "" } }));
+    CHECK_FALSE(f.scenes.Restore({}));
+    CHECK_FALSE(f.scenes.IsTransitioning());
+}
+
+TEST_CASE("A later change replaces a queued restore before it runs", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    bool ran = false;
+    REQUIRE(f.scenes.Restore({ { "B", "" } }, [&] { ran = true; }));
+    f.Tick();
+    f.scenes.Switch("C");
+    f.Tick(40);
+    CHECK_FALSE(ran);
+    CHECK(f.ActiveName() == "C");
+}
+
 // ---------------------------------------------------------------------------
 // Loading ahead on the loader thread
 // ---------------------------------------------------------------------------
@@ -850,6 +889,20 @@ TEST_CASE("CaptureLive records scenes that haven't unloaded", "[scene][save]")
     f.scenes.CaptureLive(); // what a save does first
     REQUIRE(f.world.Scenes.contains("Village"));
     CHECK(f.world.Scenes["Village"].Destroyed == std::vector<std::string>{ "chest" });
+}
+
+TEST_CASE("A restore loads the state put back between unload and load", "[scene][save]")
+{
+    StateFixture f;
+    f.Go("Village");
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 99, 0 };
+    f.scenes.CaptureLive();
+    const WorldState saved = f.world; // the save
+
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 5, 0 }; // played on, not saved
+    REQUIRE(f.scenes.Restore({ { "Village", "" } }, [&] { f.world = saved; }));
+    for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
+    CHECK(f.Village().GetWorld().GetTransform(f.Village().Chest)->Position == Vec2{ 99, 0 });
 }
 
 TEST_CASE("Without a world state, scenes keep nothing", "[scene][save]")

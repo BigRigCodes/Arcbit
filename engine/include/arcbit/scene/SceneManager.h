@@ -45,6 +45,15 @@ struct SceneChange
     bool        ShowLoadingScreen = true;  // fade first: the loading screen over a long hold at black
 };
 
+// One scene on the stack, as a save records it.
+struct SceneStackEntry
+{
+    std::string Name;
+    std::string Entry;
+
+    bool operator==(const SceneStackEntry& other) const = default;
+};
+
 // ---------------------------------------------------------------------------
 // SceneManager — owns a stack of scenes and switches between registered ones.
 //
@@ -89,6 +98,10 @@ struct SceneChange
 // Each swap is announced on the host's event bus (EngineEvents): unloaded,
 // suspended, loaded, resumed - delivered at the next flush, after the swap.
 // Unnamed scenes (Application's default) aren't announced.
+//
+// Loading a save replaces the whole stack in one swap (Restore): the old
+// scenes unload, the save's state goes back in, then every saved scene loads
+// bottom first - the ones under the top suspended at once.
 //
 // Scene stack: Push loads a scene on top and suspends the one under it
 // (OnSuspend; it isn't updated or drawn and its sounds stop, but its state
@@ -149,6 +162,16 @@ public:
     // Queue unloading the active scene and resuming the one below it. Ignored
     // (with a warning) when there's nothing below.
     void Pop();
+
+    // Queue replacing the whole stack with `stack` (bottom first) - loading
+    // a save. `between` runs once the old scenes have unloaded and before the
+    // new ones load: where the save's state goes back in. Refused (false,
+    // logged) if it's empty or names an unregistered scene. Like any change,
+    // a later request replaces it before it swaps, and `between` never runs.
+    bool Restore(std::vector<SceneStackEntry> stack, std::function<void()> between = {});
+
+    // The named scenes on the stack, bottom first - what a save records.
+    [[nodiscard]] std::vector<SceneStackEntry> GetStack() const;
 
     // Start loading `name` ahead (its OnPrepare, on the loader thread) without
     // switching; the active scene keeps running. A later Switch or Push to the
@@ -225,6 +248,7 @@ private:
         Switch,
         Push,
         Pop,
+        Restore,
     };
 
     // A scene being loaded ahead: created on the main thread, OnPrepare run
@@ -251,6 +275,9 @@ private:
     void SwapReplace();
     void SwapPush();
     void SwapPop();
+    void SwapRestore();
+    void LoadSuspended(const SceneStackEntry& entry); // a restored scene under the top
+    void RestoreMusic(Scene* oldTop, bool ownerLeft);
     void UnloadAll();
     void               Unload(Scene& scene);     // capture its state, OnUnload, then its subscriptions end
     void               BeginState(Scene& scene); // after OnLoad: snapshot, apply its saved changes, track tiles
@@ -274,6 +301,9 @@ private:
     std::string _pendingName;
     SceneChange _pendingChange;
     bool        _hasPending = false;
+
+    std::vector<SceneStackEntry> _pendingStack;   // Restore: every scene, bottom first
+    std::function<void()>        _pendingBetween; // Restore: run between unload and load
     bool        _swapped    = false;
 
     Phase _phase = Phase::Idle;
