@@ -900,7 +900,8 @@ void RenderThread::UploadUIInstances(const std::vector<const Sprite*>& sorted, c
         inst.HalfW = s->Size.X * 0.5f; inst.HalfH = s->Size.Y * 0.5f;
         inst.U0    = s->UV.U0; inst.V0 = s->UV.V0; inst.U1 = s->UV.U1; inst.V1 = s->UV.V1;
         inst.TintR = s->Tint.R; inst.TintG = s->Tint.G; inst.TintB = s->Tint.B; inst.TintA = s->Tint.A;
-        inst.RotCos = 1.0f; inst.RotSin = 0.0f;
+        // ui.vert turns the quad about its center (a spinner, the cursor's diamond).
+        inst.RotCos = std::cos(s->Rotation); inst.RotSin = std::sin(s->Rotation);
         inst._pad0  = s->SDFMode ? 1.0f : 0.0f; // mode flag read by ui.vert / ui.frag
         inst._pad1  = 0.0f;
     }
