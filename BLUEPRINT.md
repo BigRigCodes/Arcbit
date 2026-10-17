@@ -198,6 +198,12 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] `PlayOneShot` honors its `volume` (it used `ma_engine_play_sound`, which has none, so every one-shot played at full gain)
 - [ ] Loudness guidance for game assets (e.g. music around -24 to -26 LUFS, SFX peaks below -3 dBFS), checked by `arcbit-pack` at import (Phase 36)
 
+**Revisit: audio categories** - beyond the fixed master / music / SFX
+- [ ] Game-defined audio categories (buses): a game declares its own - menu music, game music, combat music, ambience, voice, UI - each with its own player-facing volume slider, persisted in settings like the built-in three. Lets a player keep menu music at 70 but in-game music at 40
+- [ ] Categories nest under a parent (combat music under music under master), so one slider can still turn a whole group down; the settings screen lists whatever categories the game defines
+- [ ] Every sound names its category: `PlayOneShot`, `AudioSource`, `Scene::SetMusic` / the `.arcscene` `"music"` key, UI skin sounds; music crossfades stay per category
+- [ ] Optional per-asset gain (or measured loudness stored with the asset at pack time, Phase 36) so tracks mastered at different levels play at a consistent level without editing the files
+
 ---
 
 ## Phase 19: Tilemap System
