@@ -11,6 +11,7 @@ add_executable(arcbit-tests
     core/LocTests.cpp
     core/MathTests.cpp
     ecs/AnimatorStateMachineTests.cpp
+    ecs/InteractionTests.cpp
     ecs/MovementTests.cpp
     ecs/PhysicsResponseTests.cpp
     ecs/SystemsTests.cpp

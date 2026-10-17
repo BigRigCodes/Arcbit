@@ -6,6 +6,7 @@
 
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Interaction.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
@@ -127,6 +128,19 @@ namespace
                 j["enabled"]    = c.Enabled;
                 j["components"] = c.Components;
             });
+        r.RegisterComponent<Interactor>(
+            "Interactor",
+            [](Interactor& c, const json& j, SceneAssets&) {
+                Read(j, "action", c.Action);
+                Read(j, "reach", c.Reach);
+            },
+            [](const Interactor& c, json& j, const SceneAssets&) {
+                j["action"] = c.Action;
+                j["reach"]  = c.Reach;
+            });
+        r.RegisterComponent<Interactable>(
+            "Interactable", [](Interactable& c, const json& j, SceneAssets&) { Read(j, "prompt", c.Prompt); },
+            [](const Interactable& c, json& j, const SceneAssets&) { j["prompt"] = c.Prompt; });
         r.RegisterComponent<Script>(
             "Script",
             [](Script& c, const json& j, SceneAssets&) {

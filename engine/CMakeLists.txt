@@ -39,6 +39,7 @@ add_library(arcbit-engine STATIC
     src/ScriptWorld.cpp
     src/ScriptJson.cpp
     src/SceneScripts.cpp
+    src/Interaction.cpp
     src/SaveSeal.cpp
     src/SceneState.cpp
     src/SceneComponents.cpp
