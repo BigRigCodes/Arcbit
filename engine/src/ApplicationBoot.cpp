@@ -56,6 +56,7 @@ void Application::PushSplash()
     };
     add(EngineSplashImage, EngineSplashSeconds);
     for (const std::string& path : _boot.SplashImages) add(path, _boot.SplashSeconds);
+    if (NeedsSaveNotice()) splash->Entries.push_back(SaveNoticeCard()); // after the logos
 
     if (splash->Entries.empty()) {
         FinishSplash();
@@ -80,11 +81,7 @@ void Application::FinishSplash()
         for (const TextureHandle texture : _splashTextures) _textures->Release(texture);
         _splashTextures.clear();
     }
-    // The first-launch notice comes before the title, so the player knows
-    // the icon before the first autosave.
-    const auto next = [this] { if (_boot.ShowTitle) ShowTitle(); };
-    if (NeedsSaveNotice()) ShowSaveNotice(next);
-    else next();
+    if (_boot.ShowTitle) ShowTitle();
 }
 
 // The title menu over the running scene. With a separate TitleScene

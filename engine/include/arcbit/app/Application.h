@@ -12,6 +12,7 @@
 #include <arcbit/save/SceneState.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
+#include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
 
 #include <functional>
@@ -53,16 +54,26 @@ struct BootConfig
 // project.arcbit (and the editor) will fill it from data.
 //
 // Every save shows the indicator: the icon spinning in the bottom-right
-// corner, with "Saving...". FirstLaunchNotice explains it once, on the very
-// first run, before the title (or the first scene).
+// corner, with "Saving...". The saving notice explains it - a splash card
+// after the logos: the icon spinning over white text on black.
 // ---------------------------------------------------------------------------
+enum class SaveNotice : u8
+{
+    Never,
+    FirstLaunch, // until the player has seen it once (kept in their settings)
+    EveryLaunch,
+};
+
 struct SavingConfig
 {
     std::string IndicatorIcon    = "assets/engine/ui/saving.png"; // empty = no icon, just the text
     Color       IndicatorTint    = { 1.0f, 1.0f, 1.0f, 1.0f };
-    f32         IndicatorSeconds = 1.5f;  // how long it shows per save, fades included
-    bool        FirstLaunchNotice = true; // explain the indicator on the first run
-    bool        AutoSaveOnSceneChange = false; // autosave each time a scene change settles (not a load)
+    f32         IndicatorSeconds = 1.5f; // how long it shows per save, fades included
+
+    SaveNotice Notice        = SaveNotice::FirstLaunch;
+    f32        NoticeSeconds = 5.0f; // on screen, fades included
+
+    bool AutoSaveOnSceneChange = false; // autosave each time a scene change settles (not a load)
 };
 
 // ---------------------------------------------------------------------------
@@ -329,8 +340,8 @@ private:
     void StartSaving();          // the indicator, once OnStart has set _saving
     void AfterSwap();            // a scene change finished: queue an autosave?
     void UpdateAutoSave();       // run a queued autosave once the game is idle
-    [[nodiscard]] bool NeedsSaveNotice() const;
-    void               ShowSaveNotice(std::function<void()> then);
+    [[nodiscard]] bool        NeedsSaveNotice() const;
+    [[nodiscard]] SplashEntry SaveNoticeCard();
 
     SavingIndicator*       _savingIndicator = nullptr; // on the UI stack from StartBoot
     TextureHandle          _savingIcon;

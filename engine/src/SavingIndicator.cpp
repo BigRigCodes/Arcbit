@@ -1,4 +1,4 @@
-#include <arcbit/ui/SavingScreens.h>
+#include <arcbit/ui/SavingIndicator.h>
 
 #include <arcbit/core/Loc.h>
 #include <arcbit/ui/Widgets.h>
@@ -20,10 +20,6 @@ namespace
         return std::fmod(angle + dt * TurnsPerSecond * Turn, Turn);
     }
 } // namespace
-
-// ---------------------------------------------------------------------------
-// SavingIndicator
-// ---------------------------------------------------------------------------
 
 void SavingIndicator::OnEnter()
 {
@@ -70,56 +66,4 @@ void SavingIndicator::OnUpdate(const f32 dt)
     }
 }
 
-// ---------------------------------------------------------------------------
-// SaveNoticeScreen
-// ---------------------------------------------------------------------------
-
-void SaveNoticeScreen::OnEnter()
-{
-    _roots.clear();
-    constexpr f32 PanelW = 620.0f;
-
-    Add<Scrim>();
-    auto* bg   = Add<Panel>();
-    bg->Size   = { PanelW, 330.0f };
-    bg->Anchor = { 0.5f, 0.5f };
-    bg->Pivot  = { 0.5f, 0.5f };
-    bg->ZOrder = 1;
-
-    _icon          = bg->AddChild<Image>();
-    _icon->Texture = Icon;
-    _icon->Sampler = Sampler;
-    _icon->Tint    = Tint;
-    _icon->Size    = { 72.0f, 72.0f };
-    _icon->Anchor  = { 0.5f, 0.0f };
-    _icon->Pivot   = { 0.5f, 0.0f };
-    _icon->Offset  = { 0.0f, 30.0f };
-    _icon->ZOrder  = 2;
-    _icon->Visible = Icon.IsValid();
-
-    auto* text     = bg->AddChild<Label>();
-    text->Text     = Loc::Get("ui.save_notice.text");
-    text->Align    = TextAlign::Center;
-    text->WordWrap = true;
-    text->Size     = { PanelW - 60.0f, 120.0f };
-    text->Anchor   = { 0.5f, 0.0f };
-    text->Pivot    = { 0.5f, 0.0f };
-    text->Offset   = { 0.0f, 124.0f };
-    text->ZOrder   = 2;
-
-    auto* ok    = bg->AddChild<Button>();
-    ok->Text    = Loc::Get("ui.common.ok");
-    ok->Size    = { 160.0f, 44.0f };
-    ok->Anchor  = { 0.5f, 1.0f };
-    ok->Pivot   = { 0.5f, 1.0f };
-    ok->Offset  = { 0.0f, -24.0f };
-    ok->ZOrder  = 2;
-    ok->OnClick = [this] { if (OnContinue) OnContinue(); };
-    FocusAt(0);
-}
-
-void SaveNoticeScreen::OnUpdate(const f32 dt)
-{
-    if (_icon) _icon->Rotation = Spin(_icon->Rotation, dt);
-}
 } // namespace Arcbit

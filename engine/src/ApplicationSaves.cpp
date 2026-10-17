@@ -8,7 +8,8 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/settings/Settings.h>
-#include <arcbit/ui/SavingScreens.h>
+#include <arcbit/core/Loc.h>
+#include <arcbit/ui/SavingIndicator.h>
 
 #include <chrono>
 #include <memory>
@@ -120,7 +121,7 @@ bool Application::AutoSave()
 }
 
 // ---------------------------------------------------------------------------
-// The indicator, the first-launch notice, autosave on scene changes
+// The indicator, the saving notice, autosave on scene changes
 // ---------------------------------------------------------------------------
 
 void Application::StartSaving()
@@ -154,21 +155,23 @@ void Application::UpdateAutoSave()
 
 bool Application::NeedsSaveNotice() const
 {
-    return _saving.FirstLaunchNotice && !Settings::Get<bool>(SaveNoticeSeenKey, false);
+    switch (_saving.Notice) {
+        case SaveNotice::EveryLaunch: return true;
+        case SaveNotice::FirstLaunch: return !Settings::Get<bool>(SaveNoticeSeenKey, false);
+        default: return false;
+    }
 }
 
-void Application::ShowSaveNotice(std::function<void()> then)
+// Seen once it starts showing: skipping the splash past it doesn't count.
+SplashEntry Application::SaveNoticeCard()
 {
-    auto notice        = std::make_unique<SaveNoticeScreen>();
-    notice->Icon       = _savingIcon;
-    notice->Sampler    = GetStockSampler(StockSampler::Linear);
-    notice->Tint       = _saving.IndicatorTint;
-    notice->OnContinue = [this, screen = notice.get(), then = std::move(then)] {
-        Settings::Set<bool>(SaveNoticeSeenKey, true);
-        _ui.Close(screen);
-        if (then) then();
-    };
-    _ui.OpenMenu(std::move(notice));
+    return SplashEntry{ .Duration    = _saving.NoticeSeconds,
+                        .Text        = Loc::Get("ui.save_notice.text"),
+                        .Icon        = _savingIcon,
+                        .IconSampler = GetStockSampler(StockSampler::Linear),
+                        .IconTint    = _saving.IndicatorTint,
+                        .SpinIcon    = true,
+                        .OnShown     = [] { Settings::Set<bool>(SaveNoticeSeenKey, true); } };
 }
 
 // An empty save restored: SaveData cleared and every participant handed an

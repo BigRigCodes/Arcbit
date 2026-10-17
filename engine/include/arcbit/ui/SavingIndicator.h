@@ -3,8 +3,6 @@
 #include <arcbit/render/RenderHandle.h>
 #include <arcbit/ui/UIScreen.h>
 
-#include <functional>
-
 namespace Arcbit
 {
 class Image;
@@ -44,33 +42,5 @@ private:
     f32    _left  = 0.0f; // seconds still to show
     f32    _total = 0.0f;
     f32    _spin  = 0.0f;
-};
-
-// ---------------------------------------------------------------------------
-// SaveNoticeScreen - shown once, on a game's very first launch: the saving
-// icon, spinning, and what it means ("don't close the game or turn off your
-// system while it shows"). OnContinue closes it.
-// ---------------------------------------------------------------------------
-class SaveNoticeScreen : public UIScreen
-{
-public:
-    TextureHandle Icon;
-    SamplerHandle Sampler;
-    Color         Tint = { 1, 1, 1, 1 };
-
-    std::function<void()> OnContinue;
-
-    SaveNoticeScreen()
-    {
-        BlocksInput     = true;
-        TransitionSpeed = 4.0f;
-    }
-
-    void OnEnter() override;
-    void OnUpdate(f32 dt) override;
-    void OnBackPressed() override { if (OnContinue) OnContinue(); }
-
-private:
-    Image* _icon = nullptr;
 };
 } // namespace Arcbit

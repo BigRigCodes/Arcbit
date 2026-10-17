@@ -101,9 +101,9 @@ public:
         _boot.CreditsPath = "assets/credits.json";
 
         // Autosave whenever a demo or the battle finishes loading; the soak
-        // test skips that and the first-launch notice (nobody to read it).
+        // test skips that and the saving notice (nobody to read it).
         _saving.AutoSaveOnSceneChange = _cycleSeconds <= 0.0f;
-        _saving.FirstLaunchNotice     = _cycleSeconds <= 0.0f;
+        _saving.Notice                = _cycleSeconds <= 0.0f ? SaveNotice::FirstLaunch : SaveNotice::Never;
     }
 
 protected:
