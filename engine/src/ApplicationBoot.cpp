@@ -24,7 +24,7 @@ namespace
     // change, reorder or skip past it in code. Packed builds harden that
     // with the Phase 36 asset protection.
     constexpr const char* EngineSplashImage   = "assets/engine/ui/ArcbitA_withbackground.png";
-    constexpr f32         EngineSplashSeconds = 8.0f;
+    constexpr f32         EngineSplashSeconds = 5.0f;
     constexpr f32         SplashFadeSeconds   = 0.5f;
 } // namespace
 
