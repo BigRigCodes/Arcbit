@@ -194,6 +194,28 @@ bool UIManager::CoversLoading() const
 }
 
 // ---------------------------------------------------------------------------
+// NavRepeat
+// ---------------------------------------------------------------------------
+
+i32 NavRepeat::Step(const bool justNext, const bool justPrev, const bool heldNext, const bool heldPrev,
+                    const f32 dt)
+{
+    if (justNext || justPrev) {
+        _held  = justNext ? 1 : -1;
+        _timer = Delay;
+        return _held;
+    }
+    if (_held == 0 || !(_held > 0 ? heldNext : heldPrev)) {
+        _held = 0;
+        return 0;
+    }
+    _timer -= dt;
+    if (_timer > 0.0f) return 0;
+    _timer += Interval;
+    return _held;
+}
+
+// ---------------------------------------------------------------------------
 // Update
 // ---------------------------------------------------------------------------
 
@@ -296,11 +318,18 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     UIWidget* const prevFocused      = active->GetFocusedWidget();
     const bool      prevConsumesNav  = prevFocused && prevFocused->ConsumesFocusNav();
 
+    // Arrow keys / D-pad, repeating while held. A direction held into a new
+    // screen starts over rather than racing through it.
+    if (active != _navScreen) _nav = NavRepeat{};
+    _navScreen     = active;
+    const i32 step = _nav.Step(input.JustPressed(ActionFocusNext), input.JustPressed(ActionFocusPrev),
+                               input.IsPressed(ActionFocusNext), input.IsPressed(ActionFocusPrev), dt);
+
     // Tab always moves focus regardless of whether a text widget is focused.
     if (input.JustPressed(ActionTabNext)) active->FocusNext();
     else if (!prevConsumesNav) {
-        if (input.JustPressed(ActionFocusNext)) active->FocusNext();
-        if (input.JustPressed(ActionFocusPrev)) active->FocusPrev();
+        if (step > 0) active->FocusNext();
+        else if (step < 0) active->FocusPrev();
     }
 
     // Focus-move sound — read from the newly-focused widget's effective skin so

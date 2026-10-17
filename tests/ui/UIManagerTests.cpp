@@ -213,3 +213,34 @@ TEST_CASE("A scroll panel scrolls its focused child into view", "[ui]")
     update();
     CHECK(list->ScrollOffset == 0.0f); // back to the top
 }
+
+TEST_CASE("Held navigation steps once, waits, then repeats until released", "[ui]")
+{
+    constexpr f32    Dt = 1.0f / 60.0f;
+    NavRepeat        nav; // 0.4 s delay, 0.08 s interval
+    std::vector<i32> steps;
+    steps.push_back(nav.Step(true, false, true, false, Dt)); // the press
+    for (int i = 0; i < 59; ++i) steps.push_back(nav.Step(false, false, true, false, Dt)); // held 1 s in all
+
+    CHECK(steps[0] == 1);
+    // Nothing until the delay has passed: 0.4 s is 24 ticks after the press.
+    for (int i = 1; i < 24; ++i) CHECK(steps[i] == 0);
+    i32 repeats = 0;
+    for (const i32 s : steps) repeats += s;
+    // The press, then about one step per 0.08 s for the remaining 0.6 s.
+    CHECK(repeats >= 7);
+    CHECK(repeats <= 9);
+
+    CHECK(nav.Step(false, false, false, false, Dt) == 0); // released: stops at once
+    CHECK(nav.Step(false, false, true, false, Dt) == 0);  // held again without a press: no repeat
+}
+
+TEST_CASE("The newest direction pressed wins", "[ui]")
+{
+    constexpr f32 Dt = 1.0f / 60.0f;
+    NavRepeat     nav;
+    CHECK(nav.Step(true, false, true, false, Dt) == 1);
+    CHECK(nav.Step(false, true, true, true, Dt) == -1); // previous pressed while next is still held
+    for (int i = 0; i < 30; ++i) (void)nav.Step(false, false, true, true, Dt);
+    CHECK(nav.Step(false, false, true, true, 0.1f) == -1); // repeating the previous direction
+}

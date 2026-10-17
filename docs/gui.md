@@ -589,7 +589,8 @@ drops a screen at once (a scene's HUD as it unloads). `IsOpen(screen)` and
 `HasOpenMenu()` tell what's up.
 
 **Gamepad.** In menus the D-pad moves focus (like the arrow keys), South (A)
-confirms and East (B) goes back. The left stick moves an on-screen cursor -
+confirms and East (B) goes back. Held, either repeats: one step on the press,
+then after 0.4 s a step every 0.08 s until released (`NavRepeat`). The left stick moves an on-screen cursor -
 South then clicks what's under it - and the right stick scrolls lists. The
 cursor appears when the stick moves while a screen takes input, and hides
 again as soon as the mouse, keyboard or D-pad is used. A scroll panel keeps

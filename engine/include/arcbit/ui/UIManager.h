@@ -21,6 +21,25 @@ class  RenderThread;
 // All visible screens are collected (rendered); only the topmost non-fading
 // screen receives input.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// NavRepeat - held focus navigation. A press moves focus once; held past
+// Delay, it keeps moving every Interval until released - like holding an
+// arrow key in a text editor. Fed each tick with the next / previous
+// direction's press edges and held state; returns the step to take
+// (+1 next, -1 previous, 0 none). The newest press wins.
+// ---------------------------------------------------------------------------
+struct NavRepeat
+{
+    f32 Delay    = 0.4f;  // seconds held before repeating starts
+    f32 Interval = 0.08f; // seconds between repeated steps
+
+    i32 Step(bool justNext, bool justPrev, bool heldNext, bool heldPrev, f32 dt);
+
+private:
+    i32 _held  = 0; // the direction being held: +1, -1, or 0
+    f32 _timer = 0.0f;
+};
+
 class UIManager
 {
 public:
@@ -172,6 +191,9 @@ private:
 
     // The gamepad cursor, drawn above every screen while it's shown.
     void CollectCursor(FramePacket& packet) const;
+
+    NavRepeat       _nav;
+    const UIScreen* _navScreen = nullptr; // the screen a held direction started on
 
     std::function<void(bool)> _textInputActiveCallback;
     bool _textInputActive = false; // tracks current SDL text input mode
