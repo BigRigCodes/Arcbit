@@ -109,6 +109,26 @@ struct Lifetime
     f32 Remaining = 0.0f;
 };
 
+// Opt-in entity events on the scene's event bus (docs/events.md). Entities
+// announce nothing by default - give this to the ones scripts care about
+// (the player, a boss, a door), in code or in the .arcscene. Payload: entity,
+// name (its Name, if any), tag.
+//
+// Spawned goes out the tick after the component is added (normally at
+// creation, so it sees the entity's Name); Destroyed when the entity is
+// destroyed - not when the component is removed, and not when its scene
+// unloads (a scene ending isn't its entities dying). Rename either per entity
+// ("boss.defeated") so a listener hears exactly the entity it wants instead
+// of filtering every destroyed event. Later systems add their per-entity
+// events here (combat's death, AI's sighting).
+struct EntityEvents
+{
+    bool        Spawned   = true;
+    bool        Destroyed = true;
+    std::string SpawnedEvent;   // empty = engine.entity.spawned
+    std::string DestroyedEvent; // empty = engine.entity.destroyed
+};
+
 // ---------------------------------------------------------------------------
 // Animation component
 // ---------------------------------------------------------------------------

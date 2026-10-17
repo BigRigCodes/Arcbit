@@ -374,7 +374,7 @@ Built-in components: `Tag`, `Name`, `Transform2D`, `SpriteRenderer`,
 `LightEmitter`, `Parallax`, `CameraTarget`, `Disabled`, `Lifetime`,
 `AudioSource`, `Animator`, `Collider2D`, `MoveIntent`, `InputMovement`,
 `AIMovement`, `FreeMovement`, `SmoothTileMovement`, `SnapTileMovement`,
-`Pushable`, `PendingMove`. `AnimatorStateMachine` and the callback components
+`Pushable`, `PendingMove`, `EntityEvents`. `AnimatorStateMachine` and the callback components
 aren't serializable yet.
 
 Collision layers are written by name (`"layer": "Prop"`,

@@ -5,8 +5,11 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Assert.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
+
+#include <utility>
 
 namespace Arcbit {
 
@@ -34,12 +37,50 @@ Scene::Scene()
         AudioManager::DestroySpatialSound(src._handle);
         src._handle = nullptr;
     });
+
+    HookEntityEvents();
 }
 
 Scene::~Scene() // out-of-line: SpriteSheet and PhysicsWorld are complete here
 {
     // Run the OnRemove hooks while the members they use are still alive.
+    _tearingDown = true;
     _world.DestroyAllEntities();
+}
+
+// Opt-in entity events (EntityEvents). Spawned waits for the next Update:
+// the component is usually added mid-creation, before the entity's Name.
+void Scene::HookEntityEvents()
+{
+    _world.OnAdd<EntityEvents>([this](const Entity e, const EntityEvents& ev) {
+        if (ev.Spawned) _pendingSpawns.push_back(e);
+    });
+    _world.OnDestroy([this](const Entity e) {
+        if (_tearingDown) return;
+        const EntityEvents* ev = _world.GetComponent<EntityEvents>(e);
+        if (ev && ev->Destroyed) PublishEntityEvent(e, ev->DestroyedEvent, EngineEvents::EntityDestroyed);
+    });
+}
+
+void Scene::PublishPendingSpawns()
+{
+    for (const Entity e : std::exchange(_pendingSpawns, {})) {
+        if (!_world.IsValid(e)) continue; // came and went within a tick
+        const EntityEvents* ev = _world.GetComponent<EntityEvents>(e);
+        if (ev && ev->Spawned) PublishEntityEvent(e, ev->SpawnedEvent, EngineEvents::EntitySpawned);
+    }
+}
+
+void Scene::PublishEntityEvent(const Entity entity, const std::string& rename, const EventId fallback)
+{
+    if (!_events) return;
+    const Name*  name = _world.GetComponent<Name>(entity);
+    const Tag*   tag  = _world.GetComponent<Tag>(entity);
+    EventPayload payload{ { "entity", entity },
+                          { "name", name ? name->Value : std::string{} },
+                          { "tag", tag ? tag->Value : std::string{} } };
+    if (rename.empty()) _events->PublishEngine(fallback, std::move(payload));
+    else _events->Publish(rename, std::move(payload));
 }
 
 Application& Scene::GetApp()
@@ -117,6 +158,7 @@ PhysicsWorld& Scene::GetPhysics()
 
 void Scene::Update(const f32 dt)
 {
+    PublishPendingSpawns();
     OnUpdate(dt);
     _camera.Update(dt);
     _world.RunUpdateSystems(*this, dt);

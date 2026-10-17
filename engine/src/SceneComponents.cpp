@@ -114,6 +114,20 @@ namespace
         r.RegisterComponent<Lifetime>(
             "Lifetime", [](Lifetime& c, const json& j, SceneAssets&) { Read(j, "remaining", c.Remaining); },
             [](const Lifetime& c, json& j, const SceneAssets&) { j["remaining"] = c.Remaining; });
+        r.RegisterComponent<EntityEvents>(
+            "EntityEvents",
+            [](EntityEvents& c, const json& j, SceneAssets&) {
+                Read(j, "spawned", c.Spawned);
+                Read(j, "destroyed", c.Destroyed);
+                Read(j, "spawned_event", c.SpawnedEvent);
+                Read(j, "destroyed_event", c.DestroyedEvent);
+            },
+            [](const EntityEvents& c, json& j, const SceneAssets&) {
+                j["spawned"]         = c.Spawned;
+                j["destroyed"]       = c.Destroyed;
+                j["spawned_event"]   = c.SpawnedEvent;
+                j["destroyed_event"] = c.DestroyedEvent;
+            });
     }
 
     void ReadSprite(SpriteRenderer& c, const json& j, SceneAssets& assets)

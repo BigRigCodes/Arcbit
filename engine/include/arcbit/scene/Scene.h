@@ -201,7 +201,13 @@ private:
     f32          _musicFade   = 0.0f;
 
     EventBus*                 _events = nullptr;
+    std::vector<Entity>       _pendingSpawns; // EntityEvents added; announced at the next Update
+    bool                      _tearingDown = false; // destructor: entities going with the scene aren't "destroyed"
     std::vector<Subscription> _subscriptions; // Subscribe; ended at unload (and destroyed first)
+
+    void HookEntityEvents();     // constructor: OnAdd / OnDestroy for EntityEvents
+    void PublishPendingSpawns(); // Update: the spawned events, now the entities are complete
+    void PublishEntityEvent(Entity entity, const std::string& rename, EventId fallback);
 };
 
 } // namespace Arcbit
