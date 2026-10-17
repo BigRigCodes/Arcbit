@@ -42,9 +42,24 @@ void TileMap::SetTile(const i32 tileX, const i32 tileY, const u32 layerIndex, co
 
     auto& [Tiles]                = GetOrCreateChunk(chunkX, chunkY);
     Tiles[layerIndex][cellIndex] = tileId;
+    if (_trackChanges) _changes[{ tileX, tileY, layerIndex }] = tileId;
 
     // Invalidate the greedy collider mesh for this chunk; next query rebuilds.
     _chunkColliders.erase(ChunkKey(chunkX, chunkY));
+}
+
+void TileMap::BeginTrackingChanges()
+{
+    _trackChanges = true;
+    _changes.clear();
+}
+
+std::vector<TileMap::TileChange> TileMap::GetChanges() const
+{
+    std::vector<TileChange> changes;
+    changes.reserve(_changes.size());
+    for (const auto& [at, id] : _changes) changes.push_back({ std::get<0>(at), std::get<1>(at), std::get<2>(at), id });
+    return changes;
 }
 
 u32 TileMap::GetTile(const i32 tileX, const i32 tileY, const u32 layerIndex) const

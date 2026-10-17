@@ -9,8 +9,10 @@
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <map>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -60,6 +62,26 @@ public:
 
     // Set/get a tile ID in a layer (0=Ground, 1=Objects, 2=Overlay).
     void              SetTile(i32 tileX, i32 tileY, u32 layerIndex, u32 tileId);
+
+    // ---- Change tracking (scene state, docs/saves.md) ----------------------
+
+    struct TileChange
+    {
+        i32 X     = 0;
+        i32 Y     = 0;
+        u32 Layer = 0;
+        u32 Id    = 0;
+
+        bool operator==(const TileChange& other) const = default;
+    };
+
+    // Record every SetTile from now on - the tiles the player changed, once
+    // the scene has loaded as authored. Clears any earlier record.
+    void BeginTrackingChanges();
+
+    // The tiles set since BeginTrackingChanges, the latest value of each,
+    // sorted by position.
+    [[nodiscard]] std::vector<TileChange> GetChanges() const;
     [[nodiscard]] u32 GetTile(i32 tileX, i32 tileY, u32 layerIndex) const;
 
     // World-space center of a tile.
@@ -189,6 +211,9 @@ private:
     std::vector<TileAtlasEntry>        _atlases;
     std::unordered_map<u32, TileDef>   _tileDefs;
     std::unordered_map<u64, TileChunk> _chunks;
+
+    bool                                     _trackChanges = false;
+    std::map<std::tuple<i32, i32, u32>, u32> _changes; // (x, y, layer) -> tile id, while tracking
 
     // Per-chunk greedy-meshed collider cache. `mutable` so GetChunkColliders
     // can lazy-fill while staying const. Invalidated by SetTile.
