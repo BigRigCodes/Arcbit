@@ -17,11 +17,15 @@
 // `--load-delay <seconds>` makes every load take that much longer, to see
 // both. The battle is preloaded while a demo runs, so B stays instant.
 //
+// F3 toggles an overlay of the latest events on the event bus - engine events
+// (scene changes, device switches, settings) and the demos' own.
+//
 // `--mute` silences everything for the run (the saved volumes are untouched),
 // for unattended soak runs.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
+#include "EventLogScreen.h"
 
 #include <arcbit/app/Application.h>
 #include <arcbit/audio/AudioManager.h>
@@ -66,6 +70,7 @@ constexpr ActionID ActionDemoMenu = MakeAction("Demo_Menu");
 constexpr ActionID ActionDemoNext = MakeAction("Demo_Next");
 constexpr ActionID ActionDemoPrev   = MakeAction("Demo_Prev");
 constexpr ActionID ActionDemoBattle = MakeAction("Demo_Battle");
+constexpr ActionID ActionEventLog   = MakeAction("Demo_EventLog");
 
 constexpr const char* BattleScene = "Battle";
 
@@ -98,6 +103,7 @@ protected:
         GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
         Demo::RegisterInput(GetInput());
         Demo::RegisterSceneTypes(GetSceneRegistry());
+        _eventHistory = std::make_unique<EventHistory>(GetEvents()); // from the start, so F3 shows the boot too
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
@@ -110,6 +116,7 @@ protected:
         // Load the battle ahead while a demo runs, so B only has to build it.
         if (!GetScenes().IsTransitioning() && GetScenes().GetDepth() == 1) GetScenes().Preload(BattleScene);
 
+        if (GetInput().JustPressed(ActionEventLog)) ToggleEventLog(); // works over menus too
         if (GetUI().HasBlockingScreen()) return; // a menu owns the keys (the demo menu closes itself)
 
         const size_t count = Demo::Entries().size();
@@ -132,7 +139,7 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle", demo.Name,
+        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   F1 demos, PgUp/PgDn cycle, B battle, F3 events", demo.Name,
                                    demo.Keys));
     }
 
@@ -148,6 +155,19 @@ private:
         }
         GetScenes().Push(BattleScene);
         SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
+    }
+
+    void ToggleEventLog()
+    {
+        if (_eventLog) {
+            GetUI().Close(_eventLog);
+            _eventLog = nullptr;
+            return;
+        }
+        auto screen     = std::make_unique<EventLogScreen>();
+        screen->History = _eventHistory.get();
+        _eventLog       = screen.get();
+        GetUI().Push(std::move(screen));
     }
 
     [[nodiscard]] size_t LastOpenedIndex() const
@@ -189,6 +209,9 @@ private:
         _cycleTimer = 0.0f;
         return true;
     }
+
+    std::unique_ptr<EventHistory> _eventHistory;
+    const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
 
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;

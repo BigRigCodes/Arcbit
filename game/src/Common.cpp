@@ -99,6 +99,7 @@ namespace
             { "Demo_Next", "Next Demo", "Demo", { Key::PageDown } },
             { "Demo_Prev", "Previous Demo", "Demo", { Key::PageUp } },
             { "Demo_Battle", "Push / Pop Battle", "Demo", { Key::B } },
+            { "Demo_EventLog", "Event Log", "Debug", { Key::F3 } },
         };
         return defs;
     }
