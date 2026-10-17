@@ -160,3 +160,33 @@ TEST_CASE("DestroyAllEntities runs OnRemove hooks for every live entity", "[ecs]
     CHECK_FALSE(world.IsValid(a));
     CHECK_FALSE(world.IsValid(c));
 }
+
+TEST_CASE("OnAdd hooks run after AddComponent, with the added value", "[ecs]")
+{
+    World            world;
+    std::vector<f32> seen;
+    world.OnAdd<Lifetime>([&](Entity, const Lifetime& lt) { seen.push_back(lt.Remaining); });
+
+    const Entity e = world.CreateEntity();
+    world.AddComponent<Lifetime>(e, Lifetime{ .Remaining = 2.0f });
+    CHECK(seen == std::vector<f32>{ 2.0f });
+    world.RemoveComponent<Lifetime>(e);
+    CHECK(seen.size() == 1); // removing isn't adding
+}
+
+TEST_CASE("OnDestroy hooks run for destroyed entities, not removed components", "[ecs]")
+{
+    World               world;
+    std::vector<Entity> destroyed;
+    world.OnDestroy([&](const Entity e) { destroyed.push_back(e); });
+
+    const Entity a = world.CreateEntity();
+    const Entity b = world.CreateEntity();
+    world.AddComponent<Lifetime>(a, Lifetime{ .Remaining = 1.0f });
+    world.RemoveComponent<Lifetime>(a);
+    CHECK(destroyed.empty());
+
+    world.DestroyEntity(a);
+    world.DestroyAllEntities();
+    CHECK(destroyed == std::vector<Entity>{ a, b });
+}

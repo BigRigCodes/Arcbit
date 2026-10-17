@@ -186,6 +186,7 @@ Entity World::CreateEntity()
 void World::DestroyEntity(const Entity entity)
 {
     if (!IsValid(entity)) return;
+    for (const auto& hook : _destroyHooks) hook(entity);
     for (const ComponentTypeID type : _removeHooks | std::views::keys)
         if (_entityTable[entity.Index].mask & (1ULL << type)) RunRemoveHooks(entity, type);
 
@@ -204,6 +205,15 @@ void World::DestroyAllEntities()
     // (live entities always have Transform2D + Tag).
     for (u32 i = 0; i < static_cast<u32>(_entityTable.size()); ++i)
         if (_entityTable[i].mask != 0) DestroyEntity(Entity{ i, _entityTable[i].generation });
+}
+
+void World::RunAddHooks(const Entity entity, const ComponentTypeID type)
+{
+    const auto it = _addHooks.find(type);
+    if (it == _addHooks.end()) return;
+    const EntityRecord& rec       = _entityTable[entity.Index];
+    void*               component = _archetypes.at(rec.mask).Columns.at(type).GetRaw(rec.slot);
+    for (const RemoveHook& hook : it->second) hook(entity, component);
 }
 
 void World::RunRemoveHooks(const Entity entity, const ComponentTypeID type)

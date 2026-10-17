@@ -178,6 +178,21 @@ public:
             [fn = std::move(fn)](const Entity e, void* component) { fn(e, *static_cast<T*>(component)); });
     }
 
+    // Run `fn` just after a T is added to an entity (AddComponent). Same rule
+    // as OnRemove: `fn` must not add, remove or destroy anything - note the
+    // entity and act on it later.
+    template<typename T>
+    void OnAdd(std::function<void(Entity, T&)> fn)
+    {
+        _addHooks[TypeOf<T>()].push_back(
+            [fn = std::move(fn)](const Entity e, void* component) { fn(e, *static_cast<T*>(component)); });
+    }
+
+    // Run `fn` when an entity is destroyed (DestroyEntity, DestroyAllEntities),
+    // before its components' OnRemove hooks - but not when a component is
+    // merely removed. Same no-structural-changes rule.
+    void OnDestroy(std::function<void(Entity)> fn) { _destroyHooks.push_back(std::move(fn)); }
+
     // Destroy every entity, running OnRemove hooks for each — Scene's
     // destructor uses this so components holding outside resources (sounds,
     // broadphase records) release them. The World's destructor alone doesn't.
@@ -212,6 +227,7 @@ public:
         newArch.Entities.push_back(entity);
         rec = { newMask, newSlot, rec.generation };
         SwapRemoveFromArchetype(oldArch, oldSlot);
+        RunAddHooks(entity, tid);
     }
 
     // Remove a component. Moves to a smaller archetype. Asserts if not present.
@@ -285,6 +301,8 @@ private:
 
     using RemoveHook = std::function<void(Entity, void*)>;
     std::unordered_map<ComponentTypeID, std::vector<RemoveHook>> _removeHooks;
+    std::unordered_map<ComponentTypeID, std::vector<RemoveHook>> _addHooks; // same shape
+    std::vector<std::function<void(Entity)>>                     _destroyHooks;
 
     Archetype& GetOrCreateArchetype(ComponentMask mask);
     void       SwapRemoveFromArchetype(Archetype& arch, u32 slot);
@@ -292,6 +310,7 @@ private:
     // Call the OnRemove hooks for one of the entity's components (no-op when
     // nothing is registered for that type).
     void RunRemoveHooks(Entity entity, ComponentTypeID type);
+    void RunAddHooks(Entity entity, ComponentTypeID type);
 };
 
 // ---------------------------------------------------------------------------
