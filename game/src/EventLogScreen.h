@@ -43,8 +43,8 @@ private:
 
 // ---------------------------------------------------------------------------
 // EventLogScreen - F3 in the demo app: an overlay listing the recent events,
-// newest at the bottom; game events stand out from the engine's. Doesn't
-// take input, and stays above scene HUDs.
+// newest at the bottom; game events stand out from the engine's. An
+// Overlay-layer screen that doesn't take input, so menus under it work.
 // ---------------------------------------------------------------------------
 class EventLogScreen : public Arcbit::UIScreen
 {
@@ -53,7 +53,8 @@ public:
 
     EventLogScreen()
     {
-        StaysOnTop      = true;
+        Layer           = Arcbit::UILayer::Overlay; // above menus and HUDs
+        TakesInput      = false;                    // display only: the menu beneath keeps the keys
         TransitionSpeed = 6.0f;
     }
 

@@ -101,6 +101,12 @@ class CoinHud : public UIScreen
 public:
     Label* Count = nullptr;
 
+    CoinHud()
+    {
+        Layer      = UILayer::Hud;
+        TakesInput = false; // display only
+    }
+
     void OnEnter() override
     {
         _roots.clear();

@@ -118,11 +118,13 @@ protected:
         if (!GetScenes().IsTransitioning() && GetScenes().GetDepth() == 1) GetScenes().Preload(BattleScene);
 
         if (GetInput().JustPressed(ActionEventLog)) ToggleEventLog(); // works over menus too
-        if (GetUI().HasBlockingScreen()) return; // a menu owns the keys (the demo menu closes itself)
+        // F1 opens the demo menu over any other menu, swapping it out (the
+        // demo menu closes itself on F1).
+        if (GetInput().JustPressed(ActionDemoMenu) && !GetUI().IsOpen(_demoMenu)) ShowMenu();
+        if (GetUI().HasBlockingScreen()) return; // a menu owns the other keys
 
         const size_t count = Demo::Entries().size();
         if (CycleDue(dt)) CycleStep(count);
-        else if (GetInput().JustPressed(ActionDemoMenu)) ShowMenu();
         else if (GetInput().JustPressed(ActionDemoNext)) Open((_current + 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoPrev)) Open((_current + count - 1) % count, { .WaitForLoad = true });
         else if (GetInput().JustPressed(ActionDemoBattle)) ToggleBattle();
@@ -183,15 +185,16 @@ private:
     void ShowMenu()
     {
         auto menu     = std::make_unique<DemoSelectScreen>();
+        _demoMenu     = menu.get();
         menu->Current = _current;
-        menu->OnClose = [this] { GetUI().Pop(); };
+        menu->OnClose = [this] { GetUI().Close(_demoMenu); };
         menu->OnPick  = [this](const size_t index) {
-            GetUI().Pop();
+            GetUI().Close(_demoMenu);
             // Under a pushed battle, the current demo is suspended: picking
             // it still switches (back) to it.
             if (index != _current || GetScenes().GetDepth() > 1) Open(index);
         };
-        GetUI().Push(std::move(menu));
+        GetUI().OpenMenu(std::move(menu)); // swaps out the pause menu, if it's open
     }
 
     // --cycle: push the battle, pop it, next demo, repeat.
@@ -213,6 +216,7 @@ private:
 
     std::unique_ptr<EventHistory> _eventHistory;
     const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
+    const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
 
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;
