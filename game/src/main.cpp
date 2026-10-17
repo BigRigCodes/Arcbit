@@ -16,11 +16,15 @@
 // a door, and shows the loading screen if the load outlasts the fade.
 // `--load-delay <seconds>` makes every load take that much longer, to see
 // both. The battle is preloaded while a demo runs, so B stays instant.
+//
+// `--mute` silences everything for the run (the saved volumes are untouched),
+// for unattended soak runs.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
 
 #include <arcbit/app/Application.h>
+#include <arcbit/audio/AudioManager.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/Scene.h>
@@ -73,13 +77,14 @@ class DemoApp : public Application
 public:
     struct Options
     {
-        f32 CycleSeconds = 0.0f; // --cycle
-        f32 LoadDelay    = 0.0f; // --load-delay
+        f32  CycleSeconds = 0.0f;  // --cycle
+        f32  LoadDelay    = 0.0f;  // --load-delay
+        bool Mute         = false; // --mute
     };
 
     explicit DemoApp(const Options& options) :
         Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080 }),
-        _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay)
+        _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running
         // behind it); the soak test skips the title so it can drive itself.
@@ -96,6 +101,7 @@ protected:
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
+        if (_mute) AudioManager::SetMasterVolume(0.0f); // this run only, not saved
         Open(LastOpenedIndex());
     }
 
@@ -185,6 +191,7 @@ private:
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;
     f32    _loadDelay    = 0.0f;
+    bool   _mute         = false;
     f32    _cycleTimer   = 0.0f;
     u32    _cycleStep    = 0;
 };
@@ -192,10 +199,12 @@ private:
 int main(const int argc, char* argv[])
 {
     DemoApp::Options options;
-    for (int i = 1; i + 1 < argc; ++i) {
-        const std::string_view arg = argv[i];
-        if (arg == "--cycle") options.CycleSeconds = std::stof(argv[i + 1]);
-        if (arg == "--load-delay") options.LoadDelay = std::stof(argv[i + 1]);
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg  = argv[i];
+        const bool             more = i + 1 < argc;
+        if (arg == "--cycle" && more) options.CycleSeconds = std::stof(argv[i + 1]);
+        if (arg == "--load-delay" && more) options.LoadDelay = std::stof(argv[i + 1]);
+        if (arg == "--mute") options.Mute = true;
     }
 
     DemoApp app(options);

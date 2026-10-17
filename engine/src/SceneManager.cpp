@@ -1,6 +1,7 @@
 #include <arcbit/scene/SceneManager.h>
 
 #include <arcbit/assets/TextureManager.h>
+#include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/scene/ScenePreloader.h>
 
@@ -99,6 +100,8 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
     _stack.clear();
     if (!scene) return;
     scene->SetInput(_host.Input);
+    scene->_musicPlayer = _host.Music;
+    scene->_musicFade   = MusicFadeTime;
     _stack.push_back(std::move(scene));
 }
 
@@ -295,6 +298,8 @@ void SceneManager::SwapReplace()
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
     LOG_INFO(Engine, "Scene '{}' loaded", _stack.back()->GetName());
+    const bool ownerLeft = std::ranges::any_of(old, [](const std::unique_ptr<Scene>& s) { return s->_ownsMusic; });
+    HandOverMusic(old.empty() ? nullptr : old.back().get(), *_stack.back(), ownerLeft);
 
     while (!old.empty()) {
         old.back()->ReleaseResources();
@@ -306,13 +311,18 @@ void SceneManager::SwapReplace()
 // load the new one on top.
 void SceneManager::SwapPush()
 {
-    std::unique_ptr<Scene> next = TakePrepared();
-    if (!_stack.empty()) {
-        _stack.back()->OnSuspend();
-        _stack.back()->StopSounds();
+    std::unique_ptr<Scene> next  = TakePrepared();
+    Scene*                 below = _stack.empty() ? nullptr : _stack.back().get();
+    if (below) {
+        below->OnSuspend();
+        below->StopSounds();
+        // Remember where its track was, to pick it up there on resume.
+        const bool playing  = _host.Music && below->_ownsMusic && _host.Music->GetPath() == below->_musicPath;
+        below->_musicResume = playing ? _host.Music->GetPosition() : 0.0f;
     }
     _stack.push_back(std::move(next));
     _stack.back()->OnLoad();
+    HandOverMusic(below, *_stack.back(), false); // a scene without music of its own keeps the one below's
     LOG_INFO(Engine, "Scene '{}' pushed ({} deep)", _stack.back()->GetName(), _stack.size());
 }
 
@@ -326,8 +336,29 @@ void SceneManager::SwapPop()
 
     top->OnUnload();
     _stack.back()->OnResume();
+    HandOverMusic(top.get(), *_stack.back(), top->_ownsMusic);
     top->ReleaseResources();
     LOG_INFO(Engine, "Scene '{}' resumed", _stack.back()->GetName());
+}
+
+// The music follows the active scene: its own track (from where it was
+// suspended), silence if it asked for none, or - if it never set music - the
+// current track carries on, unless a scene that owned music just went away.
+void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
+{
+    if (from) from->_musicPlayer = nullptr;
+    to._musicPlayer = _host.Music;
+    to._musicFade   = MusicFadeTime;
+    if (!_host.Music) return;
+
+    if (to._ownsMusic) {
+        if (to._musicPath.empty()) _host.Music->Stop(MusicFadeTime);
+        else _host.Music->Play(to._musicPath, to._musicLoop, MusicFadeTime, to._musicResume);
+    }
+    else if (ownerLeft) {
+        _host.Music->Stop(MusicFadeTime);
+    }
+    to._musicResume = 0.0f;
 }
 
 void SceneManager::UnloadAll()

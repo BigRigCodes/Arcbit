@@ -181,7 +181,8 @@ void Application::Run()
                       .Input           = &_input,
                       .Quiesce         = [this] { _renderThread.WaitIdle(); },
                       .Textures        = _textures.get(),
-                      .PrepareOnThread = true });
+                      .PrepareOnThread = true,
+                      .Music           = &AudioManager::GetMusicPlayer() });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses

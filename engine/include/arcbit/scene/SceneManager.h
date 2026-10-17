@@ -16,6 +16,7 @@ namespace Arcbit {
 
 class Application;
 class InputManager;
+class MusicPlayer;
 class TextureManager;
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,11 @@ struct SceneChange
 // scene still running (WaitForLoad). Preload(name) starts that work early,
 // with the current scene still running, so the switch later finds it done.
 //
+// Music follows the active scene (Scene::SetMusic): at each swap the new
+// active scene's track crossfades in (MusicFadeTime), the same track carries
+// on, and leaving a scene that owns music for one that doesn't fades it out.
+// A suspended scene's track resumes where it was when it's popped back to.
+//
 // Scene stack: Push loads a scene on top and suspends the one under it
 // (OnSuspend; it isn't updated or drawn and its sounds stop, but its state
 // is kept); Pop unloads the top scene and resumes the one below (OnResume).
@@ -95,6 +101,7 @@ public:
         std::function<void()> Quiesce;         // RenderThread::WaitIdle before a swap
         TextureManager*       Textures = nullptr; // images decoded ahead are staged here before OnLoad
         bool                  PrepareOnThread = false; // OnPrepare on a loader thread; off = inline (tests)
+        MusicPlayer*          Music = nullptr; // scene music (Scene::SetMusic); null = no music
     };
 
     SceneManager() = default;
@@ -175,6 +182,7 @@ public:
 
     f32 FadeOutTime = 0.3f; // seconds; 0 = cut to black
     f32 FadeInTime  = 0.3f; // seconds; 0 = cut in
+    f32 MusicFadeTime = 0.6f; // seconds the music crossfades over, from the swap
 
     // Debug: stretch each scene's image decoding by this many seconds, to try
     // out a slow load (the splash, fades and loading bar keep moving over it).
@@ -220,6 +228,9 @@ private:
     void SwapPush();
     void SwapPop();
     void UnloadAll();
+    // `to` became active in place of `from`; ownerLeft = a scene that owned
+    // music went away (unloaded, not just covered by a push).
+    void HandOverMusic(Scene* from, Scene& to, bool ownerLeft);
 
     [[nodiscard]] std::unique_ptr<Scene> Create(const std::string& name); // named and wired to the host
 

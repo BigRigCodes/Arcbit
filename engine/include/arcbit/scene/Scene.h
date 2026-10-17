@@ -17,6 +17,7 @@ namespace Arcbit {
 struct FramePacket;
 class Application;
 class InputManager;
+class MusicPlayer;
 class PhysicsWorld;
 class ScenePreloader;
 class SpriteSheet;
@@ -102,6 +103,20 @@ public:
     // isn't one of this scene's.
     [[nodiscard]] std::string GetSpriteSheetPath(const SpriteSheet* sheet) const;
 
+    // --- Music --------------------------------------------------------------
+
+    // Give this scene its own music: `path` plays whenever this is the active
+    // scene, crossfading from what played before (the same track carries on
+    // uninterrupted); an empty path means silence. Call it in OnLoad, or any
+    // time later to change track (a boss fight). A scene that never calls it
+    // leaves the music alone - whatever plays keeps playing - except that
+    // leaving a scene that owns music fades it out. Suspended under a pushed
+    // scene, the track resumes where it was when the scene is active again.
+    void SetMusic(std::string path, bool loop = true);
+
+    [[nodiscard]] bool               OwnsMusic() const { return _ownsMusic; }
+    [[nodiscard]] const std::string& GetMusic() const { return _musicPath; }
+
     // --- World access -------------------------------------------------------
 
     // ECS world — create/destroy entities, add/remove components, register systems.
@@ -162,6 +177,15 @@ private:
     std::vector<TextureHandle> _textures; // LoadTexture references to release
 
     std::unordered_map<std::string, std::unique_ptr<SpriteSheet>> _sheets; // LoadSpriteSheet, by path
+
+    // Music (SetMusic). _musicPlayer is set by SceneManager only while this
+    // is the active scene, so SetMusic plays at once then and waits otherwise.
+    bool         _ownsMusic = false;
+    std::string  _musicPath;
+    bool         _musicLoop   = true;
+    f32          _musicResume = 0.0f; // seconds into the track when suspended
+    MusicPlayer* _musicPlayer = nullptr;
+    f32          _musicFade   = 0.0f;
 };
 
 } // namespace Arcbit

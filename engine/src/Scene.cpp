@@ -1,7 +1,9 @@
 #include <arcbit/scene/Scene.h>
+
 #include <arcbit/app/Application.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
@@ -44,6 +46,16 @@ Application& Scene::GetApp()
 {
     ARCBIT_ASSERT(_app != nullptr, "Scene::GetApp: scene isn't hosted by an Application's SceneManager");
     return *_app;
+}
+
+void Scene::SetMusic(std::string path, const bool loop)
+{
+    _ownsMusic = true;
+    _musicPath = std::move(path);
+    _musicLoop = loop;
+    if (!_musicPlayer) return; // not active: plays when it is
+    if (_musicPath.empty()) _musicPlayer->Stop(_musicFade);
+    else _musicPlayer->Play(_musicPath, _musicLoop, _musicFade, 0.0f);
 }
 
 TextureHandle Scene::LoadTexture(const std::string_view path)

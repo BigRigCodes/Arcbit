@@ -194,6 +194,9 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Music streaming (looping background track, crossfade)
 - [x] `AudioSource` ECS component (spatial attenuation for point sounds)
 - [x] Wire volume levels to Settings System (Phase 10)
+- [x] Volume settings are perceived loudness, not amplitude - `AudioManager::SliderToGain` (gain = slider^(1/0.6), Stevens' power law): 100 is the authored mix, 50 sounds half as loud (-10 dB), 10 a tenth (-33 dB); a linear slider left 10% at only -20 dB, which still sounded loud
+- [x] `PlayOneShot` honors its `volume` (it used `ma_engine_play_sound`, which has none, so every one-shot played at full gain)
+- [ ] Loudness guidance for game assets (e.g. music around -24 to -26 LUFS, SFX peaks below -3 dBFS), checked by `arcbit-pack` at import (Phase 36)
 
 ---
 
@@ -329,7 +332,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] `SceneManager` — load / unload / switch the active scene by name (`Register(name, factory)`, queued `Switch(name)`); `Application` drives the active one instead of owning a single `Scene`
 - [x] Scene-owned resources — textures acquired through `Scene::LoadTexture` are reference-counted (`TextureManager::Acquire` / `Release`) and released automatically on unload; a data-driven scene can't hand-write cleanup
 - [x] Scene-owned sprite sheets — `Scene::LoadSpriteSheet` caches sheets per scene and loads their textures through `LoadTexture`, so they're released on unload (`Animator.sheet` in scene files)
-- [ ] Scene-owned music / ambience — `AudioManager::PlayMusic` keeps playing across a switch; let a scene own its track (spatial `AudioSource` sounds already stop with their scene)
+- [x] Scene-owned music — `Scene::SetMusic` (`"music"` in scene files): the active scene's track crossfades in at each swap (`SceneManager::MusicFadeTime`), a shared track carries on, a departing owner's track fades out, and a scene suspended under a push resumes its track where it was. Scenes that never set music leave app-level music alone. `AudioManager` music gained crossfades (two slots), seek and position; `MusicPlayer` is the seam that makes it testable headless
 - [x] Entry point on switch — `Switch(name, entry)` so a door or script can say where the player arrives (e.g. a named spawn marker)
 - [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
 - [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)

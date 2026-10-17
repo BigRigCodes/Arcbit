@@ -3,8 +3,14 @@
 #include <miniaudio.h>
 
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/core/Log.h>
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
 
 namespace Arcbit {
 namespace {
@@ -12,9 +18,51 @@ namespace {
 ma_engine      g_engine;
 ma_sound_group g_sfxGroup;
 ma_sound_group g_musicGroup;
-ma_sound       g_musicSound;
 bool           g_initialized = false;
-bool           g_musicLoaded = false;
+
+// Two music slots, so one track can fade out while the next fades in.
+// g_current is the playing one; the other is the outgoing track (or empty),
+// freed when the slot is next needed.
+struct MusicSlot
+{
+    ma_sound    Sound{};
+    bool        Loaded = false;
+    std::string Path;
+};
+MusicSlot g_music[2];
+int       g_current = 0;
+
+void UnloadSlot(MusicSlot& slot)
+{
+    if (!slot.Loaded) return;
+    ma_sound_stop(&slot.Sound);
+    ma_sound_uninit(&slot.Sound);
+    slot.Loaded = false;
+    slot.Path.clear();
+}
+
+ma_uint64 Milliseconds(const f32 seconds) { return static_cast<ma_uint64>((std::max)(seconds, 0.0f) * 1000.0f); }
+
+// Fade a slot out; it stays loaded (silent) until the slot is reused.
+void FadeOutSlot(MusicSlot& slot, const f32 fadeSeconds)
+{
+    if (!slot.Loaded) return;
+    if (fadeSeconds <= 0.0f) UnloadSlot(slot);
+    else ma_sound_stop_with_fade_in_milliseconds(&slot.Sound, Milliseconds(fadeSeconds));
+}
+
+// MusicPlayer over the static music controls.
+class DeviceMusicPlayer final : public MusicPlayer
+{
+public:
+    void Play(const std::string_view path, const bool loop, const f32 fadeSeconds, const f32 startSeconds) override
+    {
+        AudioManager::PlayMusic(path, loop, fadeSeconds, startSeconds);
+    }
+    void        Stop(const f32 fadeSeconds) override { AudioManager::StopMusic(fadeSeconds); }
+    std::string GetPath() const override { return AudioManager::GetMusicPath(); }
+    f32         GetPosition() const override { return AudioManager::GetMusicPosition(); }
+};
 
 f32 g_masterVolume = 1.0f;
 f32 g_musicVolume  = 1.0f;
@@ -22,8 +70,27 @@ f32 g_sfxVolume    = 1.0f;
 
 void ApplyGroupVolumes()
 {
-    ma_sound_group_set_volume(&g_sfxGroup,   g_masterVolume * g_sfxVolume);
-    ma_sound_group_set_volume(&g_musicGroup, g_masterVolume * g_musicVolume);
+    ma_sound_group_set_volume(&g_sfxGroup, AudioManager::SliderToGain(g_masterVolume * g_sfxVolume));
+    ma_sound_group_set_volume(&g_musicGroup, AudioManager::SliderToGain(g_masterVolume * g_musicVolume));
+}
+
+// One-shot sounds still playing; finished ones are freed on the next
+// PlayOneShot (and all at shutdown).
+std::vector<ma_sound*> g_oneShots;
+
+void FreeOneShot(ma_sound* sound)
+{
+    ma_sound_uninit(sound);
+    delete sound;
+}
+
+void ReapOneShots()
+{
+    std::erase_if(g_oneShots, [](ma_sound* s) {
+        if (ma_sound_is_playing(s)) return false;
+        FreeOneShot(s);
+        return true;
+    });
 }
 
 } // namespace
@@ -53,12 +120,9 @@ void AudioManager::Shutdown()
 {
     if (!g_initialized) return;
 
-    if (g_musicLoaded)
-    {
-        ma_sound_stop(&g_musicSound);
-        ma_sound_uninit(&g_musicSound);
-        g_musicLoaded = false;
-    }
+    for (MusicSlot& slot : g_music) UnloadSlot(slot);
+    for (ma_sound* sound : g_oneShots) FreeOneShot(sound);
+    g_oneShots.clear();
 
     ma_sound_group_uninit(&g_sfxGroup);
     ma_sound_group_uninit(&g_musicGroup);
@@ -72,56 +136,91 @@ void AudioManager::PlayOneShot(std::string_view path, f32 volume)
 {
     if (!g_initialized) return;
 
-    // ma_engine_play_sound is fire-and-forget: miniaudio owns and frees the sound.
-    if (ma_engine_play_sound(&g_engine, path.data(), &g_sfxGroup) != MA_SUCCESS)
+    // Not ma_engine_play_sound: that has no volume. Decoded up front - one-
+    // shots are short - and kept until it finishes.
+    ReapOneShots();
+    auto* sound = new ma_sound{};
+    if (ma_sound_init_from_file(&g_engine, std::string(path).c_str(), MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION,
+                                &g_sfxGroup, nullptr, sound) != MA_SUCCESS) {
         LOG_WARN(Engine, "AudioManager: PlayOneShot failed for '{}'", path);
+        delete sound;
+        return;
+    }
+    ma_sound_set_volume(sound, std::clamp(volume, 0.0f, 1.0f));
+    ma_sound_start(sound);
+    g_oneShots.push_back(sound);
 }
 
-void AudioManager::PlayMusic(std::string_view path, bool loop)
+void AudioManager::PlayMusic(const std::string_view path, const bool loop, const f32 fadeSeconds,
+                             const f32 startSeconds)
 {
     if (!g_initialized) return;
+    if (MusicSlot& current = g_music[g_current]; current.Loaded && current.Path == path) return; // carries on
 
-    if (g_musicLoaded)
-    {
-        ma_sound_stop(&g_musicSound);
-        ma_sound_uninit(&g_musicSound);
-        g_musicLoaded = false;
-    }
+    // The current track becomes the outgoing one; an older one still fading
+    // out in the other slot is cut to make room.
+    FadeOutSlot(g_music[g_current], fadeSeconds);
+    g_current       = 1 - g_current;
+    MusicSlot& next = g_music[g_current];
+    UnloadSlot(next);
 
-    // Stream the file and disable spatialization — music plays at flat volume.
+    // Stream the file and disable spatialization - music plays at flat volume.
     constexpr ma_uint32 flags = MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION;
-    const ma_result result = ma_sound_init_from_file(
-        &g_engine, path.data(), flags, &g_musicGroup, nullptr, &g_musicSound);
-
-    if (result != MA_SUCCESS)
-    {
+    const std::string   file(path);
+    if (ma_sound_init_from_file(&g_engine, file.c_str(), flags, &g_musicGroup, nullptr, &next.Sound) != MA_SUCCESS) {
         LOG_WARN(Engine, "AudioManager: PlayMusic failed for '{}'", path);
         return;
     }
-
-    ma_sound_set_looping(&g_musicSound, loop ? MA_TRUE : MA_FALSE);
-    ma_sound_start(&g_musicSound);
-    g_musicLoaded = true;
+    if (startSeconds > 0.0f) ma_sound_seek_to_second(&next.Sound, startSeconds);
+    ma_sound_set_looping(&next.Sound, loop ? MA_TRUE : MA_FALSE);
+    if (fadeSeconds > 0.0f) ma_sound_set_fade_in_milliseconds(&next.Sound, 0.0f, 1.0f, Milliseconds(fadeSeconds));
+    ma_sound_start(&next.Sound);
+    next.Loaded = true;
+    next.Path   = file;
+    LOG_DEBUG(Engine, "AudioManager: music '{}' (fade {:.1f} s, from {:.1f} s)", path, fadeSeconds, startSeconds);
 }
 
-void AudioManager::StopMusic()
+void AudioManager::StopMusic(const f32 fadeSeconds)
 {
-    if (!g_initialized || !g_musicLoaded) return;
-    ma_sound_stop(&g_musicSound);
-    ma_sound_uninit(&g_musicSound);
-    g_musicLoaded = false;
+    if (!g_initialized || !g_music[g_current].Loaded) return;
+    LOG_DEBUG(Engine, "AudioManager: music stopped (fade {:.1f} s)", fadeSeconds);
+    FadeOutSlot(g_music[g_current], fadeSeconds);
+    g_current = 1 - g_current; // the faded track becomes the outgoing one
+    UnloadSlot(g_music[g_current]);
 }
 
 void AudioManager::PauseMusic()
 {
-    if (g_initialized && g_musicLoaded)
-        ma_sound_stop(&g_musicSound);
+    if (g_initialized && g_music[g_current].Loaded) ma_sound_stop(&g_music[g_current].Sound);
 }
 
 void AudioManager::ResumeMusic()
 {
-    if (g_initialized && g_musicLoaded)
-        ma_sound_start(&g_musicSound);
+    if (g_initialized && g_music[g_current].Loaded) ma_sound_start(&g_music[g_current].Sound);
+}
+
+std::string AudioManager::GetMusicPath()
+{
+    return g_initialized && g_music[g_current].Loaded ? g_music[g_current].Path : std::string{};
+}
+
+f32 AudioManager::GetMusicPosition()
+{
+    f32 seconds = 0.0f;
+    if (g_initialized && g_music[g_current].Loaded) ma_sound_get_cursor_in_seconds(&g_music[g_current].Sound, &seconds);
+    return seconds;
+}
+
+f32 AudioManager::SliderToGain(const f32 slider)
+{
+    if (slider <= 0.0f) return 0.0f;
+    return std::pow((std::min)(slider, 1.0f), 1.0f / 0.6f);
+}
+
+MusicPlayer& AudioManager::GetMusicPlayer()
+{
+    static DeviceMusicPlayer player;
+    return player;
 }
 
 void AudioManager::SetMasterVolume(f32 volume)
@@ -169,7 +268,7 @@ void* AudioManager::CreateSpatialSound(std::string_view path, bool loop, f32 vol
     // Fully decode for minimal latency on position updates.
     constexpr ma_uint32 flags = MA_SOUND_FLAG_DECODE;
     const ma_result result = ma_sound_init_from_file(
-        &g_engine, path.data(), flags, &g_sfxGroup, nullptr, sound);
+        &g_engine, std::string(path).c_str(), flags, &g_sfxGroup, nullptr, sound);
 
     if (result != MA_SUCCESS)
     {

@@ -131,6 +131,10 @@ protected:
         // so creating GPU resources here can't race a frame in flight.
         _uiPanelTex = GetApp().GetTextures().Load("assets/textures/ui_panel.png");
 
+        // The world's own track: it plays while this scene is active, gives way
+        // to the battle's when B pushes it, and picks up where it was on return.
+        SetMusic("assets/music/demo_theme.wav");
+
         InitScreens();
     }
 
@@ -407,7 +411,7 @@ private:
                                          .OnEvent = [](const std::string_view ev) {
                                              if (ev == "AttackHit")
                                                  AudioManager::PlayOneShot(
-                                                     "assets/sfx/sword_slashing.mp3");
+                                                     "assets/sfx/sword_slashing.mp3", 0.5f); // a hot file
                                          },
                                      });
         world.AddComponent<CameraTarget>(_playerEntity, CameraTarget{.Lag = 0.12f});

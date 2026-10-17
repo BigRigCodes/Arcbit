@@ -2,6 +2,7 @@
 // the GPU. Covers the switch state machine (fades, retargeting, reversal) and
 // the lifecycle order scenes see.
 
+#include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/scene/SceneManager.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -9,7 +10,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <format>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -470,4 +473,153 @@ TEST_CASE("WaitForLoad keeps the current scene running until the next is ready",
     REQUIRE(f.TickUntil([&] { return !f.scenes.IsTransitioning(); }));
     CHECK(f.ActiveName() == "Slow");
     CHECK(f.log == std::vector<std::string>{ "unload:A", "load:Slow" });
+}
+
+// ---------------------------------------------------------------------------
+// Scene music
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// Records what the scene manager asks of the music, and behaves like the
+// device: the same track carries on rather than restarting.
+class FakeMusic : public MusicPlayer
+{
+public:
+    std::vector<std::string> Calls;
+    std::string              Current;
+    f32                      Position = 0.0f;
+
+    void Play(const std::string_view path, bool, f32, const f32 startSeconds) override
+    {
+        if (path == Current) return;
+        Current = std::string(path);
+        Calls.push_back(std::format("play:{}@{}", path, startSeconds));
+    }
+    void Stop(f32) override
+    {
+        Current.clear();
+        Calls.push_back("stop");
+    }
+    std::string GetPath() const override { return Current; }
+    f32         GetPosition() const override { return Position; }
+};
+
+// Sets `track` as its music in OnLoad; no track = never sets music.
+class MusicScene : public Scene
+{
+public:
+    explicit MusicScene(std::optional<std::string> track) : _track(std::move(track)) {}
+    void OnLoad() override
+    {
+        if (_track) SetMusic(*_track);
+    }
+
+private:
+    std::optional<std::string> _track;
+};
+
+struct MusicFixture
+{
+    FakeMusic    music;
+    SceneManager scenes;
+
+    MusicFixture()
+    {
+        scenes.SetHost({ .Music = &music });
+        scenes.FadeOutTime = 0.0f;
+        scenes.FadeInTime  = 0.0f;
+        const auto add     = [this](const char* name, std::optional<std::string> track) {
+            scenes.Register(name, [track] { return std::make_unique<MusicScene>(track); });
+        };
+        add("Town", "town.ogg");
+        add("Field", "town.ogg"); // same track as Town
+        add("Cave", "cave.ogg");
+        add("Quiet", std::string{}); // owns music: silence
+        add("Plain", std::nullopt);  // never sets music
+    }
+
+    void Settle()
+    {
+        for (int i = 0; i < 10; ++i) scenes.Update(Dt);
+    }
+    void SwitchTo(const char* name)
+    {
+        scenes.Switch(name);
+        Settle();
+    }
+};
+} // namespace
+
+TEST_CASE("Each scene's own track plays when it becomes active", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.SwitchTo("Cave");
+    f.SwitchTo("Quiet");
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0", "play:cave.ogg@0", "stop" });
+}
+
+TEST_CASE("Scenes sharing a track carry it on without restarting", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.SwitchTo("Field");
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0" });
+}
+
+TEST_CASE("Leaving a music-owning scene for one without music fades it out", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Plain");
+    CHECK(f.music.Calls.empty()); // never set music: the music is left alone
+    f.SwitchTo("Town");
+    f.SwitchTo("Plain");
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0", "stop" });
+}
+
+TEST_CASE("A pushed scene's track takes over and the one below resumes where it was", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.music.Position = 12.5f; // the town track has played this far
+    f.scenes.Push("Cave");
+    f.Settle();
+    f.scenes.Pop();
+    f.Settle();
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0", "play:cave.ogg@0", "play:town.ogg@12.5" });
+}
+
+TEST_CASE("A pushed scene without music keeps the music below playing", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.scenes.Push("Plain");
+    f.Settle();
+    f.scenes.Pop();
+    f.Settle();
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0" });
+    CHECK(f.music.Current == "town.ogg");
+}
+
+TEST_CASE("Switching away from a stack stops a suspended scene's music", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.scenes.Push("Plain"); // town music carries on under it
+    f.Settle();
+    f.SwitchTo("Plain");    // the town scene is unloaded with the stack
+    CHECK(f.music.Calls == std::vector<std::string>{ "play:town.ogg@0", "stop" });
+}
+
+TEST_CASE("SetMusic on the active scene changes track at once", "[scene][music]")
+{
+    MusicFixture f;
+    f.SwitchTo("Town");
+    f.scenes.GetActive()->SetMusic("boss.ogg"); // e.g. a boss fight starts
+    CHECK(f.music.Current == "boss.ogg");
+    f.scenes.Push("Plain");
+    f.Settle();
+    f.scenes.GetActive()->SetMusic("menu.ogg"); // the pushed scene is active now
+    CHECK(f.music.Current == "menu.ogg");
 }

@@ -53,6 +53,7 @@
             "Transform2D": { "position": [-496.0, 0.0], "scale": [32.0, 572.0] }
         }
     },
+    "music": { "loop": true, "path": "assets/music/demo_battle.wav" },
     "render": { "ambient": [1.0, 1.0, 1.0, 1.0] },
     "systems": ["DemoDebugKeys"],
     "version": 1

@@ -7,7 +7,8 @@ are all scene files.
 
 - [Lifecycle and switching](#lifecycle-and-switching)
   - [Scene stack](#scene-stack), [Swap rules](#swap-rules),
-    [Loading ahead](#loading-ahead), [Load progress](#load-progress)
+    [Loading ahead](#loading-ahead), [Load progress](#load-progress),
+    [Music](#music)
 - [Boot flow](#boot-flow)
 - [Scene file format (`.arcscene`)](#scene-file-format-arcscene)
 - [Component registry](#component-registry)
@@ -159,6 +160,37 @@ Scene files can carry measured shares in a `"load"` block (below), so the bar
 also covers what file sizes can't: `OnLoad`'s build time and per-scene
 overhead.
 
+### Music
+
+A scene can own its music. `SetMusic` (usually in `OnLoad`; `"music"` in a
+scene file) names the track that plays whenever the scene is active:
+
+```cpp
+void OnLoad() override
+{
+    SetMusic("assets/music/village.ogg");    // loops by default
+}
+void OnBossAppears() { SetMusic("assets/music/boss.ogg"); } // active: changes at once
+```
+
+At each swap the music follows the new active scene, crossfading over
+`SceneManager::MusicFadeTime` (0.6 s, from the swap):
+
+- A scene with its own track plays it. If that's the track already playing
+  (two areas of one town), it carries on without restarting.
+- `SetMusic("")` owns silence: the music fades out.
+- A scene that never calls `SetMusic` leaves the music alone, so a game with
+  one global soundtrack (`AudioManager::PlayMusic` from app code) keeps it -
+  except that when a scene owning music goes away, its track fades out with
+  it rather than playing on into a scene that didn't ask for it.
+- Pushed over: a pushed scene with its own track takes over; when it's popped,
+  the scene below picks its track up where it was suspended (the overworld
+  theme resumes mid-phrase after a battle). A pushed scene without music
+  leaves the one below playing.
+
+In the demo app the World demo and "Physics File" share a theme and the
+battle has its own: B crossfades to the battle music and back.
+
 `Preload(name)` starts that work early, with the current scene still running
 (e.g. as the player nears a door), and the later `Switch` / `Push` to that
 name finds it done. One scene is prepared at a time; preloading or switching
@@ -254,6 +286,8 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 | `tilemap` | Path of an `.arcmap`. Optional. |
 | `tile_overrides` | TileDefs applied after the map loads, one per tile id, using the `.tileatlas.json` tile keys (`solid`, `blocks_light`, `flat`, `layer`, `blocked_from`, `uv_scroll`). Flip-book `animation` belongs in the atlas file. |
 | `systems` | [Named systems](#named-systems) the scene needs, installed in order at load. |
+| `music` | `path`, `loop` (default true): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
+| `load` | Measured [load data](#load-data-load) for the loading bar. Optional, written by tools. |
 | `entities` | Entity id → components. |
 
 ### Entities
@@ -381,15 +415,15 @@ Scene files reference assets by path:
   `"linear"` (bilinear, clamp), owned by the application and shared by every
   scene.
 - **Sprite sheets** (`Animator.sheet`): path of the sheet's `.json`.
-- **Audio**: the file path, as `AudioSource` already stores it.
+- **Audio**: the file path - `AudioSource` sounds and the scene's `music`.
 
 Textures and sprite sheets a scene loads are owned by that scene and
 reference-counted: they are released when it unloads, and a texture another
 scene still uses stays loaded. `.arcmap` atlas textures are still loaded
 app-wide (not yet scene-owned). C++ scenes should load through
 `Scene::LoadTexture` / `LoadSpriteSheet` too: `TextureManager::Load` pins a
-texture for the app's lifetime. Music (`AudioManager::PlayMusic`) still plays
-across a switch; scene-owned music is planned.
+texture for the app's lifetime. A scene's music and its `AudioSource` sounds
+stop with it (see [Music](#music)).
 
 Loading and saving go through the `SceneAssets` interface (path ↔ handle),
 which `FileScene` implements on top of the application. Tests implement it

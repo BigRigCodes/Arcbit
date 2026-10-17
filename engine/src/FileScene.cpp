@@ -131,6 +131,8 @@ void FileScene::OnLoad()
         return;
     }
     _ambient = ReadAmbient(*doc);
+    if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
+        SetMusic(music->value("path", std::string{}), music->value("loop", true));
     doc->erase("entities"); // the rest is written back as-is by Save
     _document = std::move(*doc);
 }
