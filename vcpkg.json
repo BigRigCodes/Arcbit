@@ -13,6 +13,8 @@
         "miniaudio",
         "catch2",
         "libsodium",
-        "zstd"
+        "zstd",
+        "lua",
+        "sol2"
     ]
 }
