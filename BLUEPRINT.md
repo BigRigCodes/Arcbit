@@ -336,7 +336,8 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Async streaming: load the next scene in the background while the current one keeps running - `Scene::OnPrepare` runs on a loader thread (file reads, image decodes through `ScenePreloader`) while the fade-out plays; the main-thread `OnLoad` then only uploads and builds entities, and the swap holds at black until the prepare is done. `SceneManager::Preload(name)` starts it early with the current scene still running. `FileScene` and the demos prepare themselves
 - [x] Two ways to cover a load, per change (`SceneChange`): fade first (default, for doors - holds at black if the load outlasts the fade) or `WaitForLoad` (the current scene keeps running and playable until the next is ready, then fades - menu jumps, keep-playing loads)
 - [x] Loading screen over a long hold at black - the engine's `LoadingScreen` ("Loading" + animated dots) after a short grace period, fading out as the scene fades in; `Application::SetLoadingScreen` replaces it with any `UIScreen`, `SceneChange::ShowLoadingScreen = false` keeps plain black
-- [ ] Loading progress - a loading screen that can show how far along the load is (needs the preloader to know its total up front)
+- [x] Loading progress - `SceneManager::GetLoadProgress()` across three stages (prepare / decode / build). `OnPrepare` only names images and the loader decodes them afterwards, so the total is known up front and the bar is weighted by file size; scenes doing heavy work of their own claim a share (`SetShares`, `ReportPrepareProgress`). The default `LoadingScreen` draws a bar
+- [x] Measured load data in scene files - an optional `"load"` block (stage shares + the texture list they were measured with) replaces the default split; a stale texture list logs a warning to re-save
 - [x] Scene stack — `Push` suspends the active scene (`OnSuspend`; not updated or drawn, sounds stopped, state kept) and loads one on top; `Pop` unloads it and resumes the one below (`OnResume`); `Switch` replaces the whole stack. B in the demo app pushes a battle arena over any demo. UI overlays like inventory stay on the UI screen stack
 - [ ] Draw a suspended scene under the one above (e.g. a battle over a dimmed overworld) - needs the outgoing scene rendered to an offscreen target (Phase 34), like crossfade
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
@@ -565,6 +566,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
   - Extract audio and image assets to standard formats (WAV, PNG, etc.) for use as mod source material
   - "Save" is disabled on original assets — only "Save as Mod" is available, which always writes to the project's `mods/` directory signed with the mod key; original `.arcasset` files are never overwritten
 - [ ] Hot-reload: engine watches `.arcasset` mtime and re-imports on change (extends Phase 12 stub)
+- [ ] **Scene load data at pack time**: `arcbit-pack` rewrites each scene's `"load"` block (Phase 23) from the packed assets - exact sizes, never stale in a shipped build; the packed scene format puts it in a real header so it's read without parsing the whole scene, and its texture list lets the loader start decoding before discovery
 - [ ] CLI tool (`arcbit-pack`) for batch import from a source assets directory
 
 ---
@@ -624,6 +626,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Localization tools: key picker, `en.json` export, per-locale coverage report (Phase 28)
 - [ ] **Run button**: builds the game and launches it in its own window; optionally opens directly to a selected scene (useful when iterating on a specific area)
 - [ ] **Scene launch selector**: choose any registered scene as the start point before hitting Run
+- [ ] **Measure scene loads on save**: when saving a scene, time a real load (prepare / decode / build) and write the shares and texture list into its `"load"` block (Phase 23), so the loading bar is even; flag scenes whose load data is stale
 - [ ] **Engine log panel**: the running game pipes its spdlog output back to the editor over a named pipe or local socket; displayed in a filterable log panel in the editor
 - [ ] **Event monitor panel**: live stream of Event Bus events from the running game (Phase 24); filterable by event name; shows payload and source entity
 - [ ] Content export to Phase 38 folder layout (`project.arcbit` + `.arcasset` files via Phase 36 content tools)

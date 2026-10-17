@@ -6,6 +6,8 @@
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/ScenePreloader.h>
+
+#include <unordered_set>
 #include <arcbit/tilemap/TileMap.h>
 
 namespace Arcbit
@@ -76,6 +78,26 @@ namespace
         }
     }
 
+    // The optional "load" block: measured stage shares for the progress bar,
+    // and the textures they were measured with. A texture list that no longer
+    // matches the scene means the shares are stale too - still used (they're
+    // only a hint), but worth re-measuring.
+    void ApplyLoadHints(const nlohmann::json& load, ScenePreloader& preload, const std::string& path)
+    {
+        if (const auto shares = load.find("shares"); shares != load.end() && shares->is_object())
+            preload.SetShares(shares->value("prepare", 0.0f), shares->value("decode", 0.0f), shares->value("build", 0.0f));
+
+        const auto listed = load.find("textures");
+        if (listed == load.end() || !listed->is_array()) return;
+        std::unordered_set<std::string> expected;
+        for (const nlohmann::json& t : *listed)
+            if (t.is_string()) expected.insert(TextureManager::NormalizePath(t.get<std::string>()));
+        const std::vector<std::string>& named = preload.GetTexturePaths();
+        if (expected != std::unordered_set<std::string>(named.begin(), named.end()))
+            LOG_WARN(Engine, "FileScene: '{}' has stale load data (its textures changed) - re-save it in the editor",
+                     path);
+    }
+
     std::optional<Color> ReadAmbient(const nlohmann::json& doc)
     {
         const auto render = doc.find("render");
@@ -92,6 +114,8 @@ void FileScene::OnPrepare(ScenePreloader& preload)
     if (const auto map = _parsed->find("tilemap"); map != _parsed->end() && map->is_string())
         preload.AddTileMap(map->get<std::string>());
     PreloadComponentAssets(*_parsed, preload);
+    if (const auto load = _parsed->find("load"); load != _parsed->end() && load->is_object())
+        ApplyLoadHints(*load, preload, _path);
 }
 
 void FileScene::OnLoad()

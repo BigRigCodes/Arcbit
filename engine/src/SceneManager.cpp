@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <chrono>
 #include <ranges>
-#include <thread>
 
 namespace Arcbit {
 
@@ -144,6 +143,13 @@ bool SceneManager::WantsLoadingScreen() const
     return IsLoading() && _phase == Phase::FadingOut && _alpha >= 1.0f && _pendingChange.ShowLoadingScreen;
 }
 
+f32 SceneManager::GetLoadProgress() const
+{
+    if (!_hasPending || _pendingKind == Request::Pop || !_prepared || _prepared->Name != _pendingName) return 1.0f;
+    if (IsReady()) return 1.0f - _prepared->Preload->GetBuildShare(); // only the main-thread build is left
+    return _prepared->Preload->GetProgress();
+}
+
 bool SceneManager::WaitsToStart() const
 {
     return _pendingChange.WaitForLoad && !IsReady();
@@ -207,7 +213,7 @@ void SceneManager::StartPrepare(const std::string_view name)
         catch (const std::exception& e) {
             LOG_ERROR(Engine, "Scene '{}': OnPrepare threw - {}", p->Name, e.what());
         }
-        if (delay > 0.0f) std::this_thread::sleep_for(std::chrono::duration<f32>(delay));
+        p->Preload->DecodeAll(delay); // the images OnPrepare named
         p->Seconds = SecondsSince(start);
     };
     if (_host.PrepareOnThread) prepared->Done = std::async(std::launch::async, run);

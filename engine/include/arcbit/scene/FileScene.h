@@ -20,10 +20,11 @@ namespace Arcbit
 //
 //   scenes.Register("Cave", [] { return std::make_unique<FileScene>("assets/scenes/cave.arcscene"); });
 //
-// OnPrepare (on the loader thread) parses the file and decodes the textures
-// it names - the tilemap's atlases, "texture" and "sheet" component fields -
-// so OnLoad only builds the scene through the application's SceneRegistry
-// and assets.
+// OnPrepare (on the loader thread) parses the file and names the textures it
+// uses - the tilemap's atlases, "texture" and "sheet" component fields - so
+// they decode ahead and OnLoad only builds the scene through the
+// application's SceneRegistry and assets. A "load" block, when present,
+// gives the loading bar measured stage shares (docs/scenes.md).
 // Per frame it applies the file's ambient light and, when physics debug draw
 // is on, draws collider outlines. Textures and sprite sheets it loads are
 // owned by the scene and released when it unloads.

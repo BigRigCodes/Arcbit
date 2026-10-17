@@ -426,11 +426,13 @@ TEST_CASE("A fade-first change asks for the loading screen while held at black",
     AsyncFixture f;
     f.SwitchAndSettle("A");
 
+    CHECK(f.scenes.GetLoadProgress() == 1.0f); // nothing loading
     f.scenes.Switch("Slow");
     f.Tick(5);
     CHECK_FALSE(f.scenes.WantsLoadingScreen()); // still fading out
     f.Tick(25);
     CHECK(f.scenes.WantsLoadingScreen());
+    CHECK(f.scenes.GetLoadProgress() < 1.0f);
 
     f.gate = true;
     REQUIRE(f.TickUntil([&] { return f.ActiveName() == "Slow"; }));

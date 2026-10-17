@@ -21,11 +21,17 @@ namespace Arcbit
 // Constructor — initializes all engine systems in dependency order.
 // ---------------------------------------------------------------------------
 
-Application::Application(const ApplicationConfig& config) :
-    _config(config), _loadingScreenFactory([] { return std::make_unique<LoadingScreen>(); })
+Application::Application(const ApplicationConfig& config) : _config(config)
 {
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
+
+    // The engine's loading screen, its bar following the scene load.
+    _loadingScreenFactory = [this] {
+        auto screen      = std::make_unique<LoadingScreen>();
+        screen->Progress = [this] { return _scenes.GetLoadProgress(); };
+        return screen;
+    };
 
     // Seed Settings with config defaults so that GraphicsSettings has sensible
     // values even when no settings file exists yet. ReadFile() will then

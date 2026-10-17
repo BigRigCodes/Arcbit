@@ -94,9 +94,10 @@ scenes.Switch("Shop", SceneChange{ .ShowLoadingScreen = false }); // fade first,
   the load runs under it. If the load outlasts the fade, the screen holds at
   black, and after a short grace period (so quick loads don't flash it)
   Application shows its loading screen, which fades out as the new scene
-  fades in. The engine's `LoadingScreen` shows "Loading" with animated dots;
-  `Application::SetLoadingScreen(factory)` swaps in any `UIScreen` (leave
-  `BlocksGame` off), or null for plain black.
+  fades in. The engine's `LoadingScreen` shows "Loading" with animated dots
+  and a progress bar; `Application::SetLoadingScreen(factory)` swaps in any
+  `UIScreen` (leave `BlocksGame` off; read `GetScenes().GetLoadProgress()`
+  for a bar), or null for plain black.
 - **`WaitForLoad`** - for menu jumps, or a game that keeps playing while it
   loads where you're going. The current scene stays on screen, updating and
   playable (the player is held still only during the fades,
@@ -106,6 +107,41 @@ scenes.Switch("Shop", SceneChange{ .ShowLoadingScreen = false }); // fade first,
 Either way the splash and fades never freeze. `FileScene` prepares itself: it
 parses the `.arcscene` and decodes the tilemap's atlases and every `texture` /
 `sheet` component field.
+
+### Load progress
+
+`SceneManager::GetLoadProgress()` (0..1) is how far the queued scene's load
+is. A load runs in three stages, each a share of the bar:
+
+| Stage     | What runs                                    | Default share |
+|-----------|----------------------------------------------|---------------|
+| `prepare` | `OnPrepare` itself (loader thread)           | 0%            |
+| `decode`  | the images it named, weighted by file size   | 95%           |
+| `build`   | `OnLoad` (main thread)                       | 5%            |
+
+`OnPrepare` only *names* images; the loader decodes them after it returns,
+so the total is known before the first decode, and a big texture moves the
+bar more than a small one. Nothing redraws while `OnLoad` runs, so the bar
+waits at the start of the build share until the scene is in.
+
+A scene doing heavy work of its own in `OnPrepare` (generating a world)
+claims a share and reports through it:
+
+```cpp
+void OnPrepare(ScenePreloader& preload) override
+{
+    preload.SetShares(0.4f, 0.5f, 0.1f); // prepare, decode, build (normalized)
+    for (int i = 0; i < chunks; ++i) {
+        GenerateChunk(i);
+        preload.ReportPrepareProgress(f32(i + 1) / chunks);
+    }
+    preload.AddTileMap("assets/maps/generated_base.arcmap");
+}
+```
+
+Scene files can carry measured shares in a `"load"` block (below), so the bar
+also covers what file sizes can't: `OnLoad`'s build time and per-scene
+overhead.
 
 `Preload(name)` starts that work early, with the current scene still running
 (e.g. as the player nears a door), and the later `Switch` / `Push` to that
@@ -232,6 +268,29 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 adding entities on different branches insert keys at unrelated positions, so
 git merges them cleanly; a conflict means both edited the *same* entity's
 values, which is a real conflict.
+
+### Load data (`"load"`)
+
+Optional. Measured stage shares for the loading bar, and the textures they
+were measured with:
+
+```json
+"load": {
+    "shares":   { "prepare": 0.05, "decode": 0.7, "build": 0.25 },
+    "textures": [ "assets/textures/GRASS+.png", "assets/textures/Water+.png" ]
+}
+```
+
+- `shares` replace the default 0 / 95 / 5 split (any positive scale;
+  normalized). They're proportions rather than times, so they hold up across
+  fast and slow machines.
+- `textures` detects stale data: if the textures the scene names no longer
+  match the list, the load logs a warning to re-save the scene. The shares
+  are still used - they're only a hint, and a wrong hint just makes the bar
+  less even.
+- The block is written by tools, not by hand: the editor measures a real load
+  when it saves the scene, and `arcbit-pack` rewrites it at pack time (both
+  later phases). `FileScene::Save` keeps an existing block as-is.
 
 ### Not in v1
 

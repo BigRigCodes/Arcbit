@@ -168,11 +168,16 @@ public:
     // screen. Application shows its loading screen while this holds.
     [[nodiscard]] bool WantsLoadingScreen() const;
 
+    // How far the queued scene's load is, 0..1, for a loading screen's bar
+    // (see ScenePreloader for the stages). Holds below 1 while OnLoad still
+    // has to run; 1 when nothing is loading.
+    [[nodiscard]] f32 GetLoadProgress() const;
+
     f32 FadeOutTime = 0.3f; // seconds; 0 = cut to black
     f32 FadeInTime  = 0.3f; // seconds; 0 = cut in
 
-    // Debug: the loader thread sleeps this long after each OnPrepare, to try
-    // out a slow load (the splash and fades should keep animating over it).
+    // Debug: stretch each scene's image decoding by this many seconds, to try
+    // out a slow load (the splash, fades and loading bar keep moving over it).
     f32 PrepareDelay = 0.0f;
 
 private:
