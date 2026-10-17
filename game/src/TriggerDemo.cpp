@@ -101,7 +101,7 @@ constexpr const char* CoinsKey = "demo.trigger.coins"; // SaveData: coins collec
 
 constexpr Vec2 TileCenter(const i32 tx, const i32 ty) { return {static_cast<f32>(tx) * TileSize, static_cast<f32>(ty) * TileSize}; }
 
-// "Coins: 2 / 5" in the top-left corner.
+// "Coins: 2 / 5" in the center-left, a bit below the debug render info
 class CoinHud : public UIScreen
 {
 public:
@@ -118,9 +118,9 @@ public:
         _roots.clear();
         Count                         = Add<Label>();
         Count->Size                   = {300.0f, 40.0f};
-        Count->Offset                 = {24.0f, 20.0f};
+        Count->Offset                 = {24.0f, 150.0f};
         Count->SkinOverride.FontScale = 1.4f;
-        Count->SkinOverride.TextLabel = CoinColor;
+        Count->SkinOverride.TextLabel = Color::Red();
     }
 };
 } // namespace
