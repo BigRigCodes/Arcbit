@@ -726,7 +726,7 @@ TEST_CASE("Scene changes are announced as engine events", "[scene][events]")
 {
     EventFixture             f;
     std::vector<std::string> log;
-    f.events.SetMonitor([&](const Event& e) {
+    Subscription all = f.events.SubscribeAll([&](const Event& e) {
         log.push_back(std::format("{}:{}", f.events.GetName(e.Id), e.Payload.Get<std::string>("name", "")));
     });
     const auto settle = [&] { for (int i = 0; i < 10; ++i) f.scenes.Update(Dt); f.events.Flush(); };

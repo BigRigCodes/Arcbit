@@ -43,6 +43,7 @@ struct Fixture
 {
     EventBus                 events;
     std::vector<std::string> log;
+    Subscription             all;
     SceneManager             scenes;
 
     Fixture()
@@ -52,7 +53,7 @@ struct Fixture
         scenes.FadeInTime  = 0.0f;
         scenes.Register("Arena", [] { return std::make_unique<ArenaScene>(); });
         scenes.Register("Other", [] { return std::make_unique<Scene>(); });
-        events.SetMonitor([this](const Event& e) {
+        all = events.SubscribeAll([this](const Event& e) {
             const std::string name = std::string(events.GetName(e.Id));
             if (name.starts_with("engine.scene.")) return; // not what these tests are about
             log.push_back(std::format("{}:{}", name, e.Payload.Get<std::string>("name", "")));

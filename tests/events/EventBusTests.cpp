@@ -6,6 +6,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <format>
 #include <memory>
 #include <string>
 #include <vector>
@@ -179,15 +180,30 @@ TEST_CASE("Names register on use and read back", "[events]")
     CHECK(bus.Register("game.door.opened") == Door);
 }
 
-TEST_CASE("The monitor sees every delivered event, heard or not", "[events]")
+TEST_CASE("SubscribeAll hears every event, before its own subscribers", "[events]")
 {
-    EventBus             bus;
-    std::vector<EventId> seen;
-    bus.SetMonitor([&](const Event& e) { seen.push_back(e.Id); });
+    EventBus                 bus;
+    std::vector<std::string> log;
+    Subscription             coin = bus.Subscribe(Coin, [&](const Event&) { log.push_back("coin handler"); });
+    Subscription             all  = bus.SubscribeAll([&](const Event& e) { log.push_back("all:" + bus.Describe(e.Id)); });
     bus.Publish(Coin);
-    bus.PublishNow(Door);
+    bus.PublishNow(Door); // no subscribers of its own: still heard
     bus.Flush();
-    CHECK(seen == std::vector<EventId>{ Door, Coin });
+    CHECK(log == std::vector<std::string>{ "all:#" + std::format("{:08x}", Door), "all:#" + std::format("{:08x}", Coin),
+                                           "coin handler" });
+
+    all.Reset();
+    log.clear();
+    bus.PublishNow(Door);
+    CHECK(log.empty());
+}
+
+TEST_CASE("Describe names registered events and shows the id of others", "[events]")
+{
+    EventBus bus;
+    bus.Register("game.door.opened");
+    CHECK(bus.Describe(Door) == "game.door.opened");
+    CHECK(bus.Describe(Coin) == std::format("#{:08x}", Coin));
 }
 
 TEST_CASE("A subscription outliving its bus is harmless", "[events]")

@@ -117,10 +117,18 @@ public:
     // The registered name; empty if the id was never registered.
     [[nodiscard]] std::string_view GetName(EventId id) const;
 
+    // The name, or "#1a2b3c4d" for an id that was never registered - for
+    // logs and overlays.
+    [[nodiscard]] std::string Describe(EventId id) const;
+
     // --- Subscribing ---------------------------------------------------------
 
     [[nodiscard]] Subscription Subscribe(EventId id, EventHandler handler);
     [[nodiscard]] Subscription Subscribe(std::string_view name, EventHandler handler);
+
+    // Hear every event, before its own subscribers - for event logs, debug
+    // overlays and the editor's event monitor.
+    [[nodiscard]] Subscription SubscribeAll(EventHandler handler);
 
     // --- Publishing ----------------------------------------------------------
 
@@ -140,12 +148,6 @@ public:
 
     [[nodiscard]] size_t GetQueuedCount() const { return _queue.size(); }
 
-    // --- Debugging -----------------------------------------------------------
-
-    // Called with every event as it's delivered, subscribers or not - for the
-    // editor's event monitor and debug overlays. Empty to clear.
-    void SetMonitor(std::function<void(const Event&)> monitor) { _monitor = std::move(monitor); }
-
 private:
     [[nodiscard]] bool IsReserved(EventId id) const;
     [[nodiscard]] bool AcceptsFromGame(EventId id) const; // logs when it doesn't
@@ -155,7 +157,6 @@ private:
     std::shared_ptr<Detail::EventSubscribers> _subscribers;
     std::unordered_map<EventId, std::string>  _names;
     std::deque<Event>                         _queue;
-    std::function<void(const Event&)>         _monitor;
     bool                                      _flushing = false;
     std::thread::id                           _owner;
 };

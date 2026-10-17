@@ -6,6 +6,8 @@
 #include <arcbit/core/Log.h>
 
 #include <algorithm>
+#include <format>
+#include <ranges>
 #include <vector>
 
 namespace Arcbit
@@ -26,40 +28,56 @@ namespace Detail
         };
 
         std::unordered_map<EventId, std::vector<Entry>> ByEvent;
-        std::unordered_map<u64, EventId>                EventOf; // subscription id -> its event
+        std::vector<Entry>                              All;     // SubscribeAll: every event
+        std::unordered_map<u64, std::vector<Entry>*>    ListOf;  // subscription id -> the list it's in
         u64                                             NextId     = 1;
         int                                             Delivering = 0; // nested deliveries running
 
-        u64 Add(const EventId event, EventHandler handler)
+        u64 Add(std::vector<Entry>& list, EventHandler handler)
         {
             const u64 id = NextId++;
-            ByEvent[event].push_back({ id, std::make_shared<EventHandler>(std::move(handler)) });
-            EventOf.emplace(id, event);
+            list.push_back({ id, std::make_shared<EventHandler>(std::move(handler)) });
+            ListOf.emplace(id, &list); // map values and members don't move, so the pointer holds
             return id;
         }
 
         void Remove(const u64 id)
         {
-            const auto of = EventOf.find(id);
-            if (of == EventOf.end()) return;
-            if (const auto list = ByEvent.find(of->second); list != ByEvent.end())
-                for (Entry& entry : list->second)
-                    if (entry.Id == id) entry.Handler.reset();
-            EventOf.erase(of);
+            const auto of = ListOf.find(id);
+            if (of == ListOf.end()) return;
+            for (Entry& entry : *of->second)
+                if (entry.Id == id) entry.Handler.reset();
+            ListOf.erase(of);
             if (Delivering == 0) Compact();
         }
 
-        [[nodiscard]] bool Contains(const u64 id) const { return EventOf.contains(id); }
+        [[nodiscard]] bool Contains(const u64 id) const { return ListOf.contains(id); }
 
+        // Drop cleared entries. Event lists stay in the map even when empty:
+        // ListOf points at them.
         void Compact()
         {
-            for (auto it = ByEvent.begin(); it != ByEvent.end();) {
-                std::erase_if(it->second, [](const Entry& e) { return !e.Handler; });
-                it = it->second.empty() ? ByEvent.erase(it) : std::next(it);
-            }
+            const auto cleared = [](const Entry& e) { return !e.Handler; };
+            std::erase_if(All, cleared);
+            for (auto& list : ByEvent | std::views::values) std::erase_if(list, cleared);
         }
     };
 } // namespace Detail
+
+namespace
+{
+    // The list reference survives other lists being added (map references are
+    // stable); index it fresh each time, since a handler subscribing here can
+    // reallocate it. Handlers added now start with the next event.
+    void DeliverTo(std::vector<Detail::EventSubscribers::Entry>& list, const Event& event)
+    {
+        const size_t count = list.size();
+        for (size_t i = 0; i < count; ++i) {
+            const std::shared_ptr<EventHandler> handler = list[i].Handler;
+            if (handler) (*handler)(event);
+        }
+    }
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Subscription
@@ -118,10 +136,22 @@ std::string_view EventBus::GetName(const EventId id) const
     return it != _names.end() ? std::string_view(it->second) : std::string_view{};
 }
 
+std::string EventBus::Describe(const EventId id) const
+{
+    const std::string_view name = GetName(id);
+    return name.empty() ? std::format("#{:08x}", id) : std::string(name);
+}
+
 Subscription EventBus::Subscribe(const EventId id, EventHandler handler)
 {
     AssertMainThread();
-    return Subscription(_subscribers, _subscribers->Add(id, std::move(handler)));
+    return Subscription(_subscribers, _subscribers->Add(_subscribers->ByEvent[id], std::move(handler)));
+}
+
+Subscription EventBus::SubscribeAll(EventHandler handler)
+{
+    AssertMainThread();
+    return Subscription(_subscribers, _subscribers->Add(_subscribers->All, std::move(handler)));
 }
 
 Subscription EventBus::Subscribe(const std::string_view name, EventHandler handler)
@@ -187,23 +217,10 @@ bool EventBus::AcceptsFromGame(const EventId id) const
 
 void EventBus::Deliver(const Event& event)
 {
-    if (_monitor) _monitor(event);
-
     Detail::EventSubscribers& table = *_subscribers;
-    const auto                it    = table.ByEvent.find(event.Id);
-    if (it == table.ByEvent.end()) return;
-
-    // The list reference survives other events' lists being added (map
-    // references are stable); index it fresh each time, since a handler
-    // subscribing to this event can reallocate it. Handlers added now start
-    // with the next event.
-    std::vector<Detail::EventSubscribers::Entry>& list  = it->second;
-    const size_t                                  count = list.size();
     ++table.Delivering;
-    for (size_t i = 0; i < count; ++i) {
-        const std::shared_ptr<EventHandler> handler = list[i].Handler;
-        if (handler) (*handler)(event);
-    }
+    DeliverTo(table.All, event);
+    if (const auto it = table.ByEvent.find(event.Id); it != table.ByEvent.end()) DeliverTo(it->second, event);
     if (--table.Delivering == 0) table.Compact();
 }
 
