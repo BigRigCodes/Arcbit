@@ -84,7 +84,7 @@ void CreditsScreen::OnEnter()
 
     std::vector<Line>                   lines;
     const std::optional<nlohmann::json> doc = ReadJson(Path);
-    if (doc) {
+    if (doc && doc->is_object()) {
         _speed = doc->value("scroll_speed", _speed);
         lines  = Layout(*doc, _height);
     }

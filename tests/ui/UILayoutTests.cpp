@@ -223,3 +223,16 @@ TEST_CASE("The shipped demo credits lay out", "[ui][credits][shipped]")
     f32 height = 0.0f;
     CHECK(CreditsScreen::Layout(nlohmann::json::parse(f), height).size() > 5);
 }
+
+TEST_CASE("A credits file that is valid JSON but not an object shows the fallback", "[ui][credits]")
+{
+    // Regression (PR #4 review): [] or null parsed fine, then reading
+    // scroll_speed threw out of OnEnter.
+    const ArcbitTests::TempDir tmp;
+    for (const char* text : { "[]", "null" }) {
+        INFO(text);
+        CreditsScreen screen;
+        screen.Path = tmp.Write("credits.json", text);
+        CHECK_NOTHROW(screen.OnEnter());
+    }
+}

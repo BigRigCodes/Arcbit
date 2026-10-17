@@ -40,7 +40,9 @@ void Application::PushSplash()
     auto                splash  = std::make_unique<SplashScreen>();
     const SamplerHandle sampler = GetStockSampler(StockSampler::Linear);
     const auto          add     = [&](const std::string& path, const f32 seconds) {
-        const TextureHandle texture = _textures->Load(path);
+        // Acquire, not Load: the first scene loads under the splash and may
+        // use the same image, so the splash only drops its own reference.
+        const TextureHandle texture = _textures->Acquire(path);
         if (!texture.IsValid()) {
             LOG_WARN(Engine, "Splash image '{}' not found - skipped", path);
             return;
@@ -63,14 +65,15 @@ void Application::PushSplash()
     _ui.Push(std::move(splash));
 }
 
-// The splash images are never needed again. The render thread may still
-// hold the last splash frame, so wait for it before unloading.
+// The splash's references to its images are dropped (an image a scene also
+// uses stays loaded). The render thread may still hold the last splash
+// frame, so wait for it before releasing.
 void Application::FinishSplash()
 {
     LOG_INFO(Engine, "Splash finished");
     if (!_splashTextures.empty()) {
         _renderThread.WaitIdle();
-        for (const TextureHandle texture : _splashTextures) _textures->Unload(texture);
+        for (const TextureHandle texture : _splashTextures) _textures->Release(texture);
         _splashTextures.clear();
     }
     if (_boot.ShowTitle) ShowTitle();

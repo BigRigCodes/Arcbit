@@ -166,7 +166,9 @@ private:
         menu->OnClose = [this] { GetUI().Pop(); };
         menu->OnPick  = [this](const size_t index) {
             GetUI().Pop();
-            if (index != _current) Open(index);
+            // Under a pushed battle, the current demo is suspended: picking
+            // it still switches (back) to it.
+            if (index != _current || GetScenes().GetDepth() > 1) Open(index);
         };
         GetUI().Push(std::move(menu));
     }

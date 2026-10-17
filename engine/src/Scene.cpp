@@ -50,6 +50,7 @@ Application& Scene::GetApp()
 
 void Scene::SetMusic(std::string path, const bool loop)
 {
+    if (path != _musicPath) _musicResume = 0.0f; // the saved spot belonged to the old track
     _ownsMusic = true;
     _musicPath = std::move(path);
     _musicLoop = loop;

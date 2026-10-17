@@ -155,7 +155,10 @@ void AudioManager::PlayMusic(const std::string_view path, const bool loop, const
                              const f32 startSeconds)
 {
     if (!g_initialized) return;
-    if (MusicSlot& current = g_music[g_current]; current.Loaded && current.Path == path) return; // carries on
+    // The same track carries on - unless it played to its end (not looping),
+    // in which case asking for it again restarts it.
+    if (MusicSlot& current = g_music[g_current]; current.Loaded && current.Path == path && !ma_sound_at_end(&current.Sound))
+        return;
 
     // The current track becomes the outgoing one; an older one still fading
     // out in the other slot is cut to make room.

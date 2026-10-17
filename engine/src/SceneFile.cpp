@@ -12,6 +12,9 @@
 #include <format>
 #include <fstream>
 #include <ranges>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace Arcbit::SceneFile
@@ -120,8 +123,8 @@ namespace
     }
 
     // An id from the entity's Tag: lowercase, spaces to dashes, numbered
-    // when taken ("rock", "rock-2").
-    std::string MakeId(World& world, const Entity e, const json& taken)
+    // when taken ("rock", "rock-2"). The new id is added to `taken`.
+    std::string MakeId(World& world, const Entity e, std::unordered_set<std::string>& taken)
     {
         std::string base = world.GetComponent<Tag>(e)->Value;
         std::ranges::transform(base, base.begin(), [](const unsigned char c) {
@@ -129,7 +132,30 @@ namespace
         });
         std::string id = base;
         for (int n = 2; taken.contains(id); ++n) id = base + "-" + std::to_string(n);
+        taken.insert(id);
         return id;
+    }
+
+    // The file id for every live entity: the one it was loaded with, else a
+    // new one from its Tag. Kept ids are reserved first, so a new entity can
+    // never take an id an existing one still uses (and overwrite it on save).
+    std::vector<std::pair<Entity, std::string>> AssignIds(World& world, const IdMap& ids)
+    {
+        const auto key = [](const Entity e) { return (static_cast<u64>(e.Generation) << 32) | e.Index; };
+        std::unordered_map<u64, std::string> idOf;
+        for (const auto& [id, e] : ids) idOf[key(e)] = id;
+
+        const std::vector<Entity>       live = AllEntities(world);
+        std::unordered_set<std::string> taken;
+        for (const Entity e : live)
+            if (const auto known = idOf.find(key(e)); known != idOf.end()) taken.insert(known->second);
+
+        std::vector<std::pair<Entity, std::string>> assigned;
+        for (const Entity e : live) {
+            const auto known = idOf.find(key(e));
+            assigned.emplace_back(e, known != idOf.end() ? known->second : MakeId(world, e, taken));
+        }
+        return assigned;
     }
 
     json SaveEntity(World& world, const Entity e, const SceneRegistry& registry, const SceneAssets& assets)
@@ -148,12 +174,16 @@ namespace
 
 bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAssets& assets, IdMap& ids)
 {
-    const int version = doc.value("version", 0);
-    if (version < 1 || version > Version) {
-        LOG_ERROR(Engine, "SceneFile: unsupported version {} (this build reads up to {})", version, Version);
-        return false;
-    }
     try {
+        if (!doc.is_object()) {
+            LOG_ERROR(Engine, "SceneFile: a scene file must be a JSON object");
+            return false;
+        }
+        const int version = doc.value("version", 0);
+        if (version < 1 || version > Version) {
+            LOG_ERROR(Engine, "SceneFile: unsupported version {} (this build reads up to {})", version, Version);
+            return false;
+        }
         if (!LoadWorld(scene, doc, assets) || !InstallSystems(scene, doc, registry)) return false;
         for (const auto& [id, components] : doc.value("entities", json::object()).items())
             LoadEntity(scene, id, components, registry, assets, ids);
@@ -174,16 +204,9 @@ json Save(Scene& scene, const SceneRegistry& registry, const SceneAssets& assets
     doc["camera"]              = { { "zoom", scene.GetCamera().Zoom },
                                    { "position", { scene.GetCamera().Position.X, scene.GetCamera().Position.Y } } };
 
-    std::unordered_map<u64, std::string> idOf;
-    for (const auto& [id, e] : ids) idOf[(static_cast<u64>(e.Generation) << 32) | e.Index] = id;
-
     World& world    = scene.GetWorld();
     json   entities = json::object();
-    for (const Entity e : AllEntities(world)) {
-        const auto  known = idOf.find((static_cast<u64>(e.Generation) << 32) | e.Index);
-        std::string id    = known != idOf.end() ? known->second : MakeId(world, e, entities);
-        entities[id]      = SaveEntity(world, e, registry, assets);
-    }
+    for (const auto& [e, id] : AssignIds(world, ids)) entities[id] = SaveEntity(world, e, registry, assets);
     doc["entities"] = std::move(entities);
     TidyFloats(doc);
     return doc;

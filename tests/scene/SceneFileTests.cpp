@@ -249,3 +249,40 @@ TEST_CASE("Unknown components are skipped, the rest of the entity loads", "[scen
     REQUIRE(SceneFile::Load(scene, doc, registry, assets, ids));
     CHECK(scene.GetWorld().GetComponent<Lifetime>(ids.at("a"))->Remaining == 2.0f);
 }
+
+TEST_CASE("A new entity never takes the id an existing one keeps", "[scene]")
+{
+    // Regression (PR #4 review): a new "Rock" reusing a lower slot was given
+    // "rock" first, and the loaded "rock" then overwrote it on save.
+    const SceneRegistry registry = MakeRegistry();
+    FakeAssets          assets;
+    const json          doc = json::parse(R"({ "version": 1, "entities": {
+        "a":    { "Tag": { "value": "A" } },
+        "rock": { "Tag": { "value": "Rock" } } } })");
+
+    Scene            scene;
+    SceneFile::IdMap ids;
+    REQUIRE(SceneFile::Load(scene, doc, registry, assets, ids));
+    World& world = scene.GetWorld();
+    world.DestroyEntity(ids.at("a")); // frees the lower slot
+    const Entity newer                    = world.CreateEntity();
+    world.GetComponent<Tag>(newer)->Value = "Rock";
+    REQUIRE(newer.Index < ids.at("rock").Index); // the new entity comes first when saving
+
+    const json entities = SceneFile::Save(scene, registry, assets, {}, ids)["entities"];
+    CHECK(entities.size() == 2);
+    CHECK(entities.contains("rock"));
+    CHECK(entities.contains("rock-2"));
+}
+
+TEST_CASE("A scene file that isn't an object, or has a string version, fails cleanly", "[scene]")
+{
+    const SceneRegistry registry = MakeRegistry();
+    FakeAssets          assets;
+    for (const char* text : { "[]", "null", R"({ "version": "1" })" }) {
+        INFO(text);
+        Scene            scene;
+        SceneFile::IdMap ids;
+        CHECK_FALSE(SceneFile::Load(scene, json::parse(text), registry, assets, ids)); // no throw
+    }
+}

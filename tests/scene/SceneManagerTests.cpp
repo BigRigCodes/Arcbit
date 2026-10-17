@@ -623,3 +623,19 @@ TEST_CASE("SetMusic on the active scene changes track at once", "[scene][music]"
     f.scenes.GetActive()->SetMusic("menu.ogg"); // the pushed scene is active now
     CHECK(f.music.Current == "menu.ogg");
 }
+
+TEST_CASE("A track changed while suspended starts from its beginning", "[scene][music]")
+{
+    // Regression (PR #4 review): the old track's saved position was kept and
+    // the new track resumed partway through.
+    MusicFixture f;
+    f.SwitchTo("Town");
+    Scene* town      = f.scenes.GetActive();
+    f.music.Position = 12.5f;
+    f.scenes.Push("Cave");
+    f.Settle();
+    town->SetMusic("night.ogg"); // e.g. night fell while the battle ran
+    f.scenes.Pop();
+    f.Settle();
+    CHECK(f.music.Calls.back() == "play:night.ogg@0");
+}

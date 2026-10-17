@@ -130,9 +130,16 @@ void FileScene::OnLoad()
         LOG_ERROR(Engine, "FileScene: '{}' failed to load", _path);
         return;
     }
-    _ambient = ReadAmbient(*doc);
-    if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
-        SetMusic(music->value("path", std::string{}), music->value("loop", true));
+    try {
+        _ambient = ReadAmbient(*doc);
+        if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
+            SetMusic(music->value("path", std::string{}), music->value("loop", true));
+    }
+    catch (const std::exception& e) {
+        LOG_ERROR(Engine, "FileScene: '{}' has malformed render / music settings - {}", _path, e.what());
+        _loaded = false;
+        return;
+    }
     doc->erase("entities"); // the rest is written back as-is by Save
     _document = std::move(*doc);
 }
