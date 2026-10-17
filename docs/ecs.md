@@ -82,6 +82,11 @@ simultaneously, keeping each array dense.
 Owns all archetypes and the entity table. Archetypes are looked up in O(1) via
 an `unordered_map<ComponentMask, Archetype>`.
 
+**Add and destroy hooks.** `World::OnAdd<T>(callback)` runs just after a `T`
+is added; `World::OnDestroy(callback)` runs when an entity is destroyed (not
+when a component is merely removed) - what `EntityEvents` is built on. Like
+removal hooks, they must not add, remove or destroy anything while running.
+
 **Removal hooks.** `World::OnRemove<T>(callback)` runs whenever a `T` leaves
 an entity - `RemoveComponent<T>`, `DestroyEntity`, or `DestroyAllEntities` -
 so outside resources tied to a component are released on every path. `Scene`
@@ -295,6 +300,21 @@ particles, and temporary effects.
 ```cpp
 struct Lifetime {
     f32 Remaining;  // seconds until DestroyEntity is called
+};
+```
+
+### EntityEvents *(optional)*
+
+Opts the entity into announcing itself on the event bus: spawned and
+destroyed, each renameable per entity (`"boss.defeated"`). Entities announce
+nothing without it. See [events.md](events.md#entity-events).
+
+```cpp
+struct EntityEvents {
+    bool        Spawned   = true;
+    bool        Destroyed = true;
+    std::string SpawnedEvent;   // empty = engine.entity.spawned
+    std::string DestroyedEvent; // empty = engine.entity.destroyed
 };
 ```
 

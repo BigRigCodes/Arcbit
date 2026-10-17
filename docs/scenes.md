@@ -44,6 +44,11 @@ A scene's life, in order:
 | `OnSuspend` / `OnResume` | another scene is pushed over it / popped off | main |
 | `OnUnload` | at the swap that removes it - free what `OnLoad` made directly | main (render thread idle) |
 
+A scene listens on the event bus with `Scene::Subscribe(event, handler)`; the
+subscription ends with its unload, and a suspended scene keeps listening (see
+[events.md](events.md#subscribing)). Scene changes are themselves announced
+as `engine.scene.*` events.
+
 Every hook is optional. A scene is never moved (systems capture it), and
 nothing outside `OnPrepare` runs off the main thread.
 
