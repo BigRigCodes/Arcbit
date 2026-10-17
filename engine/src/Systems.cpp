@@ -679,15 +679,28 @@ namespace
         fn(self, args...);
     }
 
-    void DispatchTriggerEvents(World& world, const ContactTracker::Events& ev)
+    // The scene-wide listener (scripts) hears each event too. Copied before
+    // the call, like the callbacks, and skipped for an entity gone since.
+    void NotifyListener(PhysicsWorld& physics, World& world, const PhysicsWorld::ContactEvent event, const Entity self,
+                        const Entity other, const Vec2 normal = {})
     {
-        const auto both = [&](const EntityPair& p, auto slot) {
+        if (!physics.GetContactListener() || !world.IsValid(self)) return;
+        const PhysicsWorld::ContactListener listener = physics.GetContactListener();
+        listener(event, self, other, normal);
+    }
+
+    void DispatchTriggerEvents(PhysicsWorld& physics, World& world, const ContactTracker::Events& ev)
+    {
+        using enum PhysicsWorld::ContactEvent;
+        const auto both = [&](const EntityPair& p, auto slot, const PhysicsWorld::ContactEvent event) {
             InvokeCallback(world, p.A, slot, p.B);
+            NotifyListener(physics, world, event, p.A, p.B);
             InvokeCallback(world, p.B, slot, p.A);
+            NotifyListener(physics, world, event, p.B, p.A);
         };
-        for (const EntityPair& p : ev.Entered) both(p, &TriggerCallback::OnEnter);
-        for (const EntityPair& p : ev.Stayed) both(p, &TriggerCallback::OnStay);
-        for (const EntityPair& p : ev.Exited) both(p, &TriggerCallback::OnExit);
+        for (const EntityPair& p : ev.Entered) both(p, &TriggerCallback::OnEnter, TriggerEnter);
+        for (const EntityPair& p : ev.Stayed) both(p, &TriggerCallback::OnStay, TriggerStay);
+        for (const EntityPair& p : ev.Exited) both(p, &TriggerCallback::OnExit, TriggerExit);
     }
 
     void UpdateTriggerContacts(PhysicsWorld& physics, World& ecs)
@@ -698,7 +711,7 @@ namespace
 
         ContactTracker::Events events;
         physics.TriggerContacts().Update(overlaps, events);
-        DispatchTriggerEvents(ecs, events);
+        DispatchTriggerEvents(physics, ecs, events);
     }
 
     using NormalMap = std::unordered_map<EntityPair, Vec2, EntityPairHash>;
@@ -735,11 +748,15 @@ namespace
             const auto it = normals.find(p);
             const Vec2 n  = it != normals.end() ? it->second : Vec2{};
             InvokeCallback(ecs, p.A, &CollisionCallback::OnEnter, p.B, n);
+            NotifyListener(physics, ecs, PhysicsWorld::ContactEvent::CollisionEnter, p.A, p.B, n);
             InvokeCallback(ecs, p.B, &CollisionCallback::OnEnter, p.A, n * -1.0f);
+            NotifyListener(physics, ecs, PhysicsWorld::ContactEvent::CollisionEnter, p.B, p.A, n * -1.0f);
         }
         for (const EntityPair& p : events.Exited) {
             InvokeCallback(ecs, p.A, &CollisionCallback::OnExit, p.B);
+            NotifyListener(physics, ecs, PhysicsWorld::ContactEvent::CollisionExit, p.A, p.B);
             InvokeCallback(ecs, p.B, &CollisionCallback::OnExit, p.A);
+            NotifyListener(physics, ecs, PhysicsWorld::ContactEvent::CollisionExit, p.B, p.A);
         }
     }
 

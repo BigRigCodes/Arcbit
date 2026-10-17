@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/ecs/World.h>
@@ -169,6 +170,22 @@ public:
     [[nodiscard]] ContactTracker::PairSet& EnteredOverlaps() noexcept { return _enteredOverlaps; }
     [[nodiscard]] ContactTracker& BlockingContacts() noexcept { return _blockingContacts; }
 
+    // Every contact event the ContactEvents system dispatches, once for each
+    // entity of the pair (self, other) - alongside the entities' own
+    // TriggerCallback / CollisionCallback, which still run. Scripts listen
+    // here (SceneScripts); normal is set for CollisionEnter only.
+    enum class ContactEvent : u8
+    {
+        TriggerEnter,
+        TriggerStay,
+        TriggerExit,
+        CollisionEnter,
+        CollisionExit,
+    };
+    using ContactListener = std::function<void(ContactEvent event, Entity self, Entity other, Vec2 normal)>;
+    void                                 SetContactListener(ContactListener listener) { _contactListener = std::move(listener); }
+    [[nodiscard]] const ContactListener& GetContactListener() const noexcept { return _contactListener; }
+
     // Tilemap pointer for the (future) tile-synthesized collider path. Non-owning;
     // the Scene owns the tilemap and outlives the PhysicsWorld.
     void                   SetTileMap(TileMap* tilemap) noexcept { _tilemap = tilemap; }
@@ -224,6 +241,7 @@ private:
     std::unordered_map<u64, ColliderId> _entityToCollider; // packed entity → id; one collider per entity
     ContactTracker                      _triggerContacts;
     ContactTracker                      _blockingContacts;
+    ContactListener                     _contactListener;
     ContactTracker::PairSet             _enteredOverlaps; // see EnteredOverlaps()
     std::vector<ContactReport>          _contactReports;
     TileMap*                            _tilemap   = nullptr;
