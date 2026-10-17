@@ -1,9 +1,13 @@
 #include <arcbit/scene/SceneManager.h>
 
+#include <arcbit/assets/TextureManager.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/scene/ScenePreloader.h>
 
 #include <algorithm>
+#include <chrono>
 #include <ranges>
+#include <thread>
 
 namespace Arcbit {
 
@@ -17,7 +21,21 @@ namespace
         const f32 step = dt / duration;
         return target > alpha ? std::min(alpha + step, target) : std::max(alpha - step, target);
     }
+
+    using Clock = std::chrono::steady_clock;
+
+    f32 SecondsSince(const Clock::time_point start)
+    {
+        return std::chrono::duration<f32>(Clock::now() - start).count();
+    }
 } // namespace
+
+SceneManager::~SceneManager()
+{
+    // Prepared::Done waits for its loader thread, before the scene it uses goes.
+    _prepared.reset();
+    _abandoned.clear();
+}
 
 void SceneManager::Register(std::string name, Factory factory)
 {
@@ -51,12 +69,26 @@ void SceneManager::Pop()
     _hasPending = true;
 }
 
+void SceneManager::Preload(const std::string_view name)
+{
+    if (!IsRegistered(name)) {
+        LOG_WARN(Engine, "SceneManager: no scene registered as '{}'", name);
+        return;
+    }
+    if (_hasPending && _pendingKind != Request::Pop) {
+        LOG_WARN(Engine, "SceneManager: Preload('{}') while a scene change is queued - ignored", name);
+        return;
+    }
+    if (!_prepared || _prepared->Name != name) StartPrepare(name);
+}
+
 void SceneManager::Queue(const Request kind, const std::string_view name, std::string entry)
 {
     if (!IsRegistered(name)) {
         LOG_WARN(Engine, "SceneManager: no scene registered as '{}'", name);
         return;
     }
+    if (!_prepared || _prepared->Name != name) StartPrepare(name);
     _pendingKind  = kind;
     _pendingName  = std::string(name);
     _pendingEntry = std::move(entry);
@@ -73,6 +105,7 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
 
 void SceneManager::Update(const f32 dt)
 {
+    ReapAbandoned();
     switch (_phase) {
         case Phase::Idle:
             if (_hasPending) StartPending();
@@ -80,7 +113,7 @@ void SceneManager::Update(const f32 dt)
 
         case Phase::FadingOut:
             _alpha = StepToward(_alpha, 1.0f, FadeOutTime, dt);
-            if (_alpha >= 1.0f) Swap();
+            if (_alpha >= 1.0f && IsReady()) Swap(); // else held at black while loading
             return;
 
         case Phase::FadingIn:
@@ -101,8 +134,15 @@ bool SceneManager::ConsumeSwapped()
     return swapped;
 }
 
+bool SceneManager::IsLoading() const
+{
+    return _hasPending && _phase == Phase::FadingOut && _alpha >= 1.0f && !IsReady();
+}
+
 void SceneManager::Shutdown()
 {
+    _prepared.reset();
+    _abandoned.clear();
     UnloadAll();
     _phase      = Phase::Idle;
     _alpha      = 0.0f;
@@ -110,31 +150,102 @@ void SceneManager::Shutdown()
 }
 
 // Begin a queued request. Leaving an unnamed scene (or none) has nothing
-// worth fading out, so it swaps at once behind a black screen.
+// worth fading out, so it cuts to black and swaps as soon as the next scene
+// is prepared.
 void SceneManager::StartPending()
 {
+    _phase              = Phase::FadingOut;
     const Scene* active = GetActive();
-    if (!active || active->GetName().empty()) {
-        _alpha = 1.0f;
-        Swap();
-        return;
-    }
-    _phase = Phase::FadingOut;
+    if (active && !active->GetName().empty()) return;
+    _alpha = 1.0f;
+    if (IsReady()) Swap();
 }
 
-std::unique_ptr<Scene> SceneManager::Create()
+std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
 {
-    std::unique_ptr<Scene> scene = _factories.at(_pendingName)();
-    scene->_name                 = _pendingName;
-    scene->_entryPoint           = std::move(_pendingEntry);
+    std::unique_ptr<Scene> scene = _factories.at(name)();
+    scene->_name                 = name;
     scene->_app                  = _host.App;
     scene->SetInput(_host.Input);
     return scene;
 }
 
+// ---------------------------------------------------------------------------
+// Loading ahead
+// ---------------------------------------------------------------------------
+
+// Create the scene now and run its OnPrepare - on the loader thread when the
+// host asks for one. The preloader skips textures already on the GPU.
+void SceneManager::StartPrepare(const std::string_view name)
+{
+    Abandon();
+    auto prepared      = std::make_unique<Prepared>();
+    prepared->Name     = std::string(name);
+    prepared->Instance = Create(prepared->Name);
+    prepared->Preload  = std::make_unique<ScenePreloader>(
+        _host.Textures ? _host.Textures->GetLoadedPaths() : std::unordered_set<std::string>{});
+
+    const auto run = [p = prepared.get(), delay = PrepareDelay] {
+        const Clock::time_point start = Clock::now();
+        try {
+            p->Instance->OnPrepare(*p->Preload);
+        }
+        catch (const std::exception& e) {
+            LOG_ERROR(Engine, "Scene '{}': OnPrepare threw - {}", p->Name, e.what());
+        }
+        if (delay > 0.0f) std::this_thread::sleep_for(std::chrono::duration<f32>(delay));
+        p->Seconds = SecondsSince(start);
+    };
+    if (_host.PrepareOnThread) prepared->Done = std::async(std::launch::async, run);
+    else run();
+    _prepared = std::move(prepared);
+}
+
+void SceneManager::Abandon()
+{
+    if (!_prepared) return;
+    if (_prepared->Done.valid() && _prepared->Done.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        _abandoned.push_back(std::move(_prepared));
+    _prepared.reset();
+}
+
+void SceneManager::ReapAbandoned()
+{
+    std::erase_if(_abandoned, [](const std::unique_ptr<Prepared>& p) {
+        return p->Done.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+    });
+}
+
+bool SceneManager::IsReady() const
+{
+    if (_pendingKind == Request::Pop || !_prepared || !_prepared->Done.valid()) return true;
+    return _prepared->Done.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+}
+
+// The prepared scene for the queued request, its decoded images staged for
+// OnLoad. Falls back to a fresh, unprepared scene if there is none.
+std::unique_ptr<Scene> SceneManager::TakePrepared()
+{
+    std::unique_ptr<Scene> scene;
+    if (_prepared && _prepared->Name == _pendingName) {
+        const std::unique_ptr<Prepared> prepared = std::move(_prepared);
+        if (prepared->Done.valid()) prepared->Done.get();
+        LOG_DEBUG(Engine, "Scene '{}' prepared in {:.1f} ms ({} images decoded ahead)", prepared->Name,
+                  prepared->Seconds * 1000.0f, prepared->Preload->GetDecodedCount());
+        if (_host.Textures) _host.Textures->Stage(prepared->Preload->TakeImages());
+        scene = std::move(prepared->Instance);
+    }
+    else {
+        scene = Create(_pendingName);
+    }
+    scene->_entryPoint = std::move(_pendingEntry);
+    return scene;
+}
+
 void SceneManager::Swap()
 {
-    _hasPending = false;
+    const Clock::time_point start = Clock::now();
+    _hasPending                   = false;
     if (_host.Quiesce) _host.Quiesce(); // nothing may render any scene during the swap
 
     switch (_pendingKind) {
@@ -142,6 +253,11 @@ void SceneManager::Swap()
         case Request::Push: SwapPush(); break;
         case Request::Pop: SwapPop(); break;
     }
+    if (_host.Textures) {
+        if (const size_t unused = _host.Textures->ClearStaged())
+            LOG_DEBUG(Engine, "SceneManager: {} image(s) decoded ahead were never loaded", unused);
+    }
+    LOG_DEBUG(Engine, "SceneManager: swap took {:.1f} ms", SecondsSince(start) * 1000.0f);
     _phase   = Phase::FadingIn;
     _swapped = true;
 }
@@ -151,7 +267,7 @@ void SceneManager::Swap()
 // with the new scene stay loaded.
 void SceneManager::SwapReplace()
 {
-    std::unique_ptr<Scene> next = Create();
+    std::unique_ptr<Scene> next = TakePrepared();
     for (const std::unique_ptr<Scene>& scene : _stack | std::views::reverse) scene->OnUnload();
     std::vector<std::unique_ptr<Scene>> old = std::move(_stack);
 
@@ -170,7 +286,7 @@ void SceneManager::SwapReplace()
 // load the new one on top.
 void SceneManager::SwapPush()
 {
-    std::unique_ptr<Scene> next = Create();
+    std::unique_ptr<Scene> next = TakePrepared();
     if (!_stack.empty()) {
         _stack.back()->OnSuspend();
         _stack.back()->StopSounds();

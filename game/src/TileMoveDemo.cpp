@@ -66,6 +66,8 @@ constexpr f32 SnapStep    = 1.0f / WalkSpeed; // same pace in snap mode
 class TileMoveDemo : public Scene
 {
 protected:
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
     void OnLoad() override
     {
         _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());

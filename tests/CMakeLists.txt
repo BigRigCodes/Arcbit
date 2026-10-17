@@ -25,6 +25,7 @@ add_executable(arcbit-tests
     render/Camera2DTests.cpp
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
+    scene/ScenePreloaderTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
     ui/UILayoutTests.cpp

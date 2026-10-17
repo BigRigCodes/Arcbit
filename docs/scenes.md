@@ -18,6 +18,7 @@ are all scene files.
 
 ```cpp
 class MyScene : public Scene {
+    void OnPrepare(ScenePreloader& preload) override; // loader thread: read files, decode images
     void OnLoad() override;     // build entities, LoadTexture, register systems
     void OnUnload() override;   // destroy what OnLoad made directly on the device
     void OnUpdate(f32 dt) override;
@@ -59,6 +60,40 @@ scene's resources released, old scene destroyed. Scene teardown destroys every
 entity, so component removal hooks release outside resources (colliders,
 sounds).
 
+### Loading ahead
+
+A switch or push creates the next scene at once and runs its `OnPrepare` on a
+loader thread while the fade-out plays and the current scene keeps running.
+`OnPrepare` reads and parses files into the scene's own members and names the
+assets `OnLoad` will use, so their images decode there:
+
+```cpp
+void OnPrepare(ScenePreloader& preload) override
+{
+    preload.AddTileMap("assets/maps/village.arcmap");      // every atlas image
+    preload.AddSpriteSheet("assets/spritesheets/player.json");
+    preload.AddTexture("assets/textures/chest.png");
+}
+```
+
+Just before `OnLoad`, the decoded images are handed to the `TextureManager`,
+so `OnLoad`'s `LoadTexture` / `LoadSpriteSheet` / `TileMap::LoadMap` calls
+only upload them. Images already on the GPU are skipped. `OnPrepare` must
+touch nothing outside its scene object: no World, `GetApp()`, GPU, UI or
+audio - those stay in `OnLoad`, which runs on the main thread.
+
+The swap waits at black until `OnPrepare` is done, so a slow load holds the
+screen black (`SceneManager::IsLoading`) instead of freezing a fade or the
+splash. `FileScene` prepares itself: it parses the `.arcscene` and decodes the
+tilemap's atlases and every `texture` / `sheet` component field.
+
+`Preload(name)` starts that work early, with the current scene still running
+(e.g. as the player nears a door), and the later `Switch` / `Push` to that
+name finds it done. One scene is prepared at a time; preloading or switching
+to another name discards it. The demo app preloads the battle while a demo
+runs, and `arcbit-game --load-delay <seconds>` (`SceneManager::PrepareDelay`)
+slows every prepare down to show the splash and fades animating over a load.
+
 ---
 
 ## Boot flow
@@ -86,9 +121,9 @@ MyGame() : Application({ ... })
   (`UIScreen::CoversLoading`); the splash covers it only while its image is
   fully shown, so the load never stalls a fade. Fades hold while the scene is
   hidden, so the scene fades in from black once the splash ends instead of
-  appearing at full brightness. (Loading is still synchronous: the splash
-  freezes on its logo while the scene loads. Slice 7 moves loading off the
-  main thread.)
+  appearing at full brightness. The scene's `OnPrepare` starts as soon as
+  it's queued, so its files load on the loader thread while the splash
+  animates; only the short `OnLoad` runs under the logo.
 - **The title menu** (`MainMenuScreen`) opens when the splashes end, with
   Controls / Audio / Graphics / Credits wired to the engine's screens. With
   no `TitleScene` it sits over `FirstScene`, already running behind it, and

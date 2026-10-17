@@ -333,7 +333,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Entry point on switch — `Switch(name, entry)` so a door or script can say where the player arrives (e.g. a named spawn marker)
 - [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
 - [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
-- [ ] Async streaming: load the next scene in the background while the current one keeps running
+- [x] Async streaming: load the next scene in the background while the current one keeps running - `Scene::OnPrepare` runs on a loader thread (file reads, image decodes through `ScenePreloader`) while the fade-out plays; the main-thread `OnLoad` then only uploads and builds entities, and the swap holds at black until the prepare is done. `SceneManager::Preload(name)` starts it early with the current scene still running. `FileScene` and the demos prepare themselves
 - [x] Scene stack — `Push` suspends the active scene (`OnSuspend`; not updated or drawn, sounds stopped, state kept) and loads one on top; `Pop` unloads it and resumes the one below (`OnResume`); `Switch` replaces the whole stack. B in the demo app pushes a battle arena over any demo. UI overlays like inventory stay on the UI screen stack
 - [ ] Draw a suspended scene under the one above (e.g. a battle over a dimmed overworld) - needs the outgoing scene rendered to an offscreen target (Phase 34), like crossfade
 - [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
@@ -351,7 +351,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
-- [x] First scene loads under the splash — scene swaps run while a game-blocking screen covers loading (`UIScreen::CoversLoading`; the splash only while its image is fully shown), instead of after the splash. Synchronous for now: the splash holds on its logo during the load (background loading is slice 7)
+- [x] First scene loads under the splash — scene swaps run while a game-blocking screen covers loading (`UIScreen::CoversLoading`; the splash only while its image is fully shown), instead of after the splash. The scene's files load on the loader thread while the splash animates (`OnPrepare`); only the short `OnLoad` runs under the logo
 - [x] Hand-off into the first scene fades in — fades hold while the scene is hidden, so it fades in from black as the splash ends (skipping too)
 - [x] Engine splash is engine-owned: its content and timing are defined inside the engine (`ApplicationBoot.cpp`), not exposed to games. Games append their own splash entries after it (`BootConfig::SplashImages`) but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
 - [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)

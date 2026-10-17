@@ -60,6 +60,8 @@ constexpr f32 PlayerSpeed = 240.0f; // world px/sec
 class ArcDemo : public Scene
 {
 protected:
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
     void OnLoad() override
     {
         _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());

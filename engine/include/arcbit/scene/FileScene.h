@@ -20,7 +20,10 @@ namespace Arcbit
 //
 //   scenes.Register("Cave", [] { return std::make_unique<FileScene>("assets/scenes/cave.arcscene"); });
 //
-// OnLoad reads the file through the application's SceneRegistry and assets.
+// OnPrepare (on the loader thread) parses the file and decodes the textures
+// it names - the tilemap's atlases, "texture" and "sheet" component fields -
+// so OnLoad only builds the scene through the application's SceneRegistry
+// and assets.
 // Per frame it applies the file's ambient light and, when physics debug draw
 // is on, draws collider outlines. Textures and sprite sheets it loads are
 // owned by the scene and released when it unloads.
@@ -30,6 +33,7 @@ class FileScene : public Scene
 public:
     explicit FileScene(std::string path) : _path(std::move(path)) {}
 
+    void OnPrepare(ScenePreloader& preload) override;
     void OnLoad() override;
     void OnRender(FramePacket& packet) override;
 
@@ -47,10 +51,11 @@ public:
     [[nodiscard]] const std::string& GetPath() const { return _path; }
 
 private:
-    std::string          _path;
-    nlohmann::json       _document;
-    SceneFile::IdMap     _ids;
-    std::optional<Color> _ambient;
-    bool                 _loaded = false;
+    std::string                   _path;
+    std::optional<nlohmann::json> _parsed; // read by OnPrepare, consumed by OnLoad
+    nlohmann::json                _document;
+    SceneFile::IdMap              _ids;
+    std::optional<Color>          _ambient;
+    bool                          _loaded = false;
 };
 } // namespace Arcbit

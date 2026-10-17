@@ -132,6 +132,14 @@ public:
                        SamplerHandle   sampler, std::string_view samplerName,
                        TextureManager& textures);
 
+    // The atlas images an .arcmap uses (read from the map and its
+    // .tileatlas.json files), without loading anything. Thread-safe - a scene
+    // preloader decodes them ahead of LoadMap. Unreadable files are skipped.
+    [[nodiscard]] static std::vector<std::string> TexturePathsOf(std::string_view mapPath);
+
+    // The image a .tileatlas.json names; empty if unreadable. Thread-safe.
+    [[nodiscard]] static std::string AtlasTexturePathOf(std::string_view atlasPath);
+
     // ---- JSON (de)serialization -------------------------------------------
     // The file-level functions above are I/O + texture loading wrapped around
     // these, which are public so the formats can be parsed and validated

@@ -9,6 +9,10 @@
 // `arcbit-game --cycle <seconds>` runs a soak test that needs no keyboard: on
 // a timer it pushes the battle, pops it, and moves to the next demo, so every
 // scene loads, suspends, resumes and unloads over and over.
+//
+// `--load-delay <seconds>` makes every scene's background load take that much
+// longer, to watch the splash and fades keep animating over a slow load. The
+// battle is preloaded while a demo runs, so B stays instant even then.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
@@ -64,12 +68,19 @@ constexpr const char* LastDemoKey = "demo.last";
 class DemoApp : public Application
 {
 public:
-    explicit DemoApp(const f32 cycleSeconds) :
-        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080 }), _cycleSeconds(cycleSeconds)
+    struct Options
+    {
+        f32 CycleSeconds = 0.0f; // --cycle
+        f32 LoadDelay    = 0.0f; // --load-delay
+    };
+
+    explicit DemoApp(const Options& options) :
+        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080 }),
+        _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay)
     {
         // Splash, then the title menu over the last demo (already running
         // behind it); the soak test skips the title so it can drive itself.
-        _boot.ShowTitle   = cycleSeconds <= 0.0f;
+        _boot.ShowTitle   = _cycleSeconds <= 0.0f;
         _boot.CreditsPath = "assets/credits.json";
     }
 
@@ -81,11 +92,15 @@ protected:
         Demo::RegisterSceneTypes(GetSceneRegistry());
         for (const Demo::Entry& e : Demo::Entries()) GetScenes().Register(e.Name, e.Create);
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
+        GetScenes().PrepareDelay = _loadDelay;
         Open(LastOpenedIndex());
     }
 
     void OnUpdate(const f32 dt) override
     {
+        // Load the battle ahead while a demo runs, so B only has to build it.
+        if (!GetScenes().IsTransitioning() && GetScenes().GetDepth() == 1) GetScenes().Preload(BattleScene);
+
         if (GetUI().HasBlockingScreen()) return; // a menu owns the keys (the demo menu closes itself)
 
         const size_t count = Demo::Entries().size();
@@ -166,17 +181,21 @@ private:
 
     size_t _current      = 0;
     f32    _cycleSeconds = 0.0f;
+    f32    _loadDelay    = 0.0f;
     f32    _cycleTimer   = 0.0f;
     u32    _cycleStep    = 0;
 };
 
 int main(const int argc, char* argv[])
 {
-    f32 cycleSeconds = 0.0f;
-    for (int i = 1; i + 1 < argc; ++i)
-        if (std::string_view(argv[i]) == "--cycle") cycleSeconds = std::stof(argv[i + 1]);
+    DemoApp::Options options;
+    for (int i = 1; i + 1 < argc; ++i) {
+        const std::string_view arg = argv[i];
+        if (arg == "--cycle") options.CycleSeconds = std::stof(argv[i + 1]);
+        if (arg == "--load-delay") options.LoadDelay = std::stof(argv[i + 1]);
+    }
 
-    DemoApp app(cycleSeconds);
+    DemoApp app(options);
     app.Run();
     return EXIT_SUCCESS;
 }

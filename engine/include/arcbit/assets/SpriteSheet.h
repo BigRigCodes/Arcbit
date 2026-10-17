@@ -97,6 +97,10 @@ public:
     [[nodiscard]] static SpriteSheet FromJson(const nlohmann::json& json, TextureHandle texture,
                                               u32 texW, u32 texH, std::string_view sourceName = "<json>");
 
+    // The image a sheet's metadata names, resolved relative to metaPath's
+    // directory as Load() does; empty if the JSON has no "texture" string.
+    [[nodiscard]] static std::string TexturePathOf(std::string_view metaPath, const nlohmann::json& json);
+
     // The format's major version this loader understands. "1", "1.0", "1.3"
     // are accepted; "2.0" or a non-string version is rejected.
     static constexpr std::string_view SupportedMajorVersion = "1";

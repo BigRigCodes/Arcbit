@@ -11,6 +11,7 @@ namespace Arcbit
 class InputManager;
 class RenderDevice;
 class Scene;
+class ScenePreloader;
 class SceneRegistry;
 class TextureManager;
 class TileMap;
@@ -38,6 +39,9 @@ namespace Demo
 [[nodiscard]] bool LoadGrassAndWaterAtlases(Arcbit::TileMap& tilemap,
                                             Arcbit::TextureManager& textures,
                                             Arcbit::SamplerHandle nearestSampler);
+
+// Decode the grass and water atlas images ahead, from a scene's OnPrepare.
+void PreloadGrassAndWaterAtlases(Arcbit::ScenePreloader& preload);
 
 // Register every demo's input actions and default bindings, once, app-wide.
 // The demos share one InputManager, so no scene registers its own (a reload

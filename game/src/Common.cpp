@@ -7,6 +7,7 @@
 #include <arcbit/physics/PhysicsCallbacks.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/Scene.h>
+#include <arcbit/scene/ScenePreloader.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/render/RenderTypes.h>
 #include <arcbit/render/RenderThread.h>
@@ -43,6 +44,12 @@ TextureHandle CreateWhiteTexture(RenderDevice& device)
     constexpr u8        white[4] = { 255, 255, 255, 255 };
     device.UploadTexture(tex, white, sizeof(white));
     return tex;
+}
+
+void PreloadGrassAndWaterAtlases(ScenePreloader& preload)
+{
+    preload.AddTileAtlas("assets/tilemaps/grass.tileatlas.json");
+    preload.AddTileAtlas("assets/tilemaps/water.tileatlas.json");
 }
 
 bool LoadGrassAndWaterAtlases(TileMap& tilemap, TextureManager& textures,

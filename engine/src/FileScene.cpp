@@ -5,6 +5,7 @@
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/scene/SceneAssets.h>
+#include <arcbit/scene/ScenePreloader.h>
 #include <arcbit/tilemap/TileMap.h>
 
 namespace Arcbit
@@ -58,6 +59,23 @@ namespace
         Application& _app;
     };
 
+    // The texture and sprite sheet paths entity components name.
+    void PreloadComponentAssets(const nlohmann::json& doc, ScenePreloader& preload)
+    {
+        const auto entities = doc.find("entities");
+        if (entities == doc.end() || !entities->is_object()) return;
+        for (const nlohmann::json& entity : *entities) {
+            if (!entity.is_object()) continue;
+            for (const nlohmann::json& component : entity) {
+                if (!component.is_object()) continue;
+                if (const auto it = component.find("texture"); it != component.end() && it->is_string())
+                    preload.AddTexture(it->get<std::string>());
+                if (const auto it = component.find("sheet"); it != component.end() && it->is_string())
+                    preload.AddSpriteSheet(it->get<std::string>());
+            }
+        }
+    }
+
     std::optional<Color> ReadAmbient(const nlohmann::json& doc)
     {
         const auto render = doc.find("render");
@@ -67,9 +85,19 @@ namespace
     }
 } // namespace
 
+void FileScene::OnPrepare(ScenePreloader& preload)
+{
+    _parsed = SceneFile::ReadFile(_path);
+    if (!_parsed) return;
+    if (const auto map = _parsed->find("tilemap"); map != _parsed->end() && map->is_string())
+        preload.AddTileMap(map->get<std::string>());
+    PreloadComponentAssets(*_parsed, preload);
+}
+
 void FileScene::OnLoad()
 {
-    std::optional<nlohmann::json> doc = SceneFile::ReadFile(_path);
+    std::optional<nlohmann::json> doc = _parsed ? std::move(_parsed) : SceneFile::ReadFile(_path);
+    _parsed.reset();
     if (!doc) return;
 
     AppSceneAssets assets(*this);

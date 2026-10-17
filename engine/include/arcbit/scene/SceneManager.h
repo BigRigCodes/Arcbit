@@ -2,8 +2,10 @@
 
 #include <arcbit/core/Types.h>
 #include <arcbit/scene/Scene.h>
+#include <arcbit/scene/ScenePreloader.h>
 
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -14,6 +16,7 @@ namespace Arcbit {
 
 class Application;
 class InputManager;
+class TextureManager;
 
 // ---------------------------------------------------------------------------
 // SceneManager — owns a stack of scenes and switches between registered ones.
@@ -38,6 +41,14 @@ class InputManager;
 // old scene destroyed. Loading the new scene first keeps textures the two
 // share alive instead of freeing and reloading them.
 //
+// Loading ahead: a Switch or Push creates the next scene at once and runs its
+// OnPrepare (file reads, image decodes) on a loader thread while the fade-out
+// plays. The swap itself - OnLoad, which then only uploads and builds
+// entities - waits at black until the prepare is done, so a slow load holds
+// the screen black instead of freezing a fade or the splash. Preload(name)
+// starts that work early, with the current scene still running, so the
+// switch later finds it done.
+//
 // Scene stack: Push loads a scene on top and suspends the one under it
 // (OnSuspend; it isn't updated or drawn and its sounds stop, but its state
 // is kept); Pop unloads the top scene and resumes the one below (OnResume).
@@ -60,7 +71,15 @@ public:
         Application*          App   = nullptr; // Scene::GetApp, texture release
         const InputManager*   Input = nullptr; // Scene::SetInput on every new scene
         std::function<void()> Quiesce;         // RenderThread::WaitIdle before a swap
+        TextureManager*       Textures = nullptr; // images decoded ahead are staged here before OnLoad
+        bool                  PrepareOnThread = false; // OnPrepare on a loader thread; off = inline (tests)
     };
+
+    SceneManager() = default;
+    ~SceneManager(); // waits for any loader thread still running
+
+    SceneManager(const SceneManager&)            = delete;
+    SceneManager& operator=(const SceneManager&) = delete;
 
     void SetHost(Host host) { _host = std::move(host); }
 
@@ -79,6 +98,13 @@ public:
     // Queue unloading the active scene and resuming the one below it. Ignored
     // (with a warning) when there's nothing below.
     void Pop();
+
+    // Start loading `name` ahead (its OnPrepare, on the loader thread) without
+    // switching; the active scene keeps running. A later Switch or Push to the
+    // same name uses the prepared scene. One scene is prepared at a time, so
+    // preloading or switching to another name discards it. Ignored while a
+    // switch or push is queued.
+    void Preload(std::string_view name);
 
     // Install a scene immediately, with no fade and no lifecycle hooks — for
     // Application's default unmanaged scene.
@@ -106,8 +132,16 @@ public:
     [[nodiscard]] f32  GetFadeAlpha() const { return _alpha; }
     [[nodiscard]] bool IsTransitioning() const { return _phase != Phase::Idle || _hasPending; }
 
+    // True while a swap is held at black, waiting for the next scene's
+    // OnPrepare to finish.
+    [[nodiscard]] bool IsLoading() const;
+
     f32 FadeOutTime = 0.3f; // seconds; 0 = cut to black
     f32 FadeInTime  = 0.3f; // seconds; 0 = cut in
+
+    // Debug: the loader thread sleeps this long after each OnPrepare, to try
+    // out a slow load (the splash and fades should keep animating over it).
+    f32 PrepareDelay = 0.0f;
 
 private:
     enum class Phase : u8
@@ -124,7 +158,24 @@ private:
         Pop,
     };
 
+    // A scene being loaded ahead: created on the main thread, OnPrepare run
+    // on the loader thread (Done), then taken by the swap. Heap-allocated so
+    // the loader thread's pointer to it stays valid.
+    struct Prepared
+    {
+        std::string                     Name;
+        std::unique_ptr<Scene>          Instance;
+        std::unique_ptr<ScenePreloader> Preload;
+        f32                             Seconds = 0.0f; // OnPrepare's duration, set by the loader
+        std::future<void>               Done;           // invalid when it ran inline; destroyed first, so it waits
+    };
+
     void Queue(Request kind, std::string_view name, std::string entry);
+    void StartPrepare(std::string_view name);
+    void Abandon(); // drop the prepared scene; one still loading waits in _abandoned
+    void ReapAbandoned();
+    [[nodiscard]] bool IsReady() const; // the queued request can swap now
+    [[nodiscard]] std::unique_ptr<Scene> TakePrepared();
     void StartPending();
     void Swap();
     void SwapReplace();
@@ -132,11 +183,14 @@ private:
     void SwapPop();
     void UnloadAll();
 
-    [[nodiscard]] std::unique_ptr<Scene> Create(); // the pending scene, named and wired to the host
+    [[nodiscard]] std::unique_ptr<Scene> Create(const std::string& name); // named and wired to the host
 
     Host                                     _host;
     std::unordered_map<std::string, Factory> _factories;
     std::vector<std::unique_ptr<Scene>>      _stack; // bottom first; back() is active
+
+    std::unique_ptr<Prepared>              _prepared;  // the next scene, loading or loaded ahead
+    std::vector<std::unique_ptr<Prepared>> _abandoned; // replaced while still loading
 
     Request     _pendingKind = Request::Switch;
     std::string _pendingName;

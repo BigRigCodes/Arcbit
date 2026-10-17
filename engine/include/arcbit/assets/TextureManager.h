@@ -9,6 +9,8 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace Arcbit {
 
@@ -23,6 +25,14 @@ struct TextureInfo
 {
     u32 Width  = 0;
     u32 Height = 0;
+};
+
+// RGBA8 pixels decoded from an image file, not yet on the GPU.
+struct DecodedImage
+{
+    u32             Width  = 0;
+    u32             Height = 0;
+    std::vector<u8> Pixels; // Width * Height * 4 bytes
 };
 
 // ---------------------------------------------------------------------------
@@ -60,7 +70,10 @@ struct TextureInfo
 //
 // Thread safety
 // -------------
-//   NOT thread-safe. Call from the main/game thread only.
+//   NOT thread-safe. Call from the main/game thread only. The exceptions are
+//   the static Decode() and NormalizePath(), which a loader thread uses to
+//   decode images ahead of time; the main thread hands the results to Stage()
+//   so the next Load / Acquire of that path only uploads.
 // ---------------------------------------------------------------------------
 class TextureManager
 {
@@ -110,6 +123,28 @@ public:
     // Returns width/height of a cached texture, or zeroes if not found.
     [[nodiscard]] TextureInfo GetInfo(TextureHandle handle) const;
 
+    // --- Loading ahead (scene streaming) ------------------------------------
+
+    // The cache key for a path: separators and redundant components
+    // normalized, so equivalent spellings share one entry. Thread-safe.
+    [[nodiscard]] static std::string NormalizePath(std::string_view path);
+
+    // Read and decode an image file to RGBA8 without touching the GPU.
+    // Thread-safe. Null (and logged) if the file can't be read or decoded.
+    [[nodiscard]] static std::optional<DecodedImage> Decode(const std::string& path);
+
+    // Normalized paths of every cached texture - lets a loader thread skip
+    // decoding what is already on the GPU.
+    [[nodiscard]] std::unordered_set<std::string> GetLoadedPaths() const;
+
+    // Hand over images decoded ahead of time, keyed by normalized path. A
+    // later Load / Acquire of one of those paths uploads it instead of reading
+    // the file. Paths already cached are ignored.
+    void Stage(std::unordered_map<std::string, DecodedImage> images);
+
+    // Drop staged images nothing loaded. Returns how many were dropped.
+    size_t ClearStaged();
+
 private:
     struct CacheEntry
     {
@@ -126,9 +161,13 @@ private:
     // the file fails to load.
     [[nodiscard]] CacheEntry* FindOrLoad(std::string_view path);
 
-    // Decode the file at the given (already-normalized) path, upload to GPU,
-    // insert into both caches, and return the new handle.
+    // Decode the file at the given (already-normalized) path - or take its
+    // staged image - upload to GPU, insert into both caches, and return the
+    // new handle.
     [[nodiscard]] TextureHandle LoadFromDisk(const std::string& path);
+
+    // Upload decoded pixels as a new cached texture.
+    [[nodiscard]] TextureHandle Upload(const std::string& path, const DecodedImage& image);
 
     // Re-decode and re-upload a cached entry (same handle, new pixels).
     void ReloadFromDisk(const std::string& path);
@@ -140,6 +179,9 @@ private:
 
     // Reverse lookup: handle.Value → path (for Unload and Reload).
     std::unordered_map<u32, std::string> _handleToPath;
+
+    // Images decoded ahead of time (Stage), waiting for their first load.
+    std::unordered_map<std::string, DecodedImage> _staged;
 };
 
 } // namespace Arcbit

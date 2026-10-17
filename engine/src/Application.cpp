@@ -145,7 +145,11 @@ void Application::Run()
 
     // Install a default scene before OnStart so game code can use GetScene()
     // immediately; a game that registers scenes replaces it with Switch().
-    _scenes.SetHost({ .App = this, .Input = &_input, .Quiesce = [this] { _renderThread.WaitIdle(); } });
+    _scenes.SetHost({ .App             = this,
+                      .Input           = &_input,
+                      .Quiesce         = [this] { _renderThread.WaitIdle(); },
+                      .Textures        = _textures.get(),
+                      .PrepareOnThread = true });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses

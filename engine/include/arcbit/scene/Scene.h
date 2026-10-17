@@ -18,6 +18,7 @@ struct FramePacket;
 class Application;
 class InputManager;
 class PhysicsWorld;
+class ScenePreloader;
 class SpriteSheet;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,13 @@ public:
     Scene& operator=(const Scene&) = delete;
 
     // --- Lifecycle hooks (called by SceneManager) ---------------------------
+
+    // Load ahead, on a loader thread, while the previous scene keeps running:
+    // read and parse files into this scene's members, and name the assets
+    // OnLoad will use so they decode here (see ScenePreloader). Runs before
+    // OnLoad, once. Touch nothing outside this object - not the World,
+    // GetApp(), the GPU, UI or audio; those belong in OnLoad.
+    virtual void OnPrepare(ScenePreloader& /*preload*/) {}
 
     // Build entities, acquire resources (LoadTexture), register scene systems.
     virtual void OnLoad() {}

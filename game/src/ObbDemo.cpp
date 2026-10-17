@@ -77,6 +77,8 @@ struct PropDesc
 class ObbDemo : public Scene
 {
 protected:
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
     void OnLoad() override
     {
         _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());

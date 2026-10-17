@@ -80,6 +80,8 @@ constexpr Vec2 TileCenter(const i32 tx, const i32 ty) { return {static_cast<f32>
 class TriggerDemo : public Scene
 {
 protected:
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
     void OnLoad() override
     {
         _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());

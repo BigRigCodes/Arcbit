@@ -11,6 +11,7 @@
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/RenderTypes.h>
 #include <arcbit/scene/Scene.h>
+#include <arcbit/scene/ScenePreloader.h>
 #include <arcbit/tilemap/TileMap.h>
 #include <arcbit/ui/HudScreen.h>
 #include <arcbit/ui/PauseMenuScreen.h>
@@ -98,6 +99,17 @@ struct ShipInfo
 class WorldDemo : public Scene
 {
 protected:
+    // Decode the map's atlases and the sprite images ahead, on the loader
+    // thread; OnLoad's loads then only upload them.
+    void OnPrepare(ScenePreloader& preload) override
+    {
+        preload.AddTileMap("assets/tilemaps/demo.arcmap");
+        preload.AddSpriteSheet("assets/spritesheets/player.json");
+        preload.AddTexture("assets/textures/MiniWorldSprites/Miscellaneous/PirateShip.png");
+        preload.AddTexture("assets/textures/MiniWorldSprites/Miscellaneous/Bridge.png");
+        preload.AddTexture("assets/textures/ui_panel.png");
+    }
+
     void OnLoad() override
     {
         GetConfig().TileSize = TileSize;

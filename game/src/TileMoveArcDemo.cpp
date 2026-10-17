@@ -71,6 +71,8 @@ constexpr u32 CliffTileId  = 413; // NorthOnly
 class TileMoveArcDemo : public Scene
 {
 protected:
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
     void OnLoad() override
     {
         _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());
