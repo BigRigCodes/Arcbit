@@ -94,8 +94,9 @@ class Image : public UIWidget
 public:
     TextureHandle Texture;
     SamplerHandle Sampler;
-    Color         Tint = {1, 1, 1, 1};
-    UVRect        UV   = {0, 0, 1, 1};
+    Color         Tint     = {1, 1, 1, 1};
+    UVRect        UV       = {0, 0, 1, 1};
+    f32           Rotation = 0.0f; // radians, clockwise around the center (a spinner)
 
 protected:
     void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
