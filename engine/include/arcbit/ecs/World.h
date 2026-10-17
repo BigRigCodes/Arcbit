@@ -2,6 +2,7 @@
 
 #include <arcbit/ecs/AnimatorStateMachine.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Entity.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/core/Types.h>
@@ -20,22 +21,6 @@ namespace Arcbit
 
 class Scene;
 struct FramePacket;
-
-// ---------------------------------------------------------------------------
-// Entity — generational index that prevents use-after-free.
-// ---------------------------------------------------------------------------
-struct Entity
-{
-    u32 Index      = ~0u;
-    u32 Generation = 0;
-
-    [[nodiscard]] bool IsValid() const { return Index != ~0u; }
-
-    bool operator==(const Entity& o) const { return Index == o.Index && Generation == o.Generation; }
-    bool operator!=(const Entity& o) const { return !(*this == o); }
-
-    static Entity Invalid() { return {}; }
-};
 
 // ---------------------------------------------------------------------------
 // Component type IDs — assigned once per type at first use, no macros/RTTI.
@@ -178,7 +163,25 @@ public:
     Entity CreateEntity();
 
     // Destroy an entity. Bumps its generation so stale handles are rejected.
+    // Runs OnRemove hooks for each of its components first.
     void DestroyEntity(Entity entity);
+
+    // Run `fn` whenever a T leaves an entity, through RemoveComponent<T> or
+    // DestroyEntity. Use it to release what a component refers to outside the
+    // World (a broadphase record, a sound handle) so no removal path can leak
+    // it. `fn` sees the component just before it goes away and must not add,
+    // remove, or destroy anything while it runs.
+    template<typename T>
+    void OnRemove(std::function<void(Entity, T&)> fn)
+    {
+        _removeHooks[TypeOf<T>()].push_back(
+            [fn = std::move(fn)](const Entity e, void* component) { fn(e, *static_cast<T*>(component)); });
+    }
+
+    // Destroy every entity, running OnRemove hooks for each — Scene's
+    // destructor uses this so components holding outside resources (sounds,
+    // broadphase records) release them. The World's destructor alone doesn't.
+    void DestroyAllEntities();
 
     // Returns true if the entity is alive and its generation matches the table.
     [[nodiscard]] bool IsValid(Entity entity) const;
@@ -218,6 +221,8 @@ public:
         ARCBIT_ASSERT(IsValid(entity), "RemoveComponent: invalid entity");
         auto& rec = _entityTable[entity.Index];
         ARCBIT_ASSERT(rec.mask & (1ULL << TypeOf<T>()), "RemoveComponent: component not present");
+
+        RunRemoveHooks(entity, TypeOf<T>());
 
         const ComponentMask newMask = rec.mask & ~(1ULL << TypeOf<T>());
         Archetype&          newArch = GetOrCreateArchetype(newMask);
@@ -278,8 +283,15 @@ private:
     std::vector<std::pair<std::string, UpdateFn>> _updateSystems;
     std::vector<std::pair<std::string, RenderFn>> _renderSystems;
 
+    using RemoveHook = std::function<void(Entity, void*)>;
+    std::unordered_map<ComponentTypeID, std::vector<RemoveHook>> _removeHooks;
+
     Archetype& GetOrCreateArchetype(ComponentMask mask);
     void       SwapRemoveFromArchetype(Archetype& arch, u32 slot);
+
+    // Call the OnRemove hooks for one of the entity's components (no-op when
+    // nothing is registered for that type).
+    void RunRemoveHooks(Entity entity, ComponentTypeID type);
 };
 
 // ---------------------------------------------------------------------------

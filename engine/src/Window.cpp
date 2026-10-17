@@ -125,6 +125,11 @@ void Window::ToggleFullscreen()
     LOG_INFO(Platform, "Fullscreen: {}", _isFullscreen ? "on" : "off");
 }
 
+void Window::SetTitle(const std::string_view title)
+{
+    SDL_SetWindowTitle(ToSDL(_window), std::string(title).c_str());
+}
+
 void Window::SetKeyEventCallback(std::function<void(i32, bool)> fn)
 {
     _keyEventFn = std::move(fn);

@@ -4,6 +4,7 @@
 #include <arcbit/core/Math.h>
 #include <arcbit/render/RenderHandle.h>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -80,6 +81,13 @@ public:
     // directory. Returns an invalid SpriteSheet on any error — check IsValid().
     [[nodiscard]] static SpriteSheet Load(std::string_view metaPath, TextureManager& textures);
 
+    // Load, but the texture comes from `loadTexture` (given the resolved
+    // image path) instead of TextureManager::Load - e.g. Scene::LoadTexture,
+    // so the sheet's texture is owned by a scene. `textures` still answers
+    // the texture's size.
+    [[nodiscard]] static SpriteSheet Load(std::string_view metaPath, TextureManager& textures,
+                                          const std::function<TextureHandle(std::string_view)>& loadTexture);
+
     // Build a spritesheet from already-parsed sprite format JSON and an
     // already-loaded texture of texW × texH pixels. Load() is file I/O +
     // texture upload + this; it is public so the format can be parsed and
@@ -88,6 +96,10 @@ public:
     // version is missing or unsupported, or the texture is invalid / empty.
     [[nodiscard]] static SpriteSheet FromJson(const nlohmann::json& json, TextureHandle texture,
                                               u32 texW, u32 texH, std::string_view sourceName = "<json>");
+
+    // The image a sheet's metadata names, resolved relative to metaPath's
+    // directory as Load() does; empty if the JSON has no "texture" string.
+    [[nodiscard]] static std::string TexturePathOf(std::string_view metaPath, const nlohmann::json& json);
 
     // The format's major version this loader understands. "1", "1.0", "1.3"
     // are accepted; "2.0" or a non-string version is rejected.

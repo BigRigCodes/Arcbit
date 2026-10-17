@@ -3,6 +3,7 @@
 #include <arcbit/core/Types.h>
 
 #include <functional>
+#include <string_view>
 
 namespace Arcbit {
 
@@ -71,6 +72,9 @@ public:
     // Toggle between windowed and borderless fullscreen. F11 also triggers this
     // automatically inside PollEvents — no game code required.
     void ToggleFullscreen();
+
+    // Replace the title bar text.
+    void SetTitle(std::string_view title);
 
     // True if a SDL_EVENT_WINDOW_RESIZED event was processed in the most recent
     // PollEvents call. Cleared at the start of every PollEvents call, so it is

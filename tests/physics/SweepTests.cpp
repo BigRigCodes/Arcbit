@@ -178,3 +178,23 @@ TEST_CASE("Substep sweep: a touching circle can leave or slide, but not push in"
         CHECK_THAT(into.Normal.Y, WithinAbs(n.Y, Tol));
     }
 }
+
+TEST_CASE("Starting inside an obstacle is not a hit", "[physics][sweep]")
+{
+    // Regression: a mover inside an obstacle got a hit with a normal opposite
+    // its motion, so inside a directional collider every move whose reverse
+    // fell in the blocking arc was refused (stuck inside a one-way gate).
+    SECTION("slab path")
+    {
+        const AABB around = AABB::FromCenterHalfExtents({ 2.0f, 1.0f }, { 20.0f, 20.0f });
+        CHECK_FALSE(MovingAABBvsAABB(Mover, { 30.0f, 0.0f }, around).Hit);
+        CHECK_FALSE(MovingAABBvsAABB(Mover, { 0.0f, -30.0f }, around).Hit);
+    }
+    SECTION("substep path")
+    {
+        const Collider2D circle{ .Shape = ColliderShape::Circle, .Radius = 4.0f };
+        const Collider2D box{ .Shape = ColliderShape::Box, .Rotation = 0.6f, .HalfExtents = { 20.0f, 6.0f } };
+        for (const Vec2 delta : { Vec2{ 10.0f, 0.0f }, Vec2{ 0.0f, 10.0f }, Vec2{ -7.0f, -7.0f } })
+            CHECK_FALSE(SweepAgainst(circle, {}, delta, box, {}).Hit);
+    }
+}

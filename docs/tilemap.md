@@ -602,48 +602,10 @@ map load so movement systems see the right value.
 
 ## Scene File Format (`.arcscene`)
 
-Because entities and tiles are both part of a level but stored differently, the
-scene file is the single thing the editor saves and the engine loads. It
-*references* the tilemap as a separate asset and *embeds* the entity list inline.
-
-```json
-{
-    "version": "1.0",
-    "tilemap": "maps/village.arcmap",
-    "world_config": { "tile_size": 16 },
-    "entities": [
-        {
-            "id": "e001",
-            "tag": "NPC",
-            "template": "Guard NPC",
-            "transform": { "x": 96, "y": 64 },
-            "overrides": {
-                "AIBehavior": { "patrol_path": [[96,64],[160,64],[160,128]] }
-            }
-        },
-        {
-            "id": "e002",
-            "tag": "Interactive",
-            "transform": { "x": 80, "y": 112 },
-            "components": [
-                { "type": "SpriteRenderer", "texture": "assets/textures/chest.png" },
-                { "type": "Interactable",   "on_interact": "scripts/open_chest.lua" }
-            ]
-        },
-        {
-            "id": "e003",
-            "tag": "Prop",
-            "transform": { "x": 32, "y": 48 },
-            "components": [
-                { "type": "SpriteRenderer", "texture": "assets/textures/campfire.png" },
-                { "type": "Animator",       "sheet": "assets/spritesheets/campfire.json", "default_clip": "burn" },
-                { "type": "LightEmitter",   "radius": 150, "intensity": 1.2, "layer": "World" },
-                { "type": "AudioSource",    "path": "assets/sfx/fire_loop.wav",  "radius": 200 }
-            ]
-        }
-    ]
-}
-```
+The scene file is the single thing the editor saves for a level and the
+engine loads. It *references* the tilemap as an `.arcmap` and *embeds* the
+entity list. The format is specified in [scenes.md](scenes.md#scene-file-format-arcscene);
+`FileScene` loads it (map first, then `tile_overrides`, then entities).
 
 ### Why tilemap and entity list are separate files
 
@@ -658,29 +620,9 @@ scene file is the single thing the editor saves and the engine loads. It
 
 ### Loading at runtime
 
-`Scene::Load` handles both in one call (Phase 23):
-
-```cpp
-void Scene::Load(std::string_view scenePath)
-{
-    // 1. Load tilemap asset.
-    const auto& j = ParseJson(scenePath);
-    _tilemap.LoadMap(j["tilemap"]);
-    _config.TileSize = j["world_config"]["tile_size"];
-
-    // 2. Spawn entities.
-    for (const auto& def : j["entities"])
-    {
-        Entity e = def.contains("template")
-            ? _world.SpawnFromTemplate(def["template"], ReadVec2(def["transform"]))
-            : _world.CreateEntity();
-
-        ApplyTransform(e, def["transform"]);
-        if (def.contains("overrides"))  ApplyOverrides(e, def["overrides"]);
-        if (def.contains("components")) ApplyComponents(e, def["components"]);
-    }
-}
-```
+`FileScene::OnLoad` reads the scene file, loads the referenced `.arcmap`
+through `TileMap::LoadMap` (atlases, tile size, chunks), applies the scene's
+`tile_overrides`, then creates the entities. See [scenes.md](scenes.md).
 
 ### Editor tool → file mapping
 

@@ -194,6 +194,9 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Music streaming (looping background track, crossfade)
 - [x] `AudioSource` ECS component (spatial attenuation for point sounds)
 - [x] Wire volume levels to Settings System (Phase 10)
+- [x] Volume settings are perceived loudness, not amplitude - `AudioManager::SliderToGain` (gain = slider^(1/0.6), Stevens' power law): 100 is the authored mix, 50 sounds half as loud (-10 dB), 10 a tenth (-33 dB); a linear slider left 10% at only -20 dB, which still sounded loud
+- [x] `PlayOneShot` honors its `volume` (it used `ma_engine_play_sound`, which has none, so every one-shot played at full gain)
+- [ ] Loudness guidance for game assets (e.g. music around -24 to -26 LUFS, SFX peaks below -3 dBFS), checked by `arcbit-pack` at import (Phase 36)
 
 ---
 
@@ -306,32 +309,65 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Update `docs/ecs.md` movement section and built-in system table
 - [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
+
+### Phase 22I - Physics responses
+*Movement that comes from the world rather than the mover's own intent. Lands before Phase 32 (Live Combat), whose knockback and dash build on it.*
+- [x] External velocity on `FreeMovement` - an impulse channel added on top of the intent / authored velocity and decayed by `Friction`. Since 22H an intent-driven mover's `Velocity` is rewritten every tick, so an impulse written to `Velocity` would vanish next tick. Knockback, dash bursts, conveyors and bumpers all use it
+- [x] Push-out (depenetration) for obstacle-caused overlaps - a free mover overlapping a collider it didn't walk into (a rotating gate turning into it, a prop spawned or teleported onto it) is pushed out along the contact normal. Overlaps the mover made itself (entering a directional collider through a pass-through face) are left alone, so one-way colliders still work
+- [x] Pushable objects - a `Pushable` component; a free mover walking into one shoves it along (swept against the world, so it stops at walls) at a configurable resistance
+- [x] Tile-mover pushing (Sokoban-style crates) - a tile step into a `Pushable` moves it one tile if the cell beyond is clear; a smooth mover carries the crate one tile ahead in lockstep so a held push never stalls (crates in TileMoveDemo)
+- [x] Demos - a bumper and a pushable crate in PhysicsDemo; ObbDemo's gate rotates through the player instead of stalling
+
 ---
 
 ## Phase 23: Scene Management
 *`Scene` already exists from Phase 16 (ECS world, camera, `WorldConfig`, `TileMap`, lazily-created `PhysicsWorld`; lights are entities), but `Application` owns exactly one for the whole run. This phase makes scenes swappable, then uses that for a demo switcher and a proper boot flow.*
 
 **Foundations**
-- [ ] Entity destroy cleanup — only `LifetimeSystem` unregisters a destroyed entity's collider today; any other `DestroyEntity` leaves a stale broadphase record that keeps blocking movers and overlapping triggers. One destroy path (hook or `Scene::DestroyEntity`) that every caller goes through, and scene unload releases everything at once
-- [ ] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks, so game setup that lives in `Application::OnStart` today moves onto the scene it builds
+- [x] Entity destroy cleanup — `World::OnRemove<T>` hooks run whenever a component leaves an entity (`RemoveComponent` or `DestroyEntity`); `Scene` hooks `Collider2D` to drop the broadphase record, so no removal path leaves an invisible wall. `LifetimeSystem`'s manual unregister is gone
+- [x] Mid-run GPU resource safety — `RenderThread::WaitIdle()` parks the render thread and drains the GPU so the main thread can create / destroy resources between frames (scene switches); texture hot-reload now goes through it instead of racing the render thread
+- [x] Scene lifecycle — scene types with `OnLoad` / `OnUnload` / `OnUpdate` / `OnRender` hooks (plus `OnPrepare` for background loading and `OnSuspend` / `OnResume` for the stack), so game setup that lives in `Application::OnStart` today moves onto the scene it builds. The hooks are engine extension points: a data-driven scene (below) is one generic `FileScene` class whose `OnLoad` reads an `.arcscene`, so editor-made games need no C++ scene subclasses
 
 **SceneManager**
-- [ ] `SceneManager` — load / unload / switch the active scene; `Application` drives the active one instead of owning a single `Scene`
-- [ ] Transition effects (fade-to-black, crossfade) using the GUI system (Phase 21) — every scene change fades the outgoing scene out *and the incoming one in*
-- [ ] Async streaming: load the next scene in the background while the current one keeps running
-- [ ] Scene stack — a scene suspended under another without unloading (e.g. a battle scene over the overworld, resumed with state intact). UI overlays like inventory stay on the UI screen stack
-- [ ] Entry-point scene configured in `project.arcbit` (Phase 37)
+- [x] `SceneManager` — load / unload / switch the active scene by name (`Register(name, factory)`, queued `Switch(name)`); `Application` drives the active one instead of owning a single `Scene`
+- [x] Scene-owned resources — textures acquired through `Scene::LoadTexture` are reference-counted (`TextureManager::Acquire` / `Release`) and released automatically on unload; a data-driven scene can't hand-write cleanup
+- [x] Scene-owned sprite sheets — `Scene::LoadSpriteSheet` caches sheets per scene and loads their textures through `LoadTexture`, so they're released on unload (`Animator.sheet` in scene files)
+- [x] Scene-owned music — `Scene::SetMusic` (`"music"` in scene files): the active scene's track crossfades in at each swap (`SceneManager::MusicFadeTime`), a shared track carries on, a departing owner's track fades out, and a scene suspended under a push resumes its track where it was. Scenes that never set music leave app-level music alone. `AudioManager` music gained crossfades (two slots), seek and position; `MusicPlayer` is the seam that makes it testable headless
+- [x] Entry point on switch — `Switch(name, entry)` so a door or script can say where the player arrives (e.g. a named spawn marker)
+- [x] Fade-to-black transitions — every scene change fades the outgoing scene out *and the incoming one in* (full-window quad under the UI); the first scene fades in from black
+- [ ] Crossfade transition (needs the outgoing scene rendered to an offscreen target — Phase 34's render-target work)
+- [x] Async streaming: load the next scene in the background while the current one keeps running - `Scene::OnPrepare` runs on a loader thread (file reads, image decodes through `ScenePreloader`) while the fade-out plays; the main-thread `OnLoad` then only uploads and builds entities, and the swap holds at black until the prepare is done. `SceneManager::Preload(name)` starts it early with the current scene still running. `FileScene` and the demos prepare themselves
+- [x] Two ways to cover a load, per change (`SceneChange`): fade first (default, for doors - holds at black if the load outlasts the fade) or `WaitForLoad` (the current scene keeps running and playable until the next is ready, then fades - menu jumps, keep-playing loads)
+- [x] Loading screen over a long hold at black - the engine's `LoadingScreen` ("Loading" + animated dots + progress bar) after a short grace period, fading out as the scene fades in; `Application::SetLoadingScreen` replaces it with any `UIScreen`, `SceneChange::ShowLoadingScreen = false` keeps plain black
+- [x] Loading progress - `SceneManager::GetLoadProgress()` across three stages (prepare / decode / build). `OnPrepare` only names images and the loader decodes them afterwards, so the total is known up front and the bar is weighted by file size; scenes doing heavy work of their own claim a share (`SetShares`, `ReportPrepareProgress`). The default `LoadingScreen` draws a bar
+- [x] Measured load data in scene files - an optional `"load"` block (stage shares + the texture list they were measured with) replaces the default split; a stale texture list logs a warning to re-save
+- [x] Scene stack — `Push` suspends the active scene (`OnSuspend`; not updated or drawn, sounds stopped, state kept) and loads one on top; `Pop` unloads it and resumes the one below (`OnResume`); `Switch` replaces the whole stack. B in the demo app pushes a battle arena over any demo. UI overlays like inventory stay on the UI screen stack
+- [ ] Draw a suspended scene under the one above (e.g. a battle over a dimmed overworld) - needs the outgoing scene rendered to an offscreen target (Phase 34), like crossfade
+- [ ] Entry-point scene configured in `project.arcbit` (Phase 38)
 
 **Demo switcher**
-- [ ] Each demo becomes a scene registered in one `Application`; a demo-select menu plus a hotkey switches between them in one run. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp` and doubles as the load / unload / transition test bed
+- [x] Each demo becomes a scene registered in one `DemoApp`; F1 opens a demo-select menu, PgUp / PgDn cycle, and the last demo is remembered in settings. Replaces the `#define ARCBIT_DEMO_*` selection in `game/src/main.cpp`. `arcbit-game --cycle <seconds>` switches demos on a timer as a soak test for load / unload (no keyboard needed)
+- [x] Scene teardown releases outside resources — `Scene`'s destructor destroys its entities so `OnRemove` hooks run; an `AudioSource` hook stops its sound (a looping sound used to outlive its scene)
+
+**Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
+- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; templates / overrides reserved for prefabs
+- [x] Component registry — `SceneRegistry` maps component name ↔ C++ type ↔ JSON read / write; the engine registers its 20 built-ins, games add their own
+- [x] `.arcscene` loader and saver — `SceneFile::Load` / `Save` (headless, through a `SceneAssets` interface) and `FileScene` on top; file id → `Entity` table (`FindEntity`); exact load → save round trip tested
+- [x] Named systems — game code registers installers by name; a scene file lists the ones it uses
+- [x] At least one demo converted to an `.arcscene` — "Physics File" (`game/assets/scenes/physics.arcscene` + `maps/physics.arcmap`) runs with no C++ scene class
+- [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
-- [ ] Splash plays *while* the first scene streams in, instead of after a synchronous `OnStart` has already done all the loading
-- [ ] Hand-off into the first scene fades in. Today the splash fades its image to black, pops, and the world appears at full brightness in one frame (skipping cuts straight to it)
-- [ ] Engine splash is engine-owned: its content and timing are defined inside the engine, not exposed to games. Games append their own splash entries after it but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
+- [x] First scene loads under the splash — scene swaps run while a game-blocking screen covers loading (`UIScreen::CoversLoading`; the splash only while its image is fully shown), instead of after the splash. The scene's files load on the loader thread while the splash animates (`OnPrepare`); only the short `OnLoad` runs under the logo
+- [x] Hand-off into the first scene fades in — fades hold while the scene is hidden, so it fades in from black as the splash ends (skipping too)
+- [x] Engine splash is engine-owned: its content and timing are defined inside the engine (`ApplicationBoot.cpp`), not exposed to games. Games append their own splash entries after it (`BootConfig::SplashImages`) but can't replace, reorder, or remove it (hardened in packed builds by the Phase 36 asset protection)
 - [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
-- [ ] Title screen as the default first stop after the splashes (`MainMenuScreen` exists; it becomes the boot flow's destination rather than something each game wires by hand)
-- [ ] Credits screen — data-driven scrolling credits (sections, names, optional logos), reachable from the title screen and usable as an end-of-game roll
+- [x] Title screen as the default first stop after the splashes — `BootConfig` (`FirstScene`, `ShowTitle`, `TitleScene`, `CreditsPath`) drives splash → title → game; the engine wires the title's buttons to its own settings / credits screens
+- [x] Credits screen — `CreditsScreen` scrolls a JSON file (title, sections of heading + names, speed), reachable from the title menu; `Application::ShowCredits` can roll it at the end of a game too
+- [ ] Credits logos — image entries in the credits roll
+
+**Docs**
+- [x] `docs/scenes.md` covers the whole phase - lifecycle (hook order and threads), stack, swap rules, loading ahead and progress, boot flow, the `.arcscene` format with its `"load"` block, registry, named systems, asset ownership; `docs/ecs.md`'s Scene, removal-hook, Application-integration and file-layout sections brought up to date
 
 ---
 
@@ -536,6 +572,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
   - Extract audio and image assets to standard formats (WAV, PNG, etc.) for use as mod source material
   - "Save" is disabled on original assets — only "Save as Mod" is available, which always writes to the project's `mods/` directory signed with the mod key; original `.arcasset` files are never overwritten
 - [ ] Hot-reload: engine watches `.arcasset` mtime and re-imports on change (extends Phase 12 stub)
+- [ ] **Scene load data at pack time**: `arcbit-pack` rewrites each scene's `"load"` block (Phase 23) from the packed assets - exact sizes, never stale in a shipped build; the packed scene format puts it in a real header so it's read without parsing the whole scene, and its texture list lets the loader start decoding before discovery
 - [ ] CLI tool (`arcbit-pack`) for batch import from a source assets directory
 
 ---
@@ -595,6 +632,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [ ] Localization tools: key picker, `en.json` export, per-locale coverage report (Phase 28)
 - [ ] **Run button**: builds the game and launches it in its own window; optionally opens directly to a selected scene (useful when iterating on a specific area)
 - [ ] **Scene launch selector**: choose any registered scene as the start point before hitting Run
+- [ ] **Measure scene loads on save**: when saving a scene, time a real load (prepare / decode / build) and write the shares and texture list into its `"load"` block (Phase 23), so the loading bar is even; flag scenes whose load data is stale
 - [ ] **Engine log panel**: the running game pipes its spdlog output back to the editor over a named pipe or local socket; displayed in a filterable log panel in the editor
 - [ ] **Event monitor panel**: live stream of Event Bus events from the running game (Phase 24); filterable by event name; shows payload and source entity
 - [ ] Content export to Phase 38 folder layout (`project.arcbit` + `.arcasset` files via Phase 36 content tools)

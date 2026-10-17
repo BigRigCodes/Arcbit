@@ -30,7 +30,7 @@ public:
     {
         auto end     = std::chrono::high_resolution_clock::now();
         auto elapsed = std::chrono::duration<double, std::milli>(end - m_Start).count();
-        Log::Debug(m_Channel, "{} — {:.3f} ms", m_Name, elapsed);
+        Log::Debug(m_Channel, "{} - {:.3f} ms", m_Name, elapsed);
     }
 
     // Non-copyable, non-movable — lifetime tied to the scope.

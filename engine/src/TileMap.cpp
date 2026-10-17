@@ -352,6 +352,39 @@ bool TileMap::LoadMap(const std::string_view path, TextureManager&              
     return true;
 }
 
+namespace
+{
+    // Parse a JSON file; a missing or malformed file reads as null (LoadMap
+    // reports it when it loads for real).
+    nlohmann::json ReadJsonQuietly(const std::string_view path)
+    {
+        std::ifstream f{ std::string(path) };
+        if (!f) return nullptr;
+        return nlohmann::json::parse(f, nullptr, false); // discarded on error, no throw
+    }
+} // anonymous namespace
+
+std::vector<std::string> TileMap::TexturePathsOf(const std::string_view mapPath)
+{
+    std::vector<std::string> paths;
+    const nlohmann::json     map = ReadJsonQuietly(mapPath);
+    if (!map.is_object()) return paths;
+
+    for (const auto& a : map.value("atlases", nlohmann::json::array())) {
+        if (!a.is_object() || !a.contains("path") || !a["path"].is_string()) continue;
+        if (std::string texture = AtlasTexturePathOf(a["path"].get<std::string>()); !texture.empty())
+            paths.push_back(std::move(texture));
+    }
+    return paths;
+}
+
+std::string TileMap::AtlasTexturePathOf(const std::string_view atlasPath)
+{
+    const nlohmann::json atlas = ReadJsonQuietly(atlasPath);
+    if (!atlas.is_object() || !atlas.contains("texture") || !atlas["texture"].is_string()) return {};
+    return atlas["texture"].get<std::string>();
+}
+
 bool TileMap::SaveMap(const std::string_view path) const
 {
     std::ofstream f{std::string(path)};
@@ -477,7 +510,7 @@ namespace
         for (const auto& f : frames) {
             const auto id = f.find("local_id");
             if (id == f.end() || !id->is_number_unsigned() || columns == 0 || id->get<u32>() >= columns * rows) {
-                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} — needs a local_id inside the {}x{} atlas",
+                LOG_WARN(Engine, "TileMap: dropping flip-book frame {} - needs a local_id inside the {}x{} atlas",
                          f.dump(), columns, rows);
                 continue;
             }

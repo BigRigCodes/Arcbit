@@ -303,7 +303,7 @@ bool VulkanContext::CreateInstance(const char* appName, u32 appVersion, bool ena
         if (!CheckLayerSupport(validationLayers))
         {
             // Non-fatal — continue without validation rather than refusing to start.
-            LOG_WARN(Render, "Validation layers requested but not available — continuing without");
+            LOG_WARN(Render, "Validation layers requested but not available - continuing without");
         }
         else
         {

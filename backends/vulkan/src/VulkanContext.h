@@ -48,7 +48,7 @@ struct VulkanBuffer
     // Tracks whether this frame slot's descriptor set has already been written
     // with the current VkBuffer handle. BindStorageBuffer skips
     // vkUpdateDescriptorSets when this is true to avoid invalidating the
-    // recording command buffer (same rule as LastSampler on VulkanTexture).
+    // recording command buffer (the rule VulkanTexture::SamplerSets is built around).
     std::array<bool, MaxFramesInFlight> DescriptorSetWritten = {};
 };
 
@@ -66,17 +66,36 @@ struct VulkanTexture
     TextureUsage  Usage            = TextureUsage::None;
     bool          IsSwapchainImage = false; // swapchain images aren't VMA-owned; skip vmaDestroyImage
 
-    // One descriptor set per frame-in-flight slot.
-    // We update DescriptorSets[CurrentFrame] in BindTexture — safe because
-    // AcquireNextImage already waited on InFlight[CurrentFrame], guaranteeing
-    // that slot's previous command buffer is no longer executing on the GPU.
-    std::array<VkDescriptorSet, MaxFramesInFlight> DescriptorSets = {};
+    // True when the texture was created with TextureUsage::Sampled, i.e. it
+    // may be bound to a shader through BindTexture.
+    bool Sampled = false;
 
-    // Tracks the last sampler written into each slot's descriptor set.
-    // BindTexture skips vkUpdateDescriptorSets when the sampler hasn't changed,
-    // which avoids the Vulkan rule against updating a descriptor set that is
-    // already recorded (bound) in the current command buffer.
-    std::array<VkSampler, MaxFramesInFlight> LastSampler = {};
+    // One descriptor set per sampler this texture has been drawn with.
+    //
+    // A COMBINED_IMAGE_SAMPLER descriptor bakes the image view *and* the
+    // sampler into the set, so a texture drawn with two samplers needs two
+    // sets. Each set here is written exactly once - by BindTexture, the
+    // first time the texture meets that sampler - and never updated again.
+    // A set that is never updated may be bound any number of times in one
+    // command buffer and by several frames in flight at once, which is what
+    // makes this safe.
+    //
+    // (The previous design kept one set per frame slot and rewrote it when
+    // the sampler changed. Vulkan forbids updating a set that the command
+    // buffer being recorded has already bound - the command buffer becomes
+    // invalid - so drawing one texture with two samplers in a frame, e.g.
+    // the UI's white texture with its own sampler and with a scene's
+    // sampler, broke the frame.)
+    //
+    // Entries for a sampler are freed by DestroySampler (a recycled VkSampler
+    // value must never match a set written for the dead one) and all of
+    // them by DestroyTexture.
+    struct SamplerSet
+    {
+        VkSampler       Sampler = VK_NULL_HANDLE;
+        VkDescriptorSet Set     = VK_NULL_HANDLE;
+    };
+    std::vector<SamplerSet> SamplerSets;
 };
 
 // Represents a sampler — the small state object that describes how a texture
@@ -233,6 +252,15 @@ public:
         slot.Generation = (slot.Generation + 1) & Handle<Tag>::GenMask;
         _freeList.push_back(index);
         return resource;
+    }
+
+    // Visit every live resource. Used to drop per-texture state that refers
+    // to a resource being destroyed (DestroySampler).
+    template<typename Fn>
+    void ForEach(Fn&& fn)
+    {
+        for (auto& slot : _slots)
+            if (slot.Occupied) fn(slot.Resource);
     }
 
     // Returns the number of currently allocated (live) resources.

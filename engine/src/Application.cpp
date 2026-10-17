@@ -4,7 +4,7 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/settings/Settings.h>
-#include <arcbit/ui/SplashScreen.h>
+#include <arcbit/ui/LoadingScreen.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
 #include <arcbit/core/Assert.h>
@@ -12,6 +12,7 @@
 #include <format>
 
 #include <chrono>
+#include <limits>
 #include <thread>
 
 namespace Arcbit
@@ -24,6 +25,13 @@ Application::Application(const ApplicationConfig& config) : _config(config)
 {
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
+
+    // The engine's loading screen, its bar following the scene load.
+    _loadingScreenFactory = [this] {
+        auto screen      = std::make_unique<LoadingScreen>();
+        screen->Progress = [this] { return _scenes.GetLoadProgress(); };
+        return screen;
+    };
 
     // Seed Settings with config defaults so that GraphicsSettings has sensible
     // values even when no settings file exists yet. ReadFile() will then
@@ -85,8 +93,9 @@ u32 Application::GetWindowHeight() const { return _window->GetHeight(); }
 
 Scene& Application::GetScene()
 {
-    ARCBIT_ASSERT(_scene != nullptr, "GetScene() called before Run()");
-    return *_scene;
+    Scene* scene = _scenes.GetActive();
+    ARCBIT_ASSERT(scene != nullptr, "GetScene() called before Run()");
+    return *scene;
 }
 
 void Application::ToggleFullscreen()
@@ -94,6 +103,53 @@ void Application::ToggleFullscreen()
     _window->ToggleFullscreen();
     Settings::Graphics.Fullscreen = !Settings::Graphics.Fullscreen;
     Settings::MarkDirty();
+}
+
+SamplerHandle Application::GetStockSampler(const StockSampler which) const
+{
+    return which == StockSampler::Linear ? _linearSampler : _nearestSampler;
+}
+
+void Application::SetWindowTitle(const std::string_view title) { _window->SetTitle(title); }
+
+// Show the loading screen once a scene change has held at black for a
+// moment, and fade it out as the new scene fades in. Never over a
+// game-blocking screen (the splash): that already covers the load.
+void Application::UpdateLoadingScreen(const f32 dt)
+{
+    constexpr f32 GraceSeconds = 0.25f;
+
+    if (!_scenes.WantsLoadingScreen() || _ui.HasGameBlockingScreen()) {
+        _loadingHeld = 0.0f;
+        if (_loadingScreen) _ui.Close(_loadingScreen);
+        _loadingScreen = nullptr;
+        return;
+    }
+    _loadingHeld += dt;
+    if (_loadingScreen || !_loadingScreenFactory || _loadingHeld < GraceSeconds) return;
+
+    std::unique_ptr<UIScreen> screen = _loadingScreenFactory();
+    if (!screen) return;
+    screen->StaysOnTop = true; // a Pop() meant for another screen mustn't close it
+    _loadingScreen     = screen.get();
+    _ui.Push(std::move(screen));
+    LOG_DEBUG(Engine, "Loading screen shown");
+}
+
+void Application::CollectSceneFade(FramePacket& packet) const
+{
+    const f32 alpha = _scenes.GetFadeAlpha();
+    if (alpha <= 0.0f) return;
+
+    const Vec2 size{ static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight()) };
+    Sprite     quad{};
+    quad.Texture  = _renderThread.GetUIWhiteTexture();
+    quad.Sampler  = _renderThread.GetUIWhiteSampler();
+    quad.Position = size * 0.5f;
+    quad.Size     = size;
+    quad.Tint     = { 0.0f, 0.0f, 0.0f, alpha };
+    quad.Layer    = std::numeric_limits<i32>::lowest(); // under every UI screen
+    packet.UISprites.push_back(quad);
 }
 
 Format Application::GetSwapchainFormat() const { return _device->GetSwapchainColorFormat(_swapchain); }
@@ -110,9 +166,24 @@ void Application::Run()
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
 
-    // Create the scene before OnStart so game code can use GetScene() immediately.
-    _scene = std::make_unique<Scene>();
-    _scene->SetInput(&_input); // drives InputMovementSystem
+    // Stock samplers and the scene registry's built-ins, before any scene loads.
+    _nearestSampler = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Nearest, .MagFilter = Filter::Nearest,
+                                                          .AddressU = AddressMode::Repeat, .AddressV = AddressMode::Repeat,
+                                                          .DebugName = "StockNearest" });
+    _linearSampler  = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Linear, .MagFilter = Filter::Linear,
+                                                          .AddressU = AddressMode::ClampToEdge,
+                                                          .AddressV = AddressMode::ClampToEdge, .DebugName = "StockLinear" });
+    RegisterBuiltinComponents(_sceneRegistry);
+
+    // Install a default scene before OnStart so game code can use GetScene()
+    // immediately; a game that registers scenes replaces it with Switch().
+    _scenes.SetHost({ .App             = this,
+                      .Input           = &_input,
+                      .Quiesce         = [this] { _renderThread.WaitIdle(); },
+                      .Textures        = _textures.get(),
+                      .PrepareOnThread = true,
+                      .Music           = &AudioManager::GetMusicPlayer() });
+    _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
@@ -133,26 +204,9 @@ void Application::Run()
     OnStart();
     Settings::LoadInputBindings(_input);
 
-    // Push the engine-branded splash screen on top of any screens the game
-    // pushed in OnStart. It blocks input until complete, then pops itself.
-    SamplerHandle splashSampler;
-    {
-        TextureHandle splashTex = _textures->Load("assets/engine/ui/ArcbitA_withbackground.png");
-        if (splashTex.IsValid()) {
-            splashSampler = _device->CreateSampler(SamplerDesc{
-                .MinFilter = Filter::Linear,
-                .MagFilter = Filter::Linear,
-                .AddressU  = AddressMode::ClampToEdge,
-                .AddressV  = AddressMode::ClampToEdge,
-                .DebugName = "EngineSplashSampler",
-            });
-            auto splash = std::make_unique<SplashScreen>();
-            splash->Entries.push_back({splashTex, splashSampler, 8.0f, 0.5f, 0.5f});
-            splash->OnComplete = [this] { _ui.Pop(); };
-            _ui.Push(std::move(splash));
-        }
-        else { LOG_WARN(Engine, "Engine splash image not found — skipping splash screen"); }
-    }
+    // Engine splash, the game's splashes, then the title screen or first
+    // scene, as BootConfig asks (ApplicationBoot.cpp).
+    StartBoot();
 
     // Route Window input events to InputManager so JustPressed/JustReleased are
     // driven by the SDL event queue rather than polling-based state comparison.
@@ -212,15 +266,31 @@ void Application::Run()
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
-                if (_scene) {
-                    _scene->SetInputBlocked(_ui.HasBlockingScreen()); // e.g. an input-capturing overlay
-                    _scene->Update(_fixedTimestep);
+                _scenes.Update(_fixedTimestep);
+                if (Scene* scene = _scenes.GetActive()) {
+                    // An input-capturing overlay or a scene fade holds the player still.
+                    scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
+                    scene->Update(_fixedTimestep);
                 }
             }
+            // Under a screen that hides the game (the splash on its logo), a
+            // queued swap may run - its load stays out of sight - but the
+            // fades hold (dt 0) so the scene still fades in once visible.
+            else if (_ui.CoversLoading()) {
+                _scenes.Update(0.0f);
+            }
+            UpdateLoadingScreen(_fixedTimestep);
             _ui.Update(_fixedTimestep,
                        {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())},
                        _input);
             accumulator -= static_cast<f64>(_fixedTimestep);
+
+            // A scene swap can take a while (loading). Don't simulate that
+            // time afterwards, or the fade-in jumps ahead in one frame.
+            if (_scenes.ConsumeSwapped()) {
+                accumulator = 0.0;
+                prevTime    = Clock::now();
+            }
         }
 
         // --- Variable-rate render --------------------------------------------
@@ -233,7 +303,8 @@ void Application::Run()
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
-            if (_scene) _scene->CollectRenderData(packet);
+            if (Scene* scene = _scenes.GetActive()) scene->CollectRenderData(packet);
+            CollectSceneFade(packet);
         }
         _ui.CollectRenderData(packet,
                               {static_cast<f32>(_window->GetWidth()), static_cast<f32>(_window->GetHeight())});
@@ -276,7 +347,7 @@ void Application::Run()
         // of stat()-ing every loaded texture path each tick.
         _hotReloadAccumulator += dt;
         if (_hotReloadAccumulator >= 1.0) {
-            _textures->CheckReloads();
+            _textures->CheckReloads([this] { _renderThread.WaitIdle(); });
             _hotReloadAccumulator -= 1.0;
         }
 
@@ -301,14 +372,15 @@ void Application::Run()
     _renderThread.Stop();
     _device->WaitIdle();
 
-    if (splashSampler.IsValid())
-        _device->DestroySampler(splashSampler);
 
-    // Destroy scene entities before shutting down GPU resources.
-    _scene.reset();
+    // Unload the active scene (OnUnload, scene textures, entities) before the
+    // game's OnShutdown and the GPU teardown.
+    _scenes.Shutdown();
 
     OnShutdown();
     AudioManager::Shutdown();
+    _device->DestroySampler(_nearestSampler);
+    _device->DestroySampler(_linearSampler);
 
     // Destroy the debug font atlas resources before the device goes away.
     if (_debugFont.IsValid()) {

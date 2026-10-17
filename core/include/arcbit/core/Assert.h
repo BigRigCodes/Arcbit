@@ -48,7 +48,7 @@ constexpr const char* StripPath(const char* path)
     #define ARCBIT_ASSERT(condition, msg)                                          \
         do {                                                                       \
             if (!(condition)) {                                                    \
-                LOG_CRITICAL(Engine, "Assert failed: ({}) — {} [{}:{}]",           \
+                LOG_CRITICAL(Engine, "Assert failed: ({}) - {} [{}:{}]",           \
                     #condition, msg, ARCBIT_FILENAME, __LINE__);                   \
                 ARCBIT_DEBUG_BREAK();                                              \
             }                                                                     \
@@ -72,7 +72,7 @@ constexpr const char* StripPath(const char* path)
     #define ARCBIT_VERIFY(condition, msg)                                          \
         do {                                                                       \
             if (!(condition)) {                                                    \
-                LOG_CRITICAL(Engine, "Verify failed: ({}) — {} [{}:{}]",           \
+                LOG_CRITICAL(Engine, "Verify failed: ({}) - {} [{}:{}]",           \
                     #condition, msg, ARCBIT_FILENAME, __LINE__);                   \
                 ARCBIT_DEBUG_BREAK();                                              \
             }                                                                     \
@@ -81,7 +81,7 @@ constexpr const char* StripPath(const char* path)
     #define ARCBIT_VERIFY(condition, msg)                                          \
         do {                                                                       \
             if (!(condition)) {                                                    \
-                LOG_ERROR(Engine, "Verify failed: ({}) — {} [{}:{}]",              \
+                LOG_ERROR(Engine, "Verify failed: ({}) - {} [{}:{}]",              \
                     #condition, msg, ARCBIT_FILENAME, __LINE__);                   \
             }                                                                     \
         } while (false)

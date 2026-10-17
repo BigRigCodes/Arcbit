@@ -82,7 +82,7 @@ bool FontAtlas::Load(const std::string_view ttfPath, const f32 pixelSize,
             }
 
             if (cursorY + static_cast<u32>(h) + GlyphPadding > AtlasSize) {
-                LOG_WARN(Engine, "FontAtlas: atlas 512×512 full at codepoint {} — increase AtlasSize", cp);
+                LOG_WARN(Engine, "FontAtlas: atlas 512x512 full at codepoint {} - increase AtlasSize", cp);
                 if (mode == FontMode::SDF) stbtt_FreeSDF(bitmap, nullptr);
                 else                       stbtt_FreeBitmap(bitmap, nullptr);
                 break;
@@ -141,7 +141,7 @@ bool FontAtlas::Load(const std::string_view ttfPath, const f32 pixelSize,
     sampDesc.DebugName = (mode == FontMode::SDF) ? "font_sdf_sampler" : "font_bitmap_sampler";
     _sampler = device.CreateSampler(sampDesc);
 
-    LOG_INFO(Engine, "FontAtlas: '{}' @ {}px ({}) — {} glyphs baked into {}×{} atlas",
+    LOG_INFO(Engine, "FontAtlas: '{}' @ {}px ({}) - {} glyphs baked into {}x{} atlas",
              ttfPath, pixelSize, (mode == FontMode::SDF) ? "SDF" : "Bitmap",
              _glyphs.size(), AtlasSize, AtlasSize);
     return true;

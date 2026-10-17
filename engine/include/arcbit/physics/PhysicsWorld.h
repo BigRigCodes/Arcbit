@@ -161,6 +161,12 @@ public:
     // Per-scene contact state, driven by the built-in ContactEvents system
     // (Systems.cpp): trigger overlaps, and blocking contacts between entities.
     [[nodiscard]] ContactTracker& TriggerContacts() noexcept { return _triggerContacts; }
+
+    // (mover, collider) pairs where the mover's own move carried it inside
+    // the collider — through a pass-through face of a directional collider.
+    // The push-out system leaves these overlaps alone and drops each pair once
+    // it stops overlapping; the resolver adds new ones (22I).
+    [[nodiscard]] ContactTracker::PairSet& EnteredOverlaps() noexcept { return _enteredOverlaps; }
     [[nodiscard]] ContactTracker& BlockingContacts() noexcept { return _blockingContacts; }
 
     // Tilemap pointer for the (future) tile-synthesized collider path. Non-owning;
@@ -218,6 +224,7 @@ private:
     std::unordered_map<u64, ColliderId> _entityToCollider; // packed entity → id; one collider per entity
     ContactTracker                      _triggerContacts;
     ContactTracker                      _blockingContacts;
+    ContactTracker::PairSet             _enteredOverlaps; // see EnteredOverlaps()
     std::vector<ContactReport>          _contactReports;
     TileMap*                            _tilemap   = nullptr;
     bool                                _debugDraw = false;

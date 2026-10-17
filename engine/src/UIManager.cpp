@@ -5,6 +5,9 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/input/InputTypes.h>
 
+#include <algorithm>
+#include <iterator>
+
 namespace Arcbit
 {
 // ---------------------------------------------------------------------------
@@ -75,21 +78,50 @@ void UIManager::Push(std::unique_ptr<UIScreen> screen)
     }
     screen->_skipInputThisFrame = true;
     screen->OnEnter();
-    _stack.push_back(std::move(screen));
+
+    // Below the StaysOnTop screens (they sit at the top of the stack).
+    auto at = _stack.end();
+    if (!screen->StaysOnTop)
+        while (at != _stack.begin() && (*std::prev(at))->StaysOnTop) --at;
+    _stack.insert(at, std::move(screen));
 }
 
 void UIManager::Pop()
 {
-    if (_stack.empty()) return;
-    UIScreen& top = *_stack.back();
-    if (top.TransitionSpeed > 0.0f) {
-        top._transitionOpacity = 1.0f;
-        top._transitionState   = UIScreen::TransitionState::FadingOut;
+    // The topmost screen that isn't StaysOnTop or already on its way out.
+    auto it = _stack.end();
+    while (it != _stack.begin()) {
+        const UIScreen* s = std::prev(it)->get();
+        if (!s->StaysOnTop && std::ranges::find(_deferredRemovals, s) == _deferredRemovals.end()) break;
+        --it;
     }
-    else {
-        top.OnExit();
-        _stack.pop_back();
+    if (it == _stack.begin()) return;
+    Close(std::prev(it)->get());
+}
+
+void UIManager::Close(const UIScreen* screen)
+{
+    const auto it = std::ranges::find_if(_stack, [&](const auto& s) { return s.get() == screen; });
+    if (it == _stack.end()) return;
+
+    UIScreen& target = **it;
+    if (target.TransitionSpeed > 0.0f) {
+        target._transitionOpacity = 1.0f;
+        target._transitionState   = UIScreen::TransitionState::FadingOut;
     }
+    else Remove(&target);
+}
+
+void UIManager::Remove(const UIScreen* screen)
+{
+    if (_updating) {
+        if (std::ranges::find(_deferredRemovals, screen) == _deferredRemovals.end()) _deferredRemovals.push_back(screen);
+        return;
+    }
+    const auto it = std::ranges::find_if(_stack, [&](const auto& s) { return s.get() == screen; });
+    if (it == _stack.end()) return;
+    (*it)->OnExit();
+    _stack.erase(it);
 }
 
 UIScreen* UIManager::Top() const { return _stack.empty() ? nullptr : _stack.back().get(); }
@@ -106,6 +138,13 @@ bool UIManager::HasGameBlockingScreen() const
     for (const auto& s : _stack)
         if (s->BlocksGame && !s->IsFadingOut()) return true;
     return false;
+}
+
+bool UIManager::CoversLoading() const
+{
+    for (const auto& s : _stack)
+        if (s->BlocksGame && !s->IsFadingOut() && !s->CoversLoading()) return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +171,16 @@ void UIManager::RemoveCompletedFadeOuts()
 
 void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& input)
 {
+    _updating = true;
+    UpdateScreens(dt, windowSize, input);
+    _updating = false;
+
+    for (const UIScreen* screen : _deferredRemovals) Remove(screen);
+    _deferredRemovals.clear();
+}
+
+void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputManager& input)
+{
     i32 mx = 0, my = 0;
     input.GetMousePosition(mx, my);
     _mousePos      = {static_cast<f32>(mx), static_cast<f32>(my)};
@@ -147,12 +196,14 @@ void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& 
 
     // Screens set this flag on the frame they are pushed so that the key event
     // that caused the push (e.g. Escape to open a menu) is not also processed
-    // as a back-press on the newly-visible screen.
+    // as a back-press on the newly-visible screen. OnTick is skipped too: it
+    // reads input directly, so a screen toggled by the same key (F1 opens, F1
+    // closes) would otherwise close itself the tick it opened.
     const bool skipInput        = active->_skipInputThisFrame;
     active->_skipInputThisFrame = false;
 
     const UIRect screenRect = {0.0f, 0.0f, windowSize.X, windowSize.Y};
-    active->OnTick(dt, input);
+    if (!skipInput) active->OnTick(dt, input);
     active->Update(dt, screenRect, _mousePos, _mouseDown, _mouseJustDown, _mouseJustUp,
                    input.GetScrollDelta());
 

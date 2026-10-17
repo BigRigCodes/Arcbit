@@ -7,6 +7,7 @@ find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
 # Game and tool targets link against this; they never see Vulkan or SDL headers directly.
 add_library(arcbit-engine STATIC
     src/Application.cpp
+    src/ApplicationBoot.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp
     src/Window.cpp
@@ -18,6 +19,12 @@ add_library(arcbit-engine STATIC
     src/Systems.cpp
     src/Movement.cpp
     src/Scene.cpp
+    src/SceneManager.cpp
+    src/ScenePreloader.cpp
+    src/SceneRegistry.cpp
+    src/SceneComponents.cpp
+    src/SceneFile.cpp
+    src/FileScene.cpp
     src/AnimatorStateMachine.cpp
     src/AudioManager.cpp
     src/TileAtlas.cpp
@@ -34,6 +41,8 @@ add_library(arcbit-engine STATIC
     src/AudioSettingsScreen.cpp
     src/GraphicsSettingsScreen.cpp
     src/SplashScreen.cpp
+    src/CreditsScreen.cpp
+    src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp
@@ -54,9 +63,9 @@ target_include_directories(arcbit-engine
 target_link_libraries(arcbit-engine
     PUBLIC
         arcbit-core
+        nlohmann_json::nlohmann_json  # public headers use it: SceneRegistry / SceneFile take JSON, SpriteSheet::FromJson
     PRIVATE
         SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
-        nlohmann_json::nlohmann_json  # used in Settings.cpp and SpriteSheet.cpp
 )
 
 # stb is header-only; vcpkg exposes it as an include directory, not a CMake target.

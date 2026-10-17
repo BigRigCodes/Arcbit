@@ -1,0 +1,13 @@
+{
+    "title": "Arcbit Demos",
+    "scroll_speed": 60,
+    "sections": [
+        { "heading": "Engine and demos", "names": ["BigRigCodes"] },
+        { "heading": "Art", "names": ["Cute Fantasy asset pack (author to credit)", "MiniWorldSprites (author to credit)"] },
+        { "heading": "Sound", "names": ["footsteps, sword slash (source to credit)"] },
+        { "heading": "Music", "names": ["Placeholder demo loops, synthesized for Arcbit"] },
+        { "heading": "Font", "names": ["Roboto - Google Fonts"] },
+        { "heading": "Built with", "names": ["SDL3", "Vulkan", "miniaudio", "nlohmann/json", "stb", "spdlog", "Catch2"] },
+        { "names": ["Thanks for playing"] }
+    ]
+}

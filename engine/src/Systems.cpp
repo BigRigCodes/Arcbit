@@ -5,6 +5,7 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/physics/PhysicsCallbacks.h>
+#include <arcbit/physics/Narrowphase.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/physics/Sweep.h>
 #include <arcbit/render/RenderThread.h>
@@ -12,7 +13,9 @@
 #include <arcbit/core/Log.h>
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -50,15 +53,8 @@ namespace
                          toDestroy.push_back(e);
                  });
 
-            // Unregister colliders first — a destroyed entity's broadphase
-            // record would otherwise keep blocking tile movers and
-            // overlapping triggers.
-            PhysicsWorld& physics = scene.GetPhysics();
-            for (const Entity e : toDestroy) {
-                if (const PhysicsWorld::ColliderId id = physics.FindColliderForEntity(e); id != PhysicsWorld::InvalidId)
-                    physics.UnregisterCollider(id);
-                scene.GetWorld().DestroyEntity(e);
-            }
+            // The Scene's Collider2D OnRemove hook drops broadphase records.
+            for (const Entity e : toDestroy) scene.GetWorld().DestroyEntity(e);
         });
     }
 
@@ -137,10 +133,13 @@ namespace
            });
     }
 
+    // An external push slower than this (px/s, squared) has died out.
+    constexpr f32 ExternalRestSq = 0.01f * 0.01f;
+
     void RegisterFreeMovementSystem(World& world)
     {
-        // Integrate-only: clamp velocity, accumulate desired delta into
-        // PendingMove, decay friction. Transform is *not* touched here — that
+        // Integrate-only: clamp velocity, accumulate desired delta (velocity
+        // plus the external push) into PendingMove, decay friction. Transform is *not* touched here — that
         // lands in CollisionResolutionSystem (22B.4) via the PendingMove path.
         world.RegisterSystem("FreeMovement", [](Scene& scene, f32 dt) {
             ApplyIntentToFreeMovers(scene.GetWorld());
@@ -155,16 +154,24 @@ namespace
                              fm.Velocity   = fm.Velocity * inv;
                          }
                      }
-                     pm.DesiredDelta = pm.DesiredDelta + fm.Velocity * dt;
-                     fm.Velocity     = fm.Velocity * std::exp(-fm.Friction * dt);
+                     pm.DesiredDelta = pm.DesiredDelta + (fm.Velocity + fm.External) * dt;
+
+                     const f32 decay = std::exp(-fm.Friction * dt);
+                     fm.Velocity     = fm.Velocity * decay;
+                     fm.External     = fm.External * decay;
+                     if (LengthSquared(fm.External) < ExternalRestSq) fm.External = {};
                  });
         });
     }
 
     // ---------------------------------------------------------------------
-    // CollisionResolutionSystem helpers — kept inside the anonymous namespace
-    // so the resolver lambda body stays under the 50-line cap.
+    // CollisionResolutionSystem helpers
     // ---------------------------------------------------------------------
+
+    // Overlap deeper than this (px) is "inside"; anything shallower is just
+    // touching, which the resolver leaves after every stop. Matches the
+    // sweep's own touching tolerance.
+    constexpr f32 PenetrationSlop = 1e-3f;
 
     // Layer/Mask gate between two colliders. Both directions must pair for the
     // contact to count — matches Collider2D.h's documentation.
@@ -187,179 +194,6 @@ namespace
             { std::max(curr.Max.X, target.Max.X), std::max(curr.Max.Y, target.Max.Y) });
     }
 
-    // Sweep one mover against every entity collider returned by the broadphase
-    // and every greedy-meshed tile rect overlapping the swept AABB. Returns
-    // the earliest non-trigger contact (or {ToI=1,Hit=false} if nothing hits).
-    // When that contact is another entity, it is reported to PhysicsWorld for
-    // the ContactEvents system (22F).
-    Sweep::Result SweepBroadphaseHits(
-        const Entity                                 mover,
-        const Collider2D&                            col,
-        const Vec2                                   origin,
-        const Vec2                                   delta,
-        const PhysicsWorld::ColliderId               selfId,
-        PhysicsWorld&                                physics,
-        World&                                       ecsWorld,
-        const std::vector<PhysicsWorld::ColliderId>& entityHits,
-        const std::vector<TileColliderRect>&         tileHits)
-    {
-        Sweep::Result best{};
-        Entity        bestOther = Entity::Invalid();
-
-        for (const PhysicsWorld::ColliderId otherId : entityHits) {
-            if (otherId == selfId) continue;
-            const auto& rec = physics.GetRecord(otherId);
-            if (!rec.Active || rec.IsTrigger) continue; // triggers never block (TriggerCallback instead)
-            if (!LayersPair(col.Layer, col.Mask, rec.Layer, rec.Mask)) continue;
-
-            const Collider2D* otherCol = ecsWorld.GetComponent<Collider2D>(rec.Owner);
-            const Transform2D* otherT  = ecsWorld.GetTransform(rec.Owner);
-            if (!otherCol || !otherT) continue; // registered without ECS component → skip
-
-            const Sweep::Result r = Sweep::SweepAgainst(col, origin, delta, *otherCol, otherT->Position);
-            if (!r.Hit) continue;
-            // Arc gate — directional contacts can pass through if the
-            // approach falls outside the obstacle's BlockedFrom arcs.
-            // Sweep::SweepAgainst already handles the started-overlapping
-            // case by returning an axis-aligned normal opposite to motion,
-            // so the arc check correctly sees the motion direction even
-            // when the mover is inside the obstacle (e.g. walked through a
-            // pass-through arc).
-            if (!IsContactBlocked(rec.BlockedFrom, r.Normal, rec.Rotation)) continue;
-            if (r.ToI < best.ToI) {
-                best      = r;
-                bestOther = rec.Owner;
-            }
-        }
-
-        for (const TileColliderRect& rect : tileHits) {
-            if ((rect.Layer & col.Mask) == 0) continue; // tiles always block back; only need self.Mask check
-            Collider2D tileCol{};
-            tileCol.Shape       = ColliderShape::Box;
-            tileCol.HalfExtents = rect.WorldAABB.HalfExtents();
-            tileCol.Kind        = BodyKind::Static;
-            tileCol.Layer       = rect.Layer;
-            const Vec2 tilePos  = rect.WorldAABB.Center();
-
-            const Sweep::Result r = Sweep::SweepAgainst(col, origin, delta, tileCol, tilePos);
-            if (!r.Hit) continue;
-            // Tile rects are axis-aligned (greedy mesh); pass rotation 0.
-            if (!IsContactBlocked(rect.BlockedFrom, r.Normal, 0.0f)) continue;
-            if (r.ToI < best.ToI) {
-                best      = r;
-                bestOther = Entity::Invalid(); // tile hits aren't reported
-            }
-        }
-        if (best.Hit && bestOther.IsValid()) physics.ReportContact(mover, bestOther, best.Normal);
-        return best;
-    }
-
-    // Collision resolution — replaces the 22B.3 ApplyPendingMove stub.
-    //
-    // Two passes:
-    //   1. Entities with (Transform2D, PendingMove, Collider2D): swept resolve
-    //      against the broadphase, slide once along the contact tangent, then
-    //      commit the new position and refresh the broadphase.
-    //   2. Entities with (Transform2D, PendingMove) but NO Collider2D: just
-    //      apply the delta. Preserves the stub behavior so non-physical movers
-    //      (ships, debug props) still update each tick.
-    void RegisterCollisionResolutionSystem(World& world)
-    {
-        world.RegisterSystem("CollisionResolution", [](Scene& scene, f32 /*dt*/) {
-            PhysicsWorld& physics  = scene.GetPhysics();
-            World&        ecsWorld = scene.GetWorld();
-
-            // Reusable scratch — kept outside ForEach so the per-entity work
-            // doesn't churn the heap.
-            std::vector<PhysicsWorld::ColliderId> entityHits;
-            std::vector<TileColliderRect>         tileHits;
-
-            ecsWorld.Query<Transform2D, PendingMove, Collider2D>()
-                    .Without<Disabled>()
-                    .ForEach([&](const Entity e, Transform2D& t, PendingMove& pm, Collider2D& col) {
-                        const Vec2 delta = pm.DesiredDelta;
-                        pm.DesiredDelta  = {};
-                        if (delta.X == 0.0f && delta.Y == 0.0f) return;
-
-                        const PhysicsWorld::ColliderId selfId = physics.FindColliderForEntity(e);
-
-                        // Triggers don't block — apply motion straight through.
-                        if (col.IsTrigger) {
-                            t.Position = t.Position + delta;
-                            if (selfId != PhysicsWorld::InvalidId)
-                                physics.UpdateCollider(selfId, col, t.Position);
-                            return;
-                        }
-
-                        // First sweep — find earliest contact along delta.
-                        const AABB curr  = PhysicsWorld::ComputeWorldAABB(col, t.Position);
-                        const AABB swept = SweptAABB(curr, delta);
-                        physics.QueryAABB(swept, entityHits);
-                        physics.QueryTileColliders(swept, tileHits);
-                        Sweep::Result hit = SweepBroadphaseHits(e, col, t.Position, delta,
-                                                                selfId, physics, ecsWorld,
-                                                                entityHits, tileHits);
-
-                        Vec2 finalPos = { t.Position.X + delta.X * hit.ToI,
-                                          t.Position.Y + delta.Y * hit.ToI };
-
-                        // Slide: project the unused remainder onto the contact
-                        // tangent, then re-sweep that tangential motion once.
-                        if (hit.Hit) {
-                            const Vec2 remaining = { delta.X * (1.0f - hit.ToI),
-                                                     delta.Y * (1.0f - hit.ToI) };
-                            const Vec2 tangent   = { -hit.Normal.Y, hit.Normal.X };
-                            const f32  proj      = Dot(remaining, tangent);
-                            const Vec2 slide     = { tangent.X * proj, tangent.Y * proj };
-
-                            if (slide.X != 0.0f || slide.Y != 0.0f) {
-                                const AABB slideCurr  = PhysicsWorld::ComputeWorldAABB(col, finalPos);
-                                const AABB slideSwept = SweptAABB(slideCurr, slide);
-                                physics.QueryAABB(slideSwept, entityHits);
-                                physics.QueryTileColliders(slideSwept, tileHits);
-                                const Sweep::Result hit2 = SweepBroadphaseHits(
-                                    e, col, finalPos, slide, selfId, physics, ecsWorld,
-                                    entityHits, tileHits);
-                                finalPos.X += slide.X * hit2.ToI;
-                                finalPos.Y += slide.Y * hit2.ToI;
-                            }
-                        }
-
-                        t.Position = finalPos;
-                        if (selfId != PhysicsWorld::InvalidId)
-                            physics.UpdateCollider(selfId, col, t.Position);
-                    });
-
-            // Pass 2 — entities without a Collider2D still need their delta
-            // applied. Preserves the legacy stub behavior for ships, debug
-            // markers, etc.
-            ecsWorld.Query<Transform2D, PendingMove>()
-                    .Without<Collider2D>()
-                    .Without<Disabled>()
-                    .ForEach([](Transform2D& t, PendingMove& pm) {
-                        t.Position      = t.Position + pm.DesiredDelta;
-                        pm.DesiredDelta = {};
-                    });
-        });
-    }
-
-    Vec2 TileCenterUnder(const Vec2 p, const f32 ts)
-    {
-        return { std::round(p.X / ts) * ts, std::round(p.Y / ts) * ts };
-    }
-
-    // Asks the resolver whether a one-tile step is clear. A step blocked by
-    // an entity reports the contact so ContactEvents fires for tile movers
-    // too. Movers without a Collider2D are never blocked.
-    bool TileStepClear(const Entity e, const Collider2D* col, PhysicsWorld& physics,
-                       const Vec2 origin, const Vec2 target)
-    {
-        PhysicsWorld::BlockingHit hit;
-        if (!col || !physics.QueryTileBlocked(e, *col, origin, target, &hit)) return true;
-        if (hit.Other.IsValid()) physics.ReportContact(e, hit.Other, hit.Normal);
-        return false;
-    }
-
     // Keep the broadphase cache in step with a Transform2D write so later
     // queries this tick see the new position.
     void RefreshCollider(const Entity e, const Collider2D* col, const Vec2 pos, PhysicsWorld& physics)
@@ -369,22 +203,371 @@ namespace
         if (id != PhysicsWorld::InvalidId) physics.UpdateCollider(id, *col, pos);
     }
 
+    void CommitPosition(PhysicsWorld& physics, const Entity e, const Collider2D& col, Transform2D& t, const Vec2 pos)
+    {
+        t.Position = pos;
+        RefreshCollider(e, &col, pos, physics);
+    }
+
+    // State shared by one resolution pass; the vectors are scratch reused by
+    // every broadphase query so per-entity work doesn't churn the heap.
+    struct ResolveContext
+    {
+        PhysicsWorld&                         Physics;
+        World&                                Ecs;
+        std::vector<PhysicsWorld::ColliderId> EntityHits = {};
+        std::vector<TileColliderRect>         TileHits   = {};
+    };
+
+    // Earliest blocking contact of a sweep and the entity it was with
+    // (invalid for a tile or no hit).
+    struct MoveHit
+    {
+        Sweep::Result Result;
+        Entity        Other = Entity::Invalid();
+    };
+
+    // The entity collider behind a broadphase id, when it can block `col`:
+    // active, not a trigger, layers pairing, and backed by ECS components.
+    struct Blocker
+    {
+        Entity             Owner;
+        const Collider2D*  Col;
+        const Transform2D* T;
+        f32                Rotation;
+        const std::vector<DirectionArc>* Arcs;
+    };
+
+    std::optional<Blocker> FindBlocker(ResolveContext& ctx, const PhysicsWorld::ColliderId id,
+                                       const Entity self, const Collider2D& col)
+    {
+        const auto& rec = ctx.Physics.GetRecord(id);
+        if (!rec.Active || rec.IsTrigger || rec.Owner == self) return std::nullopt; // triggers never block
+        if (!LayersPair(col.Layer, col.Mask, rec.Layer, rec.Mask)) return std::nullopt;
+        const Collider2D*  otherCol = ctx.Ecs.GetComponent<Collider2D>(rec.Owner);
+        const Transform2D* otherT   = ctx.Ecs.GetTransform(rec.Owner);
+        if (!otherCol || !otherT) return std::nullopt; // registered without ECS components
+        return Blocker{ rec.Owner, otherCol, otherT, rec.Rotation, &rec.BlockedFrom };
+    }
+
+    // Keep `r` if it's the earliest so far.
+    void KeepEarliest(MoveHit& best, const Sweep::Result& r, const Entity other)
+    {
+        if (r.ToI < best.Result.ToI) best = { r, other };
+    }
+
+    void SweepEntities(ResolveContext& ctx, const Entity mover, const Collider2D& col,
+                       const Vec2 origin, const Vec2 delta, MoveHit& best)
+    {
+        for (const PhysicsWorld::ColliderId id : ctx.EntityHits) {
+            const std::optional<Blocker> b = FindBlocker(ctx, id, mover, col);
+            if (!b) continue;
+            const Sweep::Result r = Sweep::SweepAgainst(col, origin, delta, *b->Col, b->T->Position);
+            // Arc gate — a contact outside the obstacle's BlockedFrom arcs
+            // passes through. A mover already inside the obstacle never gets
+            // here: the sweep reports no hit for it (see Sweep.h).
+            if (r.Hit && IsContactBlocked(*b->Arcs, r.Normal, b->Rotation)) KeepEarliest(best, r, b->Owner);
+        }
+    }
+
+    void SweepTiles(ResolveContext& ctx, const Collider2D& col, const Vec2 origin, const Vec2 delta, MoveHit& best)
+    {
+        for (const TileColliderRect& rect : ctx.TileHits) {
+            if ((rect.Layer & col.Mask) == 0) continue; // tiles always block back; only need self.Mask check
+            Collider2D tileCol{};
+            tileCol.Shape       = ColliderShape::Box;
+            tileCol.HalfExtents = rect.WorldAABB.HalfExtents();
+            tileCol.Kind        = BodyKind::Static;
+            tileCol.Layer       = rect.Layer;
+
+            const Sweep::Result r = Sweep::SweepAgainst(col, origin, delta, tileCol, rect.WorldAABB.Center());
+            // Tile rects are axis-aligned (greedy mesh); pass rotation 0.
+            if (r.Hit && IsContactBlocked(rect.BlockedFrom, r.Normal, 0.0f)) KeepEarliest(best, r, Entity::Invalid());
+        }
+    }
+
+    // Sweep one mover against every entity collider and tile rect along
+    // origin → origin + delta. Returns the earliest blocking contact (or
+    // {ToI=1, Hit=false}); an entity contact is reported to PhysicsWorld for
+    // the ContactEvents system (22F).
+    MoveHit SweepAgainstWorld(ResolveContext& ctx, const Entity mover, const Collider2D& col,
+                              const Vec2 origin, const Vec2 delta)
+    {
+        const AABB swept = SweptAABB(PhysicsWorld::ComputeWorldAABB(col, origin), delta);
+        ctx.Physics.QueryAABB(swept, ctx.EntityHits);
+        ctx.Physics.QueryTileColliders(swept, ctx.TileHits);
+
+        MoveHit best{};
+        SweepEntities(ctx, mover, col, origin, delta, best);
+        SweepTiles(ctx, col, origin, delta, best);
+        if (best.Result.Hit && best.Other.IsValid()) ctx.Physics.ReportContact(mover, best.Other, best.Result.Normal);
+        return best;
+    }
+
+    // Shove a Pushable the mover ran into by the part of the remaining motion
+    // that drives into it, scaled down by its resistance. The pushed object
+    // is swept against the world, so it stops at walls (and other crates —
+    // pushes don't chain). Returns true if it moved.
+    bool PushObstacle(ResolveContext& ctx, const MoveHit& hit, const Vec2 delta)
+    {
+        const Pushable* pushable = ctx.Ecs.GetComponent<Pushable>(hit.Other);
+        const Collider2D* col    = ctx.Ecs.GetComponent<Collider2D>(hit.Other);
+        Transform2D* t           = ctx.Ecs.GetTransform(hit.Other);
+        if (!pushable || !col || !t || ctx.Ecs.GetComponent<Disabled>(hit.Other)) return false;
+
+        // The normal points from the obstacle toward the mover.
+        const Vec2 remaining = delta * (1.0f - hit.Result.ToI);
+        const f32  into      = -Dot(remaining, hit.Result.Normal);
+        if (into <= 0.0f) return false;
+
+        const Vec2    shove   = hit.Result.Normal * -(into * (1.0f - std::clamp(pushable->Resistance, 0.0f, 1.0f)));
+        const MoveHit blocked = SweepAgainstWorld(ctx, hit.Other, *col, t->Position, shove);
+        if (blocked.Result.ToI <= 0.0f) return false;
+        CommitPosition(ctx.Physics, hit.Other, *col, *t, t->Position + shove * blocked.Result.ToI);
+        return true;
+    }
+
+    // Where one mover ends up: sweep the full delta, shove a Pushable it runs
+    // into (then sweep again, now that it moved), and slide once along the
+    // contact tangent with whatever motion is left.
+    Vec2 ResolveMove(ResolveContext& ctx, const Entity e, const Collider2D& col, const Vec2 origin, const Vec2 delta)
+    {
+        MoveHit hit = SweepAgainstWorld(ctx, e, col, origin, delta);
+        if (hit.Result.Hit && hit.Other.IsValid() && PushObstacle(ctx, hit, delta))
+            hit = SweepAgainstWorld(ctx, e, col, origin, delta);
+
+        const Vec2 pos = origin + delta * hit.Result.ToI;
+        if (!hit.Result.Hit) return pos;
+
+        const Vec2 remaining = delta * (1.0f - hit.Result.ToI);
+        const Vec2 tangent   = { -hit.Result.Normal.Y, hit.Result.Normal.X };
+        const Vec2 slide     = tangent * Dot(remaining, tangent);
+        if (slide == Vec2{}) return pos;
+        return pos + slide * SweepAgainstWorld(ctx, e, col, pos, slide).Result.ToI;
+    }
+
+    // How deep two colliders overlap (0 when they don't).
+    f32 Penetration(const Collider2D& a, const Vec2 posA, const Collider2D& b, const Vec2 posB)
+    {
+        const Narrowphase::Contact c = Narrowphase::ComputeContact(a, posA, b, posB);
+        return c.Hit ? c.Depth : 0.0f;
+    }
+
+    // Remember colliders this move carried the mover into (through a
+    // pass-through face of a directional collider) so push-out leaves those
+    // overlaps alone. Overlaps that already existed at `from` weren't made by
+    // this move.
+    void RecordEnteredOverlaps(ResolveContext& ctx, const Entity e, const Collider2D& col,
+                               const Vec2 from, const Vec2 to)
+    {
+        ctx.Physics.QueryAABB(PhysicsWorld::ComputeWorldAABB(col, to), ctx.EntityHits);
+        for (const PhysicsWorld::ColliderId id : ctx.EntityHits) {
+            const std::optional<Blocker> b = FindBlocker(ctx, id, e, col);
+            if (!b || Penetration(col, to, *b->Col, b->T->Position) <= PenetrationSlop) continue;
+            if (Penetration(col, from, *b->Col, b->T->Position) > PenetrationSlop) continue;
+            ctx.Physics.EnteredOverlaps().insert({ .A = e, .B = b->Owner });
+        }
+    }
+
+    void ResolveMover(ResolveContext& ctx, const Entity e, Transform2D& t, PendingMove& pm, const Collider2D& col)
+    {
+        const Vec2 delta = pm.DesiredDelta;
+        pm.DesiredDelta  = {};
+        if (delta == Vec2{}) return;
+
+        const Vec2 origin = t.Position;
+        if (col.IsTrigger) { // triggers don't block — apply motion straight through
+            CommitPosition(ctx.Physics, e, col, t, origin + delta);
+            return;
+        }
+        CommitPosition(ctx.Physics, e, col, t, ResolveMove(ctx, e, col, origin, delta));
+        RecordEnteredOverlaps(ctx, e, col, origin, t.Position);
+    }
+
+    // Collision resolution — replaces the 22B.3 ApplyPendingMove stub.
+    //
+    // Two passes:
+    //   1. Entities with (Transform2D, PendingMove, Collider2D): swept resolve
+    //      against the broadphase (shoving Pushables), slide once along the
+    //      contact tangent, then commit the new position and refresh the
+    //      broadphase.
+    //   2. Entities with (Transform2D, PendingMove) but NO Collider2D: just
+    //      apply the delta. Preserves the stub behavior so non-physical movers
+    //      (ships, debug props) still update each tick.
+    void RegisterCollisionResolutionSystem(World& world)
+    {
+        world.RegisterSystem("CollisionResolution", [](Scene& scene, f32 /*dt*/) {
+            ResolveContext ctx{ .Physics = scene.GetPhysics(), .Ecs = scene.GetWorld() };
+            ctx.Ecs.Query<Transform2D, PendingMove, Collider2D>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, PendingMove& pm, Collider2D& col) {
+                   ResolveMover(ctx, e, t, pm, col);
+               });
+
+            ctx.Ecs.Query<Transform2D, PendingMove>()
+               .Without<Collider2D>()
+               .Without<Disabled>()
+               .ForEach([](Transform2D& t, PendingMove& pm) {
+                   t.Position      = t.Position + pm.DesiredDelta;
+                   pm.DesiredDelta = {};
+               });
+        });
+    }
+
+    // Push one free mover out of every collider overlapping it that it didn't
+    // walk into itself. The push is swept like a move, so it can't shove the
+    // mover through a wall; a mover pinned between two colliders stays put
+    // until there's room. Two free movers overlapping split the push.
+    void PushOutOfOverlaps(ResolveContext& ctx, const Entity e, const Collider2D& col, Transform2D& t,
+                           const ContactTracker::PairSet& entered, ContactTracker::PairSet& kept)
+    {
+        ctx.Physics.QueryAABB(PhysicsWorld::ComputeWorldAABB(col, t.Position), ctx.EntityHits);
+        const std::vector<PhysicsWorld::ColliderId> candidates = ctx.EntityHits; // the push sweep reuses the scratch
+
+        for (const PhysicsWorld::ColliderId id : candidates) {
+            const std::optional<Blocker> b = FindBlocker(ctx, id, e, col);
+            if (!b) continue;
+            const Narrowphase::Contact c = Narrowphase::ComputeContact(col, t.Position, *b->Col, b->T->Position);
+            if (!c.Hit || c.Depth <= PenetrationSlop) continue;
+
+            const EntityPair pair{ .A = e, .B = b->Owner };
+            if (entered.contains(pair)) { // the mover went in on its own
+                kept.insert(pair);
+                continue;
+            }
+            const f32  share = ctx.Ecs.GetComponent<PendingMove>(b->Owner) ? 0.5f : 1.0f;
+            const Vec2 push  = c.Normal * (c.Depth * share); // the normal points toward the mover
+            CommitPosition(ctx.Physics, e, col, t, t.Position + push * SweepAgainstWorld(ctx, e, col, t.Position, push).Result.ToI);
+        }
+    }
+
+    // Push-out (22I): free movers overlapping a collider they didn't walk
+    // into — a rotating gate turning into them, a prop placed on top of them —
+    // are moved out along the contact normal before this tick's movement.
+    // There's no other depenetration, so without this an obstacle that moves
+    // into a mover just leaves it embedded. Entered-overlap records survive
+    // only while the pair still overlaps.
+    void RegisterPushOutSystem(World& world)
+    {
+        world.RegisterSystem("PushOut", [](Scene& scene, f32 /*dt*/) {
+            ResolveContext          ctx{ .Physics = scene.GetPhysics(), .Ecs = scene.GetWorld() };
+            ContactTracker::PairSet kept;
+            const ContactTracker::PairSet entered = std::move(ctx.Physics.EnteredOverlaps());
+
+            ctx.Ecs.Query<Transform2D, PendingMove, Collider2D>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, PendingMove&, Collider2D& col) {
+                   if (!col.IsTrigger) PushOutOfOverlaps(ctx, e, col, t, entered, kept);
+               });
+            ctx.Physics.EnteredOverlaps() = std::move(kept);
+        });
+    }
+
+    Vec2 TileCenterUnder(const Vec2 p, const f32 ts)
+    {
+        return { std::round(p.X / ts) * ts, std::round(p.Y / ts) * ts };
+    }
+
+    // What a tile step needs to plan against the world.
+    struct TileStepContext
+    {
+        World&        Ecs;
+        PhysicsWorld& Physics;
+        f32           TileSize;
+    };
+
+    // Sokoban-style push: move a Pushable one tile along `dir` when the cell
+    // beyond it is free (tiles, entities, arcs — a second crate blocks, so
+    // pushes don't chain). Resistance only matters at 1 (immovable). The
+    // crate's collider moves to the new cell right away, so the pusher's own
+    // step then finds its target clear.
+    bool TryPushTile(TileStepContext& ctx, const Entity crate, const Vec2 dir)
+    {
+        const Pushable*   pushable = ctx.Ecs.GetComponent<Pushable>(crate);
+        const Collider2D* col      = ctx.Ecs.GetComponent<Collider2D>(crate);
+        Transform2D*      t        = ctx.Ecs.GetTransform(crate);
+        if (!pushable || !col || !t || pushable->Resistance >= 1.0f || ctx.Ecs.GetComponent<Disabled>(crate))
+            return false;
+
+        const Vec2 from = TileCenterUnder(t->Position, ctx.TileSize);
+        const Vec2 to   = from + dir * ctx.TileSize;
+        if (ctx.Physics.QueryTileBlocked(crate, *col, from, to)) return false;
+        t->Position = to;
+        RefreshCollider(crate, col, to, ctx.Physics);
+        return true;
+    }
+
+    // Asks the resolver whether a one-tile step is clear, pushing a Pushable
+    // out of the way if one is in it. A step that runs into an entity
+    // reports the contact (pushed or not) so ContactEvents fires for tile
+    // movers too. Movers without a Collider2D are never blocked. `pushed`
+    // receives the crate shoved, if any.
+    bool TileStepClear(TileStepContext& ctx, const Entity e, const Collider2D* col,
+                       const Vec2 origin, const Vec2 target, Entity* pushed = nullptr)
+    {
+        PhysicsWorld::BlockingHit hit;
+        if (!col || !ctx.Physics.QueryTileBlocked(e, *col, origin, target, &hit)) return true;
+        if (!hit.Other.IsValid()) return false; // a tile
+
+        ctx.Physics.ReportContact(e, hit.Other, hit.Normal);
+        const Vec2 dir = (target - origin) * (1.0f / ctx.TileSize);
+        if (!TryPushTile(ctx, hit.Other, dir) || ctx.Physics.QueryTileBlocked(e, *col, origin, target)) return false;
+        if (pushed) *pushed = hit.Other;
+        return true;
+    }
+
     // Consumes the queued direction and starts a step from the tile under the
     // mover. Returns false (and drops the queued move) when the step is
     // blocked. Progress is left untouched — the caller decides where the new
     // step starts so overshoot from the previous step can carry over.
-    bool TryBeginTileStep(const Entity       e, const Transform2D& t, SmoothTileMovement& stm,
-                          const Collider2D*  col, PhysicsWorld&    physics, const f32 ts)
+    bool TryBeginTileStep(TileStepContext& ctx, const Entity e, const Transform2D& t, SmoothTileMovement& stm,
+                          const Collider2D* col)
     {
-        const Vec2 origin = TileCenterUnder(t.Position, ts);
-        const Vec2 target = origin + stm.QueuedDir * ts;
+        const Vec2 origin = TileCenterUnder(t.Position, ctx.TileSize);
+        const Vec2 target = origin + stm.QueuedDir * ctx.TileSize;
 
         stm.HasQueued = false;
-        if (!TileStepClear(e, col, physics, origin, target)) return false;
+        stm._pushing  = Entity::Invalid();
+        if (!TileStepClear(ctx, e, col, origin, target, &stm._pushing)) return false;
 
         stm.OriginWorld = origin;
         stm.TargetWorld = target;
         return true;
+    }
+
+    // A crate pushed by a smooth mover rides one tile ahead of it for the
+    // whole step, so the two glide in lockstep. (If the crate moved on its
+    // own it would sometimes lag a tick, and a held push would stall at every
+    // tile.) At the end of the step it sits exactly on its new tile.
+    void CarryPushed(TileStepContext& ctx, const SmoothTileMovement& stm, const Vec2 pusherPos)
+    {
+        if (!ctx.Ecs.IsValid(stm._pushing)) return;
+        Transform2D* t = ctx.Ecs.GetTransform(stm._pushing);
+        t->Position    = pusherPos + (stm.TargetWorld - stm.OriginWorld);
+        RefreshCollider(stm._pushing, ctx.Ecs.GetComponent<Collider2D>(stm._pushing), t->Position, ctx.Physics);
+    }
+
+    void TickSmoothMover(TileStepContext& ctx, const Entity e, Transform2D& t, SmoothTileMovement& stm, const f32 dt)
+    {
+        const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
+
+        if (stm.Progress >= 1.0f) {
+            if (!stm.HasQueued || !TryBeginTileStep(ctx, e, t, stm, col)) return;
+            stm.Progress = 0.0f;
+        }
+
+        stm.Progress += stm.Speed * dt;
+        if (stm.Progress >= 1.0f && stm.HasQueued) {
+            const f32 overshoot = stm.Progress - 1.0f;
+            t.Position          = stm.TargetWorld; // round from the exact tile center
+            CarryPushed(ctx, stm, t.Position);     // finish the last push before planning the next
+            if (TryBeginTileStep(ctx, e, t, stm, col)) stm.Progress = overshoot;
+        }
+
+        const f32 alpha = std::min(stm.Progress, 1.0f);
+        t.Position      = stm.OriginWorld + (stm.TargetWorld - stm.OriginWorld) * alpha;
+        RefreshCollider(e, col, t.Position, ctx.Physics);
+        CarryPushed(ctx, stm, t.Position);
     }
 
     void RegisterSmoothTileMoveSystem(World& world)
@@ -401,36 +584,15 @@ namespace
         // Movers without a Collider2D bypass the query (and the cache update)
         // and behave the same as before — preserves stub behavior.
         world.RegisterSystem("SmoothTileMove", [](Scene& scene, const f32 dt) {
-            const f32     ts       = scene.GetTileMap().GetTileSize();
-            PhysicsWorld& physics  = scene.GetPhysics();
-            World&        ecsWorld = scene.GetWorld();
-            ApplyIntentToSmoothTileMovers(ecsWorld);
+            TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
+                                 .TileSize = scene.GetTileMap().GetTileSize() };
+            ApplyIntentToSmoothTileMovers(ctx.Ecs);
 
-            ecsWorld.Query<Transform2D, SmoothTileMovement>()
-                    .Without<Disabled>()
-                    .ForEach([&](const Entity e, Transform2D& t, SmoothTileMovement& stm) {
-                        const Collider2D* col = ecsWorld.GetComponent<Collider2D>(e);
-
-                        if (stm.Progress >= 1.0f) {
-                            if (!stm.HasQueued || !TryBeginTileStep(e, t, stm, col, physics, ts)) return;
-                            stm.Progress = 0.0f;
-                        }
-
-                        stm.Progress += stm.Speed * dt;
-                        if (stm.Progress >= 1.0f && stm.HasQueued) {
-                            const f32 overshoot = stm.Progress - 1.0f;
-                            t.Position          = stm.TargetWorld; // round from the exact tile center
-                            if (TryBeginTileStep(e, t, stm, col, physics, ts)) stm.Progress = overshoot;
-                        }
-
-                        const f32 alpha = std::min(stm.Progress, 1.0f);
-                        t.Position      = {
-                            stm.OriginWorld.X + (stm.TargetWorld.X - stm.OriginWorld.X) * alpha,
-                            stm.OriginWorld.Y + (stm.TargetWorld.Y - stm.OriginWorld.Y) * alpha,
-                        };
-
-                        RefreshCollider(e, col, t.Position, physics);
-                    });
+            ctx.Ecs.Query<Transform2D, SmoothTileMovement>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, SmoothTileMovement& stm) {
+                   TickSmoothMover(ctx, e, t, stm, dt);
+               });
         });
     }
 
@@ -441,9 +603,11 @@ namespace
     // One snap mover's tick. A fresh direction steps at once; a held one
     // repeats every StepInterval, carrying the remainder so the average rate
     // is exact. A blocked step clears the cooldown and retries next tick.
-    void TickSnapMover(const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent,
-                       const Collider2D* col, PhysicsWorld& physics, const f32 ts, const f32 dt)
+    void TickSnapMover(TileStepContext& ctx, const Entity e, Transform2D& t, SnapTileMovement& snap,
+                       const MoveIntent& intent, const f32 dt)
     {
+        const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
+        const f32         ts  = ctx.TileSize;
         const Vec2 dir = CardinalStep(intent.Direction);
         if (dir == Vec2{}) {
             snap.Cooldown = 0.0f;
@@ -452,12 +616,12 @@ namespace
         if (snap.Cooldown <= CooldownEpsilon) {
             const Vec2 origin = TileCenterUnder(t.Position, ts);
             const Vec2 target = origin + dir * ts;
-            if (!TileStepClear(e, col, physics, origin, target)) {
+            if (!TileStepClear(ctx, e, col, origin, target)) { // a pushed crate has already jumped ahead
                 snap.Cooldown = 0.0f;
                 return;
             }
             t.Position = target;
-            RefreshCollider(e, col, t.Position, physics);
+            RefreshCollider(e, col, t.Position, ctx.Physics);
             snap.Cooldown += snap.StepInterval;
         }
         snap.Cooldown -= dt;
@@ -468,15 +632,13 @@ namespace
     void RegisterSnapTileMoveSystem(World& world)
     {
         world.RegisterSystem("SnapTileMove", [](Scene& scene, const f32 dt) {
-            const f32     ts       = scene.GetTileMap().GetTileSize();
-            PhysicsWorld& physics  = scene.GetPhysics();
-            World&        ecsWorld = scene.GetWorld();
-
-            ecsWorld.Query<Transform2D, SnapTileMovement, const MoveIntent>()
-                    .Without<Disabled>()
-                    .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
-                        TickSnapMover(e, t, snap, intent, ecsWorld.GetComponent<Collider2D>(e), physics, ts, dt);
-                    });
+            TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
+                                 .TileSize = scene.GetTileMap().GetTileSize() };
+            ctx.Ecs.Query<Transform2D, SnapTileMovement, const MoveIntent>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
+                   TickSnapMover(ctx, e, t, snap, intent, dt);
+               });
         });
     }
 
@@ -870,52 +1032,29 @@ namespace
         });
     }
 
+    // Starts, moves, and stops spatial sounds. A source that leaves (entity
+    // destroyed, component removed, scene unloaded) is stopped by Scene's
+    // AudioSource OnRemove hook, not here.
     void RegisterAudioSystem(World& world)
     {
-        // Key: packed entity (Generation << 32 | Index) → opaque ma_sound handle.
-        // The map is the only owner of destroyed entities' handles — once an entity
-        // is gone from the query, this map is the last reference to its sound.
-        using SoundMap = std::unordered_map<u64, void*>;
-
-        world.RegisterSystem("Audio", [sounds = SoundMap{}](Scene& scene, f32 /*dt*/) mutable {
+        world.RegisterSystem("Audio", [](Scene& scene, f32 /*dt*/) {
             // Move the listener with the camera so attenuation is camera-relative.
             AudioManager::SetListenerPosition(scene.GetCamera().GetEffectivePosition());
-
-            std::unordered_set<u64> seen;
 
             scene.GetWorld()
                  .Query<const Transform2D, AudioSource>()
                  .Without<Disabled>()
-                 .ForEach([&](Entity e, const Transform2D& t, AudioSource& src) {
-                     const u64 key = (static_cast<u64>(e.Generation) << 32) | e.Index;
-                     seen.insert(key);
-
-                     // Start a new sound the first time we see a playing source.
-                     if (!src._handle && src.Playing) {
+                 .ForEach([](const Transform2D& t, AudioSource& src) {
+                     if (!src._handle && src.Playing)
                          src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume);
-                         sounds[key] = src._handle;
-                     }
+                     if (!src._handle) return;
 
-                     if (src._handle) {
-                         AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);
-
-                         // Playing set to false at runtime — stop and release.
-                         if (!src.Playing) {
-                             AudioManager::DestroySpatialSound(src._handle);
-                             src._handle = nullptr;
-                             sounds.erase(key);
-                         }
+                     AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);
+                     if (!src.Playing) { // stopped at runtime — release it
+                         AudioManager::DestroySpatialSound(src._handle);
+                         src._handle = nullptr;
                      }
                  });
-
-            // Destroy sounds for entities that were removed since last tick.
-            for (auto it = sounds.begin(); it != sounds.end();) {
-                if (!seen.contains(it->first)) {
-                    AudioManager::DestroySpatialSound(it->second);
-                    it = sounds.erase(it);
-                }
-                else { ++it; }
-            }
         });
     }
 
@@ -1034,6 +1173,7 @@ void RegisterBuiltinSystems(World& world)
     // Update phase — order matches the blueprint execution table.
     RegisterLifetimeSystem(world);
     RegisterInputMovementSystem(world);         // InputMovement → MoveIntent
+    RegisterPushOutSystem(world);               // out of colliders that moved into a free mover
     RegisterFreeMovementSystem(world);          // MoveIntent → Velocity; writes PendingMove
     RegisterSmoothTileMoveSystem(world);        // MoveIntent → QueuedDir; writes Transform directly
     RegisterSnapTileMoveSystem(world);          // MoveIntent → instant tile steps

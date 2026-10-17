@@ -2,6 +2,7 @@
 
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/ecs/Entity.h>
 #include <arcbit/input/InputTypes.h>
 
 namespace Arcbit {
@@ -83,12 +84,21 @@ struct MoveKeys
 // Use for combat, platformers, or any sub-tile positioning. With a
 // MoveIntent, Velocity is set to Direction * Speed every tick (instant start
 // and stop); without one, Velocity is yours to drive and Friction decays it.
+//
+// External is a push from the world (knockback, a bumper, a conveyor) that
+// adds on top of Velocity and always decays with Friction — so it works on
+// intent-driven movers, whose Velocity is rewritten every tick. A burst of
+// speed v travels about v / Friction pixels; with Friction 0 it never stops.
 struct FreeMovement
 {
     Vec2 Velocity;
-    f32  Friction = 8.0f;   // velocity multiplied by exp(-Friction * dt) each tick
-    f32  MaxSpeed = 0.0f;   // clamp magnitude after integration; 0 = unlimited
+    f32  Friction = 8.0f;   // Velocity (without intent) and External scale by exp(-Friction * dt) each tick
+    f32  MaxSpeed = 0.0f;   // clamp |Velocity| after integration; 0 = unlimited; External isn't clamped
     f32  Speed    = 100.0f; // world pixels/s at full MoveIntent
+    Vec2 External;          // world push in px/s, added on top of Velocity
+
+    // Add a burst of external velocity (px/s), e.g. knockback along a hit normal.
+    void AddImpulse(const Vec2 velocity) { External = External + velocity; }
 };
 
 // Lerps from tile center to tile center. With a MoveIntent, QueuedDir /
@@ -101,6 +111,10 @@ struct SmoothTileMovement
     f32  Progress   = 1.0f;   // 0→1 lerp progress; 1.0 = arrived
     Vec2 QueuedDir;
     bool HasQueued  = false;
+
+    // Internal (managed by SmoothTileMoveSystem): the Pushable this step is
+    // shoving, carried one tile ahead of the mover until the step ends.
+    Entity _pushing = Entity::Invalid();
 };
 
 // Moves instantly to the adjacent tile. A fresh press steps at once; a held
@@ -109,6 +123,19 @@ struct SnapTileMovement
 {
     f32 StepInterval = 0.15f; // seconds between steps while a direction is held
     f32 Cooldown     = 0.0f;  // time until the next step may start
+};
+
+// A mover walking into this entity shoves it instead of stopping (crates,
+// barrels). The entity needs a Collider2D. Pushes stop at walls and don't
+// chain through a second Pushable.
+//   - Free movers shove it along, swept against the world, at
+//     (1 - Resistance) of the speed they drive into it.
+//   - Tile movers push it one tile, Sokoban-style, when the cell beyond is
+//     free; a smooth mover carries it along in step. Keep tile-pushed crates
+//     on the grid: don't also let free movers shove them.
+struct Pushable
+{
+    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable (tile pushes only check for 1)
 };
 
 // ---------------------------------------------------------------------------

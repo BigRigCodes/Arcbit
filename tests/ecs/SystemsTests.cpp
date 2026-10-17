@@ -5,6 +5,7 @@
 
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
+#include <arcbit/physics/DirectionArc.h>
 #include <arcbit/physics/PhysicsCallbacks.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/Scene.h>
@@ -309,6 +310,81 @@ TEST_CASE("Blocking contacts report Enter with a normal, persist while touching,
     Step(scene, 10);
     CHECK(exits == 1);
     CHECK(enters == 1);
+}
+
+TEST_CASE("A one-way gate blocks entry through its face but never traps a mover inside", "[ecs][systems][physics]")
+{
+    // ObbDemo's spinning gate, frozen at an angle: NorthOnly arcs, so only
+    // contacts on its local north face block. Regression: once inside (entered
+    // through another face), any move with a local-south component was
+    // refused, so the only way out was through the blocking face.
+    constexpr f32  Angle = 0.6f;
+    const Vec2     north{ std::sin(Angle), -std::cos(Angle) }; // the gate's local -Y in world space
+    const Collider2D gateCol{ .Shape = ColliderShape::Box, .Rotation = Angle, .HalfExtents = { 64.0f, 16.0f },
+                              .Kind = BodyKind::Static, .BlockedFrom = DirectionArc::NorthOnly() };
+
+    SECTION("approaching the north face is blocked")
+    {
+        Scene scene;
+        (void)AddBody(scene, {}, gateCol);
+        const Entity mover = AddFreeMover(scene, north * 80.0f, 19.0f);
+        SetVelocity(scene, mover, north * -240.0f);
+        Step(scene, 30);
+        CHECK(Dot(PositionOf(scene, mover), north) > 16.0f + 19.0f - 1.0f); // stopped at the face
+    }
+    SECTION("walked in through a pass-through face, every direction is open")
+    {
+        for (int i = 0; i < 8; ++i) {
+            Scene scene;
+            (void)AddBody(scene, {}, gateCol);
+            const Entity mover = AddFreeMover(scene, north * -80.0f, 19.0f);
+            SetVelocity(scene, mover, north * 240.0f);
+            Step(scene, 20); // 80 px: in through the south face, to the gate's center
+            REQUIRE_THAT(Length(PositionOf(scene, mover)), WithinAbs(0.0f, 0.5f));
+
+            const f32 a = static_cast<f32>(i) * QuarterPi;
+            SetVelocity(scene, mover, Vec2{ std::cos(a), std::sin(a) } * 240.0f);
+            Step(scene, 6);
+            INFO("direction " << i);
+            CHECK_THAT(Length(PositionOf(scene, mover)), WithinAbs(24.0f, 0.5f)); // 6 ticks at 240 px/s
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scene cleanup
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Every way a collider leaves drops its broadphase record", "[ecs][systems][physics]")
+{
+    // Regression: only LifetimeSystem unregistered colliders, so an entity
+    // destroyed any other way kept blocking movers as an invisible wall.
+    Scene         scene;
+    PhysicsWorld& physics = scene.GetPhysics();
+
+    SECTION("DestroyEntity")
+    {
+        const Entity e = AddBody(scene, {}, Box(8.0f));
+        REQUIRE(physics.FindColliderForEntity(e) != PhysicsWorld::InvalidId);
+        scene.GetWorld().DestroyEntity(e);
+        CHECK(physics.FindColliderForEntity(e) == PhysicsWorld::InvalidId);
+    }
+    SECTION("RemoveComponent<Collider2D>")
+    {
+        const Entity e = AddBody(scene, {}, Box(8.0f));
+        scene.GetWorld().RemoveComponent<Collider2D>(e);
+        CHECK(physics.FindColliderForEntity(e) == PhysicsWorld::InvalidId);
+        CHECK(scene.GetWorld().IsValid(e));
+    }
+    SECTION("a mover passes where a destroyed wall stood")
+    {
+        const Entity wall  = AddBody(scene, { 32.0f, 0.0f }, Box(8.0f, BodyKind::Static));
+        const Entity mover = AddFreeMover(scene, {});
+        scene.GetWorld().DestroyEntity(wall);
+        SetVelocity(scene, mover, { 240.0f, 0.0f });
+        Step(scene, 30);
+        CHECK(PositionOf(scene, mover).X > 64.0f);
+    }
 }
 
 // ---------------------------------------------------------------------------

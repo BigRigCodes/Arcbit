@@ -41,8 +41,10 @@ struct GraphicsSettings
 // ---------------------------------------------------------------------------
 // AudioSettings
 //
-// Volume levels are in [0, 1]. MasterVolume multiplies all channels.
-// Wired to the AudioManager in Phase 16.
+// Volume levels are in [0, 1] and mean perceived loudness: 1 is the mix as
+// the game was authored, 0.5 sounds about half as loud, 0.1 about a tenth
+// (AudioManager::SliderToGain turns them into gain). MasterVolume scales all
+// channels.
 // ---------------------------------------------------------------------------
 struct AudioSettings
 {

@@ -14,8 +14,9 @@
 //
 //   - **Spinning gate** — slowly rotating box with NorthOnly() arcs. The
 //     orange strip marks the blocking face; the arc turns with the gate.
-//     There is no depenetration pass, so the gate stalls rather than rotate
-//     into the player.
+//     Its arms sweep the player aside as they turn (push-out, 22I). Walk in
+//     through any face but the orange one and you can stand inside it while
+//     it turns around you.
 //
 // Keys: WASD move, R pauses/resumes the gate, C toggles the player collider
 // between Box and Circle, F2 toggles collider outlines, G toggles the grid.
@@ -32,7 +33,6 @@
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/DirectionArc.h>
-#include <arcbit/physics/Narrowphase.h>
 #include <arcbit/physics/OBB.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/Camera2D.h>
@@ -74,65 +74,39 @@ struct PropDesc
 };
 } // namespace
 
-class ObbDemo : public Application
+class ObbDemo : public Scene
 {
-public:
-    ObbDemo() : Application({
-        .Title = "Arcbit — OBB Demo (R gate, C player shape, F2 colliders)",
-        .Width = 1920, .Height = 1080
-    }) {}
-
 protected:
-    void OnStart() override
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
+    void OnLoad() override
     {
-        _sampler  = Demo::CreateNearestRepeatSampler(GetDevice());
-        _whiteTex = Demo::CreateWhiteTexture(GetDevice());
+        _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());
+        _whiteTex = Demo::CreateWhiteTexture(GetApp().GetDevice());
 
-        GetScene().GetConfig().TileSize = TileSize;
-        GetScene().GetCamera().Zoom     = 1.5f;
+        GetConfig().TileSize = TileSize;
+        GetCamera().Zoom     = 1.5f;
 
-        TileMap& tm = GetScene().GetTileMap();
+        TileMap& tm = GetTileMap();
         tm.SetTileSize(TileSize);
-        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetTextures(), _sampler),
+        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetApp().GetTextures(), _sampler),
                       "ObbDemo: failed to load tile atlases");
         for (i32 ty = -GrassExtent; ty <= GrassExtent; ++ty)
             for (i32 tx = -GrassExtent; tx <= GrassExtent; ++tx)
                 tm.SetTile(tx, ty, 0, GrassTileId);
 
-        SetupInput();
 
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
         physics.SetDebugDraw(true);
 
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         CreatePlayer(world, physics);
         CreateProps(world, physics);
         CreateGate(world, physics);
 
-        LOG_INFO(Game, "ObbDemo ready — WASD move, R gate, C player shape, F2 colliders, G grid");
+        LOG_INFO(Game, "ObbDemo ready - WASD move, R gate, C player shape, F2 colliders, G grid");
     }
 
-    void SetupInput()
-    {
-        auto& input = GetInput();
-        input.RegisterAction(ActionMoveLeft, "Move_Left", "Move Left", "Movement");
-        input.RegisterAction(ActionMoveRight, "Move_Right", "Move Right", "Movement");
-        input.RegisterAction(ActionMoveUp, "Move_Up", "Move Up", "Movement");
-        input.RegisterAction(ActionMoveDown, "Move_Down", "Move Down", "Movement");
-        input.RegisterAction(ActionDebugPhysics, "Debug_Physics", "Toggle Physics Debug", "Debug");
-        input.RegisterAction(ActionToggleGrid, "Debug_ToggleGrid", "Toggle Grid", "Debug");
-        input.RegisterAction(ActionToggleGate, "Demo_ToggleGate", "Pause Gate", "Debug");
-        input.RegisterAction(ActionToggleShape, "Demo_TogglePlayerShape", "Toggle Player Shape", "Debug");
-
-        input.BindKey(ActionMoveLeft, Key::A);
-        input.BindKey(ActionMoveRight, Key::D);
-        input.BindKey(ActionMoveUp, Key::W);
-        input.BindKey(ActionMoveDown, Key::S);
-        input.BindKey(ActionDebugPhysics, Key::F2);
-        input.BindKey(ActionToggleGrid, Key::G);
-        input.BindKey(ActionToggleGate, Key::R);
-        input.BindKey(ActionToggleShape, Key::C);
-    }
 
     // Player: blue square, FreeMovement-driven. Starts as a Box collider; C
     // swaps to a Circle of the same half-size.
@@ -232,7 +206,7 @@ protected:
     // Keep the strip glued to the gate's local north face.
     void PlaceGateStrip()
     {
-        auto&             world   = GetScene().GetWorld();
+        auto&             world   = GetWorld();
         const Collider2D& gateCol = *world.GetComponent<Collider2D>(_gate);
         const Vec2        gatePos = world.GetTransform(_gate)->Position;
         const OBB         box     = OBB::FromCollider(gateCol, gatePos);
@@ -241,41 +215,35 @@ protected:
         strip->Rotation           = gateCol.Rotation;
     }
 
-    // Advance the gate's rotation unless the next pose would overlap the
-    // player — there's no depenetration, so rotating into them would trap them.
+    // Advance the gate's rotation. If an arm turns into the player, the
+    // engine's push-out system moves the player aside next tick.
     void SpinGate(const f32 dt)
     {
-        auto&             world     = GetScene().GetWorld();
-        Collider2D&       gateCol   = *world.GetComponent<Collider2D>(_gate);
-        Transform2D&      gateT     = *world.GetTransform(_gate);
-        const Collider2D& playerCol = *world.GetComponent<Collider2D>(_player);
-        const Vec2        playerPos = world.GetTransform(_player)->Position;
+        auto&        world   = GetWorld();
+        Collider2D&  gateCol = *world.GetComponent<Collider2D>(_gate);
+        Transform2D& gateT   = *world.GetTransform(_gate);
 
-        Collider2D next = gateCol;
-        next.Rotation   = std::remainder(gateCol.Rotation + GateSpinRate * dt, TwoPi);
-        if (Narrowphase::Overlap(next, gateT.Position, playerCol, playerPos)) return;
-
-        gateCol.Rotation = next.Rotation;
-        gateT.Rotation   = next.Rotation;
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        gateCol.Rotation = std::remainder(gateCol.Rotation + GateSpinRate * dt, TwoPi);
+        gateT.Rotation   = gateCol.Rotation;
+        PhysicsWorld& physics = GetPhysics();
         physics.UpdateCollider(physics.FindColliderForEntity(_gate), gateCol, gateT.Position);
         PlaceGateStrip();
     }
 
     void TogglePlayerShape()
     {
-        auto&       world = GetScene().GetWorld();
+        auto&       world = GetWorld();
         Collider2D& col   = *world.GetComponent<Collider2D>(_player);
         col.Shape         = col.Shape == ColliderShape::Box ? ColliderShape::Circle : ColliderShape::Box;
 
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
         physics.UpdateCollider(physics.FindColliderForEntity(_player), col, world.GetTransform(_player)->Position);
         LOG_INFO(Game, "Player collider: {}", col.Shape == ColliderShape::Box ? "Box" : "Circle");
     }
 
     void OnUpdate(const f32 dt) override
     {
-        auto& input = GetInput();
+        auto& input = GetApp().GetInput();
 
         if (input.JustPressed(ActionToggleGate)) {
             _gateSpinning = !_gateSpinning;
@@ -285,7 +253,7 @@ protected:
 
         if (input.JustPressed(ActionToggleShape)) TogglePlayerShape();
         if (input.JustPressed(ActionDebugPhysics)) {
-            PhysicsWorld& physics = GetScene().GetPhysics();
+            PhysicsWorld& physics = GetPhysics();
             physics.SetDebugDraw(!physics.GetDebugDraw());
         }
         if (input.JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
@@ -294,21 +262,21 @@ protected:
     void OnRender(FramePacket& packet) override
     {
         packet.AmbientColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-        GetScene().GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
+        GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
         if (!_showGrid) return;
 
-        const Camera2D& cam    = GetScene().GetCamera();
+        const Camera2D& cam    = GetCamera();
         const Vec2      camPos = cam.GetEffectivePosition();
         const Vec2      halfView{ (1920.0f / cam.Zoom) * 0.5f, (1080.0f / cam.Zoom) * 0.5f };
         const AABB      viewAABB  = AABB::FromCenterHalfExtents(camPos, halfView);
         const f32       thickness = std::max(1.0f, 1.0f / cam.Zoom);
-        GetScene().GetTileMap().CollectGridDebugDraw(packet, viewAABB, _whiteTex, _sampler, thickness);
+        GetTileMap().CollectGridDebugDraw(packet, viewAABB, _whiteTex, _sampler, thickness);
     }
 
-    void OnShutdown() override
+    void OnUnload() override
     {
-        if (_whiteTex.IsValid()) GetDevice().DestroyTexture(_whiteTex);
-        if (_sampler.IsValid()) GetDevice().DestroySampler(_sampler);
+        if (_whiteTex.IsValid()) GetApp().GetDevice().DestroyTexture(_whiteTex);
+        if (_sampler.IsValid()) GetApp().GetDevice().DestroySampler(_sampler);
     }
 
 private:
@@ -321,9 +289,4 @@ private:
     bool          _showGrid     = false;
 };
 
-// Entry point — main.cpp calls this when ARCBIT_DEMO_OBB is selected.
-void RunObbDemo()
-{
-    ObbDemo demo;
-    demo.Run();
-}
+std::unique_ptr<Scene> Demo::CreateObbDemo() { return std::make_unique<ObbDemo>(); }

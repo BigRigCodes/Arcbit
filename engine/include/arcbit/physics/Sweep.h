@@ -23,13 +23,20 @@ struct Result
     bool Hit    = false;
 };
 
+// Started-overlap rules, shared by both sweeps below:
+//   - Touching at t == 0 (within float noise): a Hit with ToI == 0 and the
+//     touching face's normal only when `delta` pushes into that face; moving
+//     away from or along it is free, so a mover resting against a wall can
+//     leave or slide.
+//   - Genuinely inside the obstacle at t == 0: no Hit. The mover got in
+//     legitimately (a pass-through face of a directional collider, or
+//     placement), and the obstacle doesn't block it until it has left.
+//     There is no depenetration pass, so this is also what lets a mover
+//     stuck inside a solid collider walk out instead of freezing.
+
 // Closed-form swept test for two axis-aligned boxes when one moves.
-// `moving` is the mover's current world AABB (assumed not already overlapping
-// `stationary` past tangency); `delta` is the displacement to test in world
-// pixels. Boxes already touching at t==0 (within float noise) report a Hit
-// with ToI==0 and the touching face's normal only when `delta` pushes into
-// that face; moving away from or along it is not a hit, so a mover resting
-// against a box can leave or slide.
+// `moving` is the mover's current world AABB; `delta` is the displacement to
+// test in world pixels.
 [[nodiscard]] Result MovingAABBvsAABB(const AABB& moving, Vec2 delta,
                                       const AABB& stationary) noexcept;
 

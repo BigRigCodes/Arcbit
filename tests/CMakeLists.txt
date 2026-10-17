@@ -7,10 +7,12 @@ find_package(nlohmann_json CONFIG REQUIRED) # JSON format tests build documents 
 add_executable(arcbit-tests
     main.cpp
     assets/SpriteSheetTests.cpp
+    audio/VolumeTests.cpp
     core/LocTests.cpp
     core/MathTests.cpp
     ecs/AnimatorStateMachineTests.cpp
     ecs/MovementTests.cpp
+    ecs/PhysicsResponseTests.cpp
     ecs/SystemsTests.cpp
     ecs/WorldTests.cpp
     input/InputManagerTests.cpp
@@ -22,9 +24,13 @@ add_executable(arcbit-tests
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
     render/Camera2DTests.cpp
+    scene/SceneFileTests.cpp
+    scene/SceneManagerTests.cpp
+    scene/ScenePreloaderTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
     ui/UILayoutTests.cpp
+    ui/UIManagerTests.cpp
     ui/UISkinTests.cpp
 )
 

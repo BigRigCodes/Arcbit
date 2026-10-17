@@ -7,14 +7,41 @@
 #include <arcbit/render/Font.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
+#include <arcbit/scene/SceneManager.h>
+#include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/UIManager.h>
 
+#include <functional>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace Arcbit
 {
 class Window; // full type only needed in Application.cpp
-class Scene;  // full type only needed in Application.cpp
+
+// ---------------------------------------------------------------------------
+// How the game starts once the engine's own splash has played: the game's
+// splash images, then either the first scene or a title menu. Set
+// Application::_boot in the subclass constructor or OnStart; Application runs
+// it right after OnStart. Phase 38's project.arcbit will fill this from data.
+//
+// The first scene loads underneath the splash and fades in when the splash
+// ends. With ShowTitle, the title menu (MainMenuScreen) opens over it:
+//   - TitleScene empty: the title sits over FirstScene, already running
+//     behind it; New Game just closes the title.
+//   - TitleScene set: the title sits over that scene (a backdrop); New Game
+//     switches to FirstScene.
+// ---------------------------------------------------------------------------
+struct BootConfig
+{
+    std::vector<std::string> SplashImages;          // the game's own splashes, after the engine's
+    f32                      SplashSeconds = 3.0f;  // each, fades included
+    std::string              FirstScene;            // registered scene to start; empty = none
+    std::string              TitleScene;            // backdrop for the title menu; empty = FirstScene
+    bool                     ShowTitle = false;     // open the title menu after the splashes
+    std::string              CreditsPath;           // credits JSON for the title's Credits button; empty hides it
+};
 
 // ---------------------------------------------------------------------------
 // ApplicationConfig
@@ -103,8 +130,32 @@ public:
     // automatically during shutdown, but you can also Unload() explicitly.
     [[nodiscard]] TextureManager& GetTextures() { return *_textures; }
 
-    // The active scene — access the ECS world, camera, and world config from OnStart onwards.
+    // The active scene — access the ECS world, camera, and world config from
+    // OnStart onwards. Before any scene is registered and switched to, this is
+    // a default unmanaged Scene the game populates itself. Don't hold the
+    // reference across a scene switch.
     [[nodiscard]] Scene& GetScene();
+
+    // Register scenes and switch between them (fade out → swap → fade in).
+    [[nodiscard]] SceneManager& GetScenes() { return _scenes; }
+
+    // Components and named systems scene files may use. Holds the engine's
+    // built-ins; register game components and systems in OnStart.
+    [[nodiscard]] SceneRegistry& GetSceneRegistry() { return _sceneRegistry; }
+
+    // Shared samplers scene files refer to by name: Nearest ("nearest", point
+    // filtering, repeat) and Linear ("linear", bilinear, clamp). Created
+    // before OnStart, destroyed at shutdown.
+    enum class StockSampler : u8
+    {
+        Nearest,
+        Linear,
+    };
+    [[nodiscard]] SamplerHandle GetStockSampler(StockSampler which) const;
+
+    // The engine's 1x1 white texture ("builtin:white" in scene files) - tint
+    // it for solid-color quads.
+    [[nodiscard]] TextureHandle GetWhiteTexture() const { return _renderThread.GetUIWhiteTexture(); }
 
     // The UI manager — push screens in OnStart; query widgets in OnUpdate.
     [[nodiscard]] UIManager& GetUI() { return _ui; }
@@ -116,8 +167,31 @@ public:
     // Frames per second measured by the application loop (smoothed).
     [[nodiscard]] f32 GetFPS() const { return _renderStats.FPS; }
 
-protected:
+    // Ask the main loop to exit after the current frame (e.g. a menu's Quit).
     void RequestShutdown() { _shouldShutdown = true; }
+
+    // Replace the window's title bar text.
+    void SetWindowTitle(std::string_view title);
+
+    // Push one of the engine's settings screens (each pops itself on Back) -
+    // what the title menu's and a pause menu's buttons open.
+    void ShowControlsScreen();
+    void ShowAudioScreen();
+    void ShowGraphicsScreen();
+
+    // Roll the credits (BootConfig::CreditsPath) - the title menu's Credits
+    // button, or the end of a game.
+    void ShowCredits();
+
+    // The screen shown while a scene change waits at black for its scene to
+    // load (SceneChange::ShowLoadingScreen), after a short grace period so a
+    // quick load doesn't flash it. Defaults to the engine's LoadingScreen;
+    // pass a factory for your own (any UIScreen, BlocksGame off) or null for
+    // plain black.
+    using ScreenFactory = std::function<std::unique_ptr<UIScreen>()>;
+    void SetLoadingScreen(ScreenFactory factory) { _loadingScreenFactory = std::move(factory); }
+
+protected:
     
     void ToggleDebugGrid() { _showGrid = !_showGrid; }
 
@@ -153,6 +227,10 @@ protected:
     // Change before Run() is called; modifying mid-loop is not recommended.
     f32 _fixedTimestep = 1.0f / 60.0f;
 
+    // How the game starts after the engine splash (see BootConfig). Set it in
+    // the constructor or OnStart.
+    BootConfig _boot;
+
     // The engine's built-in SDF debug font — Roboto loaded at engine startup.
     [[nodiscard]] const FontAtlas& GetDebugFont() const { return _debugFont; }
     
@@ -183,13 +261,32 @@ private:
 
     UIManager _ui;
 
-    std::unique_ptr<Scene>          _scene;
+    SceneManager                    _scenes;
+    SceneRegistry                   _sceneRegistry;
+    SamplerHandle                   _nearestSampler;
+    SamplerHandle                   _linearSampler;
     RenderDevice*                   _device = nullptr;
     std::unique_ptr<TextureManager> _textures;
     SwapchainHandle                 _swapchain;
     RenderThread                    _renderThread;
     std::unique_ptr<Window>         _window;
     InputManager                    _input;
+
+    // Full-window black quad over the world while a scene switch fades.
+    void CollectSceneFade(FramePacket& packet) const;
+
+    // Boot flow (ApplicationBoot.cpp).
+    void StartBoot();
+    void PushSplash();
+    void FinishSplash();
+    void ShowTitle();
+    std::vector<TextureHandle> _splashTextures; // released once the splash ends
+
+    // Loading screen over a scene change held at black.
+    void            UpdateLoadingScreen(f32 dt);
+    ScreenFactory   _loadingScreenFactory;    // the engine's LoadingScreen unless the game changes it
+    const UIScreen* _loadingScreen = nullptr; // on the UI stack while shown
+    f32             _loadingHeld   = 0.0f;    // seconds held at black so far
 
     // Accumulates real time to rate-limit hot-reload checks to once per second.
     f64 _hotReloadAccumulator = 0.0;

@@ -57,26 +57,22 @@ constexpr i32 GrassExtent = 8;
 constexpr f32 PlayerSpeed = 240.0f; // world px/sec
 } // namespace
 
-class ArcDemo : public Application
+class ArcDemo : public Scene
 {
-public:
-    ArcDemo() : Application({
-        .Title = "Arcbit — Arc Demo (F2 toggles colliders)",
-        .Width = 1920, .Height = 1080
-    }) {}
-
 protected:
-    void OnStart() override
+    void OnPrepare(ScenePreloader& preload) override { Demo::PreloadGrassAndWaterAtlases(preload); }
+
+    void OnLoad() override
     {
-        _sampler  = Demo::CreateNearestRepeatSampler(GetDevice());
-        _whiteTex = Demo::CreateWhiteTexture(GetDevice());
+        _sampler  = Demo::CreateNearestRepeatSampler(GetApp().GetDevice());
+        _whiteTex = Demo::CreateWhiteTexture(GetApp().GetDevice());
 
-        GetScene().GetConfig().TileSize = TileSize;
-        GetScene().GetCamera().Zoom     = 1.5f;
+        GetConfig().TileSize = TileSize;
+        GetCamera().Zoom     = 1.5f;
 
-        TileMap& tm = GetScene().GetTileMap();
+        TileMap& tm = GetTileMap();
         tm.SetTileSize(TileSize);
-        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetTextures(), _sampler),
+        ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetApp().GetTextures(), _sampler),
                       "ArcDemo: failed to load tile atlases");
 
         // Plain grass everywhere — directional behaviour is on the entities,
@@ -85,36 +81,19 @@ protected:
             for (i32 tx = -GrassExtent; tx <= GrassExtent; ++tx)
                 tm.SetTile(tx, ty, 0, GrassTileId);
 
-        SetupInput();
 
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
         physics.SetDebugDraw(true);
 
-        auto& world = GetScene().GetWorld();
+        auto& world = GetWorld();
         CreatePlayer(world, physics);
         CreateTree(world, physics);
         CreateBush(world, physics);
         CreateLedge(world, physics);
 
-        LOG_INFO(Game, "ArcDemo ready — WASD to move, F2 toggles collider overlay");
+        LOG_INFO(Game, "ArcDemo ready - WASD to move, F2 toggles collider overlay");
     }
 
-    void SetupInput()
-    {
-        GetInput().RegisterAction(ActionMoveLeft, "Move_Left", "Move Left", "Movement");
-        GetInput().RegisterAction(ActionMoveRight, "Move_Right", "Move Right", "Movement");
-        GetInput().RegisterAction(ActionMoveUp, "Move_Up", "Move Up", "Movement");
-        GetInput().RegisterAction(ActionMoveDown, "Move_Down", "Move Down", "Movement");
-        GetInput().RegisterAction(ActionDebugPhysics, "Debug_Physics", "Toggle Physics Debug", "Debug");
-        GetInput().RegisterAction(ActionToggleGrid, "Debug_ToggleGrid", "Toggle Grid", "Debug");
-
-        GetInput().BindKey(ActionMoveLeft, Key::A);
-        GetInput().BindKey(ActionMoveRight, Key::D);
-        GetInput().BindKey(ActionMoveUp, Key::W);
-        GetInput().BindKey(ActionMoveDown, Key::S);
-        GetInput().BindKey(ActionDebugPhysics, Key::F2);
-        GetInput().BindKey(ActionToggleGrid, Key::G);
-    }
 
     // Player: blue circle, FreeMovement-driven (so off-axis approaches at
     // arbitrary angles are possible — that's the point of the arc check).
@@ -266,22 +245,22 @@ protected:
 
     void OnUpdate(const f32 /*dt*/) override
     {
-        PhysicsWorld& physics = GetScene().GetPhysics();
+        PhysicsWorld& physics = GetPhysics();
 
-        if (GetInput().JustPressed(ActionDebugPhysics)) {
+        if (GetApp().GetInput().JustPressed(ActionDebugPhysics)) {
             physics.SetDebugDraw(!physics.GetDebugDraw());
             LOG_INFO(Game, "Physics debug draw: {}", physics.GetDebugDraw() ? "ON" : "OFF");
         }
-        if (GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
+        if (GetApp().GetInput().JustPressed(ActionToggleGrid)) _showGrid = !_showGrid;
     }
 
     void OnRender(FramePacket& packet) override
     {
         packet.AmbientColor = {1.0f, 1.0f, 1.0f, 1.0f};
-        GetScene().GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
+        GetPhysics().CollectDebugDraw(packet, _whiteTex, _sampler);
 
         if (_showGrid) {
-            const Camera2D& cam    = GetScene().GetCamera();
+            const Camera2D& cam    = GetCamera();
             const Vec2      camPos = cam.GetEffectivePosition();
             const Vec2      halfView{
                 (1920.0f / cam.Zoom) * 0.5f,
@@ -289,15 +268,15 @@ protected:
             };
             const AABB viewAABB  = AABB::FromCenterHalfExtents(camPos, halfView);
             const f32  thickness = std::max(1.0f, 1.0f / cam.Zoom);
-            GetScene().GetTileMap().CollectGridDebugDraw(
+            GetTileMap().CollectGridDebugDraw(
                 packet, viewAABB, _whiteTex, _sampler, thickness);
         }
     }
 
-    void OnShutdown() override
+    void OnUnload() override
     {
-        if (_whiteTex.IsValid()) GetDevice().DestroyTexture(_whiteTex);
-        if (_sampler.IsValid()) GetDevice().DestroySampler(_sampler);
+        if (_whiteTex.IsValid()) GetApp().GetDevice().DestroyTexture(_whiteTex);
+        if (_sampler.IsValid()) GetApp().GetDevice().DestroySampler(_sampler);
     }
 
 private:
@@ -307,9 +286,4 @@ private:
     bool          _showGrid = false;
 };
 
-// Entry point — main.cpp calls this when ARCBIT_DEMO_ARC is selected.
-void RunArcDemo()
-{
-    ArcDemo demo;
-    demo.Run();
-}
+std::unique_ptr<Scene> Demo::CreateArcDemo() { return std::make_unique<ArcDemo>(); }

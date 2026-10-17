@@ -304,6 +304,13 @@ whether the angle falls inside any of the `BlockedFrom` arcs. If yes, the
 contact is a blocker; if no, the contact is dropped and movement passes
 through.
 
+Arcs gate getting *in*. A mover that is already inside a collider (it came
+through a pass-through face, or was placed there) is not blocked by that
+collider again until it has left, so it can back out the way it came or
+continue through. Merely touching is different: moving into the touching face
+is a contact (subject to the arcs), while sliding along it or moving away is
+free.
+
 ```cpp
 // Tree (axis-aligned): block top/bottom approaches; sides pass through.
 // Default tunable: each arc covers ±60° around its axis, leaving a clear
@@ -459,9 +466,40 @@ on a successful query (no lerp). Same plan-then-commit flow. Landed in Phase
 
 Two kinematic colliders meeting in the middle: the resolver gives priority to
 whichever entity is currently moving. If both move in the same tick, the one
-that ran first wins. For shoving boxes / pushing NPCs out of the way, the
-canonical approach is a `Pushable` tag plus a small impulse from the pusher
-into the box — that is a Phase 23+ concern and not in scope here.
+that ran first wins.
+
+To shove something (a crate, a barrel), give it a `Pushable` component (22I).
+When a free mover's sweep hits it, the resolver moves the pushable by the part
+of the remaining motion that drives into it, scaled by `1 - Resistance`,
+sweeping it against the world so it stops at walls. Then it sweeps the pusher
+again, so the pusher follows at the pushable's speed. Shoves don't chain:
+a crate pushed into a second crate stops.
+
+Tile movers push Sokoban-style: when a planned step is blocked by a
+`Pushable`, the crate moves one tile along the step if `QueryTileBlocked`
+clears the cell beyond it, and the step is planned again. A smooth mover
+carries the crate one tile ahead of itself until the step ends, rather than
+letting the crate lerp on its own: a self-moving crate could lag the mover by
+a tick, still be mid-step when the mover arrived, and stall a held push at
+every tile.
+
+### Push-out (depenetration)
+
+Kinematic-first means nothing pushes a mover out of a collider. Normally that's
+fine: sweeps stop movers at the surface. But an obstacle can move *into* a
+mover: a rotating gate, a prop spawned or teleported on top of it. The push-out
+system (22I) runs before movement each tick and moves free movers out of such
+overlaps along the contact normal, by the penetration depth. The push is swept
+like a move, so it never shoves a mover through a wall, and two free movers
+overlapping each take half.
+
+What it leaves alone is the overlap a mover made itself by walking into a
+directional collider through a pass-through face. The resolver records those
+(mover, collider) pairs when a move ends inside a collider it wasn't inside
+before (`PhysicsWorld::EnteredOverlaps`); push-out skips them and drops each
+record once the pair stops overlapping. Without that, one-way colliders would
+spit the mover back out. Tile movers aren't pushed (it would break grid
+alignment).
 
 ---
 

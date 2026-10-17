@@ -82,25 +82,39 @@ simultaneously, keeping each array dense.
 Owns all archetypes and the entity table. Archetypes are looked up in O(1) via
 an `unordered_map<ComponentMask, Archetype>`.
 
+**Removal hooks.** `World::OnRemove<T>(callback)` runs whenever a `T` leaves
+an entity - `RemoveComponent<T>`, `DestroyEntity`, or `DestroyAllEntities` -
+so outside resources tied to a component are released on every path. `Scene`
+uses them to drop a `Collider2D` from the physics broadphase and stop an
+`AudioSource`'s sound; its destructor destroys every entity, so a scene that
+unloads leaves no invisible walls or orphaned loops behind.
+
 ---
 
 ## Scene
 
-`Scene` is the top-level container for a running game world. It owns the ECS
-`World`, the active `Camera2D`, and the `WorldConfig` resource. This is the
-abstraction that Phase 23 (`SceneManager`) will load, unload, and transition
-between.
+`Scene` is the top-level container for a running game world:
 
 ```
 Scene
 ├── World          — all entities, archetypes, and systems
 ├── Camera2D       — active camera (driven by CameraFollowSystem)
-└── WorldConfig    — scene-wide constants (tile size, gravity, bounds)
+├── WorldConfig    — scene-wide constants (tile size, gravity)
+├── TileMap        — the scene's tiles and atlases
+└── PhysicsWorld   — created on first GetPhysics(), wired to the TileMap
 ```
 
-`Application` holds a `std::unique_ptr<Scene>` and exposes `GetScene()`.
-Game code that previously accessed `Camera2D` directly now goes through
-`GetScene().GetCamera()`.
+`Application` owns a `SceneManager` (`GetScenes()`) holding a stack of scenes;
+`GetScene()` is the active one. A scene is a C++ subclass overriding the
+lifecycle hooks (`OnPrepare`, `OnLoad`, `OnUnload`, `OnSuspend`, `OnResume`,
+`OnUpdate`, `OnRender`) or a data-driven `FileScene` built from an
+`.arcscene` file. Registering scenes, switching with fades, the scene stack,
+loading in the background and the boot flow are in [scenes.md](scenes.md).
+A game that registers no scenes gets one plain, unnamed `Scene` it fills in
+`OnStart`.
+
+Textures and sprite sheets a scene loads through `Scene::LoadTexture` /
+`LoadSpriteSheet` are reference-counted and released when it unloads.
 
 ### WorldConfig
 
@@ -367,16 +381,45 @@ any entity that needs sub-tile positioning.
 ```cpp
 struct FreeMovement {
     Vec2 Velocity;
-    f32  Friction = 8.0f;   // velocity multiplied by exp(-Friction * dt) each tick
-    f32  MaxSpeed = 0.0f;   // clamp magnitude after integration; 0 = unlimited
+    f32  Friction = 8.0f;   // Velocity (without intent) and External scale by exp(-Friction * dt)
+    f32  MaxSpeed = 0.0f;   // clamp |Velocity| after integration; 0 = unlimited; External isn't clamped
     f32  Speed    = 100.0f; // world pixels/s at full MoveIntent
+    Vec2 External;          // world push in px/s, added on top of Velocity
+    void AddImpulse(Vec2 velocity);
 };
 ```
 
 With a `MoveIntent`, `Velocity` is set to `Direction * Speed` every tick:
-instant start and stop, so `Friction` has no visible effect. Without one,
-`Velocity` is yours to drive (ships, projectiles) and `Friction` decays it.
-Acceleration curves and knockback are future work.
+instant start and stop, so `Friction` has no visible effect on it. Without
+one, `Velocity` is yours to drive (ships, projectiles) and `Friction` decays
+it.
+
+`External` (Phase 22I) is movement from the world: knockback, a bumper, a
+conveyor. `AddImpulse` adds to it; it moves the entity on top of `Velocity`
+and always decays with `Friction`, so it works on intent-driven movers too
+(writing an impulse to `Velocity` would be overwritten next tick). A burst of
+speed `v` travels about `v / Friction` pixels. Acceleration curves are future
+work.
+
+#### Pushable
+
+```cpp
+struct Pushable {
+    f32 Resistance = 0.5f; // 0 = moves as fast as the pusher; 1 = immovable
+};
+```
+
+A mover walking into a `Pushable` entity (which needs a `Collider2D`) shoves
+it instead of stopping. Pushes stop at walls, and the pusher with them; they
+don't chain through a second `Pushable`.
+
+- **Free movers** shove it along by the part of their motion that drives into
+  it, scaled by `1 - Resistance`, swept against the world.
+- **Tile movers** push it one tile, Sokoban-style, when the cell beyond is
+  free (`Resistance` only matters at 1: immovable). A smooth mover carries the
+  crate one tile ahead of itself for the whole step, so a held push glides
+  without stalling at each tile; a snap mover moves it instantly. Keep a
+  tile-pushed crate on the grid by not letting free movers shove it too.
 
 #### SmoothTileMovement
 
@@ -463,16 +506,17 @@ systems first; game code registers its systems in `OnStart` and they run after.
 |-------|--------|-------|--------|--------|
 | 1 | `LifetimeSystem` | `Lifetime` | destroys entity (unregisters its collider) | ✓ Done |
 | 2 | `InputMovementSystem` | `InputMovement`, InputManager | `MoveIntent` | ✓ Done (22H) |
+| 3 | `PushOutSystem` | free movers' `Collider2D`, entered-overlap record | `Transform2D.Position` (out of colliders that moved into them) | ✓ Done (22I) |
 | — | `AIMovementSystem` | `AIMovement` | `MoveIntent` | Deferred (Phase 30) |
-| 3 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity`, `PendingMove` | ✓ Done |
-| 4 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
-| 5 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
-| 6 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`? | `Transform2D.Position` (swept clamp + slide) | ✓ Done (22B) |
-| 7 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
-| 8 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
-| 9 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
-| 10 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
-| 11 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
+| 4 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity` / `External`, `PendingMove` | ✓ Done |
+| 5 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
+| 6 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
+| 7 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) | ✓ Done (22B, 22I) |
+| 8 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
+| 9 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
+| 10 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
+| 11 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
+| 12 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
 
 `?` marks an optional component: the system reads it when present.
 
@@ -541,66 +585,37 @@ bitmask with zero per-entity branching.
 
 ```
 [fixed tick]
-  Scene::Update(dt)
-    → World runs all registered update systems in order
+  Application::OnUpdate(dt)
+  SceneManager::Update(dt)        — fades, and a pending swap
+  Scene::Update(dt)               — the active scene
+    → Scene::OnUpdate(dt), the camera, then the World's update systems in order
+  UIManager::Update(dt)
 
 [variable tick]
   FramePacket packet = ...
+  Application::OnRender(packet)
   Scene::CollectRenderData(packet)
-    → World runs all registered render systems in order
+    → Scene::OnRender(packet), then the World's render systems in order
+  scene fade quad, UI
   RenderThread::SubmitFrame(packet)
 ```
 
-Game code retains `OnUpdate(dt)` and `OnRender(packet)` hooks. These run
-**before** Scene::Update and Scene::CollectRenderData respectively, so they can
-push manual sprites (debug overlays, UI, etc.) or manipulate entities before
-systems process them.
+The app-level `OnUpdate(dt)` and `OnRender(packet)` hooks run **before** the
+scene, for global work (input actions, debug overlays); per-scene logic goes in
+the scene's own hooks. While a game-blocking UI screen is up (the splash), the
+game and scene steps are skipped. Only the top scene of the stack is updated
+and drawn.
 
 ---
 
-## Scene File Format and Merge Safety
+## Scene Files
 
-Scene files are JSON with one UUID-keyed object per entity. Each UUID is
-randomly generated at entity-creation time in the editor.
-
-```json
-{
-  "config": {
-    "TileSize": 16.0,
-    "Gravity": [0.0, 0.0]
-  },
-  "entities": {
-    "3f2504e0-4f89-11d3-9a0c-0305e82c3301": {
-      "Tag": "Player",
-      "Name": "Kael",
-      "Transform2D": { "Position": [0, 0], "Scale": [1, 1], "Rotation": 0 },
-      "SpriteRenderer": { "Texture": "assets/textures/player.png", "Layer": 1 },
-      "InputMovement": { "MoveLeft": "Move_Left", "MoveRight": "Move_Right",
-                         "MoveUp": "Move_Up", "MoveDown": "Move_Down" },
-      "SmoothTileMovement": { "Speed": 4.0 }
-    },
-    "7c9e6679-7425-40de-944b-e07fc1f90ae7": {
-      "Tag": "Wall",
-      "Transform2D": { "Position": [48, 0] },
-      "SpriteRenderer": { "Texture": "assets/textures/wall.png", "Layer": 0 }
-    }
-  }
-}
-```
-
-**Merge safety:** two developers adding entities each produce new UUID keys in
-the file. Git sees two new non-overlapping lines — no conflict. Conflicts only
-arise when both developers edited the **same entity's component values**, which
-is a genuine semantic conflict and is correctly surfaced for manual resolution.
-
-**UUID is an editor and serialization concern only.** The runtime ECS uses
-fast generational integer indices. The scene loader creates runtime entities from
-the file and maintains a short-lived `map<UUID, Entity>` during loading to
-resolve cross-references (e.g. a `CameraTarget` pointing to another entity by
-UUID). That map is discarded after load.
-
-The editor displays unnamed entities as `{Tag} #{uuid[0..3]}` (e.g.
-`Wall #3f25`) — unique, human-parseable, zero storage overhead.
+Scenes are saved as `.arcscene` JSON: entities keyed by a file id, with each
+component inline under its registered name. The format, merge-safety rules and
+the component registry are in [scenes.md](scenes.md#scene-file-format-arcscene).
+The file id is an editor and serialization concern only: the runtime ECS uses
+generational `Entity` handles, and `FileScene` keeps an id -> `Entity` table
+(`FindEntity`) for scripts and entry points.
 
 ---
 
@@ -608,7 +623,8 @@ The editor displays unnamed entities as `{Tag} #{uuid[0..3]}` (e.g.
 
 ```
 engine/include/arcbit/ecs/
-    World.h       — Entity, World, archetype internals, ComponentTypeID
+    Entity.h      — Entity handle
+    World.h       — World, archetype internals, ComponentTypeID, OnRemove hooks
     Query.h       — Query<Ts...> template, WithTag(), Without<T>()
     System.h      — SystemRegistry, RegisterSystem / RegisterRenderSystem
     Components.h  — Transform2D, SpriteRenderer, LightEmitter, Parallax,
@@ -617,14 +633,22 @@ engine/include/arcbit/ecs/
                     SmoothTileMovement, SnapTileMovement, PendingMove
 
 engine/include/arcbit/scene/
-    Scene.h       — Scene class (owns World, Camera2D, WorldConfig)
-    WorldConfig.h — WorldConfig struct
+    Scene.h          — Scene class (owns World, Camera2D, WorldConfig, TileMap, PhysicsWorld)
+    WorldConfig.h    — WorldConfig struct
+    SceneManager.h   — scene stack, switching, fades, loading ahead (scenes.md)
+    ScenePreloader.h — what OnPrepare names for background decoding; load progress
+    FileScene.h      — a scene built from an .arcscene file
+    SceneFile.h      — .arcscene load / save
+    SceneRegistry.h  — component name <-> type <-> JSON, named systems
+    SceneAssets.h    — asset path <-> handle for scene files
 
 engine/src/
     World.cpp     — World implementation (archetype management, entity table)
     Systems.cpp   — built-in system implementations (all systems listed above)
     Movement.cpp  — ResolveInputDirection (input → direction, tie-break)
     Scene.cpp     — Scene::Update, Scene::CollectRenderData
+    SceneManager.cpp, ScenePreloader.cpp, FileScene.cpp, SceneFile.cpp,
+    SceneRegistry.cpp, SceneComponents.cpp (built-in component serializers)
 ```
 
 ---
@@ -774,8 +798,6 @@ component sharing practical.
 
 ## Out of Scope for This Phase
 
-- Scene serialization / load / save (Phase 23)
-- SceneManager, scene transitions (Phase 23)
 - Lua scripting of entities (Phase 26)
 - Physics integration — `Rigidbody2D`, `Collider2D` (Phase 22)
 - Animation system — `Animator` component, clip playback (Phase 17)

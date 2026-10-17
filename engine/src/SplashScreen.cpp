@@ -72,6 +72,13 @@ void SplashScreen::OnTick(const f32 dt, const InputManager& input)
     }
 }
 
+bool SplashScreen::CoversLoading() const
+{
+    if (_done || _currentIndex >= static_cast<i32>(Entries.size())) return false;
+    const SplashEntry& e = Entries[_currentIndex];
+    return _entryTimer >= e.FadeIn && _entryTimer <= e.Duration - e.FadeOut;
+}
+
 void SplashScreen::OnBackPressed() { Complete(); }
 
 void SplashScreen::Skip() { Complete(); }
