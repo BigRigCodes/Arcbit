@@ -3,6 +3,7 @@
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderHandle.h>
 
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -39,4 +40,11 @@ public:
     // Load an .arcmap into `tilemap` (atlases, tile size, chunks).
     [[nodiscard]] virtual bool LoadTileMap(TileMap& tilemap, std::string_view path) = 0;
 };
+
+class Scene;
+
+// SceneAssets on top of a scene hosted by an Application: the scene's own
+// textures and sprite sheets, the app's samplers and white texture - what
+// FileScene and saved scene state read through.
+[[nodiscard]] std::unique_ptr<SceneAssets> MakeAppSceneAssets(Scene& scene);
 } // namespace Arcbit

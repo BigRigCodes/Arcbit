@@ -27,6 +27,9 @@ add_executable(arcbit-tests
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
     render/Camera2DTests.cpp
+    save/SaveSealTests.cpp
+    save/SaveTests.cpp
+    save/SceneStateTests.cpp
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp

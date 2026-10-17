@@ -41,6 +41,12 @@ namespace EngineEvents
     constexpr std::string_view EntitySpawnedName   = "engine.entity.spawned";
     constexpr std::string_view EntityDestroyedName = "engine.entity.destroyed";
 
+    // The game was saved / its save loaded (Application::SaveTo / LoadFrom;
+    // loaded fires once the save's state is back, as its scenes load). slot:
+    // "manual_3", "auto_1" or "quick"; saved also name.
+    constexpr std::string_view GameSavedName  = "engine.game.saved";
+    constexpr std::string_view GameLoadedName = "engine.game.loaded";
+
     constexpr EventId SceneLoaded        = MakeEvent(SceneLoadedName);
     constexpr EventId SceneUnloaded      = MakeEvent(SceneUnloadedName);
     constexpr EventId SceneSuspended     = MakeEvent(SceneSuspendedName);
@@ -51,13 +57,15 @@ namespace EngineEvents
     constexpr EventId SettingsChanged    = MakeEvent(SettingsChangedName);
     constexpr EventId EntitySpawned      = MakeEvent(EntitySpawnedName);
     constexpr EventId EntityDestroyed    = MakeEvent(EntityDestroyedName);
+    constexpr EventId GameSaved          = MakeEvent(GameSavedName);
+    constexpr EventId GameLoaded         = MakeEvent(GameLoadedName);
 
     // Every engine event name - each EventBus registers them all, so they're
     // reserved and named in logs from the start.
     constexpr std::array AllNames = {
         SceneLoadedName,        SceneUnloadedName,      SceneSuspendedName, SceneResumedName,
         InputDeviceChangedName, WindowFocusChangedName, WindowResizedName,  SettingsChangedName,
-        EntitySpawnedName,      EntityDestroyedName,
+        EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

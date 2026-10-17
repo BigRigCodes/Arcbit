@@ -1,9 +1,11 @@
 #include <arcbit/app/Application.h>
+#include <arcbit/app/UserFolder.h>
 #include <arcbit/app/Window.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/Scene.h>
+#include <arcbit/scene/SceneAssets.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/LoadingScreen.h>
 #include <arcbit/core/Loc.h>
@@ -15,6 +17,7 @@
 #include <chrono>
 #include <limits>
 #include <thread>
+#include <utility>
 
 namespace Arcbit
 {
@@ -26,6 +29,12 @@ Application::Application(const ApplicationConfig& config) : _config(config)
 {
     Log::Init();
     LOG_INFO(Engine, "Arcbit starting");
+
+    // Settings and saves live in the per-user data folder (it may log, so
+    // after Log::Init).
+    _userFolder = UserDataFolder(config.Studio, config.GameName ? config.GameName : config.Title);
+    _saves.SetDirectory(_userFolder / "saves");
+    LOG_INFO(Engine, "User data folder: '{}'", _userFolder.string());
 
     // Every delivered event goes to the log (debug level) - what fired, when,
     // with what payload.
@@ -45,7 +54,9 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     // overwrite these with any persisted values.
     Settings::Graphics.ResolutionWidth  = config.Width;
     Settings::Graphics.ResolutionHeight = config.Height;
-    Settings::Init(config.SettingsPath);
+    const std::filesystem::path settingsPath = _userFolder / config.SettingsPath;
+    MoveLegacyFile(config.SettingsPath, settingsPath); // it used to sit next to the executable
+    Settings::Init(settingsPath.string());
     Settings::SetChangeListener([this](const std::string_view section, const std::string_view key) {
         EventPayload payload{ { "section", std::string(section) } };
         if (!key.empty()) payload.Set("key", std::string(key));
@@ -210,7 +221,11 @@ void Application::Run()
                       .Textures        = _textures.get(),
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
-                      .Events          = &_events });
+                      .Events          = &_events,
+                      .World           = &_world,
+                      .Registry        = &_sceneRegistry,
+                      .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); } });
+    RegisterSaveSections();
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -301,6 +316,7 @@ void Application::Run()
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
                     scene->Update(_fixedTimestep);
                 }
+                if (!_ui.HasBlockingScreen() && !_scenes.IsFading()) _playtime += _fixedTimestep;
             }
             // Under a screen that hides the game (the splash on its logo), a
             // queued swap may run - its load stays out of sight - but the
@@ -323,7 +339,9 @@ void Application::Run()
             if (_scenes.ConsumeSwapped()) {
                 accumulator = 0.0;
                 prevTime    = Clock::now();
+                AfterSwap();
             }
+            UpdateAutoSave();
         }
 
         // --- Variable-rate render --------------------------------------------
@@ -333,6 +351,7 @@ void Application::Run()
         packet.Height      = _window->GetHeight();
         packet.ClearColor  = _clearColor;
         packet.NeedsResize = _window->WasResizedThisFrame();
+        packet.CaptureWorld = std::exchange(_captureNextFrame, false); // a save's thumbnail
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
@@ -363,6 +382,7 @@ void Application::Run()
         }
 
         _renderThread.SubmitFrame(std::move(packet));
+        WriteThumbnail(); // a frame captured for a save, once the render thread has it
 
         // --- FPS counter + render stats --------------------------------------
         // Count completed frames; report once per second alongside the most

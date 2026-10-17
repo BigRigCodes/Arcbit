@@ -5,11 +5,14 @@
 #include <arcbit/app/Application.h>
 
 #include <arcbit/core/Log.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/ui/AudioSettingsScreen.h>
+#include <arcbit/ui/ConfirmScreen.h>
 #include <arcbit/ui/CreditsScreen.h>
 #include <arcbit/ui/GraphicsSettingsScreen.h>
 #include <arcbit/ui/InputRebindScreen.h>
 #include <arcbit/ui/MainMenuScreen.h>
+#include <arcbit/ui/SaveSlotScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 
 namespace Arcbit
@@ -21,7 +24,7 @@ namespace
     // change, reorder or skip past it in code. Packed builds harden that
     // with the Phase 36 asset protection.
     constexpr const char* EngineSplashImage   = "assets/engine/ui/ArcbitA_withbackground.png";
-    constexpr f32         EngineSplashSeconds = 8.0f;
+    constexpr f32         EngineSplashSeconds = 5.0f;
     constexpr f32         SplashFadeSeconds   = 0.5f;
 } // namespace
 
@@ -32,6 +35,7 @@ void Application::StartBoot()
     // the splash ends.
     const std::string& first = _boot.ShowTitle && !_boot.TitleScene.empty() ? _boot.TitleScene : _boot.FirstScene;
     if (!first.empty()) _scenes.Switch(first);
+    StartSaving();
     PushSplash();
 }
 
@@ -52,6 +56,7 @@ void Application::PushSplash()
     };
     add(EngineSplashImage, EngineSplashSeconds);
     for (const std::string& path : _boot.SplashImages) add(path, _boot.SplashSeconds);
+    if (NeedsSaveNotice()) splash->Entries.push_back(SaveNoticeCard()); // after the logos
 
     if (splash->Entries.empty()) {
         FinishSplash();
@@ -81,16 +86,27 @@ void Application::FinishSplash()
 
 // The title menu over the running scene. With a separate TitleScene
 // backdrop, New Game switches to FirstScene; otherwise the first scene is
-// already behind the menu and New Game just closes it.
+// already behind the menu and New Game just closes it. Either way the game
+// starts over (ResetGame) - for the switch, once the backdrop has unloaded.
+// Continue, shown once there's a save, loads the newest one; Load Game picks
+// one.
 void Application::ShowTitle()
 {
-    auto      title    = std::make_unique<MainMenuScreen>();
-    UIScreen* screen   = title.get();
-    title->ShowCredits = !_boot.CreditsPath.empty();
-    title->OnNewGame   = [this, screen] {
+    auto      title     = std::make_unique<MainMenuScreen>();
+    UIScreen* screen    = title.get();
+    title->ShowCredits  = !_boot.CreditsPath.empty();
+    title->ShowContinue = !_saves.List().empty();
+    title->ShowLoadGame = title->ShowContinue;
+    title->OnNewGame    = [this, screen] {
         _ui.Close(screen);
-        if (!_boot.TitleScene.empty() && !_boot.FirstScene.empty()) _scenes.Switch(_boot.FirstScene);
+        if (_boot.TitleScene.empty() || _boot.FirstScene.empty()) ResetGame();
+        else _scenes.Restore({ { _boot.FirstScene, "" } }, [this] { ResetGame(); });
     };
+    title->OnContinue = [this, screen] {
+        const std::vector<SaveSlotInfo> saves = _saves.List();
+        if (!saves.empty() && LoadFrom(saves.front().Slot)) _ui.Close(screen);
+    };
+    title->OnLoadGame         = [this] { ShowLoadScreen(); };
     title->OnControls         = [this] { ShowControlsScreen(); };
     title->OnAudioSettings    = [this] { ShowAudioScreen(); };
     title->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
@@ -106,6 +122,60 @@ void Application::ShowCredits()
     credits->ViewHeight = static_cast<f32>(GetWindowHeight());
     credits->OnClose    = [this, screen = credits.get()] { _ui.Close(screen); };
     _ui.Push(std::move(credits));
+}
+
+// The slot lists' thumbnails: loaded as a list opens; released once it
+// closes, after the render thread is done drawing them.
+void Application::WireThumbnails(SaveSlotScreen& screen)
+{
+    screen.ThumbnailSampler = GetStockSampler(StockSampler::Linear);
+    screen.LoadThumbnail    = [this](const std::filesystem::path& path) { return _textures->Acquire(path.string()); };
+    screen.ReleaseThumbnails = [this](const std::vector<TextureHandle>& textures) {
+        _renderThread.WaitIdle();
+        for (const TextureHandle texture : textures) _textures->Release(texture);
+    };
+}
+
+void Application::ShowSaveScreen()
+{
+    auto save    = std::make_unique<SaveSlotScreen>();
+    save->For    = SaveSlotScreen::Purpose::Save;
+    save->Saves  = &_saves;
+    WireThumbnails(*save);
+    save->OnBack = [this, screen = save.get()] { _ui.Close(screen); };
+    save->OnPick = [this, screen = save.get()](const SaveSlot slot, const bool hasSave) {
+        const auto write = [this, screen, slot] {
+            if (SaveTo(slot)) _ui.Close(screen);
+        };
+        if (hasSave) Confirm(Loc::Get("ui.saves.overwrite"), write);
+        else write();
+    };
+    _ui.Push(std::move(save));
+}
+
+void Application::ShowLoadScreen()
+{
+    auto load    = std::make_unique<SaveSlotScreen>();
+    load->For    = SaveSlotScreen::Purpose::Load;
+    load->Saves  = &_saves;
+    WireThumbnails(*load);
+    load->OnBack = [this, screen = load.get()] { _ui.Close(screen); };
+    load->OnPick = [this](const SaveSlot slot, bool) {
+        if (LoadFrom(slot)) _ui.CloseMenus();
+    };
+    _ui.Push(std::move(load));
+}
+
+void Application::Confirm(std::string message, std::function<void()> onYes)
+{
+    auto confirm     = std::make_unique<ConfirmScreen>();
+    confirm->Message = std::move(message);
+    confirm->OnNo    = [this, screen = confirm.get()] { _ui.Close(screen); };
+    confirm->OnYes   = [this, screen = confirm.get(), yes = std::move(onYes)] {
+        _ui.Close(screen);
+        if (yes) yes();
+    };
+    _ui.Push(std::move(confirm));
 }
 
 void Application::ShowControlsScreen()

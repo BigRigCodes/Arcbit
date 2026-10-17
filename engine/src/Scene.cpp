@@ -7,6 +7,7 @@
 #include <arcbit/core/Assert.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/save/SceneState.h>
 #include <arcbit/render/RenderThread.h>
 
 #include <utility>

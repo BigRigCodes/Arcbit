@@ -1,0 +1,57 @@
+{
+  "widgets": [
+    {
+      "type": "Scrim"
+    },
+    {
+      "type":   "Panel",
+      "name":   "bg",
+      "size":   [760, 600],
+      "anchor": [0.5, 0.5],
+      "pivot":  [0.5, 0.5],
+      "zorder": 1,
+      "children": [
+        {
+          "type":   "Label",
+          "name":   "title",
+          "align":  "center",
+          "size":   [760, 28],
+          "anchor": [0.5, 0.0],
+          "pivot":  [0.5, 0.0],
+          "offset": [0, 18],
+          "zorder": 2
+        },
+        {
+          "type":   "Panel",
+          "name":   "separator",
+          "size":   [720, 1],
+          "anchor": [0.5, 0.0],
+          "pivot":  [0.5, 0.0],
+          "offset": [0, 60],
+          "zorder": 2
+        },
+        {
+          "type":            "ScrollPanel",
+          "name":            "scroll",
+          "size":            [720, 448],
+          "anchor":          [0.5, 0.0],
+          "pivot":           [0.5, 0.0],
+          "offset":          [0, 72],
+          "scrollbar_width": 8,
+          "zorder":          2
+        },
+        {
+          "type":      "Button",
+          "name":      "back-btn",
+          "text_key":  "ui.common.back",
+          "size":      [160, 40],
+          "anchor":    [0.5, 1.0],
+          "pivot":     [0.5, 1.0],
+          "offset":    [0, -18],
+          "focusable": true,
+          "zorder":    2
+        }
+      ]
+    }
+  ]
+}

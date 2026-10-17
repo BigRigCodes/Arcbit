@@ -8,18 +8,24 @@
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/events/EventBus.h>
+#include <arcbit/save/SaveManager.h>
+#include <arcbit/save/SceneState.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
+#include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace Arcbit
 {
-class Window; // full type only needed in Application.cpp
+class Window;          // full type only needed in Application.cpp
+class SavingIndicator; // ApplicationSaves.cpp
+class SaveSlotScreen;
 
 // ---------------------------------------------------------------------------
 // How the game starts once the engine's own splash has played: the game's
@@ -45,11 +51,43 @@ struct BootConfig
 };
 
 // ---------------------------------------------------------------------------
+// How saving looks, and when the game saves by itself (docs/saves.md). Set
+// Application::_saving in the subclass constructor or OnStart; Phase 38's
+// project.arcbit (and the editor) will fill it from data.
+//
+// Every save shows the indicator: the icon spinning in the bottom-right
+// corner, with "Saving...". The saving notice explains it - a splash card
+// after the logos: the icon spinning over white text on black.
+// ---------------------------------------------------------------------------
+enum class SaveNotice : u8
+{
+    Never,
+    FirstLaunch, // until the player has seen it once (kept in their settings)
+    EveryLaunch,
+};
+
+struct SavingConfig
+{
+    std::string IndicatorIcon    = "assets/engine/ui/saving.png"; // empty = no icon, just the text
+    Color       IndicatorTint    = { 1.0f, 1.0f, 1.0f, 1.0f };
+    f32         IndicatorSeconds = 1.5f; // how long it shows per save, fades included
+
+    SaveNotice Notice        = SaveNotice::FirstLaunch;
+    f32        NoticeSeconds = 5.0f; // on screen, fades included
+
+    bool AutoSaveOnSceneChange = false; // autosave each time a scene change settles (not a load)
+};
+
+// ---------------------------------------------------------------------------
 // ApplicationConfig
 //
 // Passed to the Application constructor to set startup defaults.
 // These values act as fallbacks: if a settings.json file exists on disk,
 // the persisted graphics settings take precedence over Width/Height.
+//
+// Studio and GameName name the per-user data folder settings and saves live
+// in (UserDataFolder): %APPDATA%\<Studio>\<GameName>\ on Windows. A relative
+// SettingsPath is inside it.
 // ---------------------------------------------------------------------------
 struct ApplicationConfig
 {
@@ -58,6 +96,8 @@ struct ApplicationConfig
     u32         Height       = 720;
     bool        Resizable    = true;
     const char* SettingsPath = "settings.json";
+    const char* Studio       = "Arcbit";
+    const char* GameName     = nullptr; // null = Title
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +205,41 @@ public:
     // fixed tick, after the scene update.
     [[nodiscard]] EventBus& GetEvents() { return _events; }
 
+    // Save slots, migrations and the game's save data (docs/saves.md). Its
+    // folder is the per-user data folder's saves\.
+    [[nodiscard]] SaveManager& GetSaves() { return _saves; }
+
+    // The per-user data folder: settings, saves (see ApplicationConfig).
+    [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
+
+    // --- Saving and loading the game (docs/saves.md) -------------------------
+
+    // Save the game to `slot`: SaveData, every participant's section, every
+    // visited scene's changes and the scene stack (the engine's own sections,
+    // "world" and "scenes"). `name` labels it in the slot list; empty = the
+    // active scene's name. Refused (false, logged) while a scene change is
+    // under way or with no named scene loaded. Publishes engine.game.saved.
+    bool SaveTo(SaveSlot slot, std::string name = {});
+
+    // Load the save in `slot`: the screen fades out, the current scenes
+    // unload, the save's state goes back and its scene stack loads. False
+    // (logged) if it can't be read or a scene change is under way. Publishes
+    // engine.game.loaded once the save's state is back.
+    bool LoadFrom(SaveSlot slot);
+
+    // Forget the current game: SaveData, every participant (handed an empty
+    // section), the world state and playtime. The title's New Game does this.
+    void ResetGame();
+
+    // Save to the next autosave slot (SaveManager::NextAutoSlot) - at a
+    // checkpoint, on resting. False if refused, like SaveTo. With
+    // SavingConfig::AutoSaveOnSceneChange it also runs after scene changes.
+    bool AutoSave();
+
+    // Seconds of play this game, carried in its saves: counted while the
+    // player has control - not under a menu, a fade or the splash.
+    [[nodiscard]] f64 GetPlaytime() const { return _playtime; }
+
     // Color format of the swapchain — pass to PipelineDesc::ColorFormat so
     // pipelines match the actual surface format chosen by the driver.
     [[nodiscard]] Format GetSwapchainFormat() const;
@@ -187,6 +262,16 @@ public:
     // Roll the credits (BootConfig::CreditsPath) - the title menu's Credits
     // button, or the end of a game.
     void ShowCredits();
+
+    // The save slot list (SaveSlotScreen), for a pause menu's Save Game and
+    // the title's or a pause menu's Load Game. Saving over a slot asks first,
+    // then closes the list; loading closes every menu.
+    void ShowSaveScreen();
+    void ShowLoadScreen();
+
+    // Ask a yes / no question over the current menu (ConfirmScreen); onYes
+    // runs if the player agrees. Either answer closes it.
+    void Confirm(std::string message, std::function<void()> onYes);
 
     // The screen shown while a scene change waits at black for its scene to
     // load (SceneChange::ShowLoadingScreen), after a short grace period so a
@@ -236,13 +321,38 @@ protected:
     // the constructor or OnStart.
     BootConfig _boot;
 
+    // The saving indicator, the first-launch notice and autosaves (see
+    // SavingConfig). Set it in the constructor or OnStart.
+    SavingConfig _saving;
+
     // The engine's built-in SDF debug font — Roboto loaded at engine startup.
     [[nodiscard]] const FontAtlas& GetDebugFont() const { return _debugFont; }
     
     bool        _showGrid = false;
 
 private:
-    ApplicationConfig _config;
+    ApplicationConfig     _config;
+    std::filesystem::path _userFolder; // set first in the constructor: settings and saves live in it
+    SaveManager           _saves;
+    WorldState            _world; // every visited scene's changes; the saves' "world" section
+    f64                   _playtime = 0.0;
+
+    // Saving (ApplicationSaves.cpp).
+    void RegisterSaveSections(); // "world" and "scenes"
+    void StartSaving();          // the indicator, once OnStart has set _saving
+    void AfterSwap();            // a scene change finished: queue an autosave?
+    void UpdateAutoSave();       // run a queued autosave once the game is idle
+    void WriteThumbnail();       // a frame captured for the last save arrived: write it
+    void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
+    [[nodiscard]] bool        NeedsSaveNotice() const;
+    [[nodiscard]] SplashEntry SaveNoticeCard();
+
+    SavingIndicator*       _savingIndicator = nullptr; // on the UI stack from StartBoot
+    TextureHandle          _savingIcon;
+    bool                   _autoSavePending = false;
+    bool                   _restoredSave    = false; // the last swap loaded a save: no autosave
+    std::optional<SaveSlot> _thumbnailFor;            // saved, its picture not yet written
+    bool                    _captureNextFrame = false; // ask the render thread for the next frame
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

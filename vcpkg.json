@@ -11,6 +11,8 @@
         "nlohmann-json",
         "stb",
         "miniaudio",
-        "catch2"
+        "catch2",
+        "libsodium",
+        "zstd"
     ]
 }

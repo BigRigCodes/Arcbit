@@ -114,6 +114,7 @@ protected:
     {
         _player                                 = world.CreateEntity();
         world.GetComponent<Tag>(_player)->Value = "Player";
+        world.AddComponent<Persistent>(_player, Persistent{ .Id = "player", .Components = { "Transform2D" } }); // saved
         auto* t                                 = world.GetTransform(_player);
         t->Position                             = { -TileSize * 4.0f, 0.0f };
         t->Scale                                = { PlayerHalf * 2.0f, PlayerHalf * 2.0f };

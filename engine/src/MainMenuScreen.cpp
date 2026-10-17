@@ -24,6 +24,11 @@ void MainMenuScreen::OnEnter()
         btn->OnClick = OnContinue;
     }
 
+    if (auto* btn = FindWidget<Button>("load-btn")) {
+        btn->Visible = ShowLoadGame;
+        btn->OnClick = OnLoadGame;
+    }
+
     if (auto* btn = FindWidget<Button>("controls-btn")) {
         btn->Visible = ShowControls;
         btn->OnClick = OnControls;
@@ -46,6 +51,11 @@ void MainMenuScreen::OnEnter()
 
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
+
+    StackButtons(FindWidget<UIWidget>("bg"),
+                 { "new-game-btn", "continue-btn", "load-btn", "controls-btn", "audio-btn", "graphics-btn",
+                   "credits-btn", "quit-btn" },
+                 GetMetaF32("btn_start_y", 70.0f), GetMetaF32("btn_gap", 52.0f), 26.0f);
 }
 
 void MainMenuScreen::OnBackPressed() { if (OnQuit) OnQuit(); }
@@ -58,6 +68,7 @@ void MainMenuScreen::BuildFallback()
 {
     const i32 btnCount = 1
         + (ShowContinue ? 1 : 0)
+        + (ShowLoadGame ? 1 : 0)
         + (ShowControls ? 1 : 0)
         + (ShowAudioSettings ? 1 : 0)
         + (ShowGraphicsSettings ? 1 : 0)
@@ -112,6 +123,10 @@ void MainMenuScreen::BuildFallback()
     y += gap;
     if (ShowContinue) {
         MakeButton("ui.mainmenu.continue", y, OnContinue);
+        y += gap;
+    }
+    if (ShowLoadGame) {
+        MakeButton("ui.mainmenu.load", y, OnLoadGame);
         y += gap;
     }
     if (ShowControls) {

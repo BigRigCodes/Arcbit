@@ -151,6 +151,8 @@ their names.
 | `engine.settings.changed` | `section`: `"audio"` / `"graphics"` / `"input"` / `"game"`; `key` for `"game"` | the player changed a setting (`Settings::Set` reports `"game"` with its key) |
 | `engine.entity.spawned` | `entity`, `name`, `tag` | an entity with `EntityEvents` appeared |
 | `engine.entity.destroyed` | `entity`, `name`, `tag` | an entity with `EntityEvents` was destroyed |
+| `engine.game.saved` | `slot` (`"manual_3"`, `"auto_1"`, `"quick"`), `name` | a save was written ([saves.md](saves.md)) |
+| `engine.game.loaded` | `slot` | a save's state is back, as its scenes load |
 
 Scene events are delivered at the flush after the swap; Application's default
 unnamed scene isn't announced. The last-used device counts a key, mouse
@@ -158,8 +160,8 @@ button, scroll or real mouse movement as keyboard / mouse, and a gamepad
 button or a stick or trigger pushed past half way as gamepad
 (`InputManager::GetLastDevice`).
 
-Events for systems that don't exist yet - saves, dialog, items, combat,
-weather, achievements - arrive with those systems' phases.
+Events for systems that don't exist yet - dialog, items, combat, weather,
+achievements - arrive with those systems' phases.
 
 ---
 

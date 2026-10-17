@@ -95,6 +95,7 @@ enum class BufferUsage : u32
     Uniform  = 1 << 2,   // small per-draw constants, UBO
     Storage  = 1 << 3,   // large read/write data, SSBO (e.g. light list)
     Transfer = 1 << 4,   // staging buffer for uploads
+    Readback = 1 << 5,   // GPU writes, CPU reads (screenshots); pair with HostVisible
 };
 ARCBIT_ENABLE_FLAGS(BufferUsage)
 

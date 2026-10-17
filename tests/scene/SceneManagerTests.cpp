@@ -5,7 +5,11 @@
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/events/EventBus.h>
+#include <arcbit/ecs/Components.h>
+#include <arcbit/save/SceneState.h>
+#include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/SceneManager.h>
+#include <arcbit/scene/SceneRegistry.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -285,6 +289,45 @@ TEST_CASE("Shutdown unloads every scene on the stack, top first", "[scene]")
     f.scenes.Shutdown();
     CHECK(f.scenes.GetDepth() == 0);
     CHECK(f.log == std::vector<std::string>{ "unload:B", "unload:A" });
+}
+
+TEST_CASE("Restore rebuilds a saved stack, the scenes under the top suspended", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    REQUIRE(f.scenes.Restore({ { "B", "gate" }, { "C", "" } }, [&] { f.log.emplace_back("between"); }));
+    f.Tick(40);
+
+    CHECK(f.log == std::vector<std::string>{ "unload:A", "between", "load:B@gate", "suspend:B", "load:C" });
+    CHECK(f.ActiveName() == "C");
+    CHECK(f.scenes.GetStack() == std::vector<SceneStackEntry>{ { "B", "gate" }, { "C", "" } });
+
+    f.log.clear();
+    f.scenes.Pop(); // the restored scene below resumes like a pushed-over one
+    f.Tick(40);
+    CHECK(f.log == std::vector<std::string>{ "unload:C", "resume:B" });
+}
+
+TEST_CASE("Restore refuses a stack naming an unknown scene", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    CHECK_FALSE(f.scenes.Restore({ { "B", "" }, { "Nope", "" } }));
+    CHECK_FALSE(f.scenes.Restore({}));
+    CHECK_FALSE(f.scenes.IsTransitioning());
+}
+
+TEST_CASE("A later change replaces a queued restore before it runs", "[scene]")
+{
+    Fixture f;
+    f.SwitchAndSettle("A");
+    bool ran = false;
+    REQUIRE(f.scenes.Restore({ { "B", "" } }, [&] { ran = true; }));
+    f.Tick();
+    f.scenes.Switch("C");
+    f.Tick(40);
+    CHECK_FALSE(ran);
+    CHECK(f.ActiveName() == "C");
 }
 
 // ---------------------------------------------------------------------------
@@ -759,4 +802,116 @@ TEST_CASE("A loaded scene's event carries its entry point", "[scene][events]")
     for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
     f.events.Flush();
     CHECK(entry == "north_gate");
+}
+
+// ---------------------------------------------------------------------------
+// Saved scene state
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// A village with one persistent chest.
+class ChestScene : public Scene
+{
+public:
+    Entity Chest;
+
+    void OnLoad() override
+    {
+        Chest                                    = GetWorld().CreateEntity();
+        GetWorld().GetTransform(Chest)->Position = { 10, 0 };
+        GetWorld().AddComponent<Persistent>(Chest, Persistent{ .Id = "chest" });
+    }
+};
+
+class NoSceneAssets final : public SceneAssets
+{
+public:
+    TextureHandle      LoadTexture(std::string_view) override { return {}; }
+    std::string        TexturePath(TextureHandle) const override { return {}; }
+    SamplerHandle      Sampler(std::string_view) override { return {}; }
+    std::string        SamplerName(SamplerHandle) const override { return {}; }
+    const SpriteSheet* LoadSpriteSheet(std::string_view) override { return nullptr; }
+    std::string        SpriteSheetPath(const SpriteSheet*) const override { return {}; }
+    std::string        ActionName(ActionID) const override { return {}; }
+    bool               LoadTileMap(TileMap&, std::string_view) override { return true; }
+};
+
+struct StateFixture
+{
+    WorldState    world;
+    SceneRegistry registry;
+    SceneManager  scenes;
+
+    StateFixture()
+    {
+        RegisterBuiltinComponents(registry);
+        scenes.SetHost({ .World    = &world,
+                         .Registry = &registry,
+                         .Assets   = [](Scene&) { return std::make_unique<NoSceneAssets>(); } });
+        scenes.FadeOutTime = 0.0f;
+        scenes.FadeInTime  = 0.0f;
+        scenes.Register("Village", [] { return std::make_unique<ChestScene>(); });
+        scenes.Register("Cave", [] { return std::make_unique<Scene>(); });
+    }
+    void Go(const char* name, const bool push = false)
+    {
+        if (push) scenes.Push(name);
+        else scenes.Switch(name);
+        for (int i = 0; i < 10; ++i) scenes.Update(Dt);
+    }
+    ChestScene& Village() { return *static_cast<ChestScene*>(scenes.GetActive()); }
+};
+} // namespace
+
+TEST_CASE("A scene remembers its changes after it unloads", "[scene][save]")
+{
+    StateFixture f;
+    f.Go("Village");
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 99, 0 }; // pushed aside
+
+    f.Go("Cave"); // the village unloads: its change is kept
+    REQUIRE(f.world.Scenes.contains("Village"));
+    CHECK_FALSE(f.world.Scenes["Village"].Empty());
+
+    f.Go("Village"); // rebuilt as authored, then the change applied
+    CHECK(f.Village().GetWorld().GetTransform(f.Village().Chest)->Position == Vec2{ 99, 0 });
+}
+
+TEST_CASE("CaptureLive records scenes that haven't unloaded", "[scene][save]")
+{
+    StateFixture f;
+    f.Go("Village");
+    f.Village().GetWorld().DestroyEntity(f.Village().Chest);
+    f.Go("Cave", true); // pushed over: the village is suspended, not unloaded
+    CHECK_FALSE(f.world.Scenes.contains("Village"));
+
+    f.scenes.CaptureLive(); // what a save does first
+    REQUIRE(f.world.Scenes.contains("Village"));
+    CHECK(f.world.Scenes["Village"].Destroyed == std::vector<std::string>{ "chest" });
+}
+
+TEST_CASE("A restore loads the state put back between unload and load", "[scene][save]")
+{
+    StateFixture f;
+    f.Go("Village");
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 99, 0 };
+    f.scenes.CaptureLive();
+    const WorldState saved = f.world; // the save
+
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 5, 0 }; // played on, not saved
+    REQUIRE(f.scenes.Restore({ { "Village", "" } }, [&] { f.world = saved; }));
+    for (int i = 0; i < 10; ++i) f.scenes.Update(Dt);
+    CHECK(f.Village().GetWorld().GetTransform(f.Village().Chest)->Position == Vec2{ 99, 0 });
+}
+
+TEST_CASE("Without a world state, scenes keep nothing", "[scene][save]")
+{
+    StateFixture f;
+    f.scenes.SetHost({}); // scene state off
+    f.Go("Village");
+    f.Village().GetWorld().GetTransform(f.Village().Chest)->Position = { 99, 0 };
+    f.Go("Cave");
+    f.Go("Village");
+    CHECK(f.Village().GetWorld().GetTransform(f.Village().Chest)->Position == Vec2{ 10, 0 });
 }

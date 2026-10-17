@@ -9,6 +9,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // Forward declarations — full types live in SpriteSheet.h.
 namespace Arcbit { struct AnimationClip; class SpriteSheet; }
@@ -107,6 +108,23 @@ struct Disabled {};
 struct Lifetime
 {
     f32 Remaining = 0.0f;
+};
+
+// Opts an entity into the save (docs/saves.md): what the player changes about
+// it - component values, components added or removed, its destruction - is
+// kept when its scene unloads and saved with the game. Everything else in a
+// scene comes back as authored.
+//
+// Id must be unique within the scene and the same every run: a scene-file
+// entity gets its file id; in C++, set one ("chest.cellar"). Components
+// names which components to keep (empty = every registered one). A scene
+// file's "persist_all" makes every entity persistent; Enabled = false opts
+// one back out.
+struct Persistent
+{
+    std::string              Id;
+    bool                     Enabled = true;
+    std::vector<std::string> Components; // empty = all
 };
 
 // Opt-in entity events on the scene's event bus (docs/events.md). Entities

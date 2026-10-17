@@ -286,6 +286,7 @@ void Image::OnCollect(FramePacket& packet, UIRect myRect, const f32 effectiveOpa
     s.Position = {myRect.X + myRect.W * 0.5f, myRect.Y + myRect.H * 0.5f};
     s.Size     = {myRect.W, myRect.H};
     s.UV       = UV;
+    s.Rotation = Rotation;
     s.Tint     = WithAlpha(Tint, effectiveOpacity);
     s.Layer    = FillLayer(*this, skin);
     packet.UISprites.push_back(s);

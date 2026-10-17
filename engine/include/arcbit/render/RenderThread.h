@@ -10,6 +10,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -211,11 +212,27 @@ struct FramePacket
     // The flag is consumed once and does not persist across frames.
     bool NeedsResize = false;
 
+    // Read this frame back as drawn before the UI - the world without menus,
+    // HUD or fades - for a save thumbnail. The pixels arrive through
+    // RenderThread::TakeCapture once the frame is done. Costs a GPU stall.
+    bool CaptureWorld = false;
+
     // Tilemap stats — written by the TilemapRender system during CollectRenderData.
     // Read by Application before SubmitFrame to populate _renderStats.
     u32 TilemapChunksTotal    = 0; // total chunks in the active tilemap
     u32 TilemapChunksRendered = 0; // chunks that passed the frustum cull
     u32 TilemapTilesRendered  = 0; // individual tile sprites submitted
+};
+
+// ---------------------------------------------------------------------------
+// CapturedFrame - a frame read back for FramePacket::CaptureWorld: the game
+// area (inside any letterbox bars), RGBA8, top row first, opaque.
+// ---------------------------------------------------------------------------
+struct CapturedFrame
+{
+    u32             Width  = 0;
+    u32             Height = 0;
+    std::vector<u8> Rgba;
 };
 
 // ---------------------------------------------------------------------------
@@ -300,6 +317,10 @@ public:
     // Safe to call from any thread — values are written with relaxed atomics.
     [[nodiscard]] RenderStats GetStats() const;
 
+    // The frame a FramePacket::CaptureWorld asked for, once - empty until the
+    // render thread has finished it. Safe to call from any thread.
+    [[nodiscard]] std::optional<CapturedFrame> TakeCapture();
+
     // The 1×1 white texture and its sampler used by UIManager for solid-color quads.
     // Available after Start(); UIManager stores these during its own Init.
     [[nodiscard]] TextureHandle GetUIWhiteTexture() const { return _uiWhiteTex; }
@@ -383,6 +404,14 @@ private:
     void DrawLegacyCalls(CommandListHandle cmd, const FramePacket& packet,
                          u32               frameSlot, u32          lightCount, const LetterboxRect& lb) const;
 
+    // CaptureWorld: end the pass after the world, copy the backbuffer into a
+    // readback buffer, and resume the pass (keeping what's drawn) for the UI.
+    void SplitForCapture(CommandListHandle cmd, TextureHandle backBuffer, u32 width, u32 height);
+
+    // After the captured frame is presented: wait for the GPU, read the
+    // pixels back, crop to the game area and hand them to TakeCapture.
+    void FinishCapture(u32 width, u32 height, const LetterboxRect& lb);
+
 private:
     RenderDevice* _device = nullptr;
     std::thread   _thread;
@@ -402,6 +431,13 @@ private:
     bool        _hasFrame = false; // true while _packet holds an unrendered frame
     bool        _slotFree = true;  // true once the render thread has consumed the packet
     bool        _running  = false; // set to false by Stop() to signal the thread to exit
+
+    // ----- Frame capture (FramePacket::CaptureWorld) -------------------------
+
+    Format                       _swapchainFormat = Format::Undefined; // BGRA swaps to RGBA on readback
+    BufferHandle                 _readback;     // render thread only: alive from split to finish
+    std::mutex                   _captureMutex; // guards _capture
+    std::optional<CapturedFrame> _capture;
 
     // ----- Per-frame render statistics (atomic — written by render thread) --
 

@@ -1,6 +1,7 @@
 #include <arcbit/scene/SceneFile.h>
 
 #include <arcbit/core/Log.h>
+#include <arcbit/ecs/Components.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -89,6 +90,33 @@ namespace
             }
             entry->Read(scene.GetWorld(), e, fields, assets);
         }
+    }
+
+    // persist_all: every entity without a Persistent gets one; a Persistent
+    // without an id takes the entity's file id (opted-out ones keep theirs).
+    void ApplyPersistence(Scene& scene, const json& doc, const IdMap& ids)
+    {
+        World&     world = scene.GetWorld();
+        const bool all   = doc.value("persist_all", false);
+        for (const auto& [id, e] : ids) {
+            if (Persistent* p = world.GetComponent<Persistent>(e)) {
+                if (p->Id.empty()) p->Id = id;
+            }
+            else if (all) {
+                world.AddComponent<Persistent>(e, Persistent{ .Id = id });
+            }
+        }
+    }
+
+    // The reverse for saving: a Persistent's id is implied by the file id,
+    // and under persist_all a plain enabled one is implied entirely - so a
+    // saved file stays as it was authored.
+    void DropImpliedPersistence(json& components, const std::string& id, const bool persistAll)
+    {
+        const auto it = components.find("Persistent");
+        if (it == components.end()) return;
+        if (it->value("id", std::string{}) == id) it->erase("id");
+        if (persistAll && it->empty()) components.erase(it);
     }
 
     void RegisterColliders(Scene& scene, const IdMap& ids)
@@ -192,6 +220,7 @@ bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAss
         LOG_ERROR(Engine, "SceneFile: malformed scene - {}", e.what());
         return false;
     }
+    ApplyPersistence(scene, doc, ids);
     RegisterColliders(scene, ids);
     return true;
 }
@@ -206,7 +235,12 @@ json Save(Scene& scene, const SceneRegistry& registry, const SceneAssets& assets
 
     World& world    = scene.GetWorld();
     json   entities = json::object();
-    for (const auto& [e, id] : AssignIds(world, ids)) entities[id] = SaveEntity(world, e, registry, assets);
+    const bool persistAll = doc.value("persist_all", false);
+    for (const auto& [e, id] : AssignIds(world, ids)) {
+        json components = SaveEntity(world, e, registry, assets);
+        DropImpliedPersistence(components, id, persistAll);
+        entities[id] = std::move(components);
+    }
     doc["entities"] = std::move(entities);
     TidyFloats(doc);
     return doc;

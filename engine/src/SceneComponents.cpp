@@ -114,6 +114,18 @@ namespace
         r.RegisterComponent<Lifetime>(
             "Lifetime", [](Lifetime& c, const json& j, SceneAssets&) { Read(j, "remaining", c.Remaining); },
             [](const Lifetime& c, json& j, const SceneAssets&) { j["remaining"] = c.Remaining; });
+        r.RegisterComponent<Persistent>(
+            "Persistent",
+            [](Persistent& c, const json& j, SceneAssets&) {
+                Read(j, "id", c.Id);
+                Read(j, "enabled", c.Enabled);
+                Read(j, "components", c.Components);
+            },
+            [](const Persistent& c, json& j, const SceneAssets&) {
+                j["id"]         = c.Id;
+                j["enabled"]    = c.Enabled;
+                j["components"] = c.Components;
+            });
         r.RegisterComponent<EntityEvents>(
             "EntityEvents",
             [](EntityEvents& c, const json& j, SceneAssets&) {

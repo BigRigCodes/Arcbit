@@ -1,5 +1,7 @@
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
+find_package(unofficial-sodium CONFIG REQUIRED) # libsodium: sealed saves (SaveSeal)
+find_package(zstd CONFIG REQUIRED)              # compression for sealed saves
 # miniaudio is header-only; vcpkg adds its include path automatically — no find_package needed.
 
 # arcbit-engine is a STATIC library that provides the engine's public API:
@@ -8,6 +10,8 @@ find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
 add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
+    src/ApplicationSaves.cpp
+    src/UserFolder.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp
     src/Window.cpp
@@ -22,6 +26,12 @@ add_library(arcbit-engine STATIC
     src/SceneManager.cpp
     src/ScenePreloader.cpp
     src/SceneRegistry.cpp
+    src/SaveData.cpp
+    src/SaveGame.cpp
+    src/SaveManager.cpp
+    src/SaveThumbnail.cpp
+    src/SaveSeal.cpp
+    src/SceneState.cpp
     src/SceneComponents.cpp
     src/SceneFile.cpp
     src/FileScene.cpp
@@ -44,6 +54,9 @@ add_library(arcbit-engine STATIC
     src/CreditsScreen.cpp
     src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
+    src/ConfirmScreen.cpp
+    src/SaveSlotScreen.cpp
+    src/SavingIndicator.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp
     src/Loc.cpp
@@ -68,6 +81,8 @@ target_link_libraries(arcbit-engine
         nlohmann_json::nlohmann_json  # public headers use it: SceneRegistry / SceneFile take JSON, SpriteSheet::FromJson
     PRIVATE
         SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
+        unofficial-sodium::sodium     # SaveSeal.cpp only
+        zstd::libzstd                 # SaveSeal.cpp only
 )
 
 # stb is header-only; vcpkg exposes it as an include directory, not a CMake target.

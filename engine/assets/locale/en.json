@@ -3,9 +3,14 @@
   "ui.common.on":        "On",
   "ui.common.off":       "Off",
   "ui.common.unlimited": "Unlimited",
+  "ui.common.yes":       "Yes",
+  "ui.common.no":        "No",
+  "ui.common.ok":        "OK",
 
   "ui.pause.title":    "PAUSED",
   "ui.pause.resume":   "Resume",
+  "ui.pause.save":     "Save Game",
+  "ui.pause.load":     "Load Game",
   "ui.pause.controls": "Controls",
   "ui.pause.audio":    "Audio",
   "ui.pause.graphics": "Graphics",
@@ -27,12 +32,26 @@
   "ui.mainmenu.title":    "Main Menu",
   "ui.mainmenu.new_game": "New Game",
   "ui.mainmenu.continue": "Continue",
+  "ui.mainmenu.load":     "Load Game",
   "ui.mainmenu.credits":  "Credits",
   "ui.mainmenu.quit":     "Quit",
 
   "ui.credits.unavailable": "Credits could not be loaded.",
 
   "ui.loading": "Loading",
+
+  "ui.saves.save_title": "Save Game",
+  "ui.saves.load_title": "Load Game",
+  "ui.saves.manual":     "Slot",
+  "ui.saves.auto":       "Autosave",
+  "ui.saves.quick":      "Quicksave",
+  "ui.saves.empty":      "Empty",
+  "ui.saves.none":       "No saved games yet.",
+  "ui.saves.played":     "Played",
+  "ui.saves.overwrite":  "Overwrite this save?",
+
+  "ui.saving":           "Saving...",
+  "ui.save_notice.text": "This game saves automatically. While this icon is showing, the game is saving - please don't close the game or turn off your system.",
 
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",

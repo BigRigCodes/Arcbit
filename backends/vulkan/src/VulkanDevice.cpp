@@ -7,6 +7,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace Arcbit {
@@ -223,6 +224,12 @@ bool BuildSwapchain(VulkanContext* ctx, VulkanSwapchain* sc,
     info.imageExtent      = ext;
     info.imageArrayLayers = 1;
     info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    // TRANSFER_SRC lets CopySwapchainImage read a frame back (screenshots,
+    // save thumbnails). Nearly universal, but optional per the spec - without
+    // it a readback copies nothing (logged once).
+    if (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+        info.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    sc->CanCopyFrom = (info.imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
     info.preTransform     = caps.currentTransform; // no extra rotation/flip
     info.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // no window transparency
     info.presentMode      = mode;
@@ -338,11 +345,16 @@ BufferHandle RenderDevice::CreateBuffer(const BufferDesc& desc)
     if (HasFlag(desc.Usage, BufferUsage::Storage))  bufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     if (HasFlag(desc.Usage, BufferUsage::Transfer)) bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT
                                                                        | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    // A readback buffer is the destination of an image-to-buffer copy.
+    if (HasFlag(desc.Usage, BufferUsage::Readback)) bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
+    // GPU_TO_CPU picks host-visible memory the CPU can read quickly (cached
+    // where available); CPU_TO_GPU memory is often write-combined, which is
+    // fast to write but very slow to read back.
     VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = desc.HostVisible
-        ? VMA_MEMORY_USAGE_CPU_TO_GPU
-        : VMA_MEMORY_USAGE_GPU_ONLY;
+    if (!desc.HostVisible) allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    else if (HasFlag(desc.Usage, BufferUsage::Readback)) allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
+    else allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
     if (desc.HostVisible)
         allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -394,6 +406,20 @@ BufferHandle RenderDevice::CreateBuffer(const BufferDesc& desc)
     }
 
     return _context->Buffers.Allocate<BufferTag>(std::move(vkBuffer));
+}
+
+// Reads GPU-written data out of a host-visible buffer.
+//
+// VMA keeps the buffer persistently mapped. On memory that isn't
+// HOST_COHERENT the CPU may still see stale cache lines, so the range is
+// invalidated first (a no-op on coherent memory).
+void RenderDevice::ReadBuffer(BufferHandle handle, void* out, u64 size, u64 offset)
+{
+    VulkanBuffer* buf = _context->Buffers.Get(handle);
+    ARCBIT_ASSERT(buf != nullptr && buf->HostVisible, "ReadBuffer: invalid or not host-visible buffer");
+    ARCBIT_ASSERT(offset + size <= buf->Size, "ReadBuffer: read out of bounds");
+    vmaInvalidateAllocation(_context->Allocator, buf->Allocation, offset, size);
+    memcpy(out, static_cast<const u8*>(buf->Mapped) + offset, size);
 }
 
 // Writes CPU data into a previously allocated buffer.
@@ -1244,6 +1270,9 @@ void RenderDevice::EndCommandList(CommandListHandle handle)
 // For each color attachment we first issue a synchronization2 image barrier to
 // transition the layout to COLOR_ATTACHMENT_OPTIMAL.  Using oldLayout = UNDEFINED
 // discards previous contents, which is correct when loading with Clear or DontCare.
+// With LoadOp::Load the barrier starts from the image's tracked layout instead,
+// so what an earlier pass drew this frame survives (a frame split around a
+// CopySwapchainImage).
 void RenderDevice::BeginRendering(CommandListHandle cmd, const RenderingDesc& desc)
 {
     VulkanCommandList* cmdList = _context->CommandLists.Get(cmd);
@@ -1271,7 +1300,21 @@ void RenderDevice::BeginRendering(CommandListHandle cmd, const RenderingDesc& de
         barrier.newLayout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         barrier.image         = tex->Image;
         barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+        // Keeping the contents: transition from the layout the last command
+        // left (PRESENT_SRC after EndRendering / CopySwapchainImage). Every
+        // earlier command on the image - the copy reading it, the pass writing
+        // it - must finish first, and the new pass both reads (blending) and
+        // writes it.
+        if (attach.Load == LoadOp::Load && tex->Layout != VK_IMAGE_LAYOUT_UNDEFINED)
+        {
+            barrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+            barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout     = tex->Layout;
+        }
         barriers.push_back(barrier);
+        tex->Layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkRenderingAttachmentInfo attachInfo{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
         attachInfo.imageView   = tex->View;
@@ -1332,6 +1375,64 @@ void RenderDevice::EndRendering(CommandListHandle cmd)
     depInfo.imageMemoryBarrierCount = 1;
     depInfo.pImageMemoryBarriers    = &barrier;
     vkCmdPipelineBarrier2(cmdList->Buffer, &depInfo);
+    tex->Layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+}
+
+// Copy the swapchain image being rendered into a host-visible buffer.
+//
+// The image sits in PRESENT_SRC_KHR (EndRendering put it there). A copy needs
+// TRANSFER_SRC_OPTIMAL, so: barrier into it - waiting for the pass's color
+// writes to land - copy, then barrier back to PRESENT_SRC_KHR so the frame can
+// still be presented (or rendered on with LoadOp::Load). The buffer is read on
+// the CPU only after the frame's fence, so no host barrier is needed here.
+void RenderDevice::CopySwapchainImage(CommandListHandle cmd, BufferHandle dst)
+{
+    VulkanCommandList* cmdList = _context->CommandLists.Get(cmd);
+    VulkanBuffer*      buf     = _context->Buffers.Get(dst);
+    VulkanSwapchain*   sc      = _context->Swapchains.Get(_context->ActiveSwapchain);
+    ARCBIT_ASSERT(cmdList && buf && sc, "CopySwapchainImage: invalid command list, buffer or swapchain");
+    if (!sc->CanCopyFrom)
+    {
+        static bool warned = false;
+        if (!std::exchange(warned, true)) LOG_WARN(Render, "CopySwapchainImage: the surface doesn't allow copies - skipped");
+        return;
+    }
+
+    VulkanTexture* tex = _context->Textures.Get(sc->ImageHandles[sc->CurrentImageIndex]);
+    ARCBIT_ASSERT(tex != nullptr, "CopySwapchainImage: no current swapchain image");
+    ARCBIT_ASSERT(buf->Size >= u64(tex->Width) * tex->Height * 4, "CopySwapchainImage: buffer too small");
+
+    VkImageMemoryBarrier2 toCopy{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+    toCopy.srcStageMask     = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    toCopy.srcAccessMask    = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    toCopy.dstStageMask     = VK_PIPELINE_STAGE_2_COPY_BIT;
+    toCopy.dstAccessMask    = VK_ACCESS_2_TRANSFER_READ_BIT;
+    toCopy.oldLayout        = tex->Layout;
+    toCopy.newLayout        = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toCopy.image            = tex->Image;
+    toCopy.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dep.imageMemoryBarrierCount = 1;
+    dep.pImageMemoryBarriers    = &toCopy;
+    vkCmdPipelineBarrier2(cmdList->Buffer, &dep);
+
+    // bufferRowLength / bufferImageHeight = 0: rows are tightly packed.
+    VkBufferImageCopy region{};
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.imageExtent      = { tex->Width, tex->Height, 1 };
+    vkCmdCopyImageToBuffer(cmdList->Buffer, tex->Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buf->Buffer, 1, &region);
+
+    VkImageMemoryBarrier2 back = toCopy;
+    back.srcStageMask  = VK_PIPELINE_STAGE_2_COPY_BIT;
+    back.srcAccessMask = VK_ACCESS_2_NONE; // a read: only the execution order matters
+    back.dstStageMask  = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+    back.dstAccessMask = VK_ACCESS_2_NONE;
+    back.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    back.newLayout     = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    dep.pImageMemoryBarriers = &back;
+    vkCmdPipelineBarrier2(cmdList->Buffer, &dep);
+    tex->Layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 }
 
 void RenderDevice::BindPipeline(CommandListHandle cmd, PipelineHandle pipeline)

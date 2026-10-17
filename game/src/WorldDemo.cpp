@@ -14,11 +14,9 @@
 #include <arcbit/scene/ScenePreloader.h>
 #include <arcbit/tilemap/TileMap.h>
 #include <arcbit/ui/HudScreen.h>
-#include <arcbit/ui/PauseMenuScreen.h>
 #include <arcbit/ui/UIScreen.h>
 #include <arcbit/ui/UISkin.h>
 #include <arcbit/ui/Widgets.h>
-#include "WidgetTestScreen.h"
 
 #include <cmath>
 #include <vector>
@@ -141,11 +139,6 @@ protected:
     void OnUpdate(const f32 dt) override
     {
         UpdateHud(dt);
-
-        HandlePauseKey();
-
-        if (GetApp().GetInput().JustPressed(ActionWidgetTest) && !GetApp().GetUI().HasBlockingScreen())
-            ShowWidgetTest();
 
         if (GetApp().GetUI().HasBlockingScreen()) return;
 
@@ -421,6 +414,8 @@ private:
         world.AddComponent<InputMovement>(_playerEntity, InputMovement{.MoveLeft = ActionMoveLeft, .MoveRight = ActionMoveRight,
                                                                        .MoveUp   = ActionMoveUp, .MoveDown    = ActionMoveDown});
         world.AddComponent<MoveIntent>(_playerEntity); // read by UpdatePlayerVisuals
+        // Saved and kept across scene changes: where the player stands.
+        world.AddComponent<Persistent>(_playerEntity, Persistent{ .Id = "player", .Components = { "Transform2D" } });
 
         world.AddComponent<AudioSource>(_playerEntity, AudioSource{
                                             .Path = "assets/sfx/footsteps.mp3", .Volume = 0.6f,
@@ -714,42 +709,6 @@ private:
         _hud->GetFpsLabel()->Text    = std::format("FPS: {:.0f}", GetApp().GetFPS());
     }
 
-    // Pause opens the pause menu - swapping out any other menu, like the demo
-    // switcher - and closes it again (with whatever settings screen it has
-    // open). While a menu is open, a pause key that is also "back" (Escape)
-    // is that menu's back, not a new pause: gamepad Start swaps, Escape closes.
-    void HandlePauseKey()
-    {
-        UIManager& ui = GetApp().GetUI();
-        if (!GetApp().GetInput().JustPressed(ActionPause)) return;
-        if (ui.IsOpen(_pauseMenu)) {
-            if (!UIManager::IsBackPressed(GetApp().GetInput())) ui.CloseMenus(); // Escape: the menu's own back
-            return;
-        }
-        if (ui.HasOpenMenu() && UIManager::IsBackPressed(GetApp().GetInput())) return;
-        ShowPauseMenu();
-    }
-
-    void ShowPauseMenu()
-    {
-        auto pause                  = std::make_unique<PauseMenuScreen>();
-        _pauseMenu                  = pause.get();
-        pause->OnResume             = [this] { GetApp().GetUI().Close(_pauseMenu); };
-        pause->OnControls           = [this] { GetApp().ShowControlsScreen(); };
-        pause->OnAudioSettings      = [this] { GetApp().ShowAudioScreen(); };
-        pause->OnGraphicsSettings   = [this] { GetApp().ShowGraphicsScreen(); };
-        pause->OnQuit               = [this] { GetApp().RequestShutdown(); };
-        GetApp().GetUI().OpenMenu(std::move(pause));
-    }
-
-    void ShowWidgetTest()
-    {
-        auto      screen = std::make_unique<WidgetTestScreen>();
-        UIScreen* ptr    = screen.get();
-        screen->OnClose  = [this, ptr] { GetApp().GetUI().Close(ptr); };
-        GetApp().GetUI().OpenMenu(std::move(screen));
-    }
-
 private:
     static constexpr ActionID ActionToggleGrid = MakeAction("Debug_ToggleGrid");
     static constexpr ActionID ActionMoveLeft   = MakeAction("Move_Left");
@@ -759,8 +718,6 @@ private:
     static constexpr ActionID ActionInteract   = MakeAction("Interact");
     static constexpr ActionID ActionSprint     = MakeAction("Sprint");
     static constexpr ActionID ActionAttack     = MakeAction("Player_Attack");
-    static constexpr ActionID ActionPause      = MakeAction("Pause");
-    static constexpr ActionID ActionWidgetTest = MakeAction("Debug_WidgetTest");
 
     static constexpr f32 ViewportW     = 1920.0f;
     static constexpr f32 ViewportH     = 1080.0f;
@@ -806,7 +763,6 @@ private:
 
     FontAtlas       _bitmapFont;
     HudScreen*      _hud       = nullptr; // raw; owned by UIManager
-    const UIScreen* _pauseMenu = nullptr; // the pause menu (check GetUI().IsOpen)
 
     // Simulated HP/MP for demo — oscillate via sine so the bars visibly animate.
     f32 _simTime = 0.0f;

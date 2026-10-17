@@ -19,6 +19,16 @@ void PauseMenuScreen::OnEnter()
     if (auto* btn = FindWidget<Button>("resume-btn"))
         btn->OnClick = OnResume;
 
+    if (auto* btn = FindWidget<Button>("save-btn")) {
+        btn->Visible = ShowSaveGame;
+        btn->OnClick = OnSaveGame;
+    }
+
+    if (auto* btn = FindWidget<Button>("load-btn")) {
+        btn->Visible = ShowLoadGame;
+        btn->OnClick = OnLoadGame;
+    }
+
     if (auto* btn = FindWidget<Button>("controls-btn")) {
         btn->Visible = ShowControls;
         btn->OnClick = OnControls;
@@ -36,6 +46,10 @@ void PauseMenuScreen::OnEnter()
 
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
+
+    StackButtons(FindWidget<UIWidget>("bg"),
+                 { "resume-btn", "save-btn", "load-btn", "controls-btn", "audio-btn", "graphics-btn", "quit-btn" },
+                 GetMetaF32("btn_start_y", 72.0f), GetMetaF32("btn_gap", 56.0f), 24.0f);
 }
 
 void PauseMenuScreen::OnBackPressed() { if (OnResume) OnResume(); }
@@ -49,6 +63,8 @@ void PauseMenuScreen::BuildFallback()
     Add<Scrim>();
 
     const i32 btnCount = 2
+            + (ShowSaveGame ? 1 : 0)
+            + (ShowLoadGame ? 1 : 0)
             + (ShowControls ? 1 : 0)
             + (ShowAudioSettings ? 1 : 0)
             + (ShowGraphicsSettings ? 1 : 0);
@@ -110,6 +126,14 @@ void PauseMenuScreen::BuildFallback()
     f32 y = 72.0f;
     MakeButton("Resume", y, OnResume);
     y += gap;
+    if (ShowSaveGame) {
+        MakeButton("Save Game", y, OnSaveGame);
+        y += gap;
+    }
+    if (ShowLoadGame) {
+        MakeButton("Load Game", y, OnLoadGame);
+        y += gap;
+    }
     if (ShowControls) {
         MakeButton("Controls", y, OnControls);
         y += gap;

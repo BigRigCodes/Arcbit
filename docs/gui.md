@@ -124,12 +124,14 @@ std::function<void()>  OnClick;
 
 ### `Image`
 
-Textured quad scaled to the widget rect.
+Textured quad scaled to the widget rect, turned `Rotation` radians
+clockwise about its center (a spinner).
 
 ```cpp
 TextureHandle Texture; SamplerHandle Sampler;
-Color  Tint = {1,1,1,1};
-UVRect UV   = {0,0,1,1};
+Color  Tint     = {1,1,1,1};
+UVRect UV       = {0,0,1,1};
+f32    Rotation = 0.0f;
 ```
 
 ### `ProgressBar`
@@ -696,6 +698,9 @@ engine/
     SplashScreen.h
     MainMenuScreen.h
     CreditsScreen.h
+    ConfirmScreen.h         — yes / no question (Application::Confirm)
+    SaveSlotScreen.h        — save / load slot list (docs/saves.md)
+    SavingIndicator.h       — the "Saving..." spinner
   src/
     UIManager.cpp
     UIScreen.cpp
@@ -712,12 +717,17 @@ engine/
     SplashScreen.cpp
     MainMenuScreen.cpp
     CreditsScreen.cpp
+    ConfirmScreen.cpp
+    SaveSlotScreen.cpp
+    SavingIndicator.cpp
   assets/ui/                — engine-provided .arcui defaults
     pause_menu.arcui
     audio_settings.arcui
     graphics_settings.arcui
     input_rebind.arcui
     main_menu.arcui
+    save_slots.arcui
+    saving.png              — the default saving icon
   assets/fonts/             — engine fonts (deployed to assets/engine/fonts/)
     Roboto-Regular.ttf
   assets/skins/             — engine default skin (deployed to assets/engine/skins/)
@@ -775,9 +785,17 @@ Game assets go in `game/assets/`.
 - [x] `CreditsScreen`: scrolling credits from a JSON file (`title`, `sections` of `heading` + `names`, `scroll_speed`); closes when the roll ends or on back
 - [x] Screen layers (`Hud` / `Menu` / `Overlay` / `System`) replace `StaysOnTop`: a screen is pushed on top of its layer; `TakesInput = false` lets input through to the menu beneath; `OpenMenu` swaps menus out, `Close(screen)` closes by pointer and `Pop()` only touches menus; a screen removing itself during `UIManager::Update` is deferred until the update returns
 - [ ] `DialogScreen`: portrait + speaker name + scrolling text + choice buttons (deferred to Phase 27 dialog system)
-- [ ] `InventoryScreen` stub (deferred to Phase 25 item system)
+- [ ] `InventoryScreen` stub (deferred to Phase 29 item system)
 - [x] `GraphicsSettingsScreen` extended: VSync, Show FPS, and Show Debug Info all use `Switch` widgets; `Settings::Graphics.ShowFps` and `ShowDebugInfo` drive live HUD and debug overlay
 - [x] `UIScreen::BlocksGame` flag + `UIManager::HasGameBlockingScreen()` — suppresses `OnUpdate`, `OnRender`, scene render, and debug overlay; `CollectRenderData` skips screens below the lowest active blocking screen
+
+### Phase 25 — Save screens ✓
+- [x] `SaveSlotScreen`: save into a manual slot or load any save; rows with thumbnail, name, scene, playtime and date; frame from `save_slots.arcui`
+- [x] `ConfirmScreen`: yes / no over the current menu, No focused first; `Application::Confirm`
+- [x] `SavingIndicator`: spinning icon and "Saving..." in the bottom-right corner on every save (Overlay layer)
+- [x] `SplashEntry` text cards: centered white text on black with an optional spinning icon - the saving notice
+- [x] `PauseMenuScreen` Save Game / Load Game and `MainMenuScreen` Load Game buttons; `UIScreen::StackButtons` closes the gaps hidden buttons leave
+- [x] `Image::Rotation`; UI sprites honor `Sprite::Rotation` (the gamepad cursor's diamond)
 
 ### Phase 21E — Skin Sounds ✓
 - [x] Sound key fields added to `UISkin`: `SoundFocusMove`, `SoundActivate`, `SoundBack`, `SoundSliderTick`, `SoundToggle`
