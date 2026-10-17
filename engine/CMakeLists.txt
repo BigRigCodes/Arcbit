@@ -53,6 +53,7 @@ add_library(arcbit-engine STATIC
     src/Sweep.cpp
     src/DirectionArc.cpp
     src/ContactTracker.cpp
+    src/EventPayload.cpp
 )
 
 target_include_directories(arcbit-engine
