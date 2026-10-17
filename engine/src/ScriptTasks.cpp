@@ -77,7 +77,11 @@ u64 ScriptEngine::State::StartTask(lua_State* L, const sol::protected_function& 
     const u64  id   = NextTaskId++;
     ScriptTask task;
     task.Thread    = sol::thread::create(L);
-    task.Context   = Current.Scene ? Current : ScriptContext{ .Scene = scene, .Serial = SerialOf(scene) };
+    task.Context   = Current; // runs as its starter; a UI script's or the console's, in the active scene
+    if (!task.Context.Scene) {
+        task.Context.Scene  = scene;
+        task.Context.Serial = SerialOf(scene);
+    }
     lua_State* T   = task.Thread.thread_state();
     fn.push(T);
     for (const sol::object arg : args) arg.push(T);

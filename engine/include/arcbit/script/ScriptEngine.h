@@ -18,6 +18,7 @@ class Scene;
 class SceneAssets;
 class SceneManager;
 class SceneRegistry;
+class UIManager;
 
 // What the engine API scripts call reaches (Application wires all of it;
 // tests wire what they need). Anything left empty makes the matching calls
@@ -29,6 +30,7 @@ struct ScriptServices
     EventBus*            Events   = nullptr; // Event.*
     SaveManager*         Saves    = nullptr; // Save.Get / Set
     const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
+    UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
 
     std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets; // component reads / writes
     std::function<void(std::string_view path, f32 volume)> PlaySound;

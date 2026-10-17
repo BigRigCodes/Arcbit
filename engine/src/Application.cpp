@@ -232,6 +232,7 @@ void Application::Run()
                                 .Events    = &_events,
                                 .Saves     = &_saves,
                                 .Registry  = &_sceneRegistry,
+                                .UI        = &_ui,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
                                 .PlaySound = [](const std::string_view path, const f32 volume) {
                                     AudioManager::PlayOneShot(path, volume);

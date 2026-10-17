@@ -24,6 +24,7 @@
 namespace Arcbit
 {
 class Scene;
+class ScriptedScreen;
 
 // A script's handle to an entity: the entity plus the scene it lives in (by
 // serial, not pointer), so a handle kept past its entity or its scene is
@@ -77,6 +78,7 @@ struct ScriptRuntime
 
 struct ScriptEngine::State
 {
+    ScriptEngine*         Engine = nullptr; // the owner (ScriptedScreen needs it)
     std::filesystem::path Root;
     ScriptRuntime         Runtime;
     sol::state            Lua; // after Runtime: it allocates through it until destroyed
@@ -109,6 +111,10 @@ struct ScriptEngine::State
     };
     std::unordered_map<u64, LuaSubscription> Subscriptions;
     u64                                      NextSubscriptionId = 1;
+
+    // Scripted screens open, by id (ScriptedScreen registers itself).
+    std::unordered_map<u64, ScriptedScreen*> Screens;
+    u64                                      NextScreenId = 1;
 
     std::map<u64, ScriptTask>           Tasks; // by id: tasks due on the same tick run in the order they started
     u64                                 NextTaskId = 1;
@@ -204,6 +210,7 @@ private:
     void BindSave();
     void BindEvents();
     void BindTasks();
+    void BindUI();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with

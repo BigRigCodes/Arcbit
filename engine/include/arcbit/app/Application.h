@@ -379,9 +379,9 @@ private:
     FontAtlas   _debugFont;
     RenderStats _renderStats{};
 
+    EventBus     _events;       // before _scriptEngine and _scenes: their subscriptions end before the bus goes
+    ScriptEngine _scriptEngine; // before _ui and _scenes: scripted screens and scenes hold references into it
     UIManager    _ui;
-    EventBus     _events;   // before _scenes: scenes' subscriptions end before the bus goes
-    ScriptEngine _scriptEngine; // before _scenes: scenes' scripts hold references into its state
     Subscription _eventLog; // every delivered event, on the EventBus log channel (debug level)
 
     SceneManager                    _scenes;
