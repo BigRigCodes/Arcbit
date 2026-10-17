@@ -109,6 +109,9 @@ public:
     // Compute this widget's pixel rect relative to parentRect.
     [[nodiscard]] UIRect ComputeRect(UIRect parent) const;
 
+    // True while this widget has keyboard / gamepad focus.
+    [[nodiscard]] bool IsFocused() const { return _focused; }
+
     // Returns a copy of base with this widget's SkinOverride fields applied.
     // Called automatically by CollectTree before OnCollect — no need to call
     // this manually inside OnCollect implementations.

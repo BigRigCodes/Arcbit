@@ -423,6 +423,22 @@ UIRect ScrollPanel::ThumbRect(const UIRect track, const f32 panelH) const
     return {track.X, track.Y + thumbT, track.W, thumbH};
 }
 
+void ScrollPanel::KeepFocusInView(const UIRect myRect)
+{
+    constexpr f32 Margin = 8.0f;
+    const auto    it     = std::ranges::find_if(_children, [](const auto& c) { return c->IsFocused(); });
+    const UIWidget* focused = it != _children.end() ? it->get() : nullptr;
+    if (focused == _shownFocus) return; // only on a focus change, so the wheel can still scroll away
+    _shownFocus = focused;
+    if (!focused) return;
+
+    const UIRect content = { myRect.X, myRect.Y - ScrollOffset, myRect.W, ContentHeight };
+    const UIRect r       = focused->ComputeRect(content);
+    if (r.Y < myRect.Y) ScrollOffset -= myRect.Y - r.Y + Margin;
+    else if (r.Y + r.H > myRect.Y + myRect.H) ScrollOffset += r.Y + r.H - (myRect.Y + myRect.H) + Margin;
+    ScrollOffset = std::clamp(ScrollOffset, 0.0f, MaxScroll(myRect.H));
+}
+
 void ScrollPanel::UpdateTree(const f32  dt, const UIRect      parent, const Vec2        mousePos,
                              const bool mouseDown, const bool mouseJustDown, const bool mouseJustUp,
                              bool&      consumed, const f32   scrollDelta)
@@ -430,6 +446,8 @@ void ScrollPanel::UpdateTree(const f32  dt, const UIRect      parent, const Vec2
     if (!Visible) return;
     const UIRect myRect = ComputeRect(parent);
     _needsScrollbar     = ContentHeight > myRect.H && ScrollbarWidth > 0.0f;
+
+    KeepFocusInView(myRect);
 
     // Children receive input only when the cursor is inside the content area.
     const f32    sbW        = _needsScrollbar ? ScrollbarWidth : 0.0f;

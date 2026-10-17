@@ -184,3 +184,32 @@ TEST_CASE("Focus can be put back by its place in the focus order", "[ui]")
     screen.FocusAt(10); // past the end: the last one
     CHECK(screen.GetFocusedWidget() == rebuilt[2]);
 }
+
+TEST_CASE("A scroll panel scrolls its focused child into view", "[ui]")
+{
+    // With D-pad / arrow navigation, focus walked off the visible part of a
+    // long list (the controls screen) and the list never followed.
+    UIScreen screen;
+    auto*    list       = screen.Add<ScrollPanel>();
+    list->Size          = { 300.0f, 200.0f };
+    list->ContentHeight = 1000.0f;
+    std::vector<Button*> rows;
+    for (int i = 0; i < 20; ++i) {
+        auto* row      = list->AddChild<Button>();
+        row->Size      = { 280.0f, 40.0f };
+        row->Offset    = { 0.0f, 50.0f * static_cast<f32>(i) };
+        row->Focusable = true;
+        rows.push_back(row);
+    }
+    const UIRect window{ 0.0f, 0.0f, 640.0f, 360.0f };
+    const auto   update = [&] { screen.Update(1.0f / 60.0f, window, { -1.0f, -1.0f }, false, false, false); };
+
+    for (int i = 0; i <= 10; ++i) screen.FocusNext(); // row 10: y 500..540, well below the 200 px view
+    update();
+    CHECK(list->ScrollOffset >= 540.0f - 200.0f); // its bottom is in view
+    CHECK(list->ScrollOffset <= 500.0f);          // and so is its top
+
+    screen.FocusAt(0);
+    update();
+    CHECK(list->ScrollOffset == 0.0f); // back to the top
+}
