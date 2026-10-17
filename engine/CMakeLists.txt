@@ -24,6 +24,7 @@ add_library(arcbit-engine STATIC
     src/SceneRegistry.cpp
     src/SaveData.cpp
     src/SaveGame.cpp
+    src/SaveManager.cpp
     src/SceneComponents.cpp
     src/SceneFile.cpp
     src/FileScene.cpp

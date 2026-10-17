@@ -1,8 +1,10 @@
-// Save files, headless: SaveData values and the save document.
+// Save files, headless, against a temp folder: SaveData values, the save
+// document, slots on disk (crash-safe writes and the .bak fallback),
+// migrations and participants.
 
 #include "TestSupport.h"
 
-#include <arcbit/save/SaveGame.h>
+#include <arcbit/save/SaveManager.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -89,4 +91,138 @@ TEST_CASE("Saves this build can't read are refused", "[save]")
     CHECK_FALSE(SaveGame::FromJson(nlohmann::json::array()));
     CHECK_FALSE(SaveGame::FromJson({ { "format", SaveGame::FormatVersion + 1 } }));
     CHECK_FALSE(SaveGame::FromJson({ { "meta", 5 } })); // no format
+}
+
+// ---------------------------------------------------------------------------
+// Slots on disk
+// ---------------------------------------------------------------------------
+
+TEST_CASE("A slot round-trips the game's data and participants", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    i32                        potions = 2;
+    saves.RegisterParticipant(
+        "inventory", [&](nlohmann::json& s) { s["potions"] = potions; },
+        [&](const nlohmann::json& s) { potions = s.value("potions", 0); });
+    saves.Data().Set("gold", 120);
+
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("first", 100))));
+    CHECK(std::filesystem::exists(dir.File("saves") / "slot_01.arcsave"));
+
+    potions = 0;
+    saves.Data().Clear();
+    const std::optional<SaveGame> game = saves.Read(SaveSlot::Manual(1));
+    REQUIRE(game);
+    saves.Restore(*game);
+    CHECK(potions == 2);
+    CHECK(saves.Data().Get<i64>("gold", 0) == 120);
+    CHECK(game->Meta == Meta("first", 100));
+}
+
+TEST_CASE("A participant added after a save was made reads an empty section", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    REQUIRE(saves.Write(SaveSlot::Quick(), saves.Capture(Meta("old", 1))));
+
+    bool           called = false;
+    nlohmann::json seen;
+    saves.RegisterParticipant("quests", {}, [&](const nlohmann::json& s) { called = true; seen = s; });
+    saves.Restore(*saves.Read(SaveSlot::Quick()));
+    CHECK(called);
+    CHECK(seen == nlohmann::json::object());
+}
+
+TEST_CASE("A damaged or missing slot falls back to its backup", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    const SaveSlot             slot = SaveSlot::Manual(2);
+    REQUIRE(saves.Write(slot, saves.Capture(Meta("older", 1))));
+    REQUIRE(saves.Write(slot, saves.Capture(Meta("newer", 2)))); // "older" becomes the .bak
+
+    Overwrite(saves.PathOf(slot), "{ not json"); // damaged
+    std::optional<SaveGame> game = saves.Read(slot);
+    REQUIRE(game);
+    CHECK(game->Meta.Name == "older");
+
+    std::filesystem::remove(saves.PathOf(slot)); // a crash between Write's renames
+    game = saves.Read(slot);
+    REQUIRE(game);
+    CHECK(game->Meta.Name == "older");
+}
+
+TEST_CASE("Slots list newest first, and delete with their backups", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("a", 100))));
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("a2", 300)))); // leaves a .bak
+    REQUIRE(saves.Write(SaveSlot::Auto(1), saves.Capture(Meta("b", 200))));
+    REQUIRE(saves.Write(SaveSlot::Quick(), saves.Capture(Meta("c", 50))));
+
+    const std::vector<SaveSlotInfo> list = saves.List();
+    REQUIRE(list.size() == 3);
+    CHECK(list[0].Meta.Name == "a2");
+    CHECK(list[1].Meta.Name == "b");
+    CHECK(list[2].Slot == SaveSlot::Quick());
+
+    CHECK(saves.Delete(SaveSlot::Manual(1)));
+    CHECK_FALSE(saves.Exists(SaveSlot::Manual(1))); // the .bak went too
+    CHECK(saves.List().size() == 2);
+}
+
+TEST_CASE("Autosaves fill the empty slots, then replace the oldest", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    saves.AutoSlots = 3;
+    CHECK(saves.NextAutoSlot() == SaveSlot::Auto(1));
+    REQUIRE(saves.Write(SaveSlot::Auto(1), saves.Capture(Meta("1", 300))));
+    REQUIRE(saves.Write(SaveSlot::Auto(2), saves.Capture(Meta("2", 100))));
+    CHECK(saves.NextAutoSlot() == SaveSlot::Auto(3));
+    REQUIRE(saves.Write(SaveSlot::Auto(3), saves.Capture(Meta("3", 200))));
+    CHECK(saves.NextAutoSlot() == SaveSlot::Auto(2)); // the oldest
+}
+
+// ---------------------------------------------------------------------------
+// Migrations
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Older saves are migrated step by step on read", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    saves.Data().Set("coins", 7);
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("v1", 1)))); // game version 1
+
+    // Version 2 renamed "coins" to "gold"; version 3 doubled everyone's gold.
+    saves.CurrentGameVersion = 3;
+    saves.RegisterMigration(1, [](nlohmann::json& save) {
+        save["data"]["gold"] = save["data"]["coins"];
+        save["data"].erase("coins");
+    });
+    saves.RegisterMigration(2, [](nlohmann::json& save) { save["data"]["gold"] = save["data"]["gold"].get<i64>() * 2; });
+
+    const std::optional<SaveGame> game = saves.Read(SaveSlot::Manual(1));
+    REQUIRE(game);
+    CHECK(game->GameVersion == 3);
+    CHECK(game->Data.Get<i64>("gold", 0) == 14);
+    CHECK_FALSE(game->Data.Has("coins"));
+}
+
+TEST_CASE("Saves from a newer game or with a missing migration aren't loaded", "[save]")
+{
+    const ArcbitTests::TempDir dir;
+    SaveManager                saves(dir.File("saves"));
+    saves.CurrentGameVersion = 2;
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("old", 1))));
+    REQUIRE(saves.Write(SaveSlot::Manual(1), saves.Capture(Meta("new", 2)))); // version 2, "old" is the .bak
+
+    saves.CurrentGameVersion = 1; // an older build of the game reading it
+    CHECK_FALSE(saves.Read(SaveSlot::Manual(1))); // refused - and not swapped for the older .bak
+
+    saves.CurrentGameVersion = 3; // a newer build with no 2 -> 3 step registered
+    CHECK_FALSE(saves.Read(SaveSlot::Manual(1)));
 }
