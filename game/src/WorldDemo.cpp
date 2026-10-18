@@ -180,10 +180,7 @@ protected:
         GetApp().GetDevice().DestroySampler(_linearSampler);
         GetApp().GetDevice().DestroySampler(_sampler);
 
-        if (_bitmapFont.IsValid()) {
-            GetApp().GetDevice().DestroyTexture(_bitmapFont.GetTexture());
-            GetApp().GetDevice().DestroySampler(_bitmapFont.GetSampler());
-        }
+        _bitmapFont.Release(GetApp().GetDevice());
     }
 
 private:

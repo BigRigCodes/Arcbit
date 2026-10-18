@@ -386,6 +386,7 @@ void Application::Run()
         packet.NeedsResize = _window->WasResizedThisFrame();
         packet.CaptureWorld = std::exchange(_captureNextFrame, false); // a save's thumbnail
 
+
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
             if (Scene* scene = _scenes.GetActive()) scene->CollectRenderData(packet);
@@ -416,6 +417,7 @@ void Application::Run()
 
         _renderThread.SubmitFrame(std::move(packet));
         WriteThumbnail(); // a frame captured for a save, once the render thread has it
+
 
         // --- FPS counter + render stats --------------------------------------
         // Count completed frames; report once per second alongside the most
@@ -472,10 +474,7 @@ void Application::Run()
     _device->DestroySampler(_linearSampler);
 
     // Destroy the debug font atlas resources before the device goes away.
-    if (_debugFont.IsValid()) {
-        _device->DestroyTexture(_debugFont.GetTexture());
-        _device->DestroySampler(_debugFont.GetSampler());
-    }
+    _debugFont.Release(*_device);
 
     // Release all cached textures before the device is destroyed.
     _textures->Clear();

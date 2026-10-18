@@ -103,52 +103,6 @@ static void PushNineSlice(FramePacket&        packet, const UIRect     rect, con
         PushTexturedRect(packet, sr, uv, tint, tex, samp, layer);
 }
 
-// Word-wrap text to fit within maxWidth pixels, preserving explicit newlines.
-static std::string WrapText(const FontAtlas& font, const std::string_view text,
-                            const f32        maxWidth, const f32          scale)
-{
-    const GlyphInfo* spGlyph = font.GetGlyph(' ');
-    const f32        spaceW  = spGlyph ? spGlyph->Advance * scale : 0.0f;
-
-    std::string      result;
-    std::string_view remaining = text;
-
-    while (true) {
-        const auto       nl   = remaining.find('\n');
-        std::string_view para = remaining.substr(0, nl);
-        if (!result.empty()) result += '\n';
-
-        f32  lineWidth = 0.0f;
-        bool lineStart = true;
-        while (!para.empty()) {
-            const auto       sp    = para.find(' ');
-            std::string_view word  = para.substr(0, sp);
-            const f32        wordW = MeasureTextWidth(font, word, scale);
-            const f32        addW  = lineStart ? wordW : spaceW + wordW;
-
-            if (!lineStart && lineWidth + addW > maxWidth) {
-                result    += '\n';
-                lineWidth = 0.0f;
-                lineStart = true;
-            }
-            if (!lineStart) {
-                result    += ' ';
-                lineWidth += spaceW;
-            }
-            result    += std::string(word);
-            lineWidth += wordW;
-            lineStart = false;
-
-            if (sp == std::string_view::npos) break;
-            para = para.substr(sp + 1);
-        }
-
-        if (nl == std::string_view::npos) break;
-        remaining = remaining.substr(nl + 1);
-    }
-    return result;
-}
-
 // ---------------------------------------------------------------------------
 // Panel
 // ---------------------------------------------------------------------------
