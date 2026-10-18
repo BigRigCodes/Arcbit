@@ -1,5 +1,6 @@
 #include <arcbit/ui/Widgets.h>
 #include <arcbit/ui/UISkin.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
@@ -11,6 +12,43 @@ namespace { void PlaySound(const std::string& key) { if (!key.empty()) Arcbit::A
 
 namespace Arcbit
 {
+// ---------------------------------------------------------------------------
+// Text keys: text that follows the language
+// ---------------------------------------------------------------------------
+
+void Label::SetTextKey(std::string key)
+{
+    TextKey = std::move(key);
+    OnLocaleChanged();
+}
+
+void Label::OnLocaleChanged()
+{
+    if (!TextKey.empty()) Text = Loc::Get(TextKey);
+}
+
+void Button::SetTextKey(std::string key)
+{
+    TextKey = std::move(key);
+    OnLocaleChanged();
+}
+
+void Button::OnLocaleChanged()
+{
+    if (!TextKey.empty()) Text = Loc::Get(TextKey);
+}
+
+void NineSliceButton::SetTextKey(std::string key)
+{
+    TextKey = std::move(key);
+    OnLocaleChanged();
+}
+
+void NineSliceButton::OnLocaleChanged()
+{
+    if (!TextKey.empty()) Text = Loc::Get(TextKey);
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

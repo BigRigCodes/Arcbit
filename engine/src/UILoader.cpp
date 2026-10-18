@@ -163,7 +163,7 @@ static void ApplyLabel(UIWidget& w, const json& j)
 {
     auto& l = dynamic_cast<Label&>(w);
     if (const auto it = j.find("text"); it != j.end()) l.Text = it->get<std::string>();
-    if (const auto it = j.find("text_key"); it != j.end()) l.Text = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("text_key"); it != j.end()) l.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("word_wrap"); it != j.end()) l.WordWrap = it->get<bool>();
     if (const auto it = j.find("auto_center"); it != j.end()) l.AutoCenter = it->get<bool>();
     if (const auto it = j.find("text_color"); it != j.end()) l.SkinOverride.TextLabel = ReadColor(*it);
@@ -181,7 +181,7 @@ static void ApplyButton(UIWidget& w, const json& j)
 {
     auto& b = dynamic_cast<Button&>(w);
     if (const auto it = j.find("text"); it != j.end()) b.Text = it->get<std::string>();
-    if (const auto it = j.find("text_key"); it != j.end()) b.Text = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("text_key"); it != j.end()) b.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("text_color"); it != j.end()) b.SkinOverride.TextLabel = ReadColor(*it);
 }
 
@@ -224,7 +224,7 @@ static void ApplyNineSliceButton(UIWidget& w, const json& j)
 {
     auto& b = dynamic_cast<NineSliceButton&>(w);
     if (auto it = j.find("text"); it != j.end()) b.Text = it->get<std::string>();
-    if (auto it = j.find("text_key"); it != j.end()) b.Text = Loc::Get(it->get<std::string>());
+    if (auto it = j.find("text_key"); it != j.end()) b.SetTextKey(it->get<std::string>());
     if (auto it = j.find("tint_normal"); it != j.end()) b.TintNormal = ReadColor(*it);
     if (auto it = j.find("tint_hovered"); it != j.end()) b.TintHovered = ReadColor(*it);
     if (auto it = j.find("tint_pressed"); it != j.end()) b.TintPressed = ReadColor(*it);
@@ -288,7 +288,7 @@ static void ApplyCheckbox(UIWidget& w, const json& j)
     auto& c = dynamic_cast<Checkbox&>(w);
     if (const auto it = j.find("checked"); it != j.end()) c.Checked = it->get<bool>();
     if (const auto it = j.find("label"); it != j.end()) c.Label = it->get<std::string>();
-    if (const auto it = j.find("label_key"); it != j.end()) c.Label = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("label_key"); it != j.end()) c.SetLabelKey(it->get<std::string>());
 }
 
 static void ApplyRadioGroup(UIWidget& w, const json& j)

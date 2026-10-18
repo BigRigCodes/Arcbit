@@ -18,7 +18,7 @@ void HudScreen::OnEnter()
 
     // HP label + bar
     auto* hpLabel   = panel->AddChild<Label>();
-    hpLabel->Text   = Loc::Get("ui.hud.hp");
+    hpLabel->SetTextKey("ui.hud.hp");
     hpLabel->Size   = {24.0f, 14.0f};
     hpLabel->Anchor = {0.0f, 0.0f};
     hpLabel->Offset = {10.0f, 8.0f};
@@ -34,7 +34,7 @@ void HudScreen::OnEnter()
 
     // MP label + bar
     auto* mpLabel   = panel->AddChild<Label>();
-    mpLabel->Text   = Loc::Get("ui.hud.mp");
+    mpLabel->SetTextKey("ui.hud.mp");
     mpLabel->Size   = {24.0f, 14.0f};
     mpLabel->Anchor = {0.0f, 0.0f};
     mpLabel->Offset = {10.0f, 36.0f};

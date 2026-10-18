@@ -303,6 +303,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // Every screen refreshes, input or not (a snapshot: one may push another).
     std::vector<UIScreen*> screens;
     for (const auto& s : _stack) screens.push_back(s.get());
+    for (UIScreen* s : screens) s->RefreshLocale(); // the language changed: text follows
     for (UIScreen* s : screens) s->OnUpdate(dt);
 
     UpdatePointer(dt, windowSize, input);

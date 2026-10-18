@@ -1,5 +1,6 @@
 #include <arcbit/ui/InputWidgets.h>
 #include <arcbit/ui/UISkin.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/render/Font.h>
 #include <arcbit/render/RenderThread.h>
@@ -14,6 +15,17 @@ namespace { void PlaySound(const std::string& key) { if (!key.empty()) Arcbit::A
 
 namespace Arcbit
 {
+void Checkbox::SetLabelKey(std::string key)
+{
+    LabelKey = std::move(key);
+    OnLocaleChanged();
+}
+
+void Checkbox::OnLocaleChanged()
+{
+    if (!LabelKey.empty()) Label = Loc::Get(LabelKey);
+}
+
 // ---------------------------------------------------------------------------
 // Rendering helpers (mirrors Widgets.cpp — not shared to avoid coupling)
 // ---------------------------------------------------------------------------

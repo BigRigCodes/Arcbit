@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/core/Loc.h>
 #include <arcbit/ui/UIWidget.h>
 #include <arcbit/ui/UISkin.h>
 
@@ -133,6 +134,11 @@ public:
     void                                            AddScriptHandler(ScriptHandler handler) { _scriptHandlers.push_back(std::move(handler)); }
     [[nodiscard]] const std::vector<ScriptHandler>& GetScriptHandlers() const { return _scriptHandlers; }
 
+    // If the language changed since this screen last looked, its widgets
+    // re-read their text keys, then OnLocaleChanged runs. UIManager calls it
+    // for every screen, every tick.
+    void RefreshLocale();
+
     void Update(f32 dt, UIRect screenRect, Vec2 mousePos,
                 bool mouseDown, bool mouseJustDown, bool mouseJustUp, f32 scrollDelta = 0.0f);
 
@@ -170,7 +176,12 @@ public:
     [[nodiscard]] f32  GetTransitionOpacity() const { return _transitionOpacity; }
 
 protected:
+    // The language changed and the widgets' keys are re-read: rebuild text
+    // the screen composed itself (Loc::Format results, lists of names).
+    virtual void OnLocaleChanged() {}
+
     std::vector<std::unique_ptr<UIWidget>> _roots;
+    u64                                    _locGeneration = Loc::GetGeneration(); // what RefreshLocale last saw
 
     // Close the gaps hidden buttons leave in a menu column: the visible
     // widgets named in `names`, in order, go from startY every `gap`, and

@@ -176,12 +176,15 @@ class Checkbox : public UIWidget
 public:
     bool        Checked = false;
     std::string Label;
+    std::string LabelKey; // when set, Label is Loc::Get(LabelKey), again whenever the language changes
 
     std::function<void(bool)> OnChanged;
 
     Checkbox() { Focusable = true; }
+    void SetLabelKey(std::string key);
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;

@@ -143,6 +143,10 @@ public:
 
     void ClearChildren() { _children.clear(); }
 
+    // The language changed (Loc's generation moved): this widget and every
+    // descendant re-read their text keys. UIScreen calls it.
+    void LocaleChangedTree();
+
     // Search this widget and all descendants by Name. Returns nullptr if not found.
     [[nodiscard]] UIWidget* FindDescendant(std::string_view name);
     
@@ -167,6 +171,9 @@ protected:
     virtual void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
                            TextureHandle whiteTex, SamplerHandle whiteSampler,
                            const UISkin& skin) = 0;
+
+    // Re-read text from its key (Label::TextKey and the like).
+    virtual void OnLocaleChanged() {}
 
     // Focus lifecycle hooks — called by UIScreen during focus navigation.
     virtual void OnFocusGained() {}

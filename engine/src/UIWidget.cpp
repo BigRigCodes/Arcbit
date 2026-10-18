@@ -13,6 +13,12 @@ UIWidget* UIWidget::AddChildRaw(std::unique_ptr<UIWidget> child)
     return ptr;
 }
 
+void UIWidget::LocaleChangedTree()
+{
+    OnLocaleChanged();
+    for (const auto& child : _children) child->LocaleChangedTree();
+}
+
 UIWidget* UIWidget::FindDescendant(const std::string_view name)
 {
     if (Name == name) return this;

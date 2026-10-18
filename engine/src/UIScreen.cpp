@@ -87,6 +87,15 @@ UIWidget* UIScreen::FindFocusableHit(UIWidget& w, const UIRect parent, const Vec
     return nullptr;
 }
 
+void UIScreen::RefreshLocale()
+{
+    const u64 generation = Loc::GetGeneration();
+    if (generation == _locGeneration) return;
+    _locGeneration = generation;
+    for (const auto& root : _roots) root->LocaleChangedTree();
+    OnLocaleChanged();
+}
+
 void UIScreen::Update(const f32 dt, const UIRect screenRect, const Vec2 mousePos,
                       const bool mouseDown, const bool mouseJustDown, const bool mouseJustUp,
                       const f32 scrollDelta)
