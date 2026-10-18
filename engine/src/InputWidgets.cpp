@@ -3,6 +3,7 @@
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/render/Font.h>
 #include <arcbit/render/RenderThread.h>
+#include <arcbit/core/Utf8.h>
 
 #include <algorithm>
 #include <cmath>
@@ -56,17 +57,18 @@ static Color WithAlpha(Color c, const f32 alpha)
 // TextInput
 // ---------------------------------------------------------------------------
 
-bool TextInput::AcceptsChar(const char c) const
+bool TextInput::AcceptsChar(const u32 codepoint) const
 {
-    if (c < 32 || c >= 127) return false;
+    if (codepoint < 32 || codepoint == 127) return false; // control characters
     switch (InputMode) {
     case Mode::Text: return true;
-    case Mode::Numeric: return std::isdigit(c) || c == '.' || c == '-';
+    case Mode::Numeric: return (codepoint >= '0' && codepoint <= '9') || codepoint == '.' || codepoint == '-';
     case Mode::Regex: if (Pattern.empty()) return true;
         try {
             const std::regex re(Pattern);
-            const char       buf[2] = {c, '\0'};
-            return std::regex_match(buf, re);
+            std::string      ch;
+            Utf8::Append(ch, codepoint);
+            return std::regex_match(ch, re);
         }
         catch (...) { return false; }
     }
@@ -92,8 +94,13 @@ void TextInput::SetText(std::string text)
 void TextInput::ClampCursor()
 {
     const u32 size = static_cast<u32>(Text.size());
-    _cursor        = std::min(_cursor, size);
-    _selAnchor     = std::min(_selAnchor, size);
+    // Back off continuation bytes, so both land on a character's start.
+    const auto onChar = [this](u32 pos) {
+        while (pos > 0 && (static_cast<u8>(Text[pos]) & 0xC0) == 0x80) --pos;
+        return pos;
+    };
+    _cursor    = onChar(std::min(_cursor, size));
+    _selAnchor = onChar(std::min(_selAnchor, size));
 }
 
 void TextInput::MoveCursor(const u32 pos, const bool extendSel)
@@ -101,6 +108,9 @@ void TextInput::MoveCursor(const u32 pos, const bool extendSel)
     _cursor = static_cast<u32>(std::min(static_cast<usize>(pos), Text.size()));
     if (!extendSel) _selAnchor = _cursor;
 }
+
+u32 TextInput::PrevChar() const { return static_cast<u32>(Utf8::Prev(Text, _cursor)); }
+u32 TextInput::NextChar() const { return static_cast<u32>(Utf8::Next(Text, _cursor)); }
 
 u32 TextInput::PrevWordBoundary() const
 {
@@ -125,11 +135,15 @@ void TextInput::OnTextInput(const std::string_view chars)
     if (!_focused) return;
     ClampCursor();
     DeleteSelection(); // replace selected text
-    for (const char c : chars) {
-        if (!AcceptsChar(c)) continue;
-        if (Text.size() >= MaxLength) break;
-        Text.insert(Text.begin() + _cursor, c);
-        ++_cursor;
+    usize length = Utf8::Length(Text);
+    for (const u32 cp : Utf8::Codepoints(chars)) {
+        if (!AcceptsChar(cp)) continue;
+        if (length >= MaxLength) break;
+        std::string encoded;
+        Utf8::Append(encoded, cp);
+        Text.insert(_cursor, encoded);
+        _cursor += static_cast<u32>(encoded.size());
+        ++length;
     }
     _selAnchor = _cursor;
     if (OnChanged) OnChanged(Text);
@@ -142,11 +156,11 @@ void TextInput::OnControlKey(const UIControlKey key)
     // Plain motion — clears selection
     case UIControlKey::Left:
         if (HasSelection()) MoveCursor(SelMin(), false);
-        else if (_cursor > 0) MoveCursor(_cursor - 1, false);
+        else if (_cursor > 0) MoveCursor(PrevChar(), false);
         break;
     case UIControlKey::Right:
         if (HasSelection()) MoveCursor(SelMax(), false);
-        else MoveCursor(_cursor + 1, false);
+        else MoveCursor(NextChar(), false);
         break;
     case UIControlKey::Home: MoveCursor(0, false);
         break;
@@ -154,9 +168,9 @@ void TextInput::OnControlKey(const UIControlKey key)
         break;
 
     // Shift motion — extends selection
-    case UIControlKey::ShiftLeft: if (_cursor > 0) MoveCursor(_cursor - 1, true);
+    case UIControlKey::ShiftLeft: if (_cursor > 0) MoveCursor(PrevChar(), true);
         break;
-    case UIControlKey::ShiftRight: MoveCursor(_cursor + 1, true);
+    case UIControlKey::ShiftRight: MoveCursor(NextChar(), true);
         break;
     case UIControlKey::ShiftHome: MoveCursor(0, true);
         break;
@@ -179,8 +193,9 @@ void TextInput::OnControlKey(const UIControlKey key)
             if (OnChanged) OnChanged(Text);
         }
         else if (_cursor > 0) {
-            Text.erase(--_cursor, 1);
-            _selAnchor = _cursor;
+            const u32 start = PrevChar();
+            Text.erase(start, _cursor - start);
+            _cursor = _selAnchor = start;
             if (OnChanged) OnChanged(Text);
         }
         break;
@@ -190,7 +205,7 @@ void TextInput::OnControlKey(const UIControlKey key)
             if (OnChanged) OnChanged(Text);
         }
         else if (_cursor < Text.size()) {
-            Text.erase(_cursor, 1);
+            Text.erase(_cursor, NextChar() - _cursor);
             if (OnChanged) OnChanged(Text);
         }
         break;

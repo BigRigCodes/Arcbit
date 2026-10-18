@@ -28,7 +28,7 @@ public:
     std::string Placeholder;
     std::string Pattern; // regex string; used only in Mode::Regex
     Mode        InputMode = Mode::Text;
-    u32         MaxLength = 256;
+    u32         MaxLength = 256; // characters (codepoints), not bytes
 
     std::function<void(const std::string&)> OnChanged;
     std::function<void(const std::string&)> OnConfirm;
@@ -77,13 +77,15 @@ private:
     f32 _cursorBlink = 0.0f;
 
     [[nodiscard]] bool HasSelection() const { return _selAnchor != _cursor; }
-    void               ClampCursor(); // Text was changed from outside: keep the cursor inside it
+    void               ClampCursor(); // Text was changed from outside: keep the cursor inside it, on a character
     [[nodiscard]] u32  SelMin() const { return _cursor < _selAnchor ? _cursor : _selAnchor; }
     [[nodiscard]] u32  SelMax() const { return _cursor > _selAnchor ? _cursor : _selAnchor; }
 
-    [[nodiscard]] bool AcceptsChar(char c) const;
+    [[nodiscard]] bool AcceptsChar(u32 codepoint) const;
     void               DeleteSelection();
     void               MoveCursor(u32 pos, bool extendSel);
+    [[nodiscard]] u32  PrevChar() const; // the byte offset one character before / after the cursor
+    [[nodiscard]] u32  NextChar() const;
     [[nodiscard]] u32  PrevWordBoundary() const;
     [[nodiscard]] u32  NextWordBoundary() const;
     void               UpdateScroll(f32 availW, const UISkin& skin);
