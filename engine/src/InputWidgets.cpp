@@ -416,103 +416,202 @@ void Slider::OnCollect(FramePacket&        packet, const UIRect          myRect,
 // Dropdown
 // ---------------------------------------------------------------------------
 
-void Dropdown::UpdateTree(const f32  dt, const UIRect      parent, const Vec2 mousePos,
-                          const bool mouseDown, const bool mouseJustDown,
-                          const bool mouseJustUp, bool&    consumed, const f32 scrollDelta)
+namespace
+{
+// ASCII letters fold to lower case; other bytes compare as they are, so
+// "fran" finds "Français" and an exact kana string finds itself.
+std::string Folded(const std::string_view text)
+{
+    std::string out(text);
+    for (char& c : out)
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    return out;
+}
+} // namespace
+
+void Dropdown::Open()
+{
+    _open = true;
+    _filter.clear();
+    Refilter();
+    const auto selected = std::ranges::find(_shown, SelectedIndex);
+    _highlight          = selected != _shown.end() ? static_cast<i32>(selected - _shown.begin()) : (_shown.empty() ? -1 : 0);
+    ScrollToHighlight();
+}
+
+void Dropdown::Close()
+{
+    _open = false;
+    _filter.clear();
+}
+
+// The items the filter matches - all of them with no filter - in order.
+void Dropdown::Refilter()
+{
+    _shown.clear();
+    const std::string filter = Folded(_filter);
+    for (i32 i = 0; i < static_cast<i32>(Items.size()); ++i) {
+        const auto  index = static_cast<usize>(i);
+        const bool  term  = index < SearchTerms.size() && Folded(SearchTerms[index]).contains(filter);
+        if (filter.empty() || term || Folded(Items[index]).contains(filter)) _shown.push_back(i);
+    }
+    _highlight = _shown.empty() ? -1 : std::clamp(_highlight, 0, static_cast<i32>(_shown.size()) - 1);
+    _scroll    = 0;
+    ScrollToHighlight();
+}
+
+void Dropdown::Choose(const i32 shownIndex)
+{
+    if (shownIndex < 0 || shownIndex >= static_cast<i32>(_shown.size())) return;
+    SelectedIndex = _shown[static_cast<usize>(shownIndex)];
+    Close(); // before the callback, which may rebuild the screen
+    if (OnChanged) OnChanged(SelectedIndex);
+}
+
+void Dropdown::ScrollToHighlight()
+{
+    if (_highlight < 0) return;
+    const auto row = static_cast<u32>(_highlight);
+    if (row < _scroll) _scroll = row;
+    else if (row >= _scroll + MaxVisibleItems) _scroll = row - MaxVisibleItems + 1;
+}
+
+void Dropdown::OnNavStep(const i32 step)
+{
+    if (_shown.empty()) return;
+    _highlight = std::clamp(_highlight + step, 0, static_cast<i32>(_shown.size()) - 1);
+    ScrollToHighlight();
+}
+
+bool Dropdown::OnBackKey()
+{
+    if (!_open) return false;
+    Close();
+    return true;
+}
+
+void Dropdown::OnTextInput(const std::string_view chars)
+{
+    if (!_open || !Filters()) return;
+    _filter += chars;
+    Refilter();
+}
+
+void Dropdown::OnControlKey(const UIControlKey key)
+{
+    if (!_open || !Filters() || key != UIControlKey::Backspace || _filter.empty()) return;
+    _filter.erase(Utf8::Prev(_filter, _filter.size()));
+    Refilter();
+}
+
+// Confirm opens the list, then picks the highlighted item.
+void Dropdown::OnActivate()
+{
+    if (!_open) Open();
+    else if (_highlight >= 0) Choose(_highlight);
+    else Close();
+}
+
+void Dropdown::OnFocusLost() { Close(); }
+
+// The item rows of the open list: below the header, and below the filter row
+// when there is one.
+UIRect Dropdown::ListRect(const UIRect header) const
+{
+    const u32 rows = std::min(static_cast<u32>(std::max<usize>(_shown.size(), 1)), MaxVisibleItems);
+    return { header.X, header.Y + header.H + (Filters() ? ItemHeight : 0.0f), header.W, ItemHeight * static_cast<f32>(rows) };
+}
+
+void Dropdown::UpdateTree(const f32 /*dt*/, const UIRect parent, const Vec2 mousePos, const bool /*mouseDown*/,
+                          const bool mouseJustDown, const bool /*mouseJustUp*/, bool& consumed, const f32 scrollDelta)
 {
     const UIRect myRect = ComputeRect(parent);
     if (!Visible || !Enabled) return;
-
-    // When open, consume all input to prevent pass-through to widgets behind.
-    if (_open) consumed = true;
-
-    const bool overHeader = mousePos.X >= myRect.X && mousePos.X <= myRect.X + myRect.W &&
-            mousePos.Y >= myRect.Y && mousePos.Y <= myRect.Y + myRect.H;
-    _headerHovered = overHeader;
-
-    if (_open) {
-        // Build list rect below the header
-        const UIRect listRect = {
-            myRect.X, myRect.Y + myRect.H,
-            myRect.W, _itemHeight * static_cast<f32>(Items.size())
-        };
-        const bool overList = mousePos.X >= listRect.X && mousePos.X <= listRect.X + listRect.W &&
-                mousePos.Y >= listRect.Y && mousePos.Y <= listRect.Y + listRect.H;
-
-        _hoveredIndex = -1;
-        if (overList) {
-            const i32 idx = static_cast<i32>((mousePos.Y - listRect.Y) / _itemHeight);
-            if (idx >= 0 && idx < static_cast<i32>(Items.size())) _hoveredIndex = idx;
-        }
-
-        if (mouseJustDown) {
-            if (overList && _hoveredIndex >= 0) {
-                SelectedIndex = _hoveredIndex;
-                if (OnChanged) OnChanged(SelectedIndex);
-            }
-            _open = false; // close on any click
-        }
+    _headerHovered = myRect.Contains(mousePos);
+    if (!_open) {
+        if (mouseJustDown && _headerHovered) Open();
+        return;
     }
-    else { if (mouseJustDown && overHeader) _open = true; }
+    consumed = true; // open: nothing behind the list sees the mouse
+
+    const UIRect list    = ListRect(myRect);
+    const bool   inList  = list.Contains(mousePos);
+    const i32    rowHere = inList ? static_cast<i32>(_scroll) + static_cast<i32>((mousePos.Y - list.Y) / ItemHeight) : -1;
+    const bool   moved   = mousePos.X != _lastMouse.X || mousePos.Y != _lastMouse.Y;
+    _lastMouse           = mousePos;
+    if (inList && moved && rowHere < static_cast<i32>(_shown.size())) _highlight = rowHere; // a still mouse leaves the keys be
+
+    if (inList && scrollDelta != 0.0f && _shown.size() > MaxVisibleItems) {
+        const i32 most = static_cast<i32>(_shown.size() - MaxVisibleItems);
+        _scroll        = static_cast<u32>(std::clamp(static_cast<i32>(_scroll) - static_cast<i32>(std::round(scrollDelta)), 0, most));
+    }
+    if (!mouseJustDown) return;
+    const UIRect filterRow{ myRect.X, myRect.Y + myRect.H, myRect.W, Filters() ? ItemHeight : 0.0f };
+    if (inList) Choose(rowHere);
+    else if (!filterRow.Contains(mousePos)) Close(); // the header, or anywhere else
 }
 
-void Dropdown::OnCollect(FramePacket&        packet, const UIRect          myRect, const f32 effectiveOpacity,
-                         const TextureHandle whiteTex, const SamplerHandle whiteSampler,
-                         const UISkin&       skin)
+void Dropdown::OnCollect(FramePacket& packet, const UIRect myRect, const f32 effectiveOpacity,
+                         const TextureHandle whiteTex, const SamplerHandle whiteSampler, const UISkin& skin)
 {
-    const Color bg = _headerHovered ? skin.ButtonHovered : skin.ButtonNormal;
+    const Color bg = _headerHovered || _focused ? skin.ButtonHovered : skin.ButtonNormal;
     PushRect(packet, myRect, WithAlpha(bg, effectiveOpacity), whiteTex, whiteSampler, BgLayer(*this, skin));
 
     if (!skin.Font) return;
     const f32         lineH   = skin.Font->GetLineHeight() * skin.FontScale;
     const f32         textY   = myRect.Y + (myRect.H - lineH) * 0.5f;
-    const std::string display = (SelectedIndex >= 0 && SelectedIndex < static_cast<i32>(Items.size()))
-                                ? Items[static_cast<size_t>(SelectedIndex)]
-                                : "—";
-    DrawTextUI(packet, *skin.Font, display,
-               {myRect.X + 6.0f, textY},
-               skin.FontScale, WithAlpha(skin.TextNormal, effectiveOpacity), TextLayer(*this, skin));
+    const bool        valid   = SelectedIndex >= 0 && SelectedIndex < static_cast<i32>(Items.size());
+    const std::string display = valid ? Items[static_cast<usize>(SelectedIndex)] : "\xE2\x80\x94"; // an em dash
+    DrawTextUI(packet, *skin.Font, display, { myRect.X + 6.0f, textY }, skin.FontScale,
+               WithAlpha(skin.TextNormal, effectiveOpacity), TextLayer(*this, skin));
 
-    // Arrow indicator on the right
-    const std::string_view arrow = _open ? "▲" : "▼";
-    DrawTextUI(packet, *skin.Font, arrow,
-               {myRect.X + myRect.W - 20.0f, textY},
-               skin.FontScale, WithAlpha(skin.TextDisabled, effectiveOpacity), TextLayer(*this, skin));
+    const std::string_view arrow = _open ? "\xE2\x96\xB2" : "\xE2\x96\xBC"; // up / down triangle
+    DrawTextUI(packet, *skin.Font, arrow, { myRect.X + myRect.W - 20.0f, textY }, skin.FontScale,
+               WithAlpha(skin.TextDisabled, effectiveOpacity), TextLayer(*this, skin));
 }
 
-void Dropdown::CollectList(FramePacket&        packet, const UIRect          headerRect, const f32 opacity,
-                           const TextureHandle whiteTex, const SamplerHandle whiteSampler,
-                           const UISkin&       skin) const
+// The open list draws above its siblings: the filter row (when it filters),
+// then a window of MaxVisibleItems rows, with arrows where it scrolls.
+void Dropdown::CollectList(FramePacket& packet, const UIRect header, const f32 opacity, const TextureHandle whiteTex,
+                           const SamplerHandle whiteSampler, const UISkin& skin) const
 {
-    // Overlay ZOrder for the expanded list — must sort above sibling widgets.
-    const i32 listZOrder = ZOrder + 500;
-    const i32 bgL        = UIBaseLayer + (skin.ScreenLayerBase + listZOrder) * UILayerStride + UILayerBg;
-    const i32 txtL       = UIBaseLayer + (skin.ScreenLayerBase + listZOrder) * UILayerStride + UILayerText;
+    const i32  listZOrder = ZOrder + 500;
+    const i32  bgL        = UIBaseLayer + (skin.ScreenLayerBase + listZOrder) * UILayerStride + UILayerBg;
+    const i32  txtL       = UIBaseLayer + (skin.ScreenLayerBase + listZOrder) * UILayerStride + UILayerText;
+    const f32  lh         = skin.Font ? skin.Font->GetLineHeight() * skin.FontScale : 0.0f;
+    const auto text       = [&](const std::string_view s, const UIRect row, const Color c, const f32 x = 6.0f) {
+        if (skin.Font) DrawTextUI(packet, *skin.Font, s, { row.X + x, row.Y + (row.H - lh) * 0.5f }, skin.FontScale, WithAlpha(c, opacity), txtL);
+    };
 
-    for (i32 i = 0; i < static_cast<i32>(Items.size()); ++i) {
-        const UIRect row = {
-            headerRect.X, headerRect.Y + headerRect.H + _itemHeight * static_cast<f32>(i),
-            headerRect.W, _itemHeight
-        };
-        const Color bg = (i == _hoveredIndex)
-                         ? skin.ButtonHovered
-                         : (i == SelectedIndex)
-                           ? skin.ButtonPressed
-                           : skin.PanelBg;
+    if (Filters()) {
+        const UIRect row{ header.X, header.Y + header.H, header.W, ItemHeight };
+        PushRect(packet, row, WithAlpha(skin.InputBg, opacity), whiteTex, whiteSampler, bgL);
+        if (_filter.empty()) text(Loc::Get("ui.common.filter"), row, skin.InputPlaceholder);
+        else text(_filter + "|", row, skin.TextNormal);
+    }
+
+    const UIRect list = ListRect(header);
+    if (_shown.empty()) {
+        PushRect(packet, list, WithAlpha(skin.PanelBg, opacity), whiteTex, whiteSampler, bgL);
+        text(Loc::Get("ui.common.no_matches"), list, skin.TextDisabled);
+        return;
+    }
+    const u32 end = std::min(static_cast<u32>(_shown.size()), _scroll + MaxVisibleItems);
+    for (u32 r = _scroll; r < end; ++r) {
+        const i32    item = _shown[r];
+        const UIRect row{ list.X, list.Y + ItemHeight * static_cast<f32>(r - _scroll), list.W, ItemHeight };
+        const Color  bg   = static_cast<i32>(r) == _highlight ? skin.ButtonHovered
+                          : item == SelectedIndex            ? skin.ButtonPressed
+                                                             : skin.PanelBg;
         PushRect(packet, row, WithAlpha(bg, opacity), whiteTex, whiteSampler, bgL);
-        if (skin.Font) {
-            const f32 lh   = skin.Font->GetLineHeight() * skin.FontScale;
-            const f32 rowY = row.Y + (row.H - lh) * 0.5f;
-            DrawTextUI(packet, *skin.Font, Items[static_cast<size_t>(i)],
-                       {row.X + 6.0f, rowY},
-                       skin.FontScale, WithAlpha(skin.TextNormal, opacity), txtL);
-        }
+        text(Items[static_cast<usize>(item)], row, skin.TextNormal);
+        if (r == _scroll && _scroll > 0) text("\xE2\x96\xB2", row, skin.TextDisabled, row.W - 20.0f);         // more above
+        if (r + 1 == end && end < _shown.size()) text("\xE2\x96\xBC", row, skin.TextDisabled, row.W - 20.0f); // more below
     }
 }
 
-void Dropdown::CollectTree(FramePacket&        packet, const UIRect          parent, const f32 parentOpacity,
-                           const TextureHandle whiteTex, const SamplerHandle whiteSampler,
-                           const UISkin&       skin)
+void Dropdown::CollectTree(FramePacket& packet, const UIRect parent, const f32 parentOpacity,
+                           const TextureHandle whiteTex, const SamplerHandle whiteSampler, const UISkin& skin)
 {
     if (!Visible) return;
     const UIRect myRect = ComputeRect(parent);

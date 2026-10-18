@@ -281,6 +281,9 @@ static void ApplyDropdown(UIWidget& w, const json& j)
     if (const auto it = j.find("items"); it != j.end() && it->is_array())
         for (const auto& item : *it)
             d.Items.push_back(item.get<std::string>());
+    if (const auto it = j.find("filter_threshold"); it != j.end()) d.FilterThreshold = it->get<u32>();
+    if (const auto it = j.find("max_visible"); it != j.end()) d.MaxVisibleItems = it->get<u32>();
+    if (const auto it = j.find("item_height"); it != j.end()) d.ItemHeight = it->get<f32>();
 }
 
 static void ApplyCheckbox(UIWidget& w, const json& j)

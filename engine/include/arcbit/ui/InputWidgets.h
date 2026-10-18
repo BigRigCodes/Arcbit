@@ -138,11 +138,34 @@ class Dropdown : public UIWidget
 {
 public:
     std::vector<std::string> Items;
+    std::vector<std::string> SearchTerms; // optional, one per item: more text the filter matches (a language's code)
     i32                      SelectedIndex = -1;
+
+    // With more items than this, typing while the list is open filters it to
+    // the items containing what's typed (or whose search terms do), ignoring
+    // the case of ASCII letters.
+    u32 FilterThreshold = 8;
+    u32 MaxVisibleItems = 8;     // the open list scrolls past this many rows
+    f32 ItemHeight      = 28.0f;
 
     std::function<void(i32)> OnChanged;
 
     Dropdown() { Focusable = true; }
+
+    [[nodiscard]] bool                    IsOpen() const { return _open; }
+    [[nodiscard]] bool                    Filters() const { return Items.size() > FilterThreshold; }
+    [[nodiscard]] const std::string&      GetFilter() const { return _filter; }
+    [[nodiscard]] const std::vector<i32>& GetShown() const { return _shown; } // the item indices the open list shows
+    void                                  Open();
+    void                                  Close();
+
+    // Open, the list takes the arrows / D-pad, Back (closes it) and typing.
+    [[nodiscard]] bool ConsumesFocusNav() const override { return _open; }
+    [[nodiscard]] bool WantsTextInput() const override { return _open && Filters(); }
+    void               OnNavStep(i32 step) override;
+    bool               OnBackKey() override;
+    void               OnTextInput(std::string_view chars) override;
+    void               OnControlKey(UIControlKey key) override;
 
 protected:
     void UpdateTree(f32   dt, UIRect      parent, Vec2        mousePos,
@@ -157,15 +180,25 @@ protected:
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
 
-private:
-    bool _open          = false;
-    bool _headerHovered = false;
-    i32  _hoveredIndex  = -1;
-    f32  _itemHeight    = 24.0f;
+    void OnActivate() override; // opens; when open, picks the highlighted item
+    void OnFocusLost() override;
 
-    void CollectList(FramePacket&  packet, UIRect          headerRect, f32 opacity,
-                     TextureHandle whiteTex, SamplerHandle whiteSampler,
-                     const UISkin& skin) const;
+private:
+    bool             _open          = false;
+    bool             _headerHovered = false;
+    i32              _highlight     = -1; // index into _shown: the keys' (or the mouse's) row
+    u32              _scroll        = 0;  // the first shown row drawn
+    Vec2             _lastMouse     = { -1.0f, -1.0f };
+    std::string      _filter;
+    std::vector<i32> _shown;
+
+    void   Refilter();
+    void   Choose(i32 shownIndex);
+    void   ScrollToHighlight();
+    UIRect ListRect(UIRect header) const;
+    void   CollectList(FramePacket&  packet, UIRect          headerRect, f32 opacity,
+                       TextureHandle whiteTex, SamplerHandle whiteSampler,
+                       const UISkin& skin) const;
 };
 
 // ---------------------------------------------------------------------------

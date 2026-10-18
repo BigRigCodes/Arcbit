@@ -51,6 +51,7 @@ add_executable(arcbit-tests
     ui/ConsoleScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
+    ui/DropdownTests.cpp
     ui/LocaleUITests.cpp
     ui/TextInputTests.cpp
     ui/UISkinTests.cpp
