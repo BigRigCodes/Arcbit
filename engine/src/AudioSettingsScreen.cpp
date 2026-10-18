@@ -1,6 +1,7 @@
 #include <arcbit/ui/AudioSettingsScreen.h>
 #include <arcbit/ui/Widgets.h>
 #include <arcbit/audio/AudioManager.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/settings/Settings.h>
 
 #include <algorithm>
@@ -11,7 +12,7 @@ namespace Arcbit
 
 static std::string PctText(const f32 v)
 {
-    return std::format("{}%", static_cast<i32>(v * 100.0f + 0.5f));
+    return Loc::Format("ui.common.percent", { { "value", static_cast<i32>(v * 100.0f + 0.5f) } });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 #include <arcbit/ui/PauseMenuScreen.h>
 #include <arcbit/ui/Widgets.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
 
 namespace Arcbit
@@ -90,7 +91,7 @@ void PauseMenuScreen::BuildFallback()
     bg->ZOrder = 1;
 
     auto* title   = bg->AddChild<Label>();
-    title->Text   = "PAUSED";
+    title->Text   = Loc::Get("ui.pause.title");
     title->Align  = TextAlign::Center;
     title->Size   = {panelW, 32.0f};
     title->Anchor = {0.5f, 0.0f};

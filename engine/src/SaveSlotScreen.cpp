@@ -21,9 +21,9 @@ namespace
     std::string SlotName(const SaveSlot slot)
     {
         switch (slot.Type) {
-            case SaveSlot::Kind::Auto: return std::format("{} {}", Loc::Get("ui.saves.auto"), slot.Index);
+            case SaveSlot::Kind::Auto: return Loc::Format("ui.saves.auto", { { "index", slot.Index } });
             case SaveSlot::Kind::Quick: return Loc::Get("ui.saves.quick");
-            default: return std::format("{} {}", Loc::Get("ui.saves.manual"), slot.Index);
+            default: return Loc::Format("ui.saves.manual", { { "index", slot.Index } });
         }
     }
 
@@ -46,8 +46,9 @@ namespace
 
     std::string Details(const SaveMetadata& meta)
     {
-        return std::format("{}      {} {}      {}", meta.Scene, Loc::Get("ui.saves.played"), FormatPlaytime(meta.Playtime),
-                           FormatDate(meta.SavedAt));
+        return Loc::Format("ui.saves.details", { { "scene", meta.Scene },
+                                                 { "time", FormatPlaytime(meta.Playtime) },
+                                                 { "date", FormatDate(meta.SavedAt) } });
     }
 } // namespace
 

@@ -6,6 +6,7 @@
   "ui.common.yes":       "Yes",
   "ui.common.no":        "No",
   "ui.common.ok":        "OK",
+  "ui.common.percent":   "{value}%",
 
   "ui.pause.title":    "PAUSED",
   "ui.pause.resume":   "Resume",
@@ -25,6 +26,7 @@
   "ui.graphics.fullscreen":  "Fullscreen",
   "ui.graphics.vsync":       "VSync",
   "ui.graphics.fps_limit":   "FPS Limit",
+  "ui.graphics.fps_value":   "{fps} fps",
   "ui.graphics.show_fps":    "Show FPS",
   "ui.graphics.show_debug":  "Show Debug Info",
   "ui.graphics.vsync_note":  "VSync changes apply on restart.",
@@ -42,16 +44,19 @@
 
   "ui.saves.save_title": "Save Game",
   "ui.saves.load_title": "Load Game",
-  "ui.saves.manual":     "Slot",
-  "ui.saves.auto":       "Autosave",
+  "ui.saves.manual":     "Slot {index}",
+  "ui.saves.auto":       "Autosave {index}",
   "ui.saves.quick":      "Quicksave",
   "ui.saves.empty":      "Empty",
   "ui.saves.none":       "No saved games yet.",
-  "ui.saves.played":     "Played",
+  "ui.saves.details":    "{scene}      Played {time}      {date}",
   "ui.saves.overwrite":  "Overwrite this save?",
 
   "ui.saving":           "Saving...",
   "ui.save_notice.text": "This game saves automatically. While this icon is showing, the game is saving - please don't close the game or turn off your system.",
+
+  "ui.hud.hp": "HP",
+  "ui.hud.mp": "MP",
 
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",
