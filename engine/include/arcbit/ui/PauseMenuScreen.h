@@ -33,6 +33,7 @@ public:
     std::function<void()> OnControls;         // called by "Controls" button
     std::function<void()> OnAudioSettings;    // called by "Audio" button
     std::function<void()> OnGraphicsSettings; // called by "Graphics" button
+    std::function<void()> OnLanguage;         // called by "Language" button (Application::ShowLanguageScreen)
     std::function<void()> OnQuit;             // called by "Quit" button
 
     bool ShowSaveGame         = false;
@@ -40,6 +41,7 @@ public:
     bool ShowControls         = true;
     bool ShowAudioSettings    = true;
     bool ShowGraphicsSettings = true;
+    bool ShowLanguage         = true; // shown only with OnLanguage set and more than one language
 
     PauseMenuScreen() { BlocksInput = true; TransitionSpeed = 6.0f; }
 
@@ -47,6 +49,7 @@ public:
     void OnBackPressed() override;
 
 private:
+    [[nodiscard]] bool HasLanguageChoice() const;
     void BuildFallback(); // inline layout used when LayoutPath file is absent
 };
 } // namespace Arcbit

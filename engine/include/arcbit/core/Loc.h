@@ -5,6 +5,7 @@
 #include <concepts>
 #include <filesystem>
 #include <format>
+#include <functional>
 #include <initializer_list>
 #include <optional>
 #include <span>
@@ -78,6 +79,10 @@ public:
     [[nodiscard]] static std::vector<Locale> GetLocales();
     [[nodiscard]] static const Locale*      FindLocale(std::string_view code); // case and '_' / '-' don't matter
 
+    // The first of `preferred` (codes, most wanted first: the OS's languages)
+    // the game has: exactly ("fr-CA"), else by language ("fr-CA" -> "fr").
+    [[nodiscard]] static std::optional<std::string> Match(std::span<const std::string> preferred);
+
     // Make code the active language. False (nothing changes) if no file has it.
     static bool                             SetLanguage(std::string_view code);
     [[nodiscard]] static const std::string& GetLanguage();
@@ -106,6 +111,10 @@ public:
     // The CLDR plural form ("one", "few", "other", ...) of n in a language.
     // Languages without built-in rules count like English.
     [[nodiscard]] static std::string_view PluralForm(std::string_view language, f64 n);
+
+    // Every string the active language can show (its own, then the ones it
+    // falls back to) - to bake their glyphs ahead (FontAtlas::Prepare).
+    static void ForEachString(const std::function<void(std::string_view)>& visit);
 
     // Forget every folder, language and string (tests; a full reload).
     static void Clear();

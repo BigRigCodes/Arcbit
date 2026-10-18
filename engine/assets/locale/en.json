@@ -1,4 +1,6 @@
 {
+  "$locale": { "name": "English" },
+
   "ui.common.back":      "Back",
   "ui.common.on":        "On",
   "ui.common.off":       "Off",
@@ -15,7 +17,10 @@
   "ui.pause.controls": "Controls",
   "ui.pause.audio":    "Audio",
   "ui.pause.graphics": "Graphics",
+  "ui.pause.language": "Language",
   "ui.pause.quit":     "Quit",
+
+  "ui.language.title": "Language",
 
   "ui.audio.title":  "Audio Settings",
   "ui.audio.master": "Master Volume",

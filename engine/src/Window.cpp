@@ -49,6 +49,20 @@ Window::Window(const Desc& desc)
     LOG_INFO(Platform, "Window created: '{}' ({}x{})", desc.Title, desc.Width, desc.Height);
 }
 
+std::vector<std::string> Window::GetPreferredLanguages()
+{
+    std::vector<std::string> codes;
+    int                      count   = 0;
+    SDL_Locale**             locales = SDL_GetPreferredLocales(&count);
+    for (int i = 0; locales && i < count; ++i) {
+        std::string code = locales[i]->language;
+        if (locales[i]->country) code += std::string("-") + locales[i]->country;
+        codes.push_back(std::move(code));
+    }
+    SDL_free(locales);
+    return codes;
+}
+
 Window::~Window()
 {
     if (_window)

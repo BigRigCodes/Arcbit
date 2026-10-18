@@ -49,16 +49,23 @@ void MainMenuScreen::OnEnter()
         btn->OnClick = OnCredits;
     }
 
+    if (auto* btn = FindWidget<Button>("language-btn")) {
+        btn->Visible = HasLanguageChoice();
+        btn->OnClick = OnLanguage;
+    }
+
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
 
     StackButtons(FindWidget<UIWidget>("bg"),
                  { "new-game-btn", "continue-btn", "load-btn", "controls-btn", "audio-btn", "graphics-btn",
-                   "credits-btn", "quit-btn" },
+                   "language-btn", "credits-btn", "quit-btn" },
                  GetMetaF32("btn_start_y", 70.0f), GetMetaF32("btn_gap", 52.0f), 26.0f);
 }
 
 void MainMenuScreen::OnBackPressed() { if (OnQuit) OnQuit(); }
+
+bool MainMenuScreen::HasLanguageChoice() const { return ShowLanguage && OnLanguage && Loc::GetLocales().size() > 1; }
 
 // ---------------------------------------------------------------------------
 // BuildFallback — inline layout used when the .arcui file is unavailable.
@@ -73,6 +80,7 @@ void MainMenuScreen::BuildFallback()
         + (ShowAudioSettings ? 1 : 0)
         + (ShowGraphicsSettings ? 1 : 0)
         + (ShowCredits ? 1 : 0)
+        + (HasLanguageChoice() ? 1 : 0)
         + 1; // quit
 
     const f32 panelW = 360.0f;
@@ -85,7 +93,7 @@ void MainMenuScreen::BuildFallback()
     bg->ZOrder = 1;
 
     auto* title   = bg->AddChild<Label>();
-    title->Text   = Loc::Get("ui.mainmenu.title");
+    title->SetTextKey("ui.mainmenu.title");
     title->Align  = TextAlign::Center;
     title->Size   = {panelW, 32.0f};
     title->Anchor = {0.5f, 0.0f};
@@ -107,7 +115,7 @@ void MainMenuScreen::BuildFallback()
     auto MakeButton = [&](const char* labelKey, f32 yOffset, std::function<void()> cb,
                           Color textColor = {0, 0, 0, 0}) {
         auto* btn      = bg->AddChild<Button>();
-        btn->Text      = Loc::Get(labelKey);
+        btn->SetTextKey(labelKey);
         btn->Size      = {btnW, btnH};
         btn->Anchor    = {0.5f, 0.0f};
         btn->Pivot     = {0.5f, 0.0f};
@@ -139,6 +147,10 @@ void MainMenuScreen::BuildFallback()
     }
     if (ShowGraphicsSettings) {
         MakeButton("ui.pause.graphics", y, OnGraphicsSettings);
+        y += gap;
+    }
+    if (HasLanguageChoice()) {
+        MakeButton("ui.pause.language", y, OnLanguage);
         y += gap;
     }
     if (ShowCredits) {

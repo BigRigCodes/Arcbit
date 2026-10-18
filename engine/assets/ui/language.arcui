@@ -1,0 +1,46 @@
+{
+  "widgets": [
+    { "type": "Scrim" },
+    {
+      "type": "Panel",
+      "name": "bg",
+      "size": [340, 200],
+      "anchor": [0.5, 0.5],
+      "pivot":  [0.5, 0.5],
+      "zorder": 1,
+      "children": [
+        {
+          "type": "Label",
+          "name": "title",
+          "text_key": "ui.language.title",
+          "align": "center",
+          "size":   [340, 32],
+          "anchor": [0.5, 0.0],
+          "pivot":  [0.5, 0.0],
+          "offset": [0, 20],
+          "zorder": 2
+        },
+        {
+          "type":   "Panel",
+          "name":   "separator",
+          "size":   [300, 1],
+          "anchor": [0.5, 0.0],
+          "pivot":  [0.5, 0.0],
+          "offset": [0, 62],
+          "zorder": 2
+        },
+        {
+          "type":     "Button",
+          "name":     "back-btn",
+          "text_key": "ui.common.back",
+          "size":     [160, 40],
+          "anchor":   [0.5, 0.0],
+          "pivot":    [0.5, 0.0],
+          "offset":   [0, 130],
+          "focusable": true,
+          "zorder":   2
+        }
+      ]
+    }
+  ]
+}

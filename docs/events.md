@@ -154,6 +154,7 @@ their names.
 | `engine.entity.interacted` | `entity` (the one used), `by` | an `Interactor` used an `Interactable` ([scripting.md](scripting.md)) |
 | `engine.game.saved` | `slot` (`"manual_3"`, `"auto_1"`, `"quick"`), `name` | a save was written ([saves.md](saves.md)) |
 | `engine.game.loaded` | `slot` | a save's state is back, as its scenes load |
+| `engine.locale.changed` | `from`, `to` | the player-visible language changed (`Application::SetLanguage`) |
 
 Scene events are delivered at the flush after the swap; Application's default
 unnamed scene isn't announced. The last-used device counts a key, mouse

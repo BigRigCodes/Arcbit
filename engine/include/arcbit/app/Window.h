@@ -5,6 +5,10 @@
 #include <functional>
 #include <string_view>
 
+#include <string>
+
+#include <vector>
+
 namespace Arcbit {
 
 // ---------------------------------------------------------------------------
@@ -45,6 +49,10 @@ public:
     };
 
     explicit Window(const Desc& desc);
+
+    // The user's languages, most preferred first, as locale codes ("fr-CA",
+    // "ja") - from the OS settings; empty if it doesn't say.
+    [[nodiscard]] static std::vector<std::string> GetPreferredLanguages();
     ~Window();
 
     // Non-copyable — owns an OS window handle.

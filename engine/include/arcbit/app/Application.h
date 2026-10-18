@@ -6,6 +6,7 @@
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
+#include <unordered_map>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/events/EventBus.h>
@@ -122,6 +123,7 @@ struct ApplicationConfig
     const char* GameName     = nullptr; // null = Title
     const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
     i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
+    const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
 };
 
 // ---------------------------------------------------------------------------
@@ -293,6 +295,13 @@ public:
     void ShowControlsScreen();
     void ShowAudioScreen();
     void ShowGraphicsScreen();
+    void ShowLanguageScreen(); // LanguageScreen; pause and title menus show it when there's a choice
+
+    // Switch the player-visible language (a locale code: "fr", "pt-BR"): every
+    // screen's text follows, the language's fonts load, the choice is saved
+    // for the next launch, and engine.locale.changed is published. False if
+    // the game has no such language.
+    bool SetLanguage(std::string_view code);
 
     // Roll the credits (BootConfig::CreditsPath) - the title menu's Credits
     // button, or the end of a game.
@@ -381,6 +390,8 @@ private:
     void AfterSwap();            // a scene change finished: queue an autosave?
     void UpdateAutoSave();       // run a queued autosave once the game is idle
     void WriteCapture();         // a captured frame arrived: write the save's thumbnail or the screenshot
+    void StartLanguage();        // ApplicationLocale.cpp: find the locales, pick the first language
+    void ApplyLanguageFonts();   // the languages' fonts as every font's fallbacks
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
@@ -392,6 +403,7 @@ private:
     std::optional<SaveSlot> _thumbnailFor;            // saved, its picture not yet written
     bool                    _captureNextFrame = false; // ask the render thread for the next frame
     bool                    _screenshotNextFrame = false; // Screenshot(): capture the next frame, UI and all
+    std::unordered_map<std::string, std::shared_ptr<FontFace>> _languageFaces; // by path, loaded once
     u32                     _screenshotsPending  = 0;     // asked for, not yet arrived
 
     // Member declaration order determines both initialization and destruction

@@ -167,6 +167,16 @@ const Loc::Locale* Loc::FindLocale(const std::string_view code)
     return language && !language->Files.empty() ? &language->Info : nullptr;
 }
 
+std::optional<std::string> Loc::Match(const std::span<const std::string> preferred)
+{
+    for (const std::string& code : preferred) {
+        if (const Locale* exact = FindLocale(code)) return exact->Code;
+        const std::string language = Normalize(code).substr(0, Normalize(code).find('-'));
+        if (const Locale* base = FindLocale(language)) return base->Code;
+    }
+    return std::nullopt;
+}
+
 bool Loc::SetLanguage(const std::string_view code)
 {
     const Language* language = Find(code);
@@ -266,6 +276,12 @@ std::string Loc::Interpolate(const std::string_view text, const std::span<const 
         i = close;
     }
     return out;
+}
+
+void Loc::ForEachString(const std::function<void(std::string_view)>& visit)
+{
+    for (const Language* language : S().Chain)
+        for (const std::string& text : language->Strings | std::views::values) visit(text);
 }
 
 void Loc::Clear() { S() = State{}; }

@@ -12,6 +12,7 @@ find_path(SOL2_INCLUDE_DIRS "sol/abort.hpp" REQUIRED) # sol2: header-only C++ bi
 add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
+    src/ApplicationLocale.cpp
     src/ApplicationSaves.cpp
     src/DebugConsole.cpp
     src/UserFolder.cpp
@@ -74,6 +75,7 @@ add_library(arcbit-engine STATIC
     src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
     src/ConfirmScreen.cpp
+    src/LanguageScreen.cpp
     src/SaveSlotScreen.cpp
     src/SavingIndicator.cpp
     src/Screenshot.cpp
