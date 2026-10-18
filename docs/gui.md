@@ -299,6 +299,7 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 | Field         | Type                              | Description                                      |
 |---------------|-----------------------------------|--------------------------------------------------|
 | `placeholder` | string                            | Greyed text shown when the field is empty        |
+| `placeholder_key` | string                        | Localization key — overrides `placeholder`       |
 | `max_length`  | unsigned int                      | Maximum character count (0 = unlimited)          |
 | `mode`        | `"text"` / `"numeric"` / `"regex"` | Input filter (`regex` uses `pattern`)            |
 | `pattern`     | string                            | Regex used by `mode = "regex"`                   |
@@ -311,6 +312,9 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 | `min`   | float | Minimum value                               |
 | `max`   | float | Maximum value                               |
 | `step`  | float | Quantization step (0 = continuous)          |
+| `style` | `"line"` / `"bar"` | `line`: a thin track and thumb. `bar`: drawn like a ProgressBar (`ProgressBg` / `ProgressFill`, full height) with a slim handle - the audio settings' volumes |
+
+A press anywhere on a slider jumps there and drags.
 
 **Dropdown**
 
@@ -318,6 +322,10 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 |------------|-----------------|----------------------------------------------|
 | `selected` | int             | Index of the initially selected item         |
 | `items`    | array of string | Selectable item labels                       |
+| `item_keys` | array of string | Localization keys — override `items`        |
+| `filter_threshold` | int     | With more items, typing filters the open list (default 8) |
+| `max_visible` | int          | Rows shown before the list scrolls (default 8) |
+| `item_height` | float        | Row height of the open list (default 28)     |
 
 **Checkbox**
 

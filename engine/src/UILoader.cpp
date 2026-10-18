@@ -273,6 +273,7 @@ static void ApplySlider(UIWidget& w, const json& j)
     if (const auto it = j.find("min"); it != j.end()) s.Min = it->get<f32>();
     if (const auto it = j.find("max"); it != j.end()) s.Max = it->get<f32>();
     if (const auto it = j.find("step"); it != j.end()) s.Step = it->get<f32>();
+    if (const auto it = j.find("style"); it != j.end()) s.Style = it->get<std::string>() == "bar" ? Slider::Look::Bar : Slider::Look::Line;
 }
 
 // "item_keys": the items as keys, resolved now and on every language change.

@@ -102,7 +102,13 @@ private:
 class Slider : public UIWidget
 {
 public:
-    f32 Value = 0.5f;
+    // Line: a thin track with a thumb. Bar: drawn like a ProgressBar (the
+    // skin's ProgressBg / ProgressFill, full height) with a slim handle at
+    // the fill's edge - a settings row's volume.
+    enum class Look : u8 { Line, Bar };
+
+    f32  Value = 0.5f;
+    Look Style = Look::Line;
     f32 Min   = 0.0f;
     f32 Max   = 1.0f;
     f32 Step  = 0.0f; // 0 = continuous
@@ -126,7 +132,10 @@ private:
     f32  _thumbHalf = 6.0f; // half-width of thumb in pixels
 
     [[nodiscard]] f32    NormalizedValue() const;
+    [[nodiscard]] UIRect TrackRect(UIRect myRect) const; // where values lie: the bar, or the line between thumb halves
     [[nodiscard]] UIRect ThumbRect(UIRect track) const;
+    void                 CollectBar(FramePacket& packet, UIRect myRect, f32 opacity, TextureHandle whiteTex,
+                                    SamplerHandle whiteSampler, const UISkin& skin) const;
     void                 SetFromMouseX(f32 mouseX, UIRect track);
 };
 

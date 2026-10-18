@@ -362,6 +362,12 @@ f32 Slider::NormalizedValue() const
     return (Value - Min) / (Max - Min);
 }
 
+UIRect Slider::TrackRect(const UIRect myRect) const
+{
+    if (Style == Look::Bar) return myRect;
+    return { myRect.X + _thumbHalf, myRect.Y + myRect.H * 0.5f - 3.0f, myRect.W - _thumbHalf * 2.0f, 6.0f };
+}
+
 UIRect Slider::ThumbRect(const UIRect track) const
 {
     const f32 t    = NormalizedValue();
@@ -387,16 +393,11 @@ void Slider::OnUpdate(const f32 /*dt*/, const UIRect myRect, const Vec2    mouse
                       const bool                     mouseJustUp, bool&    consumed)
 {
     if (!Enabled || consumed) return;
-    const UIRect track = {
-        myRect.X + _thumbHalf, myRect.Y + myRect.H * 0.5f - 3.0f,
-        myRect.W - _thumbHalf * 2.0f, 6.0f
-    };
-    const UIRect thumb     = ThumbRect(track);
-    const bool   overThumb = mousePos.X >= thumb.X && mousePos.X <= thumb.X + thumb.W &&
-            mousePos.Y >= myRect.Y && mousePos.Y <= myRect.Y + myRect.H;
-    _hovered = overThumb;
+    // Anywhere on the slider: a press jumps there and drags from it.
+    const UIRect track = TrackRect(myRect);
+    _hovered           = myRect.Contains(mousePos);
 
-    if (mouseJustDown && overThumb) {
+    if (mouseJustDown && _hovered) {
         _dragging = true;
         consumed  = true;
     }
@@ -412,10 +413,8 @@ void Slider::OnCollect(FramePacket&        packet, const UIRect          myRect,
                        const UISkin&       skin)
 {
     _interactSound = skin.SoundSliderTick;
-    const UIRect track = {
-        myRect.X + _thumbHalf, myRect.Y + myRect.H * 0.5f - 3.0f,
-        myRect.W - _thumbHalf * 2.0f, 6.0f
-    };
+    if (Style == Look::Bar) return CollectBar(packet, myRect, effectiveOpacity, whiteTex, whiteSampler, skin);
+    const UIRect track = TrackRect(myRect);
     PushRect(packet, track, WithAlpha(skin.ProgressBg, effectiveOpacity),
              whiteTex, whiteSampler, BgLayer(*this, skin));
 
@@ -430,6 +429,23 @@ void Slider::OnCollect(FramePacket&        packet, const UIRect          myRect,
                               : skin.SliderThumb;
     PushRect(packet, thumb, WithAlpha(thumbColor, effectiveOpacity),
              whiteTex, whiteSampler, FillLayer(*this, skin));
+}
+
+// The bar look: the track and fill of a ProgressBar, and a handle at the
+// fill's edge that brightens while hovered, dragged or focused.
+void Slider::CollectBar(FramePacket& packet, const UIRect myRect, const f32 opacity, const TextureHandle whiteTex,
+                        const SamplerHandle whiteSampler, const UISkin& skin) const
+{
+    PushRect(packet, myRect, WithAlpha(skin.ProgressBg, opacity), whiteTex, whiteSampler, BgLayer(*this, skin));
+    const f32 fillW = NormalizedValue() * myRect.W;
+    PushRect(packet, { myRect.X, myRect.Y, fillW, myRect.H }, WithAlpha(skin.ProgressFill, opacity), whiteTex, whiteSampler,
+             FillLayer(*this, skin));
+
+    constexpr f32 HandleW = 4.0f;
+    const bool    active  = _hovered || _dragging || _focused;
+    const f32     x       = std::clamp(myRect.X + fillW - HandleW * 0.5f, myRect.X, myRect.X + myRect.W - HandleW);
+    PushRect(packet, { x, myRect.Y, HandleW, myRect.H }, WithAlpha(active ? skin.SliderThumbHovered : skin.SliderThumb, opacity),
+             whiteTex, whiteSampler, TextLayer(*this, skin));
 }
 
 // ---------------------------------------------------------------------------
