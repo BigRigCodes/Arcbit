@@ -1,12 +1,10 @@
 {
   "widgets": [
-    {
-      "type": "Scrim"
-    },
+    { "type": "Scrim" },
     {
       "type":   "Panel",
       "name":   "bg",
-      "size":   [460, 300],
+      "size":   [680, 300],
       "anchor": [0.5, 0.5],
       "pivot":  [0.5, 0.5],
       "zorder": 1,
@@ -16,7 +14,7 @@
           "name":     "title",
           "text_key": "ui.audio.title",
           "align":    "center",
-          "size":     [460, 28],
+          "size":     [680, 28],
           "anchor":   [0.5, 0.0],
           "pivot":    [0.5, 0.0],
           "offset":   [0, 16],
@@ -25,30 +23,28 @@
         {
           "type":   "Panel",
           "name":   "separator",
-          "size":   [420, 1],
+          "size":   [640, 1],
           "anchor": [0.5, 0.0],
           "pivot":  [0.5, 0.0],
           "offset": [0, 56],
           "zorder": 2
         },
 
-        { "type": "Label",    "text_key": "ui.audio.master", "size": [144, 28], "anchor": [0.0, 0.0], "offset": [20,  72], "zorder": 2 },
-        { "type": "Button",   "name": "master-dec", "text": "<", "size": [28, 28], "anchor": [0.0, 0.0], "offset": [168,  72], "zorder": 2 },
-        { "type": "ProgressBar", "name": "master-bar",          "size": [136, 28], "anchor": [0.0, 0.0], "offset": [202,  72], "zorder": 2 },
-        { "type": "Button",   "name": "master-inc", "text": ">", "size": [28, 28], "anchor": [0.0, 0.0], "offset": [342,  72], "zorder": 2 },
-        { "type": "Label",    "name": "master-pct",              "size": [44,  28], "anchor": [0.0, 0.0], "offset": [376,  72], "zorder": 2 },
-
-        { "type": "Label",    "text_key": "ui.audio.music",  "size": [144, 28], "anchor": [0.0, 0.0], "offset": [20, 120], "zorder": 2 },
-        { "type": "Button",   "name": "music-dec", "text": "<", "size": [28, 28], "anchor": [0.0, 0.0], "offset": [168, 120], "zorder": 2 },
-        { "type": "ProgressBar", "name": "music-bar",           "size": [136, 28], "anchor": [0.0, 0.0], "offset": [202, 120], "zorder": 2 },
-        { "type": "Button",   "name": "music-inc", "text": ">", "size": [28, 28], "anchor": [0.0, 0.0], "offset": [342, 120], "zorder": 2 },
-        { "type": "Label",    "name": "music-pct",              "size": [44,  28], "anchor": [0.0, 0.0], "offset": [376, 120], "zorder": 2 },
-
-        { "type": "Label",    "text_key": "ui.audio.sfx",    "size": [144, 28], "anchor": [0.0, 0.0], "offset": [20, 168], "zorder": 2 },
-        { "type": "Button",   "name": "sfx-dec", "text": "<",  "size": [28, 28], "anchor": [0.0, 0.0], "offset": [168, 168], "zorder": 2 },
-        { "type": "ProgressBar", "name": "sfx-bar",             "size": [136, 28], "anchor": [0.0, 0.0], "offset": [202, 168], "zorder": 2 },
-        { "type": "Button",   "name": "sfx-inc", "text": ">",  "size": [28, 28], "anchor": [0.0, 0.0], "offset": [342, 168], "zorder": 2 },
-        { "type": "Label",    "name": "sfx-pct",                "size": [44,  28], "anchor": [0.0, 0.0], "offset": [376, 168], "zorder": 2 },
+        { "type": "Label",  "text_key": "ui.audio.master", "size": [240, 30], "anchor": [0.0, 0.0], "offset": [20, 72], "zorder": 2 },
+        { "type": "Button", "name": "master-dec", "text": "<", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [268, 72], "zorder": 2 },
+        { "type": "Slider", "name": "master-slider", "style": "bar", "step": 0.01, "focusable": false, "size": [200, 30], "anchor": [0.0, 0.0], "offset": [304, 72], "zorder": 2 },
+        { "type": "Button", "name": "master-inc", "text": ">", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [510, 72], "zorder": 2 },
+        { "type": "Label",  "name": "master-pct", "align": "right", "size": [110, 30], "anchor": [0.0, 0.0], "offset": [550, 72], "zorder": 2 },
+        { "type": "Label",  "text_key": "ui.audio.music", "size": [240, 30], "anchor": [0.0, 0.0], "offset": [20, 120], "zorder": 2 },
+        { "type": "Button", "name": "music-dec", "text": "<", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [268, 120], "zorder": 2 },
+        { "type": "Slider", "name": "music-slider", "style": "bar", "step": 0.01, "focusable": false, "size": [200, 30], "anchor": [0.0, 0.0], "offset": [304, 120], "zorder": 2 },
+        { "type": "Button", "name": "music-inc", "text": ">", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [510, 120], "zorder": 2 },
+        { "type": "Label",  "name": "music-pct", "align": "right", "size": [110, 30], "anchor": [0.0, 0.0], "offset": [550, 120], "zorder": 2 },
+        { "type": "Label",  "text_key": "ui.audio.sfx", "size": [240, 30], "anchor": [0.0, 0.0], "offset": [20, 168], "zorder": 2 },
+        { "type": "Button", "name": "sfx-dec", "text": "<", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [268, 168], "zorder": 2 },
+        { "type": "Slider", "name": "sfx-slider", "style": "bar", "step": 0.01, "focusable": false, "size": [200, 30], "anchor": [0.0, 0.0], "offset": [304, 168], "zorder": 2 },
+        { "type": "Button", "name": "sfx-inc", "text": ">", "size": [30, 30], "anchor": [0.0, 0.0], "offset": [510, 168], "zorder": 2 },
+        { "type": "Label",  "name": "sfx-pct", "align": "right", "size": [110, 30], "anchor": [0.0, 0.0], "offset": [550, 168], "zorder": 2 },
 
         {
           "type":      "Button",

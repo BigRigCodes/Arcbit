@@ -50,6 +50,7 @@ add_executable(arcbit-tests
     script/ScriptEngineTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
+    ui/AudioSettingsTests.cpp
     ui/ConsoleScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
