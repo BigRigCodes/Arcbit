@@ -39,6 +39,7 @@ struct ScriptServices
     std::function<bool(SaveSlot)> SaveTo;
     std::function<bool(SaveSlot)> LoadFrom;
     std::function<bool()>         AutoSave;
+    std::function<bool(std::string_view code)> SetLanguage; // Loc.SetLanguage: Application::SetLanguage
 };
 
 // Limits on what one call into Lua may use - a runaway script becomes a

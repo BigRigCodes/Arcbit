@@ -196,6 +196,23 @@ void ScriptedScreen::OnBackPressed()
 
 namespace
 {
+    std::optional<std::string> KeyOf(UIWidget* w)
+    {
+        if (const auto* l = dynamic_cast<Label*>(w)) return l->TextKey;
+        if (const auto* b = dynamic_cast<Button*>(w)) return b->TextKey;
+        if (const auto* nb = dynamic_cast<NineSliceButton*>(w)) return nb->TextKey;
+        return std::nullopt;
+    }
+
+    bool SetKey(UIWidget* w, const std::string& key)
+    {
+        if (auto* l = dynamic_cast<Label*>(w)) l->SetTextKey(key);
+        else if (auto* b = dynamic_cast<Button*>(w)) b->SetTextKey(key);
+        else if (auto* nb = dynamic_cast<NineSliceButton*>(w)) nb->SetTextKey(key);
+        else return false;
+        return true;
+    }
+
     std::optional<std::string> TextOf(UIWidget* w)
     {
         if (const auto* l = dynamic_cast<Label*>(w)) return l->Text;
@@ -205,11 +222,13 @@ namespace
         return std::nullopt;
     }
 
+    // Text set from a script is as written: a key the widget had no longer
+    // replaces it when the language changes.
     bool SetText(UIWidget* w, const std::string& text)
     {
-        if (auto* l = dynamic_cast<Label*>(w)) l->Text = text;
-        else if (auto* b = dynamic_cast<Button*>(w)) b->Text = text;
-        else if (auto* nb = dynamic_cast<NineSliceButton*>(w)) nb->Text = text;
+        if (auto* l = dynamic_cast<Label*>(w)) l->Text = text, l->TextKey.clear();
+        else if (auto* b = dynamic_cast<Button*>(w)) b->Text = text, b->TextKey.clear();
+        else if (auto* nb = dynamic_cast<NineSliceButton*>(w)) nb->Text = text, nb->TextKey.clear();
         else if (auto* t = dynamic_cast<TextInput*>(w)) t->Text = text;
         else return false;
         return true;
@@ -267,6 +286,11 @@ void ScriptEngine::State::BindUI()
                                   if (UIWidget* widget = find(w); widget && !SetText(widget, text))
                                       throw std::runtime_error(std::format("Widget '{}' has no text", w.Name));
                               }),
+        "TextKey", sol::property([find](const ScriptWidget& w) { return find(w) ? KeyOf(find(w)) : std::nullopt; },
+                                 [find](const ScriptWidget& w, const std::string& key) {
+                                     if (UIWidget* widget = find(w); widget && !SetKey(widget, key))
+                                         throw std::runtime_error(std::format("Widget '{}' has no text key", w.Name));
+                                 }),
         "Value", sol::property([this, find](const ScriptWidget& w) { return ValueOf(Lua, find(w)); },
                                [find](const ScriptWidget& w, const sol::stack_object value) {
                                    UIWidget* widget = find(w);

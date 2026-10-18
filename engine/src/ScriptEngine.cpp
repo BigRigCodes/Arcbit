@@ -119,6 +119,7 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     BindTasks();
     BindUI();
     BindConsole();
+    BindLoc();
     BindRequire();
 }
 
