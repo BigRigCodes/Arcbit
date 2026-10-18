@@ -253,6 +253,7 @@ static void ApplyTextInput(UIWidget& w, const json& j)
 {
     auto& t = dynamic_cast<TextInput&>(w);
     if (const auto it = j.find("placeholder"); it != j.end()) t.Placeholder = it->get<std::string>();
+    if (const auto it = j.find("placeholder_key"); it != j.end()) t.PlaceholderKey = it->get<std::string>(), t.Placeholder = Loc::Get(t.PlaceholderKey);
     if (const auto it = j.find("max_length"); it != j.end()) t.MaxLength = it->get<u32>();
     if (const auto it = j.find("pattern"); it != j.end()) t.Pattern = it->get<std::string>();
     if (const auto it = j.find("mode"); it != j.end()) {
@@ -274,6 +275,19 @@ static void ApplySlider(UIWidget& w, const json& j)
     if (const auto it = j.find("step"); it != j.end()) s.Step = it->get<f32>();
 }
 
+// "item_keys": the items as keys, resolved now and on every language change.
+static void ReadItemKeys(const json& j, std::vector<std::string>& keys, std::vector<std::string>& items)
+{
+    const auto it = j.find("item_keys");
+    if (it == j.end() || !it->is_array()) return;
+    keys.clear();
+    items.clear();
+    for (const auto& key : *it) {
+        keys.push_back(key.get<std::string>());
+        items.push_back(Loc::Get(keys.back()));
+    }
+}
+
 static void ApplyDropdown(UIWidget& w, const json& j)
 {
     auto& d = dynamic_cast<Dropdown&>(w);
@@ -281,6 +295,7 @@ static void ApplyDropdown(UIWidget& w, const json& j)
     if (const auto it = j.find("items"); it != j.end() && it->is_array())
         for (const auto& item : *it)
             d.Items.push_back(item.get<std::string>());
+    ReadItemKeys(j, d.ItemKeys, d.Items);
     if (const auto it = j.find("filter_threshold"); it != j.end()) d.FilterThreshold = it->get<u32>();
     if (const auto it = j.find("max_visible"); it != j.end()) d.MaxVisibleItems = it->get<u32>();
     if (const auto it = j.find("item_height"); it != j.end()) d.ItemHeight = it->get<f32>();
@@ -302,6 +317,7 @@ static void ApplyRadioGroup(UIWidget& w, const json& j)
     if (const auto it = j.find("items"); it != j.end() && it->is_array())
         for (const auto& item : *it)
             r.Items.push_back(item.get<std::string>());
+    ReadItemKeys(j, r.ItemKeys, r.Items);
 }
 
 static void ApplySwitch(UIWidget& w, const json& j)

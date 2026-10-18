@@ -206,7 +206,7 @@ void Application::Run()
     //   b) game code cannot accidentally stomp the same ActionID before they exist.
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
-    _input.RegisterAction(ActionEngineConsole, "Engine_Console", "Console", "System");
+    _input.RegisterAction(ActionEngineConsole, "Engine_Console", "ui.input.console", "ui.input.system");
     _input.BindKey(ActionEngineConsole, Key::Grave);
     _input.RegisterAction(ConsoleScreen::ActionHistoryUp, "Console_HistoryUp");
     _input.BindKey(ConsoleScreen::ActionHistoryUp, Key::Up);

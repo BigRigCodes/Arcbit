@@ -66,6 +66,9 @@
   "ui.hud.hp": "PV",
   "ui.hud.mp": "PM",
 
+  "ui.input.console": "Console",
+  "ui.input.system": "Système",
+
   "ui.rebind.title":      "Commandes",
   "ui.rebind.col_action": "Action",
   "ui.rebind.col_key":    "Clavier / Souris",

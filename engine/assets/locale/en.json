@@ -66,6 +66,9 @@
   "ui.hud.hp": "HP",
   "ui.hud.mp": "MP",
 
+  "ui.input.console": "Console",
+  "ui.input.system": "System",
+
   "ui.rebind.title":      "Input Bindings",
   "ui.rebind.col_action": "Action",
   "ui.rebind.col_key":    "Key / Mouse",

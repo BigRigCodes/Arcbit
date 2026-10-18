@@ -66,6 +66,9 @@
   "ui.hud.hp": "HP",
   "ui.hud.mp": "MP",
 
+  "ui.input.console": "コンソール",
+  "ui.input.system": "システム",
+
   "ui.rebind.title":      "操作設定",
   "ui.rebind.col_action": "操作",
   "ui.rebind.col_key":    "キー／マウス",

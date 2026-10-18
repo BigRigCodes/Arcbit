@@ -26,6 +26,7 @@ public:
 
     std::string Text;
     std::string Placeholder;
+    std::string PlaceholderKey; // when set, Placeholder is Loc::Get(PlaceholderKey), again whenever the language changes
     std::string Pattern; // regex string; used only in Mode::Regex
     Mode        InputMode = Mode::Text;
     u32         MaxLength = 256; // characters (codepoints), not bytes
@@ -52,6 +53,7 @@ public:
     void OnControlKey(UIControlKey key) override;
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;
@@ -138,6 +140,7 @@ class Dropdown : public UIWidget
 {
 public:
     std::vector<std::string> Items;
+    std::vector<std::string> ItemKeys;    // when set, Items are these keys' strings, again whenever the language changes
     std::vector<std::string> SearchTerms; // optional, one per item: more text the filter matches (a language's code)
     i32                      SelectedIndex = -1;
 
@@ -168,6 +171,8 @@ public:
     void               OnControlKey(UIControlKey key) override;
 
 protected:
+    void OnLocaleChanged() override;
+
     void UpdateTree(f32   dt, UIRect      parent, Vec2        mousePos,
                     bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                     bool& consumed, f32   scrollDelta = 0.0f) override;
@@ -243,6 +248,7 @@ class RadioGroup : public UIWidget
 {
 public:
     std::vector<std::string> Items;
+    std::vector<std::string> ItemKeys; // when set, Items are these keys' strings, again whenever the language changes
     i32                      SelectedIndex = -1;
     f32                      ItemHeight    = 28.0f;
 
@@ -251,6 +257,7 @@ public:
     RadioGroup() { Focusable = true; }
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;

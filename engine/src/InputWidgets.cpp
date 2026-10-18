@@ -15,6 +15,26 @@ namespace { void PlaySound(const std::string& key) { if (!key.empty()) Arcbit::A
 
 namespace Arcbit
 {
+namespace
+{
+// Keys -> their strings, for widgets with item keys.
+void Resolve(const std::vector<std::string>& keys, std::vector<std::string>& items)
+{
+    if (keys.empty()) return;
+    items.clear();
+    for (const std::string& key : keys) items.push_back(Loc::Get(key));
+}
+} // namespace
+
+void TextInput::OnLocaleChanged()
+{
+    if (!PlaceholderKey.empty()) Placeholder = Loc::Get(PlaceholderKey);
+}
+
+void Dropdown::OnLocaleChanged() { Resolve(ItemKeys, Items); }
+
+void RadioGroup::OnLocaleChanged() { Resolve(ItemKeys, Items); }
+
 void Checkbox::SetLabelKey(std::string key)
 {
     LabelKey = std::move(key);
