@@ -30,7 +30,7 @@ jobs:
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\.vcpkg-cache,readwrite
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Configuring needs the SDK's headers, loader and glslc (shaders), even
       # though the tests never create a device.
@@ -43,7 +43,7 @@ jobs:
           stripdown: true
 
       - name: Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -65,7 +65,7 @@ jobs:
 
       - name: Restore built packages
         id: packages
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
@@ -79,7 +79,7 @@ jobs:
       # rebuilding every package on the next run.
       - name: Save built packages
         if: always() && steps.packages.outputs.cache-hit != 'true' && hashFiles('.vcpkg-cache/**') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .vcpkg-cache
           key: ${{ steps.packages.outputs.cache-primary-key }}
