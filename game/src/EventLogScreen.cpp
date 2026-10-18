@@ -44,7 +44,7 @@ void EventLogScreen::OnEnter()
     bg->SkinOverride.PanelBg = Color{ 0.05f, 0.06f, 0.09f, 0.82f };
 
     auto* title   = Add<Label>();
-    title->Text   = "Events (F3)";
+    title->SetTextKey("demo.events.title");
     title->Size   = { Width - 24.0f, Header };
     title->Anchor = { 1.0f, 0.0f };
     title->Pivot  = { 1.0f, 0.0f };

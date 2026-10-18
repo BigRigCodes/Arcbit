@@ -9,8 +9,11 @@ add_executable(arcbit-tests
     app/DebugConsoleTests.cpp
     assets/SpriteSheetTests.cpp
     audio/VolumeTests.cpp
+    core/LocCheckTests.cpp
+    core/LocFormatTests.cpp
     core/LocTests.cpp
     core/MathTests.cpp
+    core/Utf8Tests.cpp
     ecs/AnimatorStateMachineTests.cpp
     ecs/InteractionTests.cpp
     ecs/MovementTests.cpp
@@ -29,6 +32,8 @@ add_executable(arcbit-tests
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
     render/Camera2DTests.cpp
+    render/FontSdfTests.cpp
+    render/FontTests.cpp
     save/SaveSealTests.cpp
     save/SaveTests.cpp
     save/SceneStateTests.cpp
@@ -40,18 +45,24 @@ add_executable(arcbit-tests
     script/ScriptConsoleTests.cpp
     script/ScriptApiTests.cpp
     script/ScriptHookTests.cpp
+    script/ScriptLocTests.cpp
     script/ScriptTaskTests.cpp
     script/ScriptUITests.cpp
     script/ScriptEngineTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
+    ui/AudioSettingsTests.cpp
     ui/ConsoleScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
+    ui/DropdownTests.cpp
+    ui/LocaleUITests.cpp
+    ui/TextInputTests.cpp
     ui/UISkinTests.cpp
 )
 
 target_include_directories(arcbit-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}) # TestSupport.h
+target_include_directories(arcbit-tests PRIVATE ${CMAKE_SOURCE_DIR}/engine/src) # white-box tests of private helpers (FontSdf.h)
 
 # Lets tests validate the assets that actually ship (engine/assets, game/assets)
 # in place, rather than copies.

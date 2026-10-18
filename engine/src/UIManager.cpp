@@ -303,6 +303,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // Every screen refreshes, input or not (a snapshot: one may push another).
     std::vector<UIScreen*> screens;
     for (const auto& s : _stack) screens.push_back(s.get());
+    for (UIScreen* s : screens) s->RefreshLocale(); // the language changed: text follows
     for (UIScreen* s : screens) s->OnUpdate(dt);
 
     UpdatePointer(dt, windowSize, input);
@@ -347,6 +348,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
         if (step > 0) active->FocusNext();
         else if (step < 0) active->FocusPrev();
     }
+    else if (step != 0) prevFocused->OnNavStep(step);
 
     // Focus-move sound — read from the newly-focused widget's effective skin so
     // per-widget overrides apply.
@@ -364,7 +366,11 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // ActionTextEscape = Key::Escape; ActionBack = GamepadButton::East.
     // Both share the same behavior: cancel text editing when focused, else back.
     if (IsBackPressed(input)) {
-        if (prevConsumesNav) active->ClearFocus();
+        UIWidget* const focused = active->GetFocusedWidget();
+        if (prevConsumesNav && focused) {
+            if (!focused->OnBackKey()) active->ClearFocus();
+        }
+        else if (prevConsumesNav) active->ClearFocus();
         else {
             if (!_skin.SoundBack.empty()) AudioManager::PlayOneShot(_skin.SoundBack);
             active->OnBackPressed();
@@ -405,7 +411,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // Done last so any focus change above (Tab/arrow nav, ClearFocus on back,
     // ActivateFocused) is reflected before the next SDL pump.
     UIWidget* const finalFocused = active->GetFocusedWidget();
-    SyncTextInput(finalFocused && finalFocused->ConsumesFocusNav());
+    SyncTextInput(finalFocused && finalFocused->WantsTextInput());
 }
 
 void UIManager::SyncTextInput(const bool active)

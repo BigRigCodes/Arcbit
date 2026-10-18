@@ -32,6 +32,7 @@
         { "type": "Button", "name": "new-game-btn", "text_key": "ui.mainmenu.new_game", "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 70],  "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "continue-btn", "text_key": "ui.mainmenu.continue", "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 122], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "load-btn",     "text_key": "ui.mainmenu.load",     "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 174], "focusable": true, "zorder": 2 },
+        { "type": "Button", "name": "game-btn",     "text_key": "ui.pause.game",        "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 226], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "controls-btn", "text_key": "ui.pause.controls",    "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 226], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "audio-btn",    "text_key": "ui.pause.audio",       "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 278], "focusable": true, "zorder": 2 },
         { "type": "Button", "name": "graphics-btn", "text_key": "ui.pause.graphics",    "size": [260, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 330], "focusable": true, "zorder": 2 },

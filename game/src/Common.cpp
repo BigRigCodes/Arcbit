@@ -72,7 +72,7 @@ namespace
     struct ActionDef
     {
         const char*      Name;
-        const char*      DisplayName;
+        const char*      DisplayName; // locale keys: the Controls screen shows them in the player's language
         const char*      Category;
         std::vector<Key> Keys;
     };
@@ -81,28 +81,28 @@ namespace
     const std::vector<ActionDef>& ActionDefs()
     {
         static const std::vector<ActionDef> defs = {
-            { "Move_Left", "Move Left", "Movement", { Key::A, Key::Left } },
-            { "Move_Right", "Move Right", "Movement", { Key::D, Key::Right } },
-            { "Move_Up", "Move Up", "Movement", { Key::W, Key::Up } },
-            { "Move_Down", "Move Down", "Movement", { Key::S, Key::Down } },
-            { "Interact", "Interact", "Gameplay", { Key::E, Key::Enter } },
-            { "Sprint", "Sprint", "Gameplay", { Key::LeftShift } },
-            { "Player_Attack", "Attack", "Gameplay", { Key::Space } },
-            { "Pause", "Pause", "System", { Key::Escape } },
-            { "Debug_Physics", "Toggle Physics Debug", "Debug", { Key::F2 } },
-            { "Debug_ToggleGrid", "Toggle Grid", "Debug", { Key::G } },
-            { "Debug_WidgetTest", "Widget Test", "Debug", { Key::T } },
-            { "Demo_ToggleMovementStyle", "Toggle Movement Style", "Demo", { Key::M } },
-            { "Demo_ToggleGate", "Pause Gate", "Demo", { Key::R } },
-            { "Demo_TogglePlayerShape", "Toggle Player Shape", "Demo", { Key::C } },
-            { "Demo_Menu", "Demo Menu", "Demo", { Key::F1 } },
-            { "Demo_Next", "Next Demo", "Demo", { Key::PageDown } },
-            { "Demo_Prev", "Previous Demo", "Demo", { Key::PageUp } },
-            { "Demo_Battle", "Push / Pop Battle", "Demo", { Key::B } },
-            { "Demo_EventLog", "Event Log", "Debug", { Key::F3 } },
-            { "Demo_QuickSave", "Quicksave", "Demo", { Key::F5 } },
-            { "Demo_QuickLoad", "Quickload", "Demo", { Key::F9 } },
-            { "Demo_LuaMenu", "Lua Menu", "Demo", { Key::L } },
+            { "Move_Left", "input.move_left", "input.category.movement", { Key::A, Key::Left } },
+            { "Move_Right", "input.move_right", "input.category.movement", { Key::D, Key::Right } },
+            { "Move_Up", "input.move_up", "input.category.movement", { Key::W, Key::Up } },
+            { "Move_Down", "input.move_down", "input.category.movement", { Key::S, Key::Down } },
+            { "Interact", "input.interact", "input.category.gameplay", { Key::E, Key::Enter } },
+            { "Sprint", "input.sprint", "input.category.gameplay", { Key::LeftShift } },
+            { "Player_Attack", "input.attack", "input.category.gameplay", { Key::Space } },
+            { "Pause", "input.pause", "input.category.system", { Key::Escape } },
+            { "Debug_Physics", "input.debug_physics", "input.category.debug", { Key::F2 } },
+            { "Debug_ToggleGrid", "input.debug_grid", "input.category.debug", { Key::G } },
+            { "Debug_WidgetTest", "input.widget_test", "input.category.debug", { Key::T } },
+            { "Demo_ToggleMovementStyle", "input.movement_style", "input.category.demo", { Key::M } },
+            { "Demo_ToggleGate", "input.gate", "input.category.demo", { Key::R } },
+            { "Demo_TogglePlayerShape", "input.player_shape", "input.category.demo", { Key::C } },
+            { "Demo_Menu", "input.demo_menu", "input.category.demo", { Key::F1 } },
+            { "Demo_Next", "input.next_demo", "input.category.demo", { Key::PageDown } },
+            { "Demo_Prev", "input.prev_demo", "input.category.demo", { Key::PageUp } },
+            { "Demo_Battle", "input.battle", "input.category.demo", { Key::B } },
+            { "Demo_EventLog", "input.event_log", "input.category.debug", { Key::F3 } },
+            { "Demo_QuickSave", "input.quicksave", "input.category.demo", { Key::F5 } },
+            { "Demo_QuickLoad", "input.quickload", "input.category.demo", { Key::F9 } },
+            { "Demo_LuaMenu", "input.lua_menu", "input.category.demo", { Key::L } },
         };
         return defs;
     }

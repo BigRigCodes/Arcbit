@@ -33,7 +33,7 @@ void SavingIndicator::OnEnter()
     _icon->Offset  = { -32.0f, -32.0f };
 
     _label         = Add<Label>();
-    _label->Text   = Loc::Get("ui.saving");
+    _label->SetTextKey("ui.saving");
     _label->Align  = TextAlign::Right;
     _label->Size   = { 220.0f, 28.0f };
     _label->Anchor = { 1.0f, 1.0f };

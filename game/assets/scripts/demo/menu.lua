@@ -4,12 +4,16 @@ local Menu = {}
 
 local LanternCost = 5
 
-function Menu:OnEnter() self:Refresh() end
+function Menu:OnEnter()
+    self:Refresh()
+    Event.Subscribe("engine.locale.changed", function() self:Refresh() end)
+end
 
 function Menu:Refresh()
     local gold = Save.Get("gold", 0)
-    self.Screen:Find("gold").Text     = "You have " .. gold .. " gold"
-    self.Screen:Find("lanterns").Text = "Lanterns: " .. Save.Get("lanterns", 0)
+    self.Screen:Find("gold").Text     = Loc.Format("demo.shop.have", { count = gold })
+    self.Screen:Find("lanterns").Text = Loc.Format("demo.shop.lanterns", { count = Save.Get("lanterns", 0) })
+    self.Screen:Find("buy").Text      = Loc.Format("demo.shop.buy", { cost = LanternCost })
     self.Screen:Find("buy").Enabled   = gold >= LanternCost
 end
 

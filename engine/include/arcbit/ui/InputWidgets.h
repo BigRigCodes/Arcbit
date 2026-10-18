@@ -26,9 +26,10 @@ public:
 
     std::string Text;
     std::string Placeholder;
+    std::string PlaceholderKey; // when set, Placeholder is Loc::Get(PlaceholderKey), again whenever the language changes
     std::string Pattern; // regex string; used only in Mode::Regex
     Mode        InputMode = Mode::Text;
-    u32         MaxLength = 256;
+    u32         MaxLength = 256; // characters (codepoints), not bytes
 
     std::function<void(const std::string&)> OnChanged;
     std::function<void(const std::string&)> OnConfirm;
@@ -52,6 +53,7 @@ public:
     void OnControlKey(UIControlKey key) override;
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;
@@ -77,13 +79,15 @@ private:
     f32 _cursorBlink = 0.0f;
 
     [[nodiscard]] bool HasSelection() const { return _selAnchor != _cursor; }
-    void               ClampCursor(); // Text was changed from outside: keep the cursor inside it
+    void               ClampCursor(); // Text was changed from outside: keep the cursor inside it, on a character
     [[nodiscard]] u32  SelMin() const { return _cursor < _selAnchor ? _cursor : _selAnchor; }
     [[nodiscard]] u32  SelMax() const { return _cursor > _selAnchor ? _cursor : _selAnchor; }
 
-    [[nodiscard]] bool AcceptsChar(char c) const;
+    [[nodiscard]] bool AcceptsChar(u32 codepoint) const;
     void               DeleteSelection();
     void               MoveCursor(u32 pos, bool extendSel);
+    [[nodiscard]] u32  PrevChar() const; // the byte offset one character before / after the cursor
+    [[nodiscard]] u32  NextChar() const;
     [[nodiscard]] u32  PrevWordBoundary() const;
     [[nodiscard]] u32  NextWordBoundary() const;
     void               UpdateScroll(f32 availW, const UISkin& skin);
@@ -98,7 +102,13 @@ private:
 class Slider : public UIWidget
 {
 public:
-    f32 Value = 0.5f;
+    // Line: a thin track with a thumb. Bar: drawn like a ProgressBar (the
+    // skin's ProgressBg / ProgressFill, full height) with a slim handle at
+    // the fill's edge - a settings row's volume.
+    enum class Look : u8 { Line, Bar };
+
+    f32  Value = 0.5f;
+    Look Style = Look::Line;
     f32 Min   = 0.0f;
     f32 Max   = 1.0f;
     f32 Step  = 0.0f; // 0 = continuous
@@ -122,7 +132,10 @@ private:
     f32  _thumbHalf = 6.0f; // half-width of thumb in pixels
 
     [[nodiscard]] f32    NormalizedValue() const;
+    [[nodiscard]] UIRect TrackRect(UIRect myRect) const; // where values lie: the bar, or the line between thumb halves
     [[nodiscard]] UIRect ThumbRect(UIRect track) const;
+    void                 CollectBar(FramePacket& packet, UIRect myRect, f32 opacity, TextureHandle whiteTex,
+                                    SamplerHandle whiteSampler, const UISkin& skin) const;
     void                 SetFromMouseX(f32 mouseX, UIRect track);
 };
 
@@ -136,13 +149,39 @@ class Dropdown : public UIWidget
 {
 public:
     std::vector<std::string> Items;
+    std::vector<std::string> ItemKeys;    // when set, Items are these keys' strings, again whenever the language changes
+    std::vector<std::string> SearchTerms; // optional, one per item: more text the filter matches (a language's code)
     i32                      SelectedIndex = -1;
+
+    // With more items than this, typing while the list is open filters it to
+    // the items containing what's typed (or whose search terms do), ignoring
+    // the case of ASCII letters.
+    u32 FilterThreshold = 8;
+    u32 MaxVisibleItems = 8;     // the open list scrolls past this many rows
+    f32 ItemHeight      = 28.0f;
 
     std::function<void(i32)> OnChanged;
 
     Dropdown() { Focusable = true; }
 
+    [[nodiscard]] bool                    IsOpen() const { return _open; }
+    [[nodiscard]] bool                    Filters() const { return Items.size() > FilterThreshold; }
+    [[nodiscard]] const std::string&      GetFilter() const { return _filter; }
+    [[nodiscard]] const std::vector<i32>& GetShown() const { return _shown; } // the item indices the open list shows
+    void                                  Open();
+    void                                  Close();
+
+    // Open, the list takes the arrows / D-pad, Back (closes it) and typing.
+    [[nodiscard]] bool ConsumesFocusNav() const override { return _open; }
+    [[nodiscard]] bool WantsTextInput() const override { return _open && Filters(); }
+    void               OnNavStep(i32 step) override;
+    bool               OnBackKey() override;
+    void               OnTextInput(std::string_view chars) override;
+    void               OnControlKey(UIControlKey key) override;
+
 protected:
+    void OnLocaleChanged() override;
+
     void UpdateTree(f32   dt, UIRect      parent, Vec2        mousePos,
                     bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                     bool& consumed, f32   scrollDelta = 0.0f) override;
@@ -155,15 +194,25 @@ protected:
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
 
-private:
-    bool _open          = false;
-    bool _headerHovered = false;
-    i32  _hoveredIndex  = -1;
-    f32  _itemHeight    = 24.0f;
+    void OnActivate() override; // opens; when open, picks the highlighted item
+    void OnFocusLost() override;
 
-    void CollectList(FramePacket&  packet, UIRect          headerRect, f32 opacity,
-                     TextureHandle whiteTex, SamplerHandle whiteSampler,
-                     const UISkin& skin) const;
+private:
+    bool             _open          = false;
+    bool             _headerHovered = false;
+    i32              _highlight     = -1; // index into _shown: the keys' (or the mouse's) row
+    u32              _scroll        = 0;  // the first shown row drawn
+    Vec2             _lastMouse     = { -1.0f, -1.0f };
+    std::string      _filter;
+    std::vector<i32> _shown;
+
+    void   Refilter();
+    void   Choose(i32 shownIndex);
+    void   ScrollToHighlight();
+    UIRect ListRect(UIRect header) const;
+    void   CollectList(FramePacket&  packet, UIRect          headerRect, f32 opacity,
+                       TextureHandle whiteTex, SamplerHandle whiteSampler,
+                       const UISkin& skin) const;
 };
 
 // ---------------------------------------------------------------------------
@@ -174,12 +223,15 @@ class Checkbox : public UIWidget
 public:
     bool        Checked = false;
     std::string Label;
+    std::string LabelKey; // when set, Label is Loc::Get(LabelKey), again whenever the language changes
 
     std::function<void(bool)> OnChanged;
 
     Checkbox() { Focusable = true; }
+    void SetLabelKey(std::string key);
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;
@@ -205,6 +257,7 @@ class RadioGroup : public UIWidget
 {
 public:
     std::vector<std::string> Items;
+    std::vector<std::string> ItemKeys; // when set, Items are these keys' strings, again whenever the language changes
     i32                      SelectedIndex = -1;
     f32                      ItemHeight    = 28.0f;
 
@@ -213,6 +266,7 @@ public:
     RadioGroup() { Focusable = true; }
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;

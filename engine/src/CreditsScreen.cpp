@@ -57,8 +57,8 @@ std::vector<CreditsScreen::Line> CreditsScreen::Layout(const nlohmann::json& doc
     height = 0.0f;
     if (!doc.is_object()) return lines;
 
-    const auto add = [&](std::string text, const Line::Kind kind) {
-        lines.push_back({ std::move(text), kind, height });
+    const auto add = [&](const std::string& text, const Line::Kind kind) { // any line may be a key
+        lines.push_back({ Loc::Get(text), kind, height });
         height += HeightOf(kind);
     };
     if (doc.contains("title")) {

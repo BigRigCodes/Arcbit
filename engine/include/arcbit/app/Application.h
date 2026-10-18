@@ -6,6 +6,7 @@
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
+#include <unordered_map>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/events/EventBus.h>
@@ -29,6 +30,7 @@ class Window;          // full type only needed in Application.cpp
 class SavingIndicator; // ApplicationSaves.cpp
 class ErrorToasts;     // ApplicationConsole.cpp
 class SaveSlotScreen;
+class GameSettingsScreen;
 
 // ---------------------------------------------------------------------------
 // How the game starts once the engine's own splash has played: the game's
@@ -121,6 +123,9 @@ struct ApplicationConfig
     const char* Studio       = "Arcbit";
     const char* GameName     = nullptr; // null = Title
     const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
+    i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
+    const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
+    const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
 };
 
 // ---------------------------------------------------------------------------
@@ -280,6 +285,10 @@ public:
     // Ask the main loop to exit after the current frame (e.g. a menu's Quit).
     void RequestShutdown() { _shouldShutdown = true; }
 
+    // Save the next frame, UI included, as a PNG in the user folder's
+    // screenshots/ (console: screenshot). Costs one GPU stall.
+    void Screenshot() { _screenshotNextFrame = true; }
+
     // Replace the window's title bar text.
     void SetWindowTitle(std::string_view title);
 
@@ -288,6 +297,13 @@ public:
     void ShowControlsScreen();
     void ShowAudioScreen();
     void ShowGraphicsScreen();
+    void ShowGameSettingsScreen(); // GameSettingsScreen: the language, and the game's own (OnGameSettings)
+
+    // Switch the player-visible language (a locale code: "fr", "pt-BR"): every
+    // screen's text follows, the language's fonts load, the choice is saved
+    // for the next launch, and engine.locale.changed is published. False if
+    // the game has no such language.
+    bool SetLanguage(std::string_view code);
 
     // Roll the credits (BootConfig::CreditsPath) - the title menu's Credits
     // button, or the end of a game.
@@ -326,6 +342,11 @@ protected:
     // Called at a fixed rate (fixedTimestep seconds per call) for game logic
     // that must be frame-rate-independent (physics, AI, gameplay state).
     virtual void OnUpdate(f32 dt) {}
+
+    // The Game settings screen was built: wire the game's own rows (difficulty,
+    // text speed) - from a layout of its own set in screen.LayoutPath, which
+    // keeps the engine's "language-dd" and "back-btn".
+    virtual void OnGameSettings(GameSettingsScreen& /*screen*/) {}
 
     // Called every frame (variable rate) to build the render packet.
     // The packet is pre-filled with Swapchain, Width, Height, NeedsResize,
@@ -375,7 +396,10 @@ private:
     void StartSaving();          // the indicator, once OnStart has set _saving
     void AfterSwap();            // a scene change finished: queue an autosave?
     void UpdateAutoSave();       // run a queued autosave once the game is idle
-    void WriteThumbnail();       // a frame captured for the last save arrived: write it
+    void WriteCapture();         // a captured frame arrived: write the save's thumbnail or the screenshot
+    void StartLanguage();        // ApplicationLocale.cpp: find the locales, pick the first language
+    void PrintMissing(std::string_view code); // console loc.missing
+    void ApplyLanguageFonts();   // the languages' fonts as every font's fallbacks
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
@@ -386,6 +410,9 @@ private:
     bool                   _restoredSave    = false; // the last swap loaded a save: no autosave
     std::optional<SaveSlot> _thumbnailFor;            // saved, its picture not yet written
     bool                    _captureNextFrame = false; // ask the render thread for the next frame
+    bool                    _screenshotNextFrame = false; // Screenshot(): capture the next frame, UI and all
+    std::unordered_map<std::string, std::shared_ptr<FontFace>> _languageFaces; // by path, loaded once
+    u32                     _screenshotsPending  = 0;     // asked for, not yet arrived
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

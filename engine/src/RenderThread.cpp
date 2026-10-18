@@ -1036,6 +1036,8 @@ void RenderThread::RenderFrame(const FramePacket& packet)
     DrawUIBatches(cmd, uiSorted, corrected, frameSlot);
 
     _device->EndRendering(cmd);
+    const bool captureFrame = packet.CaptureFrame && !packet.CaptureWorld;
+    if (captureFrame) CopyForCapture(cmd, actualW, actualH);
 
     _statSpritesSubmitted.store(static_cast<u32>(sorted.size()), std::memory_order_relaxed);
     _statSpriteBatches.store(batchCount, std::memory_order_relaxed);
@@ -1045,22 +1047,27 @@ void RenderThread::RenderFrame(const FramePacket& packet)
     _device->EndCommandList(cmd);
     _device->Submit({ cmd });
     _device->Present(packet.Swapchain);
-    if (packet.CaptureWorld) FinishCapture(actualW, actualH, lb);
+    if (packet.CaptureWorld || captureFrame) FinishCapture(actualW, actualH, lb);
 }
 
 // ---------------------------------------------------------------------------
 // Frame capture (FramePacket::CaptureWorld)
 // ---------------------------------------------------------------------------
 
-void RenderThread::SplitForCapture(const CommandListHandle cmd, const TextureHandle backBuffer, const u32 width,
-                                   const u32 height)
+void RenderThread::CopyForCapture(const CommandListHandle cmd, const u32 width, const u32 height)
 {
     _readback = _device->CreateBuffer(BufferDesc{ .Size        = u64(width) * height * 4,
                                                   .Usage       = BufferUsage::Readback,
                                                   .HostVisible = true,
                                                   .DebugName   = "frame_capture" });
-    _device->EndRendering(cmd);
     _device->CopySwapchainImage(cmd, _readback);
+}
+
+void RenderThread::SplitForCapture(const CommandListHandle cmd, const TextureHandle backBuffer, const u32 width,
+                                   const u32 height)
+{
+    _device->EndRendering(cmd);
+    CopyForCapture(cmd, width, height);
 
     // Load, not Clear: the UI draws over the world already in the image.
     // Pipeline, viewport and scissor are set again by each draw helper.

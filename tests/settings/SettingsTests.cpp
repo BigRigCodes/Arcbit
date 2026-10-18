@@ -6,6 +6,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <fstream>
+#include <sstream>
+
 #include <limits>
 #include <string>
 #include <utility>
@@ -243,4 +246,29 @@ TEST_CASE("Settings from next to the executable move to the user folder once", "
     const auto before = std::filesystem::file_size(current);
     MoveLegacyFile(legacy, current);
     CHECK(std::filesystem::file_size(current) == before);
+}
+
+TEST_CASE("Floats are written as the number they show, volumes to four decimals", "[settings]")
+{
+    SettingsScope scope;
+    Settings::Init(scope.Path());
+    f32 drifted = 1.0f;
+    for (int i = 0; i < 8; ++i) drifted -= 0.1f; // 0.19999993f, not 0.2f
+    Settings::Audio.MusicVolume = drifted;
+    Settings::Audio.SfxVolume   = 0.3f;
+    Settings::Set<f32>("game.speed", 0.1f);
+    Settings::MarkDirty();
+    Settings::Flush();
+
+    std::ifstream     in(scope.Path());
+    std::stringstream text;
+    text << in.rdbuf();
+    CHECK(text.str().find("\"music_volume\": 0.2,") != std::string::npos);
+    CHECK(text.str().find("\"sfx_volume\": 0.3") != std::string::npos);
+    CHECK(text.str().find("\"game.speed\": 0.1") != std::string::npos);
+    CHECK(text.str().find("0000") == std::string::npos); // no 0.30000001192092896
+
+    Settings::Init(scope.Path());
+    CHECK(Settings::Audio.SfxVolume == 0.3f);
+    CHECK(Settings::Get<f32>("game.speed") == 0.1f);
 }

@@ -15,7 +15,7 @@ static constexpr i32 FpsPresetCount  = static_cast<i32>(std::size(FpsPresets));
 static std::string FpsPresetText(const u32 limit)
 {
     return limit == 0 ? std::string(Loc::Get("ui.common.unlimited"))
-                      : std::format("{} fps", limit);
+                      : Loc::Format("ui.graphics.fps_value", { { "fps", limit } });
 }
 
 // ---------------------------------------------------------------------------

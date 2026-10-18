@@ -49,6 +49,9 @@ class Label : public UIWidget
 {
 public:
     std::string Text;
+    std::string TextKey; // when set, Text is Loc::Get(TextKey), again whenever the language changes
+
+    void SetTextKey(std::string key); // TextKey and Text together
     TextAlign   Align      = TextAlign::Left;
     bool        WordWrap   = false; // wrap lines at word boundaries to fit myRect.W
     bool        AutoCenter = false;
@@ -57,6 +60,7 @@ protected:
     void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
+    void OnLocaleChanged() override;
 };
 
 // ---------------------------------------------------------------------------
@@ -66,11 +70,14 @@ class Button : public UIWidget
 {
 public:
     std::string           Text;
+    std::string           TextKey; // as Label::TextKey
     std::function<void()> OnClick;
 
     Button() { Focusable = true; }
+    void SetTextKey(std::string key);
 
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;
@@ -168,11 +175,15 @@ public:
     f32 PixelBottom = 16.0f;
 
     std::string           Text;
+    std::string TextKey; // as Label::TextKey
     std::function<void()> OnClick;
 
     NineSliceButton() { Focusable = true; }
 
+    void SetTextKey(std::string key);
+
 protected:
+    void OnLocaleChanged() override;
     void OnUpdate(f32   dt, UIRect      myRect, Vec2        mousePos,
                   bool  mouseDown, bool mouseJustDown, bool mouseJustUp,
                   bool& consumed) override;

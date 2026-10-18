@@ -163,7 +163,7 @@ static void ApplyLabel(UIWidget& w, const json& j)
 {
     auto& l = dynamic_cast<Label&>(w);
     if (const auto it = j.find("text"); it != j.end()) l.Text = it->get<std::string>();
-    if (const auto it = j.find("text_key"); it != j.end()) l.Text = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("text_key"); it != j.end()) l.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("word_wrap"); it != j.end()) l.WordWrap = it->get<bool>();
     if (const auto it = j.find("auto_center"); it != j.end()) l.AutoCenter = it->get<bool>();
     if (const auto it = j.find("text_color"); it != j.end()) l.SkinOverride.TextLabel = ReadColor(*it);
@@ -181,7 +181,7 @@ static void ApplyButton(UIWidget& w, const json& j)
 {
     auto& b = dynamic_cast<Button&>(w);
     if (const auto it = j.find("text"); it != j.end()) b.Text = it->get<std::string>();
-    if (const auto it = j.find("text_key"); it != j.end()) b.Text = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("text_key"); it != j.end()) b.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("text_color"); it != j.end()) b.SkinOverride.TextLabel = ReadColor(*it);
 }
 
@@ -224,7 +224,7 @@ static void ApplyNineSliceButton(UIWidget& w, const json& j)
 {
     auto& b = dynamic_cast<NineSliceButton&>(w);
     if (auto it = j.find("text"); it != j.end()) b.Text = it->get<std::string>();
-    if (auto it = j.find("text_key"); it != j.end()) b.Text = Loc::Get(it->get<std::string>());
+    if (auto it = j.find("text_key"); it != j.end()) b.SetTextKey(it->get<std::string>());
     if (auto it = j.find("tint_normal"); it != j.end()) b.TintNormal = ReadColor(*it);
     if (auto it = j.find("tint_hovered"); it != j.end()) b.TintHovered = ReadColor(*it);
     if (auto it = j.find("tint_pressed"); it != j.end()) b.TintPressed = ReadColor(*it);
@@ -253,6 +253,7 @@ static void ApplyTextInput(UIWidget& w, const json& j)
 {
     auto& t = dynamic_cast<TextInput&>(w);
     if (const auto it = j.find("placeholder"); it != j.end()) t.Placeholder = it->get<std::string>();
+    if (const auto it = j.find("placeholder_key"); it != j.end()) t.PlaceholderKey = it->get<std::string>(), t.Placeholder = Loc::Get(t.PlaceholderKey);
     if (const auto it = j.find("max_length"); it != j.end()) t.MaxLength = it->get<u32>();
     if (const auto it = j.find("pattern"); it != j.end()) t.Pattern = it->get<std::string>();
     if (const auto it = j.find("mode"); it != j.end()) {
@@ -272,6 +273,20 @@ static void ApplySlider(UIWidget& w, const json& j)
     if (const auto it = j.find("min"); it != j.end()) s.Min = it->get<f32>();
     if (const auto it = j.find("max"); it != j.end()) s.Max = it->get<f32>();
     if (const auto it = j.find("step"); it != j.end()) s.Step = it->get<f32>();
+    if (const auto it = j.find("style"); it != j.end()) s.Style = it->get<std::string>() == "bar" ? Slider::Look::Bar : Slider::Look::Line;
+}
+
+// "item_keys": the items as keys, resolved now and on every language change.
+static void ReadItemKeys(const json& j, std::vector<std::string>& keys, std::vector<std::string>& items)
+{
+    const auto it = j.find("item_keys");
+    if (it == j.end() || !it->is_array()) return;
+    keys.clear();
+    items.clear();
+    for (const auto& key : *it) {
+        keys.push_back(key.get<std::string>());
+        items.push_back(Loc::Get(keys.back()));
+    }
 }
 
 static void ApplyDropdown(UIWidget& w, const json& j)
@@ -281,6 +296,10 @@ static void ApplyDropdown(UIWidget& w, const json& j)
     if (const auto it = j.find("items"); it != j.end() && it->is_array())
         for (const auto& item : *it)
             d.Items.push_back(item.get<std::string>());
+    ReadItemKeys(j, d.ItemKeys, d.Items);
+    if (const auto it = j.find("filter_threshold"); it != j.end()) d.FilterThreshold = it->get<u32>();
+    if (const auto it = j.find("max_visible"); it != j.end()) d.MaxVisibleItems = it->get<u32>();
+    if (const auto it = j.find("item_height"); it != j.end()) d.ItemHeight = it->get<f32>();
 }
 
 static void ApplyCheckbox(UIWidget& w, const json& j)
@@ -288,7 +307,7 @@ static void ApplyCheckbox(UIWidget& w, const json& j)
     auto& c = dynamic_cast<Checkbox&>(w);
     if (const auto it = j.find("checked"); it != j.end()) c.Checked = it->get<bool>();
     if (const auto it = j.find("label"); it != j.end()) c.Label = it->get<std::string>();
-    if (const auto it = j.find("label_key"); it != j.end()) c.Label = Loc::Get(it->get<std::string>());
+    if (const auto it = j.find("label_key"); it != j.end()) c.SetLabelKey(it->get<std::string>());
 }
 
 static void ApplyRadioGroup(UIWidget& w, const json& j)
@@ -299,6 +318,7 @@ static void ApplyRadioGroup(UIWidget& w, const json& j)
     if (const auto it = j.find("items"); it != j.end() && it->is_array())
         for (const auto& item : *it)
             r.Items.push_back(item.get<std::string>());
+    ReadItemKeys(j, r.ItemKeys, r.Items);
 }
 
 static void ApplySwitch(UIWidget& w, const json& j)

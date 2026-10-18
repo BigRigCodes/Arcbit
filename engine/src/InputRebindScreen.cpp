@@ -35,8 +35,8 @@ void InputRebindScreen::BuildEntries()
         if (name.empty() || HasHiddenPrefix(name, HiddenPrefixes)) continue;
         _entries.push_back({
             id,
-            std::string(Input->GetActionDisplayName(id)),
-            std::string(Input->GetActionCategory(id))
+            Loc::Get(Input->GetActionDisplayName(id)), // display names and categories may be keys
+            Loc::Get(Input->GetActionCategory(id))
         });
     }
     std::ranges::sort(_entries, [](const ActionEntry& a, const ActionEntry& b) {

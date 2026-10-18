@@ -31,7 +31,7 @@ public:
     std::function<void()> OnBack;
 
     // Action names starting with any of these prefixes are hidden.
-    std::vector<std::string> HiddenPrefixes = {"UI_", "Engine_"};
+    std::vector<std::string> HiddenPrefixes = {"UI_", "Engine_", "Console_"};
 
     std::string LayoutPath = "assets/engine/ui/input_rebind.arcui";
 

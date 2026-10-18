@@ -21,7 +21,8 @@
 // (scene changes, device switches, settings) and the demos' own.
 //
 // `--mute` silences everything for the run (the saved volumes are untouched),
-// for unattended soak runs.
+// for unattended soak runs; `--display <n>` opens the window on monitor n
+// (0 = the first), to keep a soak run off the main screen.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
@@ -48,23 +49,16 @@ using namespace Arcbit;
 std::span<const Demo::Entry> Demo::Entries()
 {
     static const Entry entries[] = {
-        { "World", "tilemap world: lights, audio, ships, HUD",
-          "Space attack, E shake, G grid", &CreateWorldDemo },
-        { "Physics", "free movement, knockback bumper, pushable crate (22B, 22I)", "F2 colliders, G grid",
-          &CreatePhysicsDemo },
-        { "Physics File", "the Physics demo as a scene file - no C++ scene class (23)", "F2 colliders",
+        { "World", "demo.world", &CreateWorldDemo },
+        { "Physics", "demo.physics", &CreatePhysicsDemo },
+        { "Physics File", "demo.physics_file",
           [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/physics.arcscene"); } },
-        { "Tile Move", "tile movement, smooth and snap, pushable crates (22C, 22H, 22I)",
-          "M smooth/snap, F2 colliders, G grid",
-          &CreateTileMoveDemo },
-        { "Arcs", "directional colliders, free movement (22D)", "F2 colliders, G grid", &CreateArcDemo },
-        { "Tile Arcs", "directional colliders, tile movement (22D)", "F2 colliders, G grid",
-          &CreateTileMoveArcDemo },
-        { "OBB", "rotated colliders (22E)", "R pause gate, C player shape, F2 colliders, G grid", &CreateObbDemo },
-        { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
-          "M movement style, F2 colliders, G grid, F3 events",
-          &CreateTriggerDemo },
-        { "Scripted", "Lua: a chest, door, sign, patrolling guard, HUD and menu (26)", "E use, L menu, ` console",
+        { "Tile Move", "demo.tile_move", &CreateTileMoveDemo },
+        { "Arcs", "demo.arcs", &CreateArcDemo },
+        { "Tile Arcs", "demo.tile_arcs", &CreateTileMoveArcDemo },
+        { "OBB", "demo.obb", &CreateObbDemo },
+        { "Triggers", "demo.triggers", &CreateTriggerDemo },
+        { "Scripted", "demo.scripted",
           [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/scripted.arcscene"); } },
     };
     return entries;
@@ -87,12 +81,14 @@ constexpr const char* BattleScene = "Battle";
 constexpr const char* LastDemoKey = "demo.last";
 } // namespace
 
-// Debug builds run the scripts in the source tree, so edits hot-reload; the
+// Debug builds run the scripts and locale files in the source tree, so edits hot-reload; the
 // copy in bin/ is only refreshed by a build.
 #ifdef ARCBIT_DEBUG
-constexpr const char* ScriptRoot = ARCBIT_GAME_ASSETS "/scripts";
+constexpr const char* ScriptRoot   = ARCBIT_GAME_ASSETS "/scripts";
+constexpr const char* LocaleFolder = ARCBIT_GAME_ASSETS "/locale";
 #else
-constexpr const char* ScriptRoot = "assets/scripts";
+constexpr const char* ScriptRoot   = "assets/scripts";
+constexpr const char* LocaleFolder = "assets/locale";
 #endif
 
 class DemoApp : public Application
@@ -103,10 +99,12 @@ public:
         f32  CycleSeconds = 0.0f;  // --cycle
         f32  LoadDelay    = 0.0f;  // --load-delay
         bool Mute         = false; // --mute
+        i32  Display      = -1;    // --display
     };
 
     explicit DemoApp(const Options& options) :
-        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot }),
+        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot,
+                      .Display = options.Display, .LocaleFolder = LocaleFolder }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running
@@ -132,6 +130,7 @@ protected:
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
         // A loaded save picks its own demo: keep the title and F1 menu in step.
+        _localeChanged = GetEvents().Subscribe(EngineEvents::LocaleChanged, [this](const Event&) { RetitleWindow(); });
         _sceneLoaded = GetEvents().Subscribe(EngineEvents::SceneLoaded, [this](const Event& e) {
             FollowLoadedScene(e.Payload.Get<std::string>("name", ""));
         });
@@ -173,9 +172,15 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   Esc pause, F1 demos, PgUp/PgDn cycle, B battle, "
-                                   "T widgets, F3 events, F5 / F9 quicksave / load",
-                                   demo.Name, demo.Keys));
+        const std::string key(demo.Key);
+        SetWindowTitle(Loc::Format("demo.window_title", { { "name", Loc::Get(key + ".name") }, { "keys", Loc::Get(key + ".keys") } }));
+    }
+
+    // The title is text too: the language changed, so it follows.
+    void RetitleWindow()
+    {
+        if (GetScenes().GetDepth() > 1) SetWindowTitle(Loc::Get("demo.window_battle"));
+        else SetDemoTitle(Demo::Entries()[_current]);
     }
 
     // A scene loaded some other way than Open (a save loading): if it's one
@@ -202,7 +207,7 @@ private:
             return;
         }
         GetScenes().Push(BattleScene);
-        SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
+        SetWindowTitle(Loc::Get("demo.window_battle"));
     }
 
     // Pause opens the pause menu - over any demo, the battle too - swapping out
@@ -234,6 +239,7 @@ private:
         pause->OnControls         = [this] { ShowControlsScreen(); };
         pause->OnAudioSettings    = [this] { ShowAudioScreen(); };
         pause->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
+        pause->OnGameSettings     = [this] { ShowGameSettingsScreen(); };
         pause->OnQuit             = [this] { RequestShutdown(); };
         GetUI().OpenMenu(std::move(pause));
     }
@@ -302,7 +308,8 @@ private:
     }
 
     std::unique_ptr<EventHistory> _eventHistory;
-    Subscription                  _sceneLoaded; // FollowLoadedScene
+    Subscription                  _sceneLoaded;   // FollowLoadedScene
+    Subscription                  _localeChanged; // RetitleWindow
     const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
     const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
     const UIScreen*               _pauseMenu = nullptr; // Esc / Start (check GetUI().IsOpen)
@@ -324,6 +331,7 @@ int main(const int argc, char* argv[])
         if (arg == "--cycle" && more) options.CycleSeconds = std::stof(argv[i + 1]);
         if (arg == "--load-delay" && more) options.LoadDelay = std::stof(argv[i + 1]);
         if (arg == "--mute") options.Mute = true;
+        if (arg == "--display" && more) options.Display = std::stoi(argv[i + 1]);
     }
 
     DemoApp app(options);

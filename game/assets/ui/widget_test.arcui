@@ -14,7 +14,7 @@
       "children": [
         {
           "type": "Label",
-          "text": "Widget Test",
+          "text_key": "demo.widgets.title",
           "anchor": [0.5, 0.0],
           "pivot": [0.5, 0.0],
           "offset": [0, 12],
@@ -24,7 +24,7 @@
         {
           "type": "Button",
           "name": "close-btn",
-          "text": "Close",
+          "text_key": "demo.widgets.close",
           "anchor": [1.0, 0.0],
           "pivot": [1.0, 0.0],
           "offset": [-8, 10],
@@ -35,7 +35,7 @@
 
         {
           "type": "Label",
-          "text": "Text:",
+          "text_key": "demo.widgets.text",
           "offset": [14, 54],
           "size": [120, 24]
         },
@@ -44,12 +44,12 @@
           "name": "text-input",
           "offset": [150, 50],
           "size": [400, 36],
-          "placeholder": "Type something..."
+          "placeholder_key": "demo.widgets.placeholder"
         },
 
         {
           "type": "Label",
-          "text": "Number:",
+          "text_key": "demo.widgets.number",
           "offset": [14, 106],
           "size": [120, 24]
         },
@@ -65,7 +65,7 @@
 
         {
           "type": "Label",
-          "text": "Volume:",
+          "text_key": "demo.widgets.volume",
           "offset": [14, 160],
           "size": [120, 24]
         },
@@ -90,7 +90,7 @@
 
         {
           "type": "Label",
-          "text": "Quality:",
+          "text_key": "demo.widgets.quality",
           "offset": [14, 206],
           "size": [120, 24]
         },
@@ -99,7 +99,7 @@
           "name": "quality-drop",
           "offset": [150, 202],
           "size": [220, 28],
-          "items": ["Low", "Medium", "High", "Ultra"],
+          "item_keys": ["demo.widgets.quality.low", "demo.widgets.quality.medium", "demo.widgets.quality.high", "demo.widgets.quality.ultra"],
           "selected": 1,
           "focusable": true,
           "tab_order": 3
@@ -110,14 +110,14 @@
           "name": "feature-check",
           "offset": [14, 298],
           "size": [340, 28],
-          "label": "Enable Feature",
+          "label_key": "demo.widgets.feature",
           "checked": false,
           "tab_order": 5
         },
 
         {
           "type": "Label",
-          "text": "Difficulty:",
+          "text_key": "demo.widgets.difficulty",
           "offset": [14, 336],
           "size": [120, 24]
         },
@@ -126,7 +126,7 @@
           "name": "difficulty-radio",
           "offset": [150, 336],
           "size": [240, 84],
-          "items": ["Easy", "Normal", "Hard"],
+          "item_keys": ["demo.widgets.difficulty.easy", "demo.widgets.difficulty.normal", "demo.widgets.difficulty.hard"],
           "selected": 1,
           "item_height": 28.0,
           "tab_order": 7
@@ -134,7 +134,7 @@
 
         {
           "type": "Label",
-          "text": "Auto-Save:",
+          "text_key": "demo.widgets.autosave",
           "offset": [14, 429],
           "size": [120, 24]
         },
@@ -161,6 +161,14 @@
           "size": [552, 100],
           "word_wrap": true,
           "text_color": [0.7, 0.85, 0.7, 1.0]
+        },
+        {
+          "type": "Label",
+          "name": "unicode-sample",
+          "text_key": "demo.widgets.sample",
+          "offset": [14, 588],
+          "size": [552, 56],
+          "word_wrap": true
         }
       ]
     }

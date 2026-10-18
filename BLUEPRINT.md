@@ -465,19 +465,24 @@ The rest of the original event list moved to the phases that build those systems
 
 ---
 
-## Phase 28: Localization
-*English is required. All other languages are optional. The system is always active — it is the canonical way to define any player-visible text.*
+## Phase 28: Localization ✓
+*English is required. All other languages are optional. The system is always active — it is the canonical way to define any player-visible text. See [docs/localization.md](docs/localization.md).*
 
-- [ ] String key convention: all player-visible text in dialog, GUI, items, and combat is authored as a key (e.g. `"npc.elder.greeting"`) rather than a raw string
-- [ ] Language resource files: one JSON file per locale (`en.json`, `ja.json`, etc.); keys map to translated strings
-- [ ] `LocaleManager` — loads a locale file at startup (default: `en`); hot-swappable at runtime for in-game language selection
-- [ ] `L("key")` / `Localize("key")` helper resolves a key to the active locale string; falls back to English if the key is missing in the target locale
-- [ ] Fallback chain: requested locale → English → key string itself (so missing translations never crash or show blank)
-- [ ] Plural forms: keys can define `_one` / `_other` variants (e.g. `"item.gold_one"` = "1 Gold", `"item.gold_other"` = "{count} Gold")
-- [ ] String interpolation: `{player_name}`, `{count}`, `{item_name}` placeholders resolved at call site
-- [ ] **Export pipeline**: editor scans all dialog graphs, GUI layouts, item definitions, and combat text; emits a canonical `en.json` with every key and its English value; translator-ready
-- [ ] Language selection UI in settings screen (Phase 21); persisted in settings file (Phase 10)
-- [ ] Editor integration (Phase 40): inline key picker, missing-key warnings, locale coverage report (% of keys translated per locale)
+- [x] String key convention: player-visible text is authored as a key (`"ui.pause.title"`); the engine and every demo string are keys
+- [x] Locale files: one JSON per language (`en.json`, `fr.json`, `ja.json`, `pt-BR.json`) in the engine's and the game's folders, the game's winning; nested keys; a `$locale` block (name, fonts)
+- [x] `Loc` — per-language tables, switched live (`Application::SetLanguage`); `Loc::Get` with the fallback chain language → base language → English → key
+- [x] UTF-8 text everywhere: drawing, measuring, wrapping (CJK, kinsoku), text input
+- [x] Fonts: a wider default glyph set, glyphs baked on demand, fallback faces per language, OpenType (CFF) fonts in SDF text, a visible missing-glyph box
+- [x] Plural forms by CLDR category (`zero` / `one` / `two` / `few` / `many` / `other`) with built-in rules for European, Slavic, CJK and Arabic languages
+- [x] Named placeholders (`{index}`), escaped braces; engine screens' glued strings moved to keys
+- [x] Widgets keep their keys (`text_key`, `label_key`, `placeholder_key`, `item_keys`) and follow the language; `engine.locale.changed`
+- [x] Language: the OS's on first launch (English if the game lacks it), then the player's choice, saved; a dropdown in the Game settings screen
+- [x] Lua: `Loc.Get / Format / Interpolate / Has / Language / Languages / SetLanguage`, widget `TextKey`
+- [x] Tools: `arcbit-loc` (check / coverage / template), the `qps` pseudo-locale, console `lang` and `loc.missing`, hot reload of locale files
+- [x] French and Japanese for the engine and the demos (Noto Sans JP)
+- [x] Numbers and dates in each language's style: separators and grouping, date / time patterns, month names (`loc.*` keys); `{n:n2}`, `{saved:datetime}`, `{year:raw}`
+- [ ] Right-to-left text and complex shaping: Phase 42
+- [ ] Editor integration (Phase 40): inline key picker, missing-key warnings, locale coverage report (the editor runs `LocCheck`)
 
 ---
 
@@ -688,3 +693,14 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Hot reload in debug builds through a collectible `AssemblyLoadContext`, carrying `[Saved]` fields across the reload
 - [ ] Shipping: self-contained .NET runtime next to the game, or the game's C# compiled with NativeAOT into a native library (no runtime to ship; needed for consoles)
 - [ ] Console commands and the error handler / toasts work the same as for Lua
+
+---
+
+## Phase 42: Right-to-Left Text & Complex Scripts
+*Low priority - for when a game targets Arabic, Hebrew, Persian, Thai or the Indic languages. Builds on Phase 28's UTF-8 text and fonts.*
+
+- [ ] Shaping with HarfBuzz (vcpkg): Arabic joining forms, ligatures, Indic reordering, Thai; the font atlas caches glyphs by face and glyph id rather than codepoint, and layout places shaped runs
+- [ ] Bidirectional text (Unicode bidi algorithm - FriBidi or ICU): mixed right-to-left and left-to-right runs, numbers and names inside RTL sentences, mirrored brackets; wrapping that respects runs
+- [ ] Text input in RTL and mixed text: cursor movement, selection and deletion by visual and logical order
+- [ ] Mirrored UI for RTL languages: a locale's `"direction": "rtl"` flips anchors, alignment and list order on engine screens (and `.arcui` layouts that opt in)
+- [ ] An RTL locale in the demos (Arabic or Hebrew) with a font that covers it, and `qps`-style pseudo-RTL for testing layouts

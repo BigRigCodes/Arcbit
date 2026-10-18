@@ -3,6 +3,7 @@
 // main loop.
 
 #include <arcbit/app/Application.h>
+#include "Screenshot.h"
 
 #include <arcbit/assets/TextureManager.h>
 #include <arcbit/core/Log.h>
@@ -155,12 +156,19 @@ void Application::UpdateAutoSave()
     AutoSave();
 }
 
-void Application::WriteThumbnail()
+// Captures arrive in the order they were asked for, one a frame; a save's
+// thumbnail is asked for before any screenshot taken after it.
+void Application::WriteCapture()
 {
     std::optional<CapturedFrame> frame = _renderThread.TakeCapture();
-    if (!frame || !_thumbnailFor) return;
-    _saves.WriteThumbnail(*_thumbnailFor, frame->Width, frame->Height, frame->Rgba);
-    _thumbnailFor.reset();
+    if (!frame) return;
+    if (_thumbnailFor) {
+        _saves.WriteThumbnail(*_thumbnailFor, frame->Width, frame->Height, frame->Rgba);
+        _thumbnailFor.reset();
+    } else if (_screenshotsPending > 0) {
+        --_screenshotsPending;
+        WriteScreenshot(_userFolder / "screenshots", *frame);
+    }
 }
 
 bool Application::NeedsSaveNotice() const

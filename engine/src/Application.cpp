@@ -71,6 +71,7 @@ Application::Application(const ApplicationConfig& config) : _config(config)
         .Width     = Settings::Graphics.ResolutionWidth,
         .Height    = Settings::Graphics.ResolutionHeight,
         .Resizable = config.Resizable,
+        .Display   = config.Display,
     });
 
     DeviceDesc deviceDesc{};
@@ -205,7 +206,7 @@ void Application::Run()
     //   b) game code cannot accidentally stomp the same ActionID before they exist.
     _input.RegisterAction(ActionEngineFullscreen, "Engine_Fullscreen");
     _input.BindKey(ActionEngineFullscreen, Key::F11);
-    _input.RegisterAction(ActionEngineConsole, "Engine_Console", "Console", "System");
+    _input.RegisterAction(ActionEngineConsole, "Engine_Console", "ui.input.console", "ui.input.system");
     _input.BindKey(ActionEngineConsole, Key::Grave);
     _input.RegisterAction(ConsoleScreen::ActionHistoryUp, "Console_HistoryUp");
     _input.BindKey(ConsoleScreen::ActionHistoryUp, Key::Up);
@@ -253,7 +254,8 @@ void Application::Run()
                                 },
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
-                                .AutoSave = [this] { return AutoSave(); } });
+                                .AutoSave = [this] { return AutoSave(); },
+                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); } });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -266,9 +268,9 @@ void Application::Run()
     _ui.Init(_renderThread, _debugFont, _input);
     StartConsole(); // after the UI (error toasts), before OnStart (games add their own commands)
 
-    // Load engine locale strings before OnStart so built-in screens display correctly.
-    if (!Loc::Load("assets/engine/locale/en.json"))
-        LOG_WARN(Engine, "Failed to load locale strings");
+    // The locales and the language to start in, before OnStart so built-in
+    // screens display correctly.
+    StartLanguage();
 
     // Give the game a chance to register actions, create GPU resources, etc.
     // Input bindings are loaded from settings AFTER OnStart so that default
@@ -385,6 +387,10 @@ void Application::Run()
         packet.ClearColor  = _clearColor;
         packet.NeedsResize = _window->WasResizedThisFrame();
         packet.CaptureWorld = std::exchange(_captureNextFrame, false); // a save's thumbnail
+        if (!packet.CaptureWorld && std::exchange(_screenshotNextFrame, false)) { // one capture a frame
+            packet.CaptureFrame = true;
+            ++_screenshotsPending;
+        }
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
@@ -414,8 +420,10 @@ void Application::Run()
             DrawText(packet, _debugFont, overlay, {8.0f, 8.0f}, 1.0f, {1.0f, 1.0f, 0.0f, 1.0f});
         }
 
+        // Glyphs baked while drawing this frame reach the GPU before it renders.
+        FontAtlas::UploadAll(*_device, [this] { _renderThread.WaitIdle(); });
         _renderThread.SubmitFrame(std::move(packet));
-        WriteThumbnail(); // a frame captured for a save, once the render thread has it
+        WriteCapture(); // a frame captured for a save or a screenshot, once the render thread has it
 
         // --- FPS counter + render stats --------------------------------------
         // Count completed frames; report once per second alongside the most
@@ -436,6 +444,7 @@ void Application::Run()
             _textures->CheckReloads([this] { _renderThread.WaitIdle(); });
 #ifdef ARCBIT_DEBUG
             _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
+            Loc::CheckReloads();          // and edited locale files (text follows the generation)
 #endif
             _hotReloadAccumulator -= 1.0;
         }
@@ -472,10 +481,7 @@ void Application::Run()
     _device->DestroySampler(_linearSampler);
 
     // Destroy the debug font atlas resources before the device goes away.
-    if (_debugFont.IsValid()) {
-        _device->DestroyTexture(_debugFont.GetTexture());
-        _device->DestroySampler(_debugFont.GetSampler());
-    }
+    _debugFont.Release(*_device);
 
     // Release all cached textures before the device is destroyed.
     _textures->Clear();

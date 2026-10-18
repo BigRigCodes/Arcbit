@@ -29,6 +29,11 @@ void MainMenuScreen::OnEnter()
         btn->OnClick = OnLoadGame;
     }
 
+    if (auto* btn = FindWidget<Button>("game-btn")) {
+        btn->Visible = HasGameSettings();
+        btn->OnClick = OnGameSettings;
+    }
+
     if (auto* btn = FindWidget<Button>("controls-btn")) {
         btn->Visible = ShowControls;
         btn->OnClick = OnControls;
@@ -49,12 +54,13 @@ void MainMenuScreen::OnEnter()
         btn->OnClick = OnCredits;
     }
 
+
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
 
     StackButtons(FindWidget<UIWidget>("bg"),
-                 { "new-game-btn", "continue-btn", "load-btn", "controls-btn", "audio-btn", "graphics-btn",
-                   "credits-btn", "quit-btn" },
+                 { "new-game-btn", "continue-btn", "load-btn", "game-btn", "controls-btn", "audio-btn",
+                   "graphics-btn", "credits-btn", "quit-btn" },
                  GetMetaF32("btn_start_y", 70.0f), GetMetaF32("btn_gap", 52.0f), 26.0f);
 }
 
@@ -73,6 +79,7 @@ void MainMenuScreen::BuildFallback()
         + (ShowAudioSettings ? 1 : 0)
         + (ShowGraphicsSettings ? 1 : 0)
         + (ShowCredits ? 1 : 0)
+        + (HasGameSettings() ? 1 : 0)
         + 1; // quit
 
     const f32 panelW = 360.0f;
@@ -85,7 +92,7 @@ void MainMenuScreen::BuildFallback()
     bg->ZOrder = 1;
 
     auto* title   = bg->AddChild<Label>();
-    title->Text   = Loc::Get("ui.mainmenu.title");
+    title->SetTextKey("ui.mainmenu.title");
     title->Align  = TextAlign::Center;
     title->Size   = {panelW, 32.0f};
     title->Anchor = {0.5f, 0.0f};
@@ -107,7 +114,7 @@ void MainMenuScreen::BuildFallback()
     auto MakeButton = [&](const char* labelKey, f32 yOffset, std::function<void()> cb,
                           Color textColor = {0, 0, 0, 0}) {
         auto* btn      = bg->AddChild<Button>();
-        btn->Text      = Loc::Get(labelKey);
+        btn->SetTextKey(labelKey);
         btn->Size      = {btnW, btnH};
         btn->Anchor    = {0.5f, 0.0f};
         btn->Pivot     = {0.5f, 0.0f};
@@ -127,6 +134,10 @@ void MainMenuScreen::BuildFallback()
     }
     if (ShowLoadGame) {
         MakeButton("ui.mainmenu.load", y, OnLoadGame);
+        y += gap;
+    }
+    if (HasGameSettings()) {
+        MakeButton("ui.pause.game", y, OnGameSettings);
         y += gap;
     }
     if (ShowControls) {

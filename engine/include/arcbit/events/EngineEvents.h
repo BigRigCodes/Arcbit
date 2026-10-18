@@ -51,6 +51,10 @@ namespace EngineEvents
     constexpr std::string_view GameSavedName  = "engine.game.saved";
     constexpr std::string_view GameLoadedName = "engine.game.loaded";
 
+    // The player-visible language changed (Application::SetLanguage). from,
+    // to: locale codes.
+    constexpr std::string_view LocaleChangedName = "engine.locale.changed";
+
     constexpr EventId SceneLoaded        = MakeEvent(SceneLoadedName);
     constexpr EventId SceneUnloaded      = MakeEvent(SceneUnloadedName);
     constexpr EventId SceneSuspended     = MakeEvent(SceneSuspendedName);
@@ -64,6 +68,7 @@ namespace EngineEvents
     constexpr EventId EntityInteracted   = MakeEvent(EntityInteractedName);
     constexpr EventId GameSaved          = MakeEvent(GameSavedName);
     constexpr EventId GameLoaded         = MakeEvent(GameLoadedName);
+    constexpr EventId LocaleChanged      = MakeEvent(LocaleChangedName);
 
     // Every engine event name - each EventBus registers them all, so they're
     // reserved and named in logs from the start.
@@ -71,7 +76,7 @@ namespace EngineEvents
         SceneLoadedName,        SceneUnloadedName,      SceneSuspendedName, SceneResumedName,
         InputDeviceChangedName, WindowFocusChangedName, WindowResizedName,  SettingsChangedName,
         EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
-        EntityInteractedName,
+        EntityInteractedName,   LocaleChangedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

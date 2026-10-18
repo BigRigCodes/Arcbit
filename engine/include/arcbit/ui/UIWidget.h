@@ -106,6 +106,18 @@ public:
     // widget to handle cursor movement directly. TextInput sets this when focused.
     [[nodiscard]] virtual bool ConsumesFocusNav() const { return false; }
 
+    // While ConsumesFocusNav: the arrows / D-pad step (+1 down, -1 up) that
+    // would have moved focus (an open Dropdown moves its highlight).
+    virtual void OnNavStep(i32 /*step*/) {}
+
+    // While ConsumesFocusNav: Back was pressed. True if the widget dealt with
+    // it (an open Dropdown closes); false lets the widget lose focus.
+    virtual bool OnBackKey() { return false; }
+
+    // While focused: whether typing should arrive as text (the OS's text
+    // input on, the game's keys held back).
+    [[nodiscard]] virtual bool WantsTextInput() const { return ConsumesFocusNav(); }
+
     // The rect this widget lays its children out in, given its own: itself
     // for most widgets, a ScrollPanel's scrolled content area. Everything that
     // places children - update, draw, click-to-focus - goes through it, so a
@@ -143,6 +155,10 @@ public:
 
     void ClearChildren() { _children.clear(); }
 
+    // The language changed (Loc's generation moved): this widget and every
+    // descendant re-read their text keys. UIScreen calls it.
+    void LocaleChangedTree();
+
     // Search this widget and all descendants by Name. Returns nullptr if not found.
     [[nodiscard]] UIWidget* FindDescendant(std::string_view name);
     
@@ -167,6 +183,9 @@ protected:
     virtual void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
                            TextureHandle whiteTex, SamplerHandle whiteSampler,
                            const UISkin& skin) = 0;
+
+    // Re-read text from its key (Label::TextKey and the like).
+    virtual void OnLocaleChanged() {}
 
     // Focus lifecycle hooks — called by UIScreen during focus navigation.
     virtual void OnFocusGained() {}

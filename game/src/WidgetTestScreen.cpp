@@ -1,5 +1,7 @@
 #include "WidgetTestScreen.h"
 
+#include <arcbit/core/Loc.h>
+
 #include <arcbit/input/InputManager.h>
 
 #include <format>
@@ -36,9 +38,10 @@ void WidgetTestScreen::WireWidgets()
     _sliderLabel = FindWidget<Label>("slider-val");
     if (auto* sl = FindWidget<Slider>("volume-slider")) {
         _sliderVal = sl->Value;
+        if (_sliderLabel) _sliderLabel->Text = Percent(_sliderVal); // in the language's own style ("50 %")
         sl->OnChanged = [this](const f32 v) {
             _sliderVal = v;
-            if (_sliderLabel) _sliderLabel->Text = std::format("{:.0f}%", v * 100.0f);
+            if (_sliderLabel) _sliderLabel->Text = Percent(v);
             UpdateOutput();
         };
     }
@@ -64,29 +67,39 @@ void WidgetTestScreen::WireWidgets()
     }
 }
 
+std::string WidgetTestScreen::Percent(const f32 value)
+{
+    return Loc::Format("ui.common.percent", { { "value", static_cast<i32>(std::round(value * 100.0f)) } });
+}
+
+void WidgetTestScreen::OnLocaleChanged()
+{
+    if (_sliderLabel) _sliderLabel->Text = Percent(_sliderVal);
+    UpdateOutput();
+}
+
 void WidgetTestScreen::UpdateOutput()
 {
     auto* out = FindWidget<Label>("output");
     if (!out) return;
 
-    static const char* kQualities[] = { "Low", "Medium", "High", "Ultra" };
-    static const char* kDiffs[]     = { "Easy", "Normal", "Hard" };
+    static const char* Qualities[]    = { "demo.widgets.quality.low", "demo.widgets.quality.medium",
+                                          "demo.widgets.quality.high", "demo.widgets.quality.ultra" };
+    static const char* Difficulties[] = { "demo.widgets.difficulty.easy", "demo.widgets.difficulty.normal",
+                                          "demo.widgets.difficulty.hard" };
+    const auto pick  = [](const auto& keys, const i32 index) -> std::string {
+        return index >= 0 && index < static_cast<i32>(std::size(keys)) ? Loc::Get(keys[index]) : "?";
+    };
+    const auto value = [](const std::string& text) { return text.empty() ? Loc::Get("demo.widgets.empty") : text; };
+    const auto onOff = [](const bool on) { return Loc::Get(on ? "ui.common.on" : "ui.common.off"); };
 
-    const std::string_view quality =
-        (_dropIdx >= 0 && _dropIdx < 4) ? kQualities[_dropIdx] : "?";
-    const std::string_view diff =
-        (_radioIdx >= 0 && _radioIdx < 3) ? kDiffs[_radioIdx] : "?";
-
-    out->Text = std::format(
-        "Text: \"{}\"   Number: {}   Volume: {:.0f}%\n"
-        "Quality: {}   Feature: {}   Difficulty: {}   Auto-Save: {}",
-        _textVal.empty() ? "(empty)" : _textVal,
-        _numStr.empty()  ? "(empty)" : _numStr,
-        _sliderVal * 100.0f,
-        quality,
-        _checked   ? "ON" : "OFF",
-        diff,
-        _switchOn  ? "ON" : "OFF");
+    out->Text = Loc::Format("demo.widgets.output", { { "text", value(_textVal) },
+                                                     { "number", value(_numStr) },
+                                                     { "volume", Percent(_sliderVal) },
+                                                     { "quality", pick(Qualities, _dropIdx) },
+                                                     { "feature", onOff(_checked) },
+                                                     { "difficulty", pick(Difficulties, _radioIdx) },
+                                                     { "autosave", onOff(_switchOn) } });
 }
 
 } // namespace Arcbit

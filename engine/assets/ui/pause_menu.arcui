@@ -98,6 +98,17 @@
           "zorder":   2
         },
         {
+          "type":     "Button",
+          "name":     "game-btn",
+          "text_key": "ui.pause.game",
+          "size":     [240, 44],
+          "anchor":   [0.5, 0.0],
+          "pivot":    [0.5, 0.0],
+          "offset":   [0, 408],
+          "focusable": true,
+          "zorder":   2
+        },
+        {
           "type":       "Button",
           "name":       "quit-btn",
           "text_key":   "ui.pause.quit",

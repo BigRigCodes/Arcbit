@@ -12,6 +12,7 @@ find_path(SOL2_INCLUDE_DIRS "sol/abort.hpp" REQUIRED) # sol2: header-only C++ bi
 add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
+    src/ApplicationLocale.cpp
     src/ApplicationSaves.cpp
     src/DebugConsole.cpp
     src/UserFolder.cpp
@@ -35,6 +36,7 @@ add_library(arcbit-engine STATIC
     src/SaveThumbnail.cpp
     src/ScriptEngine.cpp
     src/ScriptLibrary.cpp
+    src/ScriptLoc.cpp
     src/ScriptEntity.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
@@ -58,6 +60,7 @@ add_library(arcbit-engine STATIC
     src/TileAtlas.cpp
     src/TileMap.cpp
     src/Font.cpp
+    src/FontSdf.cpp
     src/UIWidget.cpp
     src/UIScreen.cpp
     src/Widgets.cpp
@@ -73,11 +76,18 @@ add_library(arcbit-engine STATIC
     src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
     src/ConfirmScreen.cpp
+    src/GameSettingsScreen.cpp
     src/SaveSlotScreen.cpp
     src/SavingIndicator.cpp
+    src/Screenshot.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp
     src/Loc.cpp
+    src/LocCheck.cpp
+    src/LocFormat.cpp
+    src/LocPlural.cpp
+    src/LocPseudo.cpp
+    src/Utf8.cpp
     src/SpatialHash.cpp
     src/PhysicsWorld.cpp
     src/Narrowphase.cpp

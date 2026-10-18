@@ -299,6 +299,7 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 | Field         | Type                              | Description                                      |
 |---------------|-----------------------------------|--------------------------------------------------|
 | `placeholder` | string                            | Greyed text shown when the field is empty        |
+| `placeholder_key` | string                        | Localization key — overrides `placeholder`       |
 | `max_length`  | unsigned int                      | Maximum character count (0 = unlimited)          |
 | `mode`        | `"text"` / `"numeric"` / `"regex"` | Input filter (`regex` uses `pattern`)            |
 | `pattern`     | string                            | Regex used by `mode = "regex"`                   |
@@ -311,6 +312,9 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 | `min`   | float | Minimum value                               |
 | `max`   | float | Maximum value                               |
 | `step`  | float | Quantization step (0 = continuous)          |
+| `style` | `"line"` / `"bar"` | `line`: a thin track and thumb. `bar`: drawn like a ProgressBar (`ProgressBg` / `ProgressFill`, full height) with a slim handle - the audio settings' volumes |
+
+A press anywhere on a slider jumps there and drags.
 
 **Dropdown**
 
@@ -318,6 +322,10 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 |------------|-----------------|----------------------------------------------|
 | `selected` | int             | Index of the initially selected item         |
 | `items`    | array of string | Selectable item labels                       |
+| `item_keys` | array of string | Localization keys — override `items`        |
+| `filter_threshold` | int     | With more items, typing filters the open list (default 8) |
+| `max_visible` | int          | Rows shown before the list scrolls (default 8) |
+| `item_height` | float        | Row height of the open list (default 28)     |
 
 **Checkbox**
 
@@ -393,16 +401,17 @@ the file rather than in code:
 
 ### Localization
 
-Labels and buttons support a `"text_key"` field. When present, `UILoader` passes
-the key through `Loc::Get(key)` instead of using the literal `"text"` value.
-This allows the same `.arcui` file to display in any language without modification.
+Player text in a layout is a key: `"text_key"` (Label, Button,
+NineSliceButton), `"label_key"` (Checkbox), `"placeholder_key"` (TextInput),
+`"item_keys"` (Dropdown, RadioGroup). The widget keeps the key and shows it in
+the player's language - again whenever the language changes.
 
 ```json
 { "type": "Button", "name": "resume-btn", "text_key": "ui.pause.resume" }
 ```
 
-The fallback if a key has no translation is the key string itself, which makes
-`.arcui` files readable as documentation even without a translation file loaded.
+A key with no string anywhere shows as the key itself. See
+[localization.md](localization.md).
 
 ### Full example
 
@@ -567,6 +576,38 @@ does this: gamepad Start swaps the demo switcher for the pause menu, Escape
 just closes the switcher.
 
 ---
+
+## Fonts and text
+
+Text is UTF-8 everywhere: labels, buttons, text inputs (which move, delete
+and count by character) and `DrawText`.
+
+`FontAtlas` bakes a TTF or OTF font into 1024x1024 atlas pages:
+
+- **At load**, a set of codepoint ranges - by default `FontAtlas::DefaultGlyphs()`:
+  Latin-1, Latin Extended-A and common punctuation, enough for English,
+  French, Spanish, German, Portuguese, Polish, Czech and more.
+- **Anything else** is baked the first time it's drawn, onto a new page if
+  needed; the new pixels reach the GPU before that frame renders
+  (`FontAtlas::UploadAll`, called by `Application`). `Prepare(text)` bakes a
+  text's glyphs ahead, so drawing it later doesn't stop to rasterize.
+- **Fallbacks:** a codepoint the font lacks comes from its fallback faces
+  (`AddFallback`), then the shared ones every font uses
+  (`FontAtlas::SetSharedFallbacks` - a Japanese face, say), drawn at the
+  font's em size. Faces are `FontFace::Load(path)`, shared between atlases.
+- **Still missing:** a box, so a missing glyph is visible rather than silent.
+  Space characters (no-break, narrow no-break, thin) and the UI triangles
+  (up, down, left, right) a font lacks are drawn by the engine.
+
+SDF fonts (all UI text) work with OpenType/CFF fonts as well as TrueType:
+CFF outlines are rasterized large and turned into a distance field there,
+since stb_truetype's own SDF can't read their curves.
+
+`WrapText` (and `"word_wrap"` labels) break lines at spaces and between
+Chinese / Japanese characters, never before closing punctuation (`。`,
+`、`, small kana), and break a word wider than the line between letters.
+Right-to-left text and complex shaping (Arabic, Hebrew, Thai, Hindi) aren't
+supported yet.
 
 ## Theming (UISkin)
 

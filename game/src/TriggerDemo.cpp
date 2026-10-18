@@ -314,7 +314,7 @@ protected:
 
     void UpdateHud()
     {
-        if (_hud && _hud->Count) _hud->Count->Text = std::format("Coins: {} / {}", _coins, CoinTiles.size());
+        if (_hud && _hud->Count) _hud->Count->Text = Loc::Format("demo.triggers.coins", { { "count", _coins }, { "total", CoinTiles.size() } });
     }
 
     void SetTint(const Entity e, const Color tint) { if (auto* sr = GetWorld().GetComponent<SpriteRenderer>(e)) sr->Tint = tint; }

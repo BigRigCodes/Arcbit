@@ -180,10 +180,7 @@ protected:
         GetApp().GetDevice().DestroySampler(_linearSampler);
         GetApp().GetDevice().DestroySampler(_sampler);
 
-        if (_bitmapFont.IsValid()) {
-            GetApp().GetDevice().DestroyTexture(_bitmapFont.GetTexture());
-            GetApp().GetDevice().DestroySampler(_bitmapFont.GetSampler());
-        }
+        _bitmapFont.Release(GetApp().GetDevice());
     }
 
 private:
@@ -706,7 +703,7 @@ private:
         _hud->GetManaBar()->Value   = 0.425f + 0.375f * std::sin(_simTime * 0.524f + 1.0f);
 
         _hud->GetFpsLabel()->Visible = Settings::Graphics.ShowFps;
-        _hud->GetFpsLabel()->Text    = std::format("FPS: {:.0f}", GetApp().GetFPS());
+        _hud->GetFpsLabel()->Text    = Loc::Format("demo.world.fps", { { "fps", static_cast<i32>(std::round(GetApp().GetFPS())) } });
     }
 
 private:

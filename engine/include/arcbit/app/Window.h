@@ -5,6 +5,10 @@
 #include <functional>
 #include <string_view>
 
+#include <string>
+
+#include <vector>
+
 namespace Arcbit {
 
 // ---------------------------------------------------------------------------
@@ -41,9 +45,14 @@ public:
         u32         Width     = 1280;
         u32         Height    = 720;
         bool        Resizable = true;
+        i32         Display   = -1; // which monitor (0 = the first) to center on; -1 = the OS's choice
     };
 
     explicit Window(const Desc& desc);
+
+    // The user's languages, most preferred first, as locale codes ("fr-CA",
+    // "ja") - from the OS settings; empty if it doesn't say.
+    [[nodiscard]] static std::vector<std::string> GetPreferredLanguages();
     ~Window();
 
     // Non-copyable — owns an OS window handle.

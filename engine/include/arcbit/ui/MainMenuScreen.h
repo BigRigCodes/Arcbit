@@ -30,6 +30,7 @@ public:
     std::function<void()> OnAudioSettings;
     std::function<void()> OnGraphicsSettings;
     std::function<void()> OnCredits;
+    std::function<void()> OnGameSettings; // Application::ShowGameSettingsScreen
     std::function<void()> OnQuit;
 
     bool ShowContinue         = false;
@@ -38,6 +39,7 @@ public:
     bool ShowAudioSettings    = true;
     bool ShowGraphicsSettings = true;
     bool ShowCredits          = false;
+    bool ShowGameSettings     = true; // shown only with OnGameSettings set
 
     MainMenuScreen() { BlocksInput = true; TransitionSpeed = 6.0f; }
 
@@ -45,6 +47,7 @@ public:
     void OnBackPressed() override;
 
 private:
+    [[nodiscard]] bool HasGameSettings() const { return ShowGameSettings && OnGameSettings; }
     void BuildFallback();
 };
 } // namespace Arcbit

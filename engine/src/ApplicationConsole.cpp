@@ -3,6 +3,7 @@
 // Application.cpp, which owns the main loop.
 
 #include <arcbit/app/Application.h>
+#include <arcbit/core/Loc.h>
 
 #include <arcbit/core/Log.h>
 #include <arcbit/ecs/Components.h>
@@ -120,6 +121,17 @@ void Application::ToggleConsole()
     _ui.Push(std::move(screen));
 }
 
+// The keys a language has no string for, a screenful at most.
+void Application::PrintMissing(const std::string_view code)
+{
+    constexpr usize                Shown   = 40;
+    const std::vector<std::string> missing = Loc::GetMissing(code);
+    const std::string_view         name    = code.empty() ? std::string_view(Loc::GetLanguage()) : code;
+    _debugConsole.Print(std::format("{}: {} key(s) missing", name, missing.size()));
+    for (usize i = 0; i < std::min(missing.size(), Shown); ++i) _debugConsole.Print("  " + missing[i]);
+    if (missing.size() > Shown) _debugConsole.Print(std::format("  ... and {} more", missing.size() - Shown));
+}
+
 void Application::RegisterConsoleCommands()
 {
     using Args = DebugConsole::Args;
@@ -162,7 +174,24 @@ void Application::RegisterConsoleCommands()
         PhysicsWorld& physics = scene().GetPhysics();
         physics.SetDebugDraw(!physics.GetDebugDraw());
     } });
+    _debugConsole.Register({ .Name = "lang", .Help = "lang [code] - list the languages, or switch to one",
+                             .Run = [this](const Args& a) {
+                                 if (!a.empty()) {
+                                     if (!SetLanguage(a[0])) throw std::runtime_error(std::format("no language '{}'", a[0]));
+                                     return;
+                                 }
+                                 for (const Loc::Locale& locale : Loc::GetLocales())
+                                     _debugConsole.Print(std::format("{} {} - {}", locale.Code == Loc::GetLanguage() ? '*' : ' ',
+                                                                     locale.Code, locale.Name));
+                             } });
+    _debugConsole.Register({ .Name = "loc.missing", .Help = "loc.missing [code] - English keys a language lacks",
+                             .Run = [this](const Args& a) { PrintMissing(a.empty() ? "" : a[0]); } });
     _debugConsole.Register({ .Name = "quit", .Help = "quit - close the game", .Run = [this](const Args&) { RequestShutdown(); } });
+    _debugConsole.Register({ .Name = "screenshot", .Help = "screenshot - save the screen (without the console) as a PNG",
+                             .Run = [this](const Args&) {
+                                 if (_consoleScreen) ToggleConsole(); // out of the picture
+                                 Screenshot();
+                             } });
 }
 
 void Application::RegisterSaveCommands()

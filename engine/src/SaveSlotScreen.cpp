@@ -21,9 +21,9 @@ namespace
     std::string SlotName(const SaveSlot slot)
     {
         switch (slot.Type) {
-            case SaveSlot::Kind::Auto: return std::format("{} {}", Loc::Get("ui.saves.auto"), slot.Index);
+            case SaveSlot::Kind::Auto: return Loc::Format("ui.saves.auto", { { "index", slot.Index } });
             case SaveSlot::Kind::Quick: return Loc::Get("ui.saves.quick");
-            default: return std::format("{} {}", Loc::Get("ui.saves.manual"), slot.Index);
+            default: return Loc::Format("ui.saves.manual", { { "index", slot.Index } });
         }
     }
 
@@ -34,20 +34,11 @@ namespace
         return std::format("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60);
     }
 
-    // Local time, "2026-10-17 13:42".
-    std::string FormatDate(const i64 unixSeconds)
-    {
-        const std::time_t time = unixSeconds;
-        std::tm           local{};
-        if (localtime_s(&local, &time) != 0) return {};
-        return std::format("{:04}-{:02}-{:02} {:02}:{:02}", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
-                           local.tm_hour, local.tm_min);
-    }
-
     std::string Details(const SaveMetadata& meta)
     {
-        return std::format("{}      {} {}      {}", meta.Scene, Loc::Get("ui.saves.played"), FormatPlaytime(meta.Playtime),
-                           FormatDate(meta.SavedAt));
+        return Loc::Format("ui.saves.details", { { "scene", meta.Scene },
+                                                 { "time", FormatPlaytime(meta.Playtime) },
+                                                 { "saved", meta.SavedAt } });
     }
 } // namespace
 
