@@ -48,6 +48,7 @@ void ConsoleScreen::OnEnter()
     _input->ZOrder      = 2;
     _input->Placeholder = "command, or Lua - try help";
     _input->OnConfirm   = [this](const std::string& line) { Submit(line); };
+    _input->OnChanged   = [this](const std::string&) { Suggest(); };
 
     _shownVersion = ~0ull;
     ShowLines();
@@ -66,11 +67,17 @@ void ConsoleScreen::OnTick(f32, const InputManager& input)
         std::string text = _input->Text;
         std::erase_if(text, [](const char c) { return c == '`' || c == '~'; });
         _input->SetText(std::move(text));
+        Suggest();
     }
     if (GetFocusedWidget() != _input) FocusAt(0);
     if (input.JustPressed(ActionHistoryUp)) Recall(-1);
     if (input.JustPressed(ActionHistoryDown)) Recall(1);
     if (input.JustPressed(ActionComplete)) CompleteCommand();
+}
+
+void ConsoleScreen::Suggest()
+{
+    if (_input) _input->Suggestion = Console ? Console->Suggest(_input->Text) : "";
 }
 
 void ConsoleScreen::OnUpdate(f32)
@@ -110,6 +117,7 @@ void ConsoleScreen::Submit(const std::string& line)
     _input->SetText("");
     _historyCursor = -1;
     if (Console) Console->Execute(command);
+    Suggest();
 }
 
 // Up: older lines; Down: newer, then back to an empty line.
@@ -121,14 +129,23 @@ void ConsoleScreen::Recall(const i32 step)
     at              = std::clamp(at + step, 0, count);
     _historyCursor  = at == count ? -1 : at;
     _input->SetText(_historyCursor < 0 ? "" : Console->GetHistory()[_historyCursor]);
+    Suggest();
 }
 
-// One match fills in; several are listed.
+// Tab takes the suggestion; with none, several matching commands are listed.
 void ConsoleScreen::CompleteCommand()
 {
+    if (!_input->Suggestion.empty()) {
+        _input->SetText(_input->Text + _input->Suggestion);
+        Suggest();
+        return;
+    }
     if (!Console || _input->Text.empty() || _input->Text.find(' ') != std::string::npos) return;
     const std::vector<std::string> matches = Console->Complete(_input->Text);
-    if (matches.size() == 1) _input->SetText(matches.front() + " ");
+    if (matches.size() == 1) {
+        _input->SetText(matches.front() + " ");
+        Suggest();
+    }
     else if (matches.size() > 1) {
         std::string list;
         for (const std::string& name : matches) list += name + "  ";

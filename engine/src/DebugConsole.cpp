@@ -84,6 +84,19 @@ std::vector<std::string> DebugConsole::Complete(const std::string_view prefix) c
     return names;
 }
 
+std::string DebugConsole::Suggest(const std::string_view line) const
+{
+    if (line.empty()) return {};
+    if (line.find(' ') == std::string_view::npos)
+        for (const std::string& name : _commands | std::views::keys)
+            if (name.size() > line.size() && name.starts_with(line)) return name.substr(line.size());
+    if (CompleteLua) {
+        const std::vector<std::string> rest = CompleteLua(line);
+        if (!rest.empty()) return rest.front();
+    }
+    return {};
+}
+
 DebugConsole::Args DebugConsole::Split(const std::string_view line)
 {
     Args        words;

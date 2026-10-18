@@ -59,10 +59,16 @@ public:
     // Command names starting with `prefix`, sorted - for Tab.
     [[nodiscard]] std::vector<std::string> Complete(std::string_view prefix) const;
 
+    // The likeliest rest of the line as typed so far ("lp" for "he"): a
+    // command name while the first word is being typed, else whatever
+    // CompleteLua offers for the name at the end. Empty if nothing fits.
+    [[nodiscard]] std::string Suggest(std::string_view line) const;
+
     // Words, with "quoted text" kept as one.
     [[nodiscard]] static Args Split(std::string_view line);
 
     std::function<void(std::string_view code)> RunLua;  // what isn't a command; null = "unknown command"
+    std::function<std::vector<std::string>(std::string_view line)> CompleteLua; // remainders, sorted (ScriptEngine::Complete)
     std::function<void(std::string_view what)> OnCheat; // a cheat command (or Lua) ran
     size_t                                     MaxLines = 400;
 

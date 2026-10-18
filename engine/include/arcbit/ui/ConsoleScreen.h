@@ -53,6 +53,7 @@ private:
     void Submit(const std::string& line);
     void Recall(i32 step);
     void CompleteCommand();
+    void Suggest(); // the line changed: predict its end again
 };
 
 // ---------------------------------------------------------------------------

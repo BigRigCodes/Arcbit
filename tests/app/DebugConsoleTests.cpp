@@ -72,3 +72,18 @@ TEST_CASE("Output keeps the newest lines", "[console]")
     console.Print("c\nd");
     CHECK(Strings(console.GetLines().begin(), console.GetLines().end()) == Strings{ "b", "c", "d" });
 }
+
+TEST_CASE("Suggest predicts a command name, else asks Lua", "[console]")
+{
+    DebugConsole console;
+    console.Register({ .Name = "scene", .Help = "scene", .Run = [](const DebugConsole::Args&) {} });
+    CHECK(console.Suggest("he") == "lp");
+    CHECK(console.Suggest("help").empty()); // already whole
+    CHECK(console.Suggest("").empty());
+
+    console.CompleteLua = [](const std::string_view line) {
+        return line == "Save.G" ? Strings{ "et", "etAll" } : Strings{};
+    };
+    CHECK(console.Suggest("Save.G") == "et"); // the first, sorted
+    CHECK(console.Suggest("help sc").empty());
+}

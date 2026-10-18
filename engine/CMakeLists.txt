@@ -40,6 +40,7 @@ add_library(arcbit-engine STATIC
     src/ScriptTasks.cpp
     src/ScriptScreens.cpp
     src/ScriptReload.cpp
+    src/ScriptComplete.cpp
     src/ScriptConsole.cpp
     src/ConsoleScreen.cpp
     src/ApplicationConsole.cpp

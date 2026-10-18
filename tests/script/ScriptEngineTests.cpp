@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -115,4 +116,20 @@ TEST_CASE("Vec2 is a value type with arithmetic", "[script]")
     CHECK(lua.Run("tostring(Vec2(1, 2) + Vec2(2, 2) * 2)").Values == Values{ "Vec2(5, 6)" });
     CHECK(lua.Run("(-Vec2(1, 0)).X, Vec2(1, 1) == Vec2(1, 1)").Values == Values{ "-1.0", "true" });
     CHECK_FALSE(lua.Run("Vec2('a', {})").Ok); // a script's mistake is an error, not a crash
+}
+
+TEST_CASE("Complete finishes the name being typed from what's really there", "[script]")
+{
+    ScriptEngine lua;
+    REQUIRE(lua.Run("pos = Vec2(1, 2)").Ok);
+    const auto has = [](const Values& list, const char* rest) { return std::ranges::find(list, rest) != list.end(); };
+
+    CHECK(has(lua.Complete("Ent"), "ity"));                // a global
+    CHECK(has(lua.Complete("print(Log.Wa"), "rn"));        // a table's key, mid-expression
+    CHECK(has(lua.Complete("string.up"), "per"));          // a library
+    CHECK(has(lua.Complete("Entity.Fi"), "nd"));           // a bound type's statics
+    CHECK(has(lua.Complete("pos:Len"), "gth"));            // a value's methods
+    CHECK(lua.Complete("Log.__").empty());                 // internals stay hidden
+    CHECK(lua.Complete("Nope.x").empty());
+    CHECK(lua.Complete("12").empty());
 }

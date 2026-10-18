@@ -89,7 +89,8 @@ void Application::StartConsole()
         for (const std::string& value : result.Values) values += (values.empty() ? "" : "\t") + value;
         if (!values.empty()) _debugConsole.Print(values);
     };
-    _debugConsole.OnCheat = [this](std::string_view) { _saves.Data().Set(CheatsUsedKey, true); };
+    _debugConsole.OnCheat     = [this](std::string_view) { _saves.Data().Set(CheatsUsedKey, true); };
+    _debugConsole.CompleteLua = [this](const std::string_view line) { return _scriptEngine.Complete(line); };
     _scriptEngine.SetOutput([this](const std::string_view line) { _debugConsole.Print(line); });
     _scriptEngine.SetErrorHandler([this](const std::string_view error) {
         _debugConsole.Print(error);

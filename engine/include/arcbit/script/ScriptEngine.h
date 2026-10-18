@@ -96,6 +96,12 @@ public:
     // Load a module as require would (cached after the first time).
     ScriptResult Require(std::string_view module);
 
+    // The console's predictive completion: for the name being typed at the
+    // end of `line` ("Entity.Fi", "pos:Len", "Sav"), what would complete it,
+    // sorted ("nd" for "Entity.Fi") - from the console's globals, a table's
+    // keys and a bound type's methods.
+    [[nodiscard]] std::vector<std::string> Complete(std::string_view line);
+
     // Where print and Log output goes, besides the log - the console.
     void SetOutput(std::function<void(std::string_view line)> output);
 

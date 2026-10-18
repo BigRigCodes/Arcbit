@@ -33,6 +33,11 @@ public:
     std::function<void(const std::string&)> OnChanged;
     std::function<void(const std::string&)> OnConfirm;
 
+    // What typing would most likely go on with ("lp" after "he"), drawn
+    // dimmed after the text while the cursor is at its end. The owner fills
+    // it in and decides what accepts it (the console: Tab).
+    std::string Suggestion;
+
     TextInput() { Focusable = true; }
 
     // Replace the text and put the cursor at its end - for code changing the

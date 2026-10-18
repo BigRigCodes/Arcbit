@@ -83,3 +83,15 @@ TEST_CASE("Up recalls the last line, ready to edit at its end", "[console][ui]")
     f.Type(" clear");
     CHECK(f.line->Text == "help clear");
 }
+
+TEST_CASE("The line shows a suggestion that Tab takes", "[console][ui]")
+{
+    Fixture f;
+    f.input.RegisterAction(ConsoleScreen::ActionComplete, "Console_Complete");
+    f.input.BindKey(ConsoleScreen::ActionComplete, Key::Tab);
+    f.Type("he");
+    CHECK(f.line->Suggestion == "lp");
+    f.Press(SDL_SCANCODE_TAB);
+    CHECK(f.line->Text == "help");
+    CHECK(f.line->Suggestion.empty());
+}

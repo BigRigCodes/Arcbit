@@ -284,6 +284,15 @@ void TextInput::OnCollect(FramePacket&        packet, const UIRect          myRe
         clip(mark);
     }
 
+    // The suggestion, dimmed, right after the text.
+    if (_focused && !Suggestion.empty() && _cursor == Text.size()) {
+        const f32    sx   = textX + MeasureTextWidth(*skin.Font, Text, skin.FontScale);
+        const size_t mark = packet.UISprites.size();
+        DrawTextUI(packet, *skin.Font, Suggestion, {sx, textY}, skin.FontScale,
+                   WithAlpha(skin.InputPlaceholder, effectiveOpacity), TextLayer(*this, skin));
+        clip(mark);
+    }
+
     // Cursor — 2px wide, blinks at 0.5s on / 0.5s off
     if (_focused && !HasSelection() && _cursorBlink < 0.5f) {
         const f32 cx = myRect.X + pad + MeasureTextWidth(*skin.Font, Text.substr(0, _cursor), skin.FontScale) -
