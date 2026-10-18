@@ -2,6 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "name": "arcbit",
     "version-string": "0.1.0",
+    "builtin-baseline": "83375d1ded4878305df9f5272f360f4f80ee0d83",
     "dependencies": [
         {
             "name": "sdl3",

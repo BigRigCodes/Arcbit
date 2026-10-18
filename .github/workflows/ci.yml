@@ -1,0 +1,91 @@
+# Builds the engine and runs the unit tests: on every pull request into
+# master, on pushes to master, by hand (Actions tab), and from other
+# workflows (a release workflow calls this first).
+#
+# The tests are headless - no window or GPU device - so a stock runner does.
+# vcpkg packages built here are cached, so only the first run (or a change
+# to vcpkg.json / the triplet) builds them from source.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: windows-2022 # Visual Studio 2022 (v143): the toolset cmake/triplets pins vcpkg to
+    timeout-minutes: 90
+    env:
+      VULKAN_SDK_VERSION: 1.4.341.1
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\.vcpkg-cache,readwrite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Configuring needs the SDK's headers, loader and glslc (shaders), even
+      # though the tests never create a device.
+      - name: Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: ${{ env.VULKAN_SDK_VERSION }}
+          install_runtime: true
+          cache: true
+          stripdown: true
+
+      - name: Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # vcpkg checked out at vcpkg.json's builtin-baseline, so CI builds the
+      # same library versions as a developer's machine. After the MSVC step,
+      # so its VCPKG_ROOT (Visual Studio's own vcpkg) doesn't win.
+      - name: vcpkg
+        shell: pwsh
+        run: |
+          $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          $root     = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git clone --filter=blob:none --quiet https://github.com/microsoft/vcpkg.git $root
+          git -C $root checkout --quiet $baseline
+          & (Join-Path $root 'bootstrap-vcpkg.bat') -disableMetrics
+          "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Restore built packages
+        id: packages
+        uses: actions/cache/restore@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
+          restore-keys: vcpkg-
+
+      # Installs the vcpkg packages (from the cache, or built) and generates.
+      - name: Configure
+        run: cmake --preset debug
+
+      # Saved even if a later step fails, so a failing test doesn't mean
+      # rebuilding every package on the next run.
+      - name: Save built packages
+        if: always() && steps.packages.outputs.cache-hit != 'true' && hashFiles('.vcpkg-cache/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .vcpkg-cache
+          key: ${{ steps.packages.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cmake --build --preset debug --target arcbit-tests arcbit-loc
+
+      - name: Test
+        run: ctest --test-dir build/debug --output-on-failure
