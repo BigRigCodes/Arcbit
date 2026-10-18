@@ -9,6 +9,7 @@ add_executable(arcbit-tests
     app/DebugConsoleTests.cpp
     assets/SpriteSheetTests.cpp
     audio/VolumeTests.cpp
+    core/LocCheckTests.cpp
     core/LocTests.cpp
     core/MathTests.cpp
     core/Utf8Tests.cpp

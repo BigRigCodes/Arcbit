@@ -11,6 +11,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace Arcbit
@@ -112,6 +113,10 @@ public:
     // Languages without built-in rules count like English.
     [[nodiscard]] static std::string_view PluralForm(std::string_view language, f64 n);
 
+    // A language's own strings (its files, not what it falls back to), as
+    // key / text pairs sorted by key; empty for a language the game lacks.
+    [[nodiscard]] static std::vector<std::pair<std::string, std::string>> GetStrings(std::string_view code);
+
     // English keys a language (default: the active one) has no string for,
     // itself or through the language it's a region of - what's left to
     // translate. Sorted.
@@ -125,6 +130,14 @@ public:
     // Every string the active language can show (its own, then the ones it
     // falls back to) - to bake their glyphs ahead (FontAtlas::Prepare).
     static void ForEachString(const std::function<void(std::string_view)>& visit);
+
+    // The pseudo-locale "qps": every English string accented, padded about
+    // 35% and bracketed ("[Šáví Ğáñé ~~~~]"), so text that isn't localized
+    // and layouts too tight for a longer translation stand out. Debug builds
+    // add it; it follows English as English reloads.
+    static constexpr std::string_view PseudoCode = "qps";
+    static void                       AddPseudoLocale();
+    [[nodiscard]] static std::string  Pseudo(std::string_view english);
 
     // Forget every folder, language and string (tests; a full reload).
     static void Clear();

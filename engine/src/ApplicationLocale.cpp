@@ -23,6 +23,9 @@ void Application::StartLanguage()
 {
     Loc::AddFolder("assets/engine/locale");
     Loc::AddFolder(_config.LocaleFolder);
+#ifdef ARCBIT_DEBUG
+    Loc::AddPseudoLocale(); // "qps": find unlocalized text and tight layouts
+#endif
 
     std::string code;
     if (_config.Language && Loc::FindLocale(_config.Language)) code = _config.Language;

@@ -25,7 +25,11 @@ struct Language
     std::vector<std::filesystem::file_time_type> Stamps;  // each file's write time when last read
     Table                                        Strings; // all its files, once loaded
     bool                                         Loaded = false;
+    bool                                         Pseudo = false; // made from English, not files (qps)
 };
+
+// A language a player can pick: one with files, or the pseudo-locale.
+bool Available(const Language& language) { return !language.Files.empty() || language.Pseudo; }
 
 std::filesystem::file_time_type StampOf(const std::filesystem::path& file)
 {
@@ -100,8 +104,20 @@ void ReadMeta(const nlohmann::json& root, const std::filesystem::path& file, Loc
             }
 }
 
+Language* Find(std::string_view code);
+
 void LoadStrings(Language& language)
 {
+    if (language.Pseudo) { // from English, loaded first
+        Language* english = Find(Loc::English);
+        if (english && !english->Loaded) LoadStrings(*english);
+        language.Strings.clear();
+        if (english)
+            for (const auto& [key, text] : english->Strings) language.Strings[key] = Loc::Pseudo(text);
+        language.Loaded = true;
+        ++S().Generation;
+        return;
+    }
     language.Strings.clear();
     language.Stamps.clear();
     for (const auto& file : language.Files) {
@@ -170,7 +186,7 @@ std::vector<Loc::Locale> Loc::GetLocales()
 {
     std::vector<Locale> out;
     for (const auto& language : S().Languages | std::views::values)
-        if (!language.Files.empty()) out.push_back(language.Info);
+        if (Available(language)) out.push_back(language.Info);
     std::ranges::stable_partition(out, [](const Locale& l) { return Normalize(l.Code) == English; });
     return out;
 }
@@ -178,7 +194,7 @@ std::vector<Loc::Locale> Loc::GetLocales()
 const Loc::Locale* Loc::FindLocale(const std::string_view code)
 {
     const Language* language = Find(code);
-    return language && !language->Files.empty() ? &language->Info : nullptr;
+    return language && Available(*language) ? &language->Info : nullptr;
 }
 
 std::optional<std::string> Loc::Match(const std::span<const std::string> preferred)
@@ -194,7 +210,7 @@ std::optional<std::string> Loc::Match(const std::span<const std::string> preferr
 bool Loc::SetLanguage(const std::string_view code)
 {
     const Language* language = Find(code);
-    if (!language || language->Files.empty()) {
+    if (!language || !Available(*language)) {
         LOG_WARN(Engine, "Loc: no locale files for '{}'", code);
         return false;
     }
@@ -295,6 +311,16 @@ std::string Loc::Interpolate(const std::string_view text, const std::span<const 
     return out;
 }
 
+std::vector<std::pair<std::string, std::string>> Loc::GetStrings(const std::string_view code)
+{
+    Language* language = Find(code);
+    if (!language || !Available(*language)) return {};
+    if (!language->Loaded) LoadStrings(*language);
+    std::vector<std::pair<std::string, std::string>> out(language->Strings.begin(), language->Strings.end());
+    std::ranges::sort(out);
+    return out;
+}
+
 std::vector<std::string> Loc::GetMissing(const std::string_view code)
 {
     const std::string wanted = code.empty() ? S().Active : std::string(code);
@@ -315,7 +341,7 @@ u32 Loc::CheckReloads()
 {
     u32 reloaded = 0;
     for (auto& [code, language] : S().Languages) {
-        if (!language.Loaded) continue;
+        if (!language.Loaded || language.Pseudo) continue;
         bool changed = language.Stamps.size() != language.Files.size();
         for (usize i = 0; !changed && i < language.Files.size(); ++i) changed = StampOf(language.Files[i]) != language.Stamps[i];
         if (!changed) continue;
@@ -323,7 +349,18 @@ u32 Loc::CheckReloads()
         LOG_INFO(Engine, "Loc: reloaded '{}'", language.Info.Code);
         ++reloaded;
     }
+    if (reloaded > 0) // English may have changed: the pseudo-locale follows
+        for (auto& language : S().Languages | std::views::values)
+            if (language.Pseudo && language.Loaded) LoadStrings(language);
     return reloaded;
+}
+
+void Loc::AddPseudoLocale()
+{
+    Language& language = S().Languages[Normalize(PseudoCode)];
+    language.Info      = { .Code = std::string(PseudoCode), .Name = "[Pseudo]" };
+    language.Pseudo    = true;
+    language.Loaded    = false;
 }
 
 void Loc::ForEachString(const std::function<void(std::string_view)>& visit)

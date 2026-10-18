@@ -32,6 +32,7 @@ find_package(spdlog CONFIG REQUIRED)# via vcpkg
 add_subdirectory(core)      # logging, asserts, profiler — used by engine + backends
 add_subdirectory(engine)
 add_subdirectory(game)
+add_subdirectory(tools/loc) # arcbit-loc
 
 # Renderer backends — each is a standalone DLL loaded at runtime.
 add_subdirectory(backends/vulkan)
