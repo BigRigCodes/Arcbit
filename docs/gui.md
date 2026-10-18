@@ -568,6 +568,38 @@ just closes the switcher.
 
 ---
 
+## Fonts and text
+
+Text is UTF-8 everywhere: labels, buttons, text inputs (which move, delete
+and count by character) and `DrawText`.
+
+`FontAtlas` bakes a TTF or OTF font into 1024x1024 atlas pages:
+
+- **At load**, a set of codepoint ranges - by default `FontAtlas::DefaultGlyphs()`:
+  Latin-1, Latin Extended-A and common punctuation, enough for English,
+  French, Spanish, German, Portuguese, Polish, Czech and more.
+- **Anything else** is baked the first time it's drawn, onto a new page if
+  needed; the new pixels reach the GPU before that frame renders
+  (`FontAtlas::UploadAll`, called by `Application`). `Prepare(text)` bakes a
+  text's glyphs ahead, so drawing it later doesn't stop to rasterize.
+- **Fallbacks:** a codepoint the font lacks comes from its fallback faces
+  (`AddFallback`), then the shared ones every font uses
+  (`FontAtlas::SetSharedFallbacks` - a Japanese face, say), drawn at the
+  font's em size. Faces are `FontFace::Load(path)`, shared between atlases.
+- **Still missing:** a box, so a missing glyph is visible rather than silent.
+  Space characters (no-break, narrow no-break, thin) and the UI triangles
+  (up, down, left, right) a font lacks are drawn by the engine.
+
+SDF fonts (all UI text) work with OpenType/CFF fonts as well as TrueType:
+CFF outlines are rasterized large and turned into a distance field there,
+since stb_truetype's own SDF can't read their curves.
+
+`WrapText` (and `"word_wrap"` labels) break lines at spaces and between
+Chinese / Japanese characters, never before closing punctuation (`。`,
+`、`, small kana), and break a word wider than the line between letters.
+Right-to-left text and complex shaping (Arabic, Hebrew, Thai, Hindi) aren't
+supported yet.
+
 ## Theming (UISkin)
 
 `UISkin` is a plain data struct loaded from JSON (`LoadFromFile` / `SaveToFile`).
