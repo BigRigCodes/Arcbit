@@ -4,11 +4,13 @@
 
 #include "ScriptState.h"
 
+#include <arcbit/app/DebugConsole.h>
 #include <arcbit/ui/ScriptedScreen.h>
 
 #include <arcbit/core/Log.h>
 
 #include <array>
+#include <ranges>
 #include <cstdlib>
 
 namespace Arcbit
@@ -193,11 +195,15 @@ ScriptEngine::ScriptEngine(std::filesystem::path root, const ScriptLimits limits
     _state->Engine = this;
 }
 
-// Screens still open (Lua UI) hold references into the state: they let go
-// first, so nothing touches it once it's closed.
+// Screens still open (Lua UI) and console commands scripts registered hold
+// references into the state: they let go first, so nothing touches it once
+// it's closed.
 ScriptEngine::~ScriptEngine()
 {
     while (!_state->Screens.empty()) _state->Screens.begin()->second->DetachScripts();
+    if (_state->Services.Console)
+        for (const std::string& name : _state->ConsoleOwners | std::views::keys) _state->Services.Console->Unregister(name);
+    _state->ConsoleOwners.clear();
 }
 
 const std::filesystem::path& ScriptEngine::GetRoot() const { return _state->Root; }
