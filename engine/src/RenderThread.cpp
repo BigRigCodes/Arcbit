@@ -1030,8 +1030,10 @@ void RenderThread::RenderFrame(const FramePacket& packet)
     const u32 batchCount = DrawSpriteBatches(cmd, sorted, frameSlot, corrected, lightCount, lb);
     DrawLegacyCalls(cmd, corrected, frameSlot, lightCount, lb);
     if (packet.CaptureWorld) SplitForCapture(cmd, backbuffer, actualW, actualH);
-    DrawUIBatches(cmd, uiSorted, corrected, frameSlot);
+    // SDF text (DrawText: the debug overlay, labels in the world) goes under
+    // the UI, so menus and the console cover it rather than the other way round.
     DrawSDFBatches(cmd, sdfSorted, corrected, frameSlot);
+    DrawUIBatches(cmd, uiSorted, corrected, frameSlot);
 
     _device->EndRendering(cmd);
 
