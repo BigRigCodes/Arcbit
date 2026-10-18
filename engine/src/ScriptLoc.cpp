@@ -51,6 +51,12 @@ void ScriptEngine::State::BindLoc()
     loc.set_function("Interpolate", [](const std::string& text, const sol::optional<sol::table> args) {
         return Loc::Interpolate(text, ToArgs(args));
     });
+    loc.set_function("FormatNumber", [](const f64 value, const sol::optional<i32> decimals) {
+        return Loc::FormatNumber(value, decimals.value_or(-1));
+    });
+    loc.set_function("FormatDate", [](const i64 unixSeconds, const sol::optional<std::string> style) {
+        return Loc::FormatDate(unixSeconds, style.value_or("date"));
+    });
     loc.set_function("Language", [] { return Loc::GetLanguage(); });
     loc.set_function("Languages", [this] {
         sol::table out = Lua.create_table();

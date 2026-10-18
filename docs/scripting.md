@@ -186,6 +186,7 @@ player's language (docs/localization.md).
 | `Loc.Get(key)` | the string in the current language (else English, else the key itself) |
 | `Loc.Format(key, { name = "Ana", count = 3 })` | with `{name}` placeholders filled; a number named `count` picks the plural form |
 | `Loc.Interpolate(text, args)`, `Loc.Has(key)` | placeholders in text that isn't a key; whether a key has a string |
+| `Loc.FormatNumber(n, decimals)`, `Loc.FormatDate(os.time(), "datetime")` | a number or a time in the language's style |
 | `Loc.Language()`, `Loc.Languages()` | the current code (`"fr"`); every language as `{ Code, Name }` |
 | `Loc.SetLanguage(code)` | switch, as the Game settings screen does (saved, `engine.locale.changed` fires); false if there's no such language |
 

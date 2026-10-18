@@ -84,6 +84,7 @@ add_library(arcbit-engine STATIC
     src/InputWidgets.cpp
     src/Loc.cpp
     src/LocCheck.cpp
+    src/LocFormat.cpp
     src/LocPlural.cpp
     src/LocPseudo.cpp
     src/Utf8.cpp

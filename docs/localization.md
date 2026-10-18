@@ -9,6 +9,7 @@ follows at once.
 - [Locale files](#locale-files)
 - [Looking strings up](#looking-strings-up)
 - [Placeholders and plurals](#placeholders-and-plurals)
+- [Numbers and dates](#numbers-and-dates)
 - [Text that follows the language](#text-that-follows-the-language)
 - [The language](#the-language)
 - [Fonts and scripts](#fonts-and-scripts)
@@ -89,6 +90,40 @@ Loc::Format("demo.scripted.chest_found", { { "count", gold } });     // picks th
 
 Glue nothing together in code: `"Slot " + n` can't be reordered, `"Slot {index}"` can.
 
+## Numbers and dates
+
+A number in a placeholder takes the language's separators: `{count}` with
+12345 shows `12,345` in English, `12 345` in French. A spec after a colon
+changes that:
+
+| Placeholder | 1234.5 / a Unix time, in English | in French |
+|---|---|---|
+| `{n}` | `1,234.5` | `1 234,5` |
+| `{n:n2}` | `1,234.50` (fixed decimals, 0-9) | `1 234,50` |
+| `{n:raw}` | `1234.5` (as passed - a year, an id) | `1234.5` |
+| `{saved:date}` | `Oct 18, 2026` | `18 oct. 2026` |
+| `{saved:time}` | `5:42 PM` | `17:42` |
+| `{saved:datetime}` | `Oct 18, 2026, 5:42 PM` | `18 oct. 2026, 17:42` |
+
+Text arguments are never reformatted. `Loc::FormatNumber(value, decimals)`
+and `Loc::FormatDate(unixSeconds, "date" | "time" | "datetime")` do the same
+outside a string.
+
+The style is part of each language's file, as ordinary keys (so a regional
+language inherits its base's, and English's are the fallback):
+
+| Key | English | Notes |
+|---|---|---|
+| `loc.decimal`, `loc.group` | `.` `,` | French: `,` and U+202F |
+| `loc.group_from` | `4` | digits before grouping starts: Spanish and Polish use `5` (`1234`, `12 345`) |
+| `loc.date` | `{month_short} {day}, {year}` | fields: `year`, `month`, `month2`, `month_name`, `month_short`, `day`, `day2` |
+| `loc.time` | `{hour12}:{minute} {ampm}` | fields: `hour`, `hour2`, `hour12`, `minute`, `second`, `ampm` |
+| `loc.datetime` | `{date}, {time}` | |
+| `loc.am`, `loc.pm` | `AM`, `PM` | |
+| `loc.month.1` .. `12`, `loc.month_short.1` .. `12` | `January`, `Jan` ... | |
+
+Dates are the player's local time.
+
 ## Text that follows the language
 
 Widgets keep their key and re-read it when the language changes:
@@ -132,7 +167,8 @@ first. A character no font has draws as a box. See
 
 Line wrapping breaks between Chinese / Japanese characters (which have no
 spaces) and never before closing punctuation. Right-to-left text (Arabic,
-Hebrew) and complex shaping (Thai, Hindi) aren't supported yet.
+Hebrew) and complex shaping (Thai, Hindi) aren't supported yet - planned as
+Phase 42.
 
 French typography wants a narrow no-break space (U+202F) before `!`, `?`, `;`
 and `%`, and a no-break space (U+00A0) before `:`; fonts that lack them get

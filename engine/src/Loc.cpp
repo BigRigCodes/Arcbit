@@ -113,7 +113,8 @@ void LoadStrings(Language& language)
         if (english && !english->Loaded) LoadStrings(*english);
         language.Strings.clear();
         if (english)
-            for (const auto& [key, text] : english->Strings) language.Strings[key] = Loc::Pseudo(text);
+            for (const auto& [key, text] : english->Strings) // format settings ("loc.decimal") stay as they are
+                language.Strings[key] = key.starts_with("loc.") ? text : Loc::Pseudo(text);
         language.Loaded = true;
         ++S().Generation;
         return;
@@ -303,9 +304,13 @@ std::string Loc::Interpolate(const std::string_view text, const std::span<const 
             out += c;
             continue;
         }
-        const std::string_view name = text.substr(i + 1, close - i - 1);
-        const auto             arg  = std::ranges::find(args, name, &LocArg::Name);
-        out += arg != args.end() ? std::string_view(arg->Text) : text.substr(i, close - i + 1);
+        const std::string_view inside = text.substr(i + 1, close - i - 1);
+        const usize            colon  = inside.find(':');
+        const std::string_view name   = inside.substr(0, colon);
+        const std::string_view spec   = colon == std::string_view::npos ? std::string_view{} : inside.substr(colon + 1);
+        const auto             arg    = std::ranges::find(args, name, &LocArg::Name);
+        if (arg != args.end()) out += FormatArg(*arg, spec);
+        else out += text.substr(i, close - i + 1);
         i = close;
     }
     return out;

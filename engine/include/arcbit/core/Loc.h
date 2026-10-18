@@ -53,7 +53,10 @@ struct LocArg
 //
 // Format fills placeholders by name - "Autosave {index}" - so a translator
 // can move them; `{{` and `}}` are literal braces, and a placeholder with no
-// argument stays as written, so it's noticed. With a number named "count",
+// argument stays as written, so it's noticed. Numbers take the language's
+// separators ("1,234.5", "1 234,5"); a spec after a colon changes that:
+// {value:n2} (two decimals), {saved:date} / {saved:time} / {saved:datetime}
+// (a Unix time), {year:raw} (exactly as passed). With a number named "count",
 // a key with plural forms picks one by the language's rules:
 //   "item.coins": { "one": "{count} coin", "other": "{count} coins" }
 // The forms are CLDR's: zero, one, two, few, many, other (every language has
@@ -109,6 +112,16 @@ public:
     // Fill placeholders in text that isn't a key.
     [[nodiscard]] static std::string Interpolate(std::string_view text, std::span<const LocArg> args);
 
+    // A number in the language's style: its decimal and group separators
+    // ("loc.decimal", "loc.group", grouping from "loc.group_from" digits).
+    // decimals < 0: as many as the number has.
+    [[nodiscard]] static std::string FormatNumber(f64 value, i32 decimals = -1);
+
+    // A Unix time as local "date", "time" or "datetime", by the language's
+    // patterns ("loc.date": "{month_short} {day}, {year}") and month names
+    // ("loc.month.1", "loc.month_short.1").
+    [[nodiscard]] static std::string FormatDate(i64 unixSeconds, std::string_view style = "date");
+
     // The CLDR plural form ("one", "few", "other", ...) of n in a language.
     // Languages without built-in rules count like English.
     [[nodiscard]] static std::string_view PluralForm(std::string_view language, f64 n);
@@ -141,6 +154,10 @@ public:
 
     // Forget every folder, language and string (tests; a full reload).
     static void Clear();
+
+private:
+    // One placeholder's text: {name} or {name:spec} (LocFormat.cpp).
+    [[nodiscard]] static std::string FormatArg(const LocArg& arg, std::string_view spec);
 };
 
 } // namespace Arcbit
