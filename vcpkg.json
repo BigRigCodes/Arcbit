@@ -16,6 +16,7 @@
         "libsodium",
         "zstd",
         "lua",
-        "sol2"
+        "sol2",
+        "vulkan-memory-allocator"
     ]
 }
