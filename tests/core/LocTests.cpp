@@ -4,8 +4,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 using namespace Arcbit;
 
@@ -59,6 +62,27 @@ TEST_CASE("The shipped English locale loads and covers the engine UI", "[core][l
     LocScope scope;
     REQUIRE(Loc::Load(ArcbitTests::SourcePath("engine/assets/locale/en.json").string()));
     CHECK(Loc::Get("ui.mainmenu.title") != "ui.mainmenu.title");
+}
+
+TEST_CASE("The engine's French and Japanese have every English key, and no others", "[core][loc][shipped]")
+{
+    const auto keys = [](const char* file) {
+        std::ifstream  in(ArcbitTests::SourcePath(std::string("engine/assets/locale/") + file));
+        const auto     root = nlohmann::json::parse(in);
+        std::set<std::string> out;
+        for (const auto& [key, value] : root.items()) out.insert(key);
+        return out;
+    };
+    const auto english = keys("en.json");
+    CHECK(keys("fr.json") == english);
+    CHECK(keys("ja.json") == english);
+
+    LocScope scope;
+    Loc::AddFolder(ArcbitTests::SourcePath("engine/assets/locale"));
+    REQUIRE(Loc::FindLocale("ja"));
+    CHECK(Loc::FindLocale("ja")->Name != "ja"); // named in itself
+    REQUIRE(Loc::SetLanguage("fr"));
+    CHECK(Loc::Format("ui.saves.auto", { { "index", 2 } }) == "Sauvegarde auto 2");
 }
 
 namespace

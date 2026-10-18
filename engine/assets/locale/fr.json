@@ -1,0 +1,70 @@
+{
+  "$locale": { "name": "Français" },
+
+  "ui.common.back":      "Retour",
+  "ui.common.on":        "Activé",
+  "ui.common.off":       "Désactivé",
+  "ui.common.unlimited": "Illimité",
+  "ui.common.yes":       "Oui",
+  "ui.common.no":        "Non",
+  "ui.common.ok":        "OK",
+  "ui.common.percent":   "{value} %",
+
+  "ui.pause.title":    "PAUSE",
+  "ui.pause.resume":   "Reprendre",
+  "ui.pause.save":     "Sauvegarder",
+  "ui.pause.load":     "Charger",
+  "ui.pause.controls": "Commandes",
+  "ui.pause.audio":    "Audio",
+  "ui.pause.graphics": "Graphismes",
+  "ui.pause.language": "Langue",
+  "ui.pause.quit":     "Quitter",
+
+  "ui.language.title": "Langue",
+
+  "ui.audio.title":  "Paramètres audio",
+  "ui.audio.master": "Volume général",
+  "ui.audio.music":  "Volume de la musique",
+  "ui.audio.sfx":    "Volume des effets",
+
+  "ui.graphics.title":       "Paramètres graphiques",
+  "ui.graphics.fullscreen":  "Plein écran",
+  "ui.graphics.vsync":       "Synchro verticale",
+  "ui.graphics.fps_limit":   "Limite d'IPS",
+  "ui.graphics.fps_value":   "{fps} IPS",
+  "ui.graphics.show_fps":    "Afficher les IPS",
+  "ui.graphics.show_debug":  "Afficher le débogage",
+  "ui.graphics.vsync_note":  "La synchro verticale s'applique au redémarrage.",
+
+  "ui.mainmenu.title":    "Menu principal",
+  "ui.mainmenu.new_game": "Nouvelle partie",
+  "ui.mainmenu.continue": "Continuer",
+  "ui.mainmenu.load":     "Charger une partie",
+  "ui.mainmenu.credits":  "Crédits",
+  "ui.mainmenu.quit":     "Quitter",
+
+  "ui.credits.unavailable": "Impossible de charger les crédits.",
+
+  "ui.loading": "Chargement",
+
+  "ui.saves.save_title": "Sauvegarder",
+  "ui.saves.load_title": "Charger une partie",
+  "ui.saves.manual":     "Emplacement {index}",
+  "ui.saves.auto":       "Sauvegarde auto {index}",
+  "ui.saves.quick":      "Sauvegarde rapide",
+  "ui.saves.empty":      "Vide",
+  "ui.saves.none":       "Aucune partie sauvegardée.",
+  "ui.saves.details":    "{scene}      Temps de jeu {time}      {date}",
+  "ui.saves.overwrite":  "Écraser cette sauvegarde ?",
+
+  "ui.saving":           "Sauvegarde…",
+  "ui.save_notice.text": "Ce jeu sauvegarde automatiquement. Lorsque cette icône s'affiche, le jeu est en train de sauvegarder : merci de ne pas fermer le jeu ni d'éteindre votre système.",
+
+  "ui.hud.hp": "PV",
+  "ui.hud.mp": "PM",
+
+  "ui.rebind.title":      "Commandes",
+  "ui.rebind.col_action": "Action",
+  "ui.rebind.col_key":    "Clavier / Souris",
+  "ui.rebind.col_ctrl":   "Manette"
+}

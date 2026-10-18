@@ -1,0 +1,70 @@
+{
+  "$locale": { "name": "日本語" },
+
+  "ui.common.back":      "戻る",
+  "ui.common.on":        "オン",
+  "ui.common.off":       "オフ",
+  "ui.common.unlimited": "無制限",
+  "ui.common.yes":       "はい",
+  "ui.common.no":        "いいえ",
+  "ui.common.ok":        "OK",
+  "ui.common.percent":   "{value}%",
+
+  "ui.pause.title":    "ポーズ",
+  "ui.pause.resume":   "再開",
+  "ui.pause.save":     "セーブ",
+  "ui.pause.load":     "ロード",
+  "ui.pause.controls": "操作設定",
+  "ui.pause.audio":    "サウンド",
+  "ui.pause.graphics": "グラフィック",
+  "ui.pause.language": "言語",
+  "ui.pause.quit":     "終了",
+
+  "ui.language.title": "言語",
+
+  "ui.audio.title":  "サウンド設定",
+  "ui.audio.master": "マスター音量",
+  "ui.audio.music":  "BGM音量",
+  "ui.audio.sfx":    "効果音音量",
+
+  "ui.graphics.title":       "グラフィック設定",
+  "ui.graphics.fullscreen":  "フルスクリーン",
+  "ui.graphics.vsync":       "垂直同期",
+  "ui.graphics.fps_limit":   "FPS上限",
+  "ui.graphics.fps_value":   "{fps} FPS",
+  "ui.graphics.show_fps":    "FPSを表示",
+  "ui.graphics.show_debug":  "デバッグ情報を表示",
+  "ui.graphics.vsync_note":  "垂直同期の変更は再起動後に反映されます。",
+
+  "ui.mainmenu.title":    "メインメニュー",
+  "ui.mainmenu.new_game": "はじめから",
+  "ui.mainmenu.continue": "つづきから",
+  "ui.mainmenu.load":     "ロード",
+  "ui.mainmenu.credits":  "クレジット",
+  "ui.mainmenu.quit":     "終了",
+
+  "ui.credits.unavailable": "クレジットを読み込めませんでした。",
+
+  "ui.loading": "読み込み中",
+
+  "ui.saves.save_title": "セーブ",
+  "ui.saves.load_title": "ロード",
+  "ui.saves.manual":     "スロット {index}",
+  "ui.saves.auto":       "オートセーブ {index}",
+  "ui.saves.quick":      "クイックセーブ",
+  "ui.saves.empty":      "空き",
+  "ui.saves.none":       "セーブデータがありません。",
+  "ui.saves.details":    "{scene}      プレイ時間 {time}      {date}",
+  "ui.saves.overwrite":  "このセーブデータに上書きしますか？",
+
+  "ui.saving":           "セーブ中…",
+  "ui.save_notice.text": "このゲームは自動でセーブされます。このアイコンが表示されている間はセーブ中です。ゲームを終了したり、電源を切ったりしないでください。",
+
+  "ui.hud.hp": "HP",
+  "ui.hud.mp": "MP",
+
+  "ui.rebind.title":      "操作設定",
+  "ui.rebind.col_action": "操作",
+  "ui.rebind.col_key":    "キー／マウス",
+  "ui.rebind.col_ctrl":   "コントローラー"
+}
