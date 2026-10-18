@@ -5,9 +5,22 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cmath>
+#include <format>
 #include <fstream>
 
 namespace Arcbit {
+
+namespace
+{
+// A float as JSON's double: f32 0.2 widened is 0.20000000298..., so write
+// the shortest decimal that reads back as the same float ("0.2").
+f64 Tidy(const f32 value) { return std::stod(std::format("{}", value)); }
+
+// Volumes, to four decimals: a float stepped many times drifts
+// (0.19999993), and nobody hears the difference.
+f64 TidyVolume(const f32 value) { return Tidy(std::round(value * 10000.0f) / 10000.0f); }
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Static member definitions
@@ -183,7 +196,7 @@ nlohmann::json SerializeBinding(const Binding& b)
         case Binding::Type::GamepadAxis:
             obj["type"]     = "GamepadAxis";
             obj["axis"]     = FindName(GamepadAxisNames, b.BoundAxis);
-            obj["deadzone"] = b.Deadzone;
+            obj["deadzone"] = Tidy(b.Deadzone);
             if (b.Half != AxisHalf::Full) obj["half"] = FindName(AxisHalfNames, b.Half);
             break;
     }
@@ -352,9 +365,9 @@ void Settings::WriteFile()
     doc["graphics"]["show_debug_info"]   = Graphics.ShowDebugInfo;
 
     // --- Audio ---
-    doc["audio"]["master_volume"] = Audio.MasterVolume;
-    doc["audio"]["music_volume"]  = Audio.MusicVolume;
-    doc["audio"]["sfx_volume"]    = Audio.SfxVolume;
+    doc["audio"]["master_volume"] = TidyVolume(Audio.MasterVolume);
+    doc["audio"]["music_volume"]  = TidyVolume(Audio.MusicVolume);
+    doc["audio"]["sfx_volume"]    = TidyVolume(Audio.SfxVolume);
 
     // --- Input ---
     if (!s_InputSection.is_null())
@@ -363,7 +376,10 @@ void Settings::WriteFile()
     // --- Custom store ---
     for (const auto& [key, val] : s_store)
     {
-        std::visit([&](auto&& v) { doc["custom"][key] = v; }, val);
+        std::visit([&]<typename T>(const T& v) {
+            if constexpr (std::is_same_v<T, f32>) doc["custom"][key] = Tidy(v);
+            else doc["custom"][key] = v;
+        }, val);
     }
 
     std::ofstream file(s_filePath);
