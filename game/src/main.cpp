@@ -124,6 +124,9 @@ protected:
     void OnStart() override
     {
         GetUI().SetSkin(UISkin::LoadFromFile("assets/engine/skins/default.skin.json"));
+        // Japanese text in any font draws from Noto Sans JP. (Phase 28 moves
+        // this to the Japanese locale, active only while that language is.)
+        FontAtlas::SetSharedFallbacks({ FontFace::Load("assets/fonts/NotoSansJP-Regular.otf") });
         Demo::RegisterInput(GetInput());
         Demo::RegisterSceneTypes(GetSceneRegistry());
         GetSaves().SetSealKey("arcbit-demos/saves"); // the demo's own save key (Phase 36 replaces it)
