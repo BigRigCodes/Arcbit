@@ -267,9 +267,11 @@ void Application::Run()
     _ui.Init(_renderThread, _debugFont, _input);
     StartConsole(); // after the UI (error toasts), before OnStart (games add their own commands)
 
-    // Load engine locale strings before OnStart so built-in screens display correctly.
-    if (!Loc::Load("assets/engine/locale/en.json"))
-        LOG_WARN(Engine, "Failed to load locale strings");
+    // Find the engine's locale files, then the game's (whose strings win),
+    // before OnStart so built-in screens display correctly.
+    Loc::AddFolder("assets/engine/locale");
+    Loc::AddFolder("assets/locale");
+    if (!Loc::SetLanguage(Loc::English)) LOG_WARN(Engine, "No English locale strings found");
 
     // Give the game a chance to register actions, create GPU resources, etc.
     // Input bindings are loaded from settings AFTER OnStart so that default

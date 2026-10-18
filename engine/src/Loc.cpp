@@ -3,55 +3,226 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
+#include <map>
+#include <optional>
+#include <ranges>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Arcbit
 {
+namespace
+{
+using Table = std::unordered_map<std::string, std::string>;
 
-namespace {
-    std::unordered_map<std::string, std::string>& Table()
-    {
-        static std::unordered_map<std::string, std::string> s_table;
-        return s_table;
+struct Language
+{
+    Loc::Locale                        Info;
+    std::vector<std::filesystem::path> Files;   // read in order: later files' strings win
+    Table                              Strings; // all its files, once loaded
+    bool                               Loaded = false;
+};
+
+struct State
+{
+    std::map<std::string, Language> Languages;  // by normalized code
+    std::string                     Active{ Loc::English };
+    std::vector<const Language*>    Chain;      // looked through in order by Get
+    Table                           Echo;       // missing keys, returned as themselves
+    std::unordered_set<std::string> Warned;     // missing keys already logged
+    u64                             Generation = 1;
+};
+
+State& S()
+{
+    static State state;
+    return state;
+}
+
+// "pt_BR", "PT-br" and "pt-BR" are the same language.
+std::string Normalize(const std::string_view code)
+{
+    std::string out(code);
+    for (char& c : out) c = c == '_' ? '-' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return out;
+}
+
+std::optional<nlohmann::json> ReadJson(const std::filesystem::path& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        LOG_WARN(Engine, "Loc: cannot open '{}'", path.string());
+        return std::nullopt;
+    }
+    try {
+        nlohmann::json root = nlohmann::json::parse(file);
+        if (root.is_object()) return root;
+        LOG_ERROR(Engine, "Loc: '{}' isn't a JSON object", path.string());
+    } catch (const nlohmann::json::exception& e) {
+        LOG_ERROR(Engine, "Loc: parse error in '{}': {}", path.string(), e.what());
+    }
+    return std::nullopt;
+}
+
+// Nested objects join their keys with dots; values that aren't strings are skipped.
+void Flatten(const nlohmann::json& object, const std::string& prefix, Table& out)
+{
+    for (const auto& [key, value] : object.items()) {
+        if (prefix.empty() && key == "$locale") continue;
+        const std::string full = prefix.empty() ? key : prefix + "." + key;
+        if (value.is_string()) out[full] = value.get<std::string>();
+        else if (value.is_object()) Flatten(value, full, out);
     }
 }
 
+// The "$locale" block: the name to show, and fonts relative to the file.
+void ReadMeta(const nlohmann::json& root, const std::filesystem::path& file, Loc::Locale& info)
+{
+    const auto it = root.find("$locale");
+    if (it == root.end() || !it->is_object()) return;
+    if (const auto name = it->find("name"); name != it->end() && name->is_string()) info.Name = name->get<std::string>();
+    if (const auto fonts = it->find("fonts"); fonts != it->end() && fonts->is_array())
+        for (const auto& font : *fonts)
+            if (font.is_string()) {
+                const std::string path = (file.parent_path() / font.get<std::string>()).lexically_normal().generic_string();
+                if (std::ranges::find(info.Fonts, path) == info.Fonts.end()) info.Fonts.push_back(path);
+            }
+}
+
+void LoadStrings(Language& language)
+{
+    language.Strings.clear();
+    for (const auto& file : language.Files)
+        if (const auto root = ReadJson(file)) Flatten(*root, "", language.Strings);
+    language.Loaded = true;
+    ++S().Generation;
+}
+
+Language* Find(const std::string_view code)
+{
+    const auto it = S().Languages.find(Normalize(code));
+    return it != S().Languages.end() ? &it->second : nullptr;
+}
+
+// The active language, the one it's a region of (pt-BR -> pt), then English.
+void RebuildChain()
+{
+    State& s = S();
+    s.Chain.clear();
+    const auto add = [&s](const std::string_view code) {
+        Language* language = Find(code);
+        if (!language || std::ranges::find(s.Chain, language) != s.Chain.end()) return;
+        if (!language->Loaded) LoadStrings(*language);
+        s.Chain.push_back(language);
+    };
+    add(s.Active);
+    if (const auto dash = s.Active.find('-'); dash != std::string::npos) add(std::string_view(s.Active).substr(0, dash));
+    add(Loc::English);
+}
+
+// What a missing key is logged for: things shaped like keys ("ui.ok"), not
+// plain text passed through Get by a half-localized game.
+[[maybe_unused]] bool LooksLikeKey(const std::string_view text)
+{
+    return text.find('.') != std::string_view::npos && text.find(' ') == std::string_view::npos;
+}
+} // namespace
+
+void Loc::AddFolder(const std::filesystem::path& folder)
+{
+    std::error_code ec;
+    if (!std::filesystem::is_directory(folder, ec)) return;
+    std::vector<std::filesystem::path> files;
+    for (const auto& entry : std::filesystem::directory_iterator(folder, ec))
+        if (entry.is_regular_file() && entry.path().extension() == ".json") files.push_back(entry.path());
+    std::ranges::sort(files); // the same order on every machine
+
+    for (const auto& file : files) {
+        const std::string code     = file.stem().string();
+        Language&         language = S().Languages[Normalize(code)];
+        if (language.Info.Code.empty()) language.Info = { .Code = code, .Name = code };
+        language.Files.push_back(file);
+        if (const auto root = ReadJson(file)) ReadMeta(*root, file, language.Info);
+        if (language.Loaded) LoadStrings(language); // already in use: take the new file's strings now
+    }
+    RebuildChain();
+    LOG_INFO(Engine, "Loc: {} locale file(s) in '{}'", files.size(), folder.string());
+}
+
+std::vector<Loc::Locale> Loc::GetLocales()
+{
+    std::vector<Locale> out;
+    for (const auto& language : S().Languages | std::views::values)
+        if (!language.Files.empty()) out.push_back(language.Info);
+    std::ranges::stable_partition(out, [](const Locale& l) { return Normalize(l.Code) == English; });
+    return out;
+}
+
+const Loc::Locale* Loc::FindLocale(const std::string_view code)
+{
+    const Language* language = Find(code);
+    return language && !language->Files.empty() ? &language->Info : nullptr;
+}
+
+bool Loc::SetLanguage(const std::string_view code)
+{
+    const Language* language = Find(code);
+    if (!language || language->Files.empty()) {
+        LOG_WARN(Engine, "Loc: no locale files for '{}'", code);
+        return false;
+    }
+    S().Active = language->Info.Code;
+    RebuildChain();
+    ++S().Generation;
+    LOG_INFO(Engine, "Loc: language is '{}' ({})", language->Info.Code, language->Info.Name);
+    return true;
+}
+
+const std::string& Loc::GetLanguage() { return S().Active; }
+
+u64 Loc::GetGeneration() { return S().Generation; }
+
 bool Loc::Load(const std::string_view path)
 {
-    std::ifstream file{std::string(path)};
-    if (!file.is_open()) {
-        LOG_WARN(Engine, "Loc: cannot open '{}'", path);
-        return false;
-    }
+    const std::filesystem::path file(path);
+    const auto                  root = ReadJson(file);
+    if (!root) return false;
 
-    nlohmann::json root;
-    try { root = nlohmann::json::parse(file); }
-    catch (const nlohmann::json::exception& e) {
-        LOG_ERROR(Engine, "Loc: parse error in '{}': {}", path, e.what());
-        return false;
-    }
-
-    auto& t = Table();
-    for (const auto& [key, val] : root.items())
-        if (val.is_string()) t[key] = val.get<std::string>();
-
-    LOG_INFO(Engine, "Loc: loaded {} strings from '{}'", root.size(), path);
+    // Kept with the language's files, so a reload reads it again.
+    Language& language = S().Languages[Normalize(S().Active)];
+    if (language.Info.Code.empty()) language.Info = { .Code = S().Active, .Name = S().Active };
+    language.Files.push_back(file);
+    ReadMeta(*root, file, language.Info);
+    if (language.Loaded) Flatten(*root, "", language.Strings);
+    else LoadStrings(language);
+    ++S().Generation;
+    RebuildChain();
+    LOG_INFO(Engine, "Loc: loaded '{}' into '{}'", file.string(), S().Active);
     return true;
 }
 
 const std::string& Loc::Get(const std::string_view key)
 {
-    auto& t = Table();
-    const auto it = t.find(std::string(key));
-    if (it != t.end()) return it->second;
-    // Cache the key as its own value so we return a stable reference.
-    return t.emplace(std::string(key), std::string(key)).first->second;
+    State&            s = S();
+    const std::string k(key);
+    for (const Language* language : s.Chain)
+        if (const auto it = language->Strings.find(k); it != language->Strings.end()) return it->second;
+
+#ifdef ARCBIT_DEBUG
+    if (LooksLikeKey(key) && s.Warned.insert(k).second) LOG_WARN(Engine, "Loc: no string for '{}' in '{}'", key, s.Active);
+#endif
+    return s.Echo.try_emplace(k, k).first->second;
 }
 
-void Loc::Clear()
+bool Loc::Has(const std::string_view key)
 {
-    Table().clear();
+    const std::string k(key);
+    return std::ranges::any_of(S().Chain, [&k](const Language* l) { return l->Strings.contains(k); });
 }
+
+void Loc::Clear() { S() = State{}; }
 
 } // namespace Arcbit
