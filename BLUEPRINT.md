@@ -253,7 +253,7 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Save / load slot screens, a yes / no confirm screen, the saving indicator (Phase 25)
 
 ### Phase 21F - Text styling & animation
-*Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
+*Built together with Phase 27 (dialog), after Phase 28 (localization), so the dialog box gets styled, animated text from the start. Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
 
 - [ ] Font styles: bold, italic, bold italic, and weights (thin to black) - a font family maps each style / weight to its own `.ttf`, falling back to faux bold (SDF threshold) and faux italic (shear) when a face is missing
 - [ ] Text decorations: outline / stroke (color, width), drop shadow (offset, color, softness), glow, underline and strikethrough
@@ -447,7 +447,9 @@ The rest of the original event list moved to the phases that build those systems
 ---
 
 ## Phase 27: Dialog / Conversation System
-*Default implementation — can be replaced by a Lua script if the game dev prefers a custom system.*
+*Default implementation — can be replaced by a Lua script if the game dev prefers a custom system. Built after Phase 28 (localization) and together with Phase 21F (text styling and animation).*
+
+- [ ] Default look is game art, not the flat UI skin: a nine-slice frame texture that stretches to any size (Pokemon-style text box), shipped as the engine's stock art and replaceable per game
 
 - [ ] `DialogGraph` — node-based conversation tree (speak, choice, condition, branch, action)
 - [ ] Node types: `SpeakNode` (portrait, speaker name, text), `ChoiceNode` (up to N options), `ConditionNode` (check quest flag / inventory / stat), `ActionNode` (run Lua callback)
@@ -486,6 +488,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder
 - [ ] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable
 - [ ] Both views built on the GUI system (Phase 21) and switchable at runtime
+- [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game
 - [ ] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component
 - [ ] Loot tables: weighted random drops defined in JSON
 - [ ] Save / load integration (Phase 25)
