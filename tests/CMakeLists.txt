@@ -11,6 +11,7 @@ add_executable(arcbit-tests
     audio/VolumeTests.cpp
     core/LocTests.cpp
     core/MathTests.cpp
+    core/Utf8Tests.cpp
     ecs/AnimatorStateMachineTests.cpp
     ecs/InteractionTests.cpp
     ecs/MovementTests.cpp
