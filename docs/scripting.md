@@ -291,6 +291,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `save [n \| quick]`, `load [n \| quick]` | |
 | `set <key> <value>` - cheat, `get <key>` | save data |
 | `fps`, `colliders` | toggles |
+| `screenshot` | save the screen (closing the console first) as a PNG in the user folder's `screenshots/` - also `Application::Screenshot()` |
 | `quit` | |
 
 Games add their own - from C++ `GetConsole().Register({ .Name, .Help, .Cheat,

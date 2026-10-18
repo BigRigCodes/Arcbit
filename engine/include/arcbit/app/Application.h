@@ -280,6 +280,10 @@ public:
     // Ask the main loop to exit after the current frame (e.g. a menu's Quit).
     void RequestShutdown() { _shouldShutdown = true; }
 
+    // Save the next frame, UI included, as a PNG in the user folder's
+    // screenshots/ (console: screenshot). Costs one GPU stall.
+    void Screenshot() { _screenshotNextFrame = true; }
+
     // Replace the window's title bar text.
     void SetWindowTitle(std::string_view title);
 
@@ -375,7 +379,7 @@ private:
     void StartSaving();          // the indicator, once OnStart has set _saving
     void AfterSwap();            // a scene change finished: queue an autosave?
     void UpdateAutoSave();       // run a queued autosave once the game is idle
-    void WriteThumbnail();       // a frame captured for the last save arrived: write it
+    void WriteCapture();         // a captured frame arrived: write the save's thumbnail or the screenshot
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
@@ -386,6 +390,8 @@ private:
     bool                   _restoredSave    = false; // the last swap loaded a save: no autosave
     std::optional<SaveSlot> _thumbnailFor;            // saved, its picture not yet written
     bool                    _captureNextFrame = false; // ask the render thread for the next frame
+    bool                    _screenshotNextFrame = false; // Screenshot(): capture the next frame, UI and all
+    u32                     _screenshotsPending  = 0;     // asked for, not yet arrived
 
     // Member declaration order determines both initialization and destruction
     // order (destruction is reverse of initialization).

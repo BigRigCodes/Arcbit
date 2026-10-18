@@ -217,6 +217,10 @@ struct FramePacket
     // RenderThread::TakeCapture once the frame is done. Costs a GPU stall.
     bool CaptureWorld = false;
 
+    // Read this frame back as finished, UI included - a screenshot. Arrives
+    // the same way as CaptureWorld; ignored on a frame that asks for that.
+    bool CaptureFrame = false;
+
     // Tilemap stats — written by the TilemapRender system during CollectRenderData.
     // Read by Application before SubmitFrame to populate _renderStats.
     u32 TilemapChunksTotal    = 0; // total chunks in the active tilemap
@@ -225,8 +229,9 @@ struct FramePacket
 };
 
 // ---------------------------------------------------------------------------
-// CapturedFrame - a frame read back for FramePacket::CaptureWorld: the game
-// area (inside any letterbox bars), RGBA8, top row first, opaque.
+// CapturedFrame - a frame read back for FramePacket::CaptureWorld or
+// CaptureFrame: the game area (inside any letterbox bars), RGBA8, top row
+// first, opaque.
 // ---------------------------------------------------------------------------
 struct CapturedFrame
 {
@@ -407,6 +412,10 @@ private:
     // CaptureWorld: end the pass after the world, copy the backbuffer into a
     // readback buffer, and resume the pass (keeping what's drawn) for the UI.
     void SplitForCapture(CommandListHandle cmd, TextureHandle backBuffer, u32 width, u32 height);
+
+    // Copy the backbuffer as it stands into a new readback buffer (the
+    // rendering pass must be ended).
+    void CopyForCapture(CommandListHandle cmd, u32 width, u32 height);
 
     // After the captured frame is presented: wait for the GPU, read the
     // pixels back, crop to the game area and hand them to TakeCapture.

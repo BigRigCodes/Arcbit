@@ -163,6 +163,11 @@ void Application::RegisterConsoleCommands()
         physics.SetDebugDraw(!physics.GetDebugDraw());
     } });
     _debugConsole.Register({ .Name = "quit", .Help = "quit - close the game", .Run = [this](const Args&) { RequestShutdown(); } });
+    _debugConsole.Register({ .Name = "screenshot", .Help = "screenshot - save the screen (without the console) as a PNG",
+                             .Run = [this](const Args&) {
+                                 if (_consoleScreen) ToggleConsole(); // out of the picture
+                                 Screenshot();
+                             } });
 }
 
 void Application::RegisterSaveCommands()

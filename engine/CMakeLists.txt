@@ -75,6 +75,7 @@ add_library(arcbit-engine STATIC
     src/ConfirmScreen.cpp
     src/SaveSlotScreen.cpp
     src/SavingIndicator.cpp
+    src/Screenshot.cpp
     src/UILoader.cpp
     src/InputWidgets.cpp
     src/Loc.cpp

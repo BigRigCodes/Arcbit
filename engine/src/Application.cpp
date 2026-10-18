@@ -385,7 +385,10 @@ void Application::Run()
         packet.ClearColor  = _clearColor;
         packet.NeedsResize = _window->WasResizedThisFrame();
         packet.CaptureWorld = std::exchange(_captureNextFrame, false); // a save's thumbnail
-
+        if (!packet.CaptureWorld && std::exchange(_screenshotNextFrame, false)) { // one capture a frame
+            packet.CaptureFrame = true;
+            ++_screenshotsPending;
+        }
 
         if (!_ui.HasGameBlockingScreen()) {
             OnRender(packet);
@@ -416,8 +419,7 @@ void Application::Run()
         }
 
         _renderThread.SubmitFrame(std::move(packet));
-        WriteThumbnail(); // a frame captured for a save, once the render thread has it
-
+        WriteCapture(); // a frame captured for a save or a screenshot, once the render thread has it
 
         // --- FPS counter + render stats --------------------------------------
         // Count completed frames; report once per second alongside the most
