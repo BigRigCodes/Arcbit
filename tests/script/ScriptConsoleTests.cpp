@@ -42,6 +42,7 @@ struct Fixture
     SceneManager         scenes;
     Lines                out, errors;
     Entity               scripted;
+    nlohmann::json       overrides = nlohmann::json::object(); // the Script's properties
 
     Fixture()
     {
@@ -54,7 +55,7 @@ struct Fixture
             auto scene  = std::make_unique<LambdaScene>();
             scene->Load = [this](Scene& s) {
                 scripted = s.GetWorld().CreateEntity();
-                s.GetWorld().AddComponent<Script>(scripted, Script{ .Module = "subject" });
+                s.GetWorld().AddComponent<Script>(scripted, Script{ .Module = "subject", .Properties = overrides });
             };
             return scene;
         });
@@ -146,4 +147,29 @@ TEST_CASE("Fixing a script brings back the OnUpdate its error turned off", "[scr
     f.out.clear();
     f.Tick();
     CHECK(f.out == Lines{ "fixed" });
+}
+
+TEST_CASE("A reload re-reads Properties: new defaults show, scene overrides stay", "[script][console]")
+{
+    Fixture f;
+    f.overrides = { { "Keep", "override" } };
+    f.Write(R"(
+local M = { Properties = { Text = "old", Keep = "default" } }
+function M:OnUpdate() print(self.Properties.Text .. " / " .. self.Properties.Keep) end
+return M
+)");
+    f.Go();
+    f.out.clear();
+    f.Tick();
+    CHECK(f.out == Lines{ "old / override" });
+
+    f.Write(R"(
+local M = { Properties = { Text = "new", Keep = "default" } }
+function M:OnUpdate() print(self.Properties.Text .. " / " .. self.Properties.Keep) end
+return M
+)", 1);
+    REQUIRE(f.lua.CheckReloads() == 1);
+    f.out.clear();
+    f.Tick();
+    CHECK(f.out == Lines{ "new / override" });
 }

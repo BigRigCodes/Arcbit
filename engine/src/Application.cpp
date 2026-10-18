@@ -35,6 +35,7 @@ Application::Application(const ApplicationConfig& config) : _config(config)
     // after Log::Init).
     _userFolder = UserDataFolder(config.Studio, config.GameName ? config.GameName : config.Title);
     _saves.SetDirectory(_userFolder / "saves");
+    _scriptEngine.SetRoot(config.ScriptRoot);
     LOG_INFO(Engine, "User data folder: '{}'", _userFolder.string());
 
     // Every delivered event goes to the log (debug level) - what fired, when,

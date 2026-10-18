@@ -208,6 +208,8 @@ ScriptEngine::~ScriptEngine()
 
 const std::filesystem::path& ScriptEngine::GetRoot() const { return _state->Root; }
 
+void ScriptEngine::SetRoot(std::filesystem::path root) { _state->Root = std::move(root); }
+
 void ScriptEngine::SetOutput(std::function<void(std::string_view)> output) { _state->Output = std::move(output); }
 
 void ScriptEngine::SetServices(ScriptServices services) { _state->Services = std::move(services); }

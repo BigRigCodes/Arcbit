@@ -60,6 +60,8 @@ struct SceneScripts::Impl
     void Contact(PhysicsWorld::ContactEvent event, Entity self, Entity other, Vec2 normal);
 
     std::optional<sol::table> LoadModule(const std::string& name, const std::string& who);
+    sol::object               MakeProperties(const sol::object& defaults, const nlohmann::json& overrides);
+    void                      RereadProperties();
     sol::table                NewSelf(const sol::table& module, const sol::object& defaults, const nlohmann::json& overrides,
                                       const nlohmann::json& saved);
     void                      StartEntity(Entity e);
@@ -94,19 +96,36 @@ std::optional<sol::table> SceneScripts::Impl::LoadModule(const std::string& name
     return std::nullopt;
 }
 
-// self: Properties (the module's, deep-copied, with the overrides on top),
-// Saved, and the module behind it for every hook and shared function.
-sol::table SceneScripts::Impl::NewSelf(const sol::table& module, const sol::object& defaults,
-                                       const nlohmann::json& overrides, const nlohmann::json& saved)
+// The module's Properties, deep-copied, with the overrides on top.
+sol::object SceneScripts::Impl::MakeProperties(const sol::object& defaults, const nlohmann::json& overrides)
 {
     nlohmann::json properties = defaults.get_type() == sol::type::table ? LuaToJson(defaults) : nlohmann::json::object();
     if (!properties.is_object()) properties = nlohmann::json::object();
     if (overrides.is_object())
         for (const auto& [key, value] : overrides.items()) properties[key] = value;
+    return JsonToLua(Lua.Lua, properties);
+}
 
+// After a reload: every instance's Properties from its module's (maybe new)
+// defaults and its Script component's overrides.
+void SceneScripts::Impl::RereadProperties()
+{
+    for (ScriptInstance& instance : Instances | std::views::values) {
+        if (instance.Broken) continue;
+        const Script* script = Owner.GetWorld().GetComponent<Script>(instance.Owner);
+        instance.Self["Properties"] = MakeProperties(instance.Module["Properties"], script ? script->Properties : nlohmann::json{});
+    }
+    if (SceneScript) SceneScript->Self["Properties"] = MakeProperties(SceneScript->Module["Properties"], {});
+}
+
+// self: Properties (MakeProperties), Saved, and the module behind it for
+// every hook and shared function.
+sol::table SceneScripts::Impl::NewSelf(const sol::table& module, const sol::object& defaults,
+                                       const nlohmann::json& overrides, const nlohmann::json& saved)
+{
     sol::table self       = Lua.Lua.create_table();
     self["Run"]           = Lua.SelfRun; // self:Run(fn, ...) - a task owned by this instance
-    self["Properties"]    = JsonToLua(Lua.Lua, properties);
+    self["Properties"]    = MakeProperties(defaults, overrides);
     self["Saved"]         = JsonToLua(Lua.Lua, saved.is_object() ? saved : nlohmann::json::object());
     sol::table meta       = Lua.Lua.create_table();
     meta["__index"]       = module;
@@ -241,10 +260,11 @@ void SceneScripts::SyncSaved()
 void SceneScripts::Update(const f32 dt)
 {
     Impl& s = *_impl;
-    if (s.Generation != s.Lua.ReloadGeneration) { // scripts reloaded: a fixed OnUpdate may run again
+    if (s.Generation != s.Lua.ReloadGeneration) { // scripts reloaded: new settings, and a fixed OnUpdate may run again
         s.Generation = s.Lua.ReloadGeneration;
         if (s.SceneScript) s.SceneScript->UpdateOff = false;
         for (ScriptInstance& instance : s.Instances | std::views::values) instance.UpdateOff = false;
+        s.RereadProperties();
     }
     s.StartNew();
     if (s.SceneScript && !s.SceneScript->UpdateOff && !s.CallHook(*s.SceneScript, "OnUpdate", s.SceneScript->Self, dt))

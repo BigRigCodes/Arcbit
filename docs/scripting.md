@@ -312,9 +312,16 @@ own keys rest: only the UI's keys and a few engine ones work.
 
 **Hot reload** (debug builds): save a script while the game runs and it
 reloads within a second. Running instances keep their state and the module's
-existing data, and pick up the new functions; an `OnUpdate` an error had
-turned off runs again. A save that doesn't load is reported and the old code
-keeps running.
+existing data, and pick up the new functions and the new `Properties`
+defaults (re-read for every instance, scene-file overrides still on top); an
+`OnUpdate` an error had turned off runs again. A save that doesn't load is
+reported and the old code keeps running.
+
+The build copies assets into `bin/`, so the running game has to load scripts
+from the files you edit: `ApplicationConfig::ScriptRoot` says where. The demo
+app points it at `game/assets/scripts` in debug builds (the
+`ARCBIT_GAME_ASSETS` define in `game/CMakeLists.txt`); a shipped build uses
+`assets/scripts`.
 
 **Errors** never take the game down. Every call into Lua is protected; an
 error is logged with the script, line and traceback, printed in the console,

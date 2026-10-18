@@ -79,6 +79,10 @@ add_custom_target(arcbit-assets ALL
 )
 add_dependencies(arcbit-game arcbit-assets)
 
+# Debug builds load Lua scripts straight from the source folder, so editing
+# one there hot-reloads it in the running game (bin/ only gets a copy at build).
+target_compile_definitions(arcbit-game PRIVATE ARCBIT_GAME_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+
 # arcbit-engine-shaders and arcbit-engine-fonts are defined in engine/CMakeLists.txt.
 add_dependencies(arcbit-game arcbit-engine-shaders arcbit-engine-fonts arcbit-engine-skins arcbit-engine-locale-assets arcbit-engine-ui-assets)
 

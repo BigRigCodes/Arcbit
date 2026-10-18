@@ -1,8 +1,9 @@
 // Hot reload: a script edited while the game runs takes effect without a
 // restart. The module's table is patched in place - new and changed
-// functions replace the old ones, data the module already holds is kept - so
-// every instance (whose metatable points at that table) keeps its own state
-// and runs the new code from its next hook.
+// functions and its Properties replace the old ones, other data the module
+// already holds is kept - so every instance (whose metatable points at that
+// table) keeps its own state and runs the new code from its next hook.
+// Instances re-read their Properties then too (SceneScripts).
 
 #include "ScriptState.h"
 
@@ -65,7 +66,11 @@ bool ScriptEngine::State::ReloadModule(const std::string& name, ModuleFile& file
     const sol::table source = fresh;
     for (const auto& [key, value] : source) {
         if (value.get_type() == sol::type::function) Retarget(Lua.lua_state(), value, source, target);
-        if (value.get_type() == sol::type::function || target[key].get_type() == sol::type::lua_nil) target[key] = value;
+        // Functions and Properties (settings, not state) take the new code's;
+        // other data the module already holds is kept.
+        const bool settings = key.get_type() == sol::type::string && key.as<std::string>() == "Properties";
+        if (settings || value.get_type() == sol::type::function || target[key].get_type() == sol::type::lua_nil)
+            target[key] = value;
     }
     return true;
 }

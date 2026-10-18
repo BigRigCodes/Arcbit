@@ -85,8 +85,10 @@ public:
     ScriptEngine(const ScriptEngine&)            = delete;
     ScriptEngine& operator=(const ScriptEngine&) = delete;
 
-    // Where require looks for modules.
+    // Where require looks for modules. Set it before any script loads (a
+    // debug build can point it at the source folder, so edits hot-reload).
     [[nodiscard]] const std::filesystem::path& GetRoot() const;
+    void                                       SetRoot(std::filesystem::path root);
 
     // Run a line or chunk of Lua, the console's way in: an expression's value
     // comes back in Values ("1 + 2" gives "3"), and globals persist between

@@ -120,6 +120,7 @@ struct ApplicationConfig
     const char* SettingsPath = "settings.json";
     const char* Studio       = "Arcbit";
     const char* GameName     = nullptr; // null = Title
+    const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
 };
 
 // ---------------------------------------------------------------------------
