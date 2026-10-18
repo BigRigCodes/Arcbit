@@ -294,6 +294,7 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 | `systems` | [Named systems](#named-systems) the scene needs, installed in order at load. |
 | `music` | `path`, `loop` (default true): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
 | `load` | Measured [load data](#load-data-load) for the loading bar. Optional, written by tools. |
+| `script` | The scene's own Lua script, a module name (`"demo.scene"`). See [scripting.md](scripting.md). |
 | `persist_all` | Make every entity `Persistent` (saved changes), each under its file id; an entity opts out with `"Persistent": { "enabled": false }`. See [saves.md](saves.md). |
 | `entities` | Entity id → components. |
 
@@ -381,7 +382,8 @@ Built-in components: `Tag`, `Name`, `Transform2D`, `SpriteRenderer`,
 `LightEmitter`, `Parallax`, `CameraTarget`, `Disabled`, `Lifetime`,
 `AudioSource`, `Animator`, `Collider2D`, `MoveIntent`, `InputMovement`,
 `AIMovement`, `FreeMovement`, `SmoothTileMovement`, `SnapTileMovement`,
-`Pushable`, `PendingMove`, `EntityEvents`, `Persistent`. `AnimatorStateMachine` and the callback components
+`Pushable`, `PendingMove`, `EntityEvents`, `Persistent`, `Script`, `Interactor`, `Interactable`.
+`AnimatorStateMachine` and the callback components
 aren't serializable yet.
 
 Collision layers are written by name (`"layer": "Prop"`,

@@ -486,59 +486,14 @@ if needed (future: per-type `FromJson` hook).
 
 ---
 
-### Custom UI with Lua scripting (future — Phase 28+)
+### Custom UI with Lua scripting
 
-The `.arcui` format is designed to eventually support Lua-driven behavior so
-that modders and game authors can build complete screens — including callbacks —
-without writing C++.
-
-**Planned `.arcui` fields:**
-
-```json
-{
-  "type": "Button", "name": "my-btn",
-  "text_key": "ui.myscreen.action",
-  "on_click": "MyScript.OnAction"
-}
-```
-
-And at the screen level:
-
-```json
-{
-  "widgets": [ ... ],
-  "script": "scripts/ui/my_screen.lua"
-}
-```
-
-**How it will work:**
-
-1. `UILoader::Load` loads the `.lua` script specified in `"script"` and passes it
-   to the Lua VM.
-2. `"on_click": "Namespace.FunctionName"` wires a Lua function directly to
-   `Button::OnClick`. The engine calls the Lua function when the button is clicked.
-3. The Lua script can call engine-exposed APIs to push/pop screens, read game
-   state, play sounds, etc.
-
-**What stays in C++:**
-
-- Engine-owned screens (`InputRebindScreen`, `AudioSettingsScreen`) keep their C++
-  behavior wired after `LoadLayout`. They expose visual customization via `.arcui`
-  (layout, colors, text) but their logic cannot be replaced with Lua.
-- Performance-critical screens (e.g., HUD updated every tick) should remain C++.
-
-**When to use each approach:**
-
-| Scenario                                     | Approach                        |
-|----------------------------------------------|---------------------------------|
-| Reskin or rearrange an engine screen         | Edit its `.arcui` file          |
-| Add a new menu with simple button actions    | `.arcui` + Lua script           |
-| Screens that read/write engine state heavily | C++ `UIScreen` subclass         |
-| Dynamic content (chip lists, scroll rows)    | C++ `OnEnter` + `RebuildScroll` |
-
-Until Lua scripting lands, game-specific screens are implemented as C++
-`UIScreen` subclasses that call `LoadLayout` for visual layout and wire all
-callbacks in `OnEnter`.
+A layout can name its script (`"script": "ui.shop"`) and its widgets' Lua
+handlers (`"on_click": "OnBuy"` on buttons, `"on_change": "OnVolume"` on
+sliders, switches, checkboxes, text inputs, dropdowns and radio groups).
+`ScriptedScreen` (Lua: `UI.Open(path)`) loads it and runs the script;
+`"meta": { "layer": "hud" }` makes it a HUD. Engine-owned screens keep their
+C++ behavior and ignore both. See [scripting.md](scripting.md#lua-ui).
 
 ---
 
@@ -701,6 +656,8 @@ engine/
     ConfirmScreen.h         — yes / no question (Application::Confirm)
     SaveSlotScreen.h        — save / load slot list (docs/saves.md)
     SavingIndicator.h       — the "Saving..." spinner
+    ScriptedScreen.h        — a screen driven by Lua (docs/scripting.md)
+    ConsoleScreen.h         — the debug console window, ErrorToasts
   src/
     UIManager.cpp
     UIScreen.cpp
@@ -796,6 +753,12 @@ Game assets go in `game/assets/`.
 - [x] `SplashEntry` text cards: centered white text on black with an optional spinning icon - the saving notice
 - [x] `PauseMenuScreen` Save Game / Load Game and `MainMenuScreen` Load Game buttons; `UIScreen::StackButtons` closes the gaps hidden buttons leave
 - [x] `Image::Rotation`; UI sprites honor `Sprite::Rotation` (the gamepad cursor's diamond)
+
+### Phase 26 — Lua UI and the console ✓
+- [x] `ScriptedScreen`: `.arcui` `"script"`, `"on_click"` / `"on_change"`; Screen / Widget handles from Lua
+- [x] `ConsoleScreen` (the debug console) and `ErrorToasts` (debug builds' script errors)
+- [x] `TextInput::SetText` (cursor to the end) and `Suggestion` (dimmed predicted text); the cursor stays in range when `Text` changes under it
+- [x] UI draws over screen-space SDF text (the debug overlay); typing into a field rests the game's keys (`InputManager::SetTyping`)
 
 ### Phase 21E — Skin Sounds ✓
 - [x] Sound key fields added to `UISkin`: `SoundFocusMove`, `SoundActivate`, `SoundBack`, `SoundSliderTick`, `SoundToggle`
