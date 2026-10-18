@@ -177,3 +177,64 @@ TEST_CASE("Switching language moves the generation; a game folder added late sti
     Loc::AddFolder(f.Game);
     CHECK(Loc::Get("a") == "jeu");
 }
+
+TEST_CASE("Format fills named placeholders; braces escape; unknown ones stay", "[core][loc]")
+{
+    LocScope             scope;
+    ArcbitTests::TempDir dir;
+    REQUIRE(Loc::Load(dir.Write("en.json", R"({ "slot": "Slot {index} of {total}", "brace": "{{literal}} {who}" })")));
+
+    CHECK(Loc::Format("slot", { { "total", 9 }, { "index", 3 } }) == "Slot 3 of 9");
+    CHECK(Loc::Format("brace", { { "who", "me" } }) == "{literal} me");
+    CHECK(Loc::Format("slot", { { "index", 1 } }) == "Slot 1 of {total}");
+    CHECK(Loc::Format("not.a.key", { { "x", 1.5 } }) == "not.a.key");
+    const LocArg args[] = { { "a", "x" } };
+    CHECK(Loc::Interpolate("{a}{a} {b} {unclosed", args) == "xx {b} {unclosed");
+}
+
+TEST_CASE("Plural forms follow each language's rules", "[core][loc]")
+{
+    using F = std::string_view;
+    CHECK(Loc::PluralForm("en", 1) == F("one"));
+    CHECK(Loc::PluralForm("en", 0) == F("other"));
+    CHECK(Loc::PluralForm("en", 1.5) == F("other"));
+    CHECK(Loc::PluralForm("fr", 0) == F("one"));
+    CHECK(Loc::PluralForm("fr", 1.5) == F("one"));
+    CHECK(Loc::PluralForm("fr", 2) == F("other"));
+    CHECK(Loc::PluralForm("ja", 1) == F("other"));
+    CHECK(Loc::PluralForm("ru", 21) == F("one"));
+    CHECK(Loc::PluralForm("ru", 11) == F("many"));
+    CHECK(Loc::PluralForm("ru", 23) == F("few"));
+    CHECK(Loc::PluralForm("ru", 13) == F("many"));
+    CHECK(Loc::PluralForm("pl", 22) == F("few"));
+    CHECK(Loc::PluralForm("pl", 21) == F("many"));
+    CHECK(Loc::PluralForm("cs", 3) == F("few"));
+    CHECK(Loc::PluralForm("ar", 0) == F("zero"));
+    CHECK(Loc::PluralForm("ar", 2) == F("two"));
+    CHECK(Loc::PluralForm("ar", 105) == F("few"));
+    CHECK(Loc::PluralForm("pt-BR", 0) == F("one"));
+    CHECK(Loc::PluralForm("pt-PT", 0) == F("other"));
+    CHECK(Loc::PluralForm("xx", 1) == F("one")); // unknown: like English
+}
+
+TEST_CASE("A count picks the plural form, by the rules of the language that has it", "[core][loc]")
+{
+    LocScope scope;
+    Folders  f;
+    f.Write(f.Engine, "en.json", R"({ "coins": { "one": "{count} coin", "other": "{count} coins" }, "plain": "{count} things" })");
+    f.Write(f.Engine, "fr.json", R"({ "coins": { "one": "{count} piece", "other": "{count} pieces" } })");
+    f.Write(f.Engine, "ru.json", R"({ "x": "y" })");
+    f.AddBoth();
+
+    REQUIRE(Loc::SetLanguage("en"));
+    CHECK(Loc::Format("coins", { { "count", 1 } }) == "1 coin");
+    CHECK(Loc::Format("coins", { { "count", 0 } }) == "0 coins");
+    CHECK(Loc::Format("plain", { { "count", 2 } }) == "2 things"); // no forms: the plain string
+
+    REQUIRE(Loc::SetLanguage("fr"));
+    CHECK(Loc::Format("coins", { { "count", 0 } }) == "0 piece"); // French: zero is singular
+
+    REQUIRE(Loc::SetLanguage("ru")); // no Russian forms: English's, by English rules
+    CHECK(Loc::Format("coins", { { "count", 21 } }) == "21 coins");
+    CHECK(Loc::Format("coins", { { "count", "many" } }) == "coins"); // a count that isn't a number picks nothing
+}

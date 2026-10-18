@@ -223,6 +223,51 @@ bool Loc::Has(const std::string_view key)
     return std::ranges::any_of(S().Chain, [&k](const Language* l) { return l->Strings.contains(k); });
 }
 
+std::string Loc::Format(const std::string_view key, const std::initializer_list<LocArg> args)
+{
+    return Format(key, std::span(args.begin(), args.size()));
+}
+
+// With a "count", each language in the chain that has plural forms of the
+// key is asked in turn, by its own rules; else the key's plain string.
+std::string Loc::Format(const std::string_view key, const std::span<const LocArg> args)
+{
+    const auto count = std::ranges::find(args, std::string_view("count"), &LocArg::Name);
+    if (count != args.end() && count->Number)
+        for (const Language* language : S().Chain) {
+            const std::string_view form = PluralForm(language->Info.Code, *count->Number);
+            for (const std::string_view f : { form, std::string_view("other") }) {
+                const auto it = language->Strings.find(std::format("{}.{}", key, f));
+                if (it != language->Strings.end()) return Interpolate(it->second, args);
+            }
+        }
+    return Interpolate(Get(key), args);
+}
+
+std::string Loc::Interpolate(const std::string_view text, const std::span<const LocArg> args)
+{
+    std::string out;
+    out.reserve(text.size());
+    for (usize i = 0; i < text.size(); ++i) {
+        const char c = text[i];
+        if ((c == '{' || c == '}') && i + 1 < text.size() && text[i + 1] == c) { // {{ or }}
+            out += c;
+            ++i;
+            continue;
+        }
+        const usize close = c == '{' ? text.find('}', i + 1) : std::string_view::npos;
+        if (close == std::string_view::npos) {
+            out += c;
+            continue;
+        }
+        const std::string_view name = text.substr(i + 1, close - i - 1);
+        const auto             arg  = std::ranges::find(args, name, &LocArg::Name);
+        out += arg != args.end() ? std::string_view(arg->Text) : text.substr(i, close - i + 1);
+        i = close;
+    }
+    return out;
+}
+
 void Loc::Clear() { S() = State{}; }
 
 } // namespace Arcbit

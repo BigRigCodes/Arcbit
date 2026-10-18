@@ -2,13 +2,36 @@
 
 #include <arcbit/core/Types.h>
 
+#include <concepts>
 #include <filesystem>
+#include <format>
+#include <initializer_list>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace Arcbit
 {
+// A named value for a placeholder in a localized string - text or a number:
+//   Loc::Format("ui.saves.auto", {{ "index", 3 }})
+struct LocArg
+{
+    LocArg(const std::string_view name, const std::string_view text) : Name(name), Text(text) {}
+    LocArg(const std::string_view name, const char* text) : Name(name), Text(text) {}
+    LocArg(const std::string_view name, const std::string& text) : Name(name), Text(text) {}
+
+    template <typename T>
+        requires std::is_arithmetic_v<T> && (!std::same_as<T, bool>)
+    LocArg(const std::string_view name, const T number)
+        : Name(name), Text(std::format("{}", number)), Number(static_cast<f64>(number)) {}
+
+    std::string        Name;
+    std::string        Text;   // what replaces {Name}
+    std::optional<f64> Number; // set for numbers: a "count" picks the plural form
+};
+
 // ---------------------------------------------------------------------------
 // Loc - the player-visible strings, in the player's language.
 //
@@ -25,7 +48,14 @@ namespace Arcbit
 // Get looks a key up in the active language, then the language it's a
 // region of (`pt-BR` -> `pt`), then English, and returns the key itself if
 // none has it - so a half-translated game shows English, never a blank.
-// Main thread only.
+//
+// Format fills placeholders by name - "Autosave {index}" - so a translator
+// can move them; `{{` and `}}` are literal braces, and a placeholder with no
+// argument stays as written, so it's noticed. With a number named "count",
+// a key with plural forms picks one by the language's rules:
+//   "item.coins": { "one": "{count} coin", "other": "{count} coins" }
+// The forms are CLDR's: zero, one, two, few, many, other (every language has
+// other). Main thread only.
 // ---------------------------------------------------------------------------
 class Loc
 {
@@ -64,6 +94,18 @@ public:
     // The reference stays valid until the strings change (GetGeneration).
     [[nodiscard]] static const std::string& Get(std::string_view key);
     [[nodiscard]] static bool               Has(std::string_view key); // in the active chain
+
+    // The string for key with its placeholders filled (and its plural form
+    // picked by a "count" argument).
+    [[nodiscard]] static std::string Format(std::string_view key, std::initializer_list<LocArg> args);
+    [[nodiscard]] static std::string Format(std::string_view key, std::span<const LocArg> args);
+
+    // Fill placeholders in text that isn't a key.
+    [[nodiscard]] static std::string Interpolate(std::string_view text, std::span<const LocArg> args);
+
+    // The CLDR plural form ("one", "few", "other", ...) of n in a language.
+    // Languages without built-in rules count like English.
+    [[nodiscard]] static std::string_view PluralForm(std::string_view language, f64 n);
 
     // Forget every folder, language and string (tests; a full reload).
     static void Clear();

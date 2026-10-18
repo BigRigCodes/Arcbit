@@ -80,6 +80,7 @@ add_library(arcbit-engine STATIC
     src/UILoader.cpp
     src/InputWidgets.cpp
     src/Loc.cpp
+    src/LocPlural.cpp
     src/Utf8.cpp
     src/SpatialHash.cpp
     src/PhysicsWorld.cpp
