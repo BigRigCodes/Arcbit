@@ -393,16 +393,17 @@ the file rather than in code:
 
 ### Localization
 
-Labels and buttons support a `"text_key"` field. When present, `UILoader` passes
-the key through `Loc::Get(key)` instead of using the literal `"text"` value.
-This allows the same `.arcui` file to display in any language without modification.
+Player text in a layout is a key: `"text_key"` (Label, Button,
+NineSliceButton), `"label_key"` (Checkbox), `"placeholder_key"` (TextInput),
+`"item_keys"` (Dropdown, RadioGroup). The widget keeps the key and shows it in
+the player's language - again whenever the language changes.
 
 ```json
 { "type": "Button", "name": "resume-btn", "text_key": "ui.pause.resume" }
 ```
 
-The fallback if a key has no translation is the key string itself, which makes
-`.arcui` files readable as documentation even without a translation file loaded.
+A key with no string anywhere shows as the key itself. See
+[localization.md](localization.md).
 
 ### Full example
 
