@@ -121,6 +121,7 @@ struct ApplicationConfig
     const char* Studio       = "Arcbit";
     const char* GameName     = nullptr; // null = Title
     const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
+    i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
 };
 
 // ---------------------------------------------------------------------------

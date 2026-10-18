@@ -71,6 +71,7 @@ Application::Application(const ApplicationConfig& config) : _config(config)
         .Width     = Settings::Graphics.ResolutionWidth,
         .Height    = Settings::Graphics.ResolutionHeight,
         .Resizable = config.Resizable,
+        .Display   = config.Display,
     });
 
     DeviceDesc deviceDesc{};

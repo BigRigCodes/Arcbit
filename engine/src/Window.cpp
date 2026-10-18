@@ -10,6 +10,22 @@ namespace Arcbit {
 // Convenience cast — SDL_Window* travels as void* through the public API.
 static SDL_Window* ToSDL(void* handle) { return static_cast<SDL_Window*>(handle); }
 
+// Center the window on the index-th monitor; a monitor that isn't there
+// leaves it where the OS put it.
+static void CenterOnDisplay(SDL_Window* win, const i32 index)
+{
+    int            count    = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    if (displays && index < count) {
+        const SDL_DisplayID id = displays[index];
+        SDL_SetWindowPosition(win, static_cast<int>(SDL_WINDOWPOS_CENTERED_DISPLAY(id)),
+                              static_cast<int>(SDL_WINDOWPOS_CENTERED_DISPLAY(id)));
+    } else {
+        LOG_WARN(Platform, "Window: no display {} ({} found)", index, count);
+    }
+    SDL_free(displays);
+}
+
 Window::Window(const Desc& desc)
 {
     ARCBIT_VERIFY(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD), "SDL_Init failed");
@@ -24,6 +40,7 @@ Window::Window(const Desc& desc)
         flags);
 
     ARCBIT_ASSERT(win != nullptr, "SDL_CreateWindow failed");
+    if (desc.Display >= 0) CenterOnDisplay(win, desc.Display);
 
     _window = win;
     _width  = desc.Width;

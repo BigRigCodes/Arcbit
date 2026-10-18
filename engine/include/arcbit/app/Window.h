@@ -41,6 +41,7 @@ public:
         u32         Width     = 1280;
         u32         Height    = 720;
         bool        Resizable = true;
+        i32         Display   = -1; // which monitor (0 = the first) to center on; -1 = the OS's choice
     };
 
     explicit Window(const Desc& desc);

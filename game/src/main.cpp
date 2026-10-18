@@ -21,7 +21,8 @@
 // (scene changes, device switches, settings) and the demos' own.
 //
 // `--mute` silences everything for the run (the saved volumes are untouched),
-// for unattended soak runs.
+// for unattended soak runs; `--display <n>` opens the window on monitor n
+// (0 = the first), to keep a soak run off the main screen.
 
 #include "Common.h"
 #include "DemoSelectScreen.h"
@@ -103,10 +104,12 @@ public:
         f32  CycleSeconds = 0.0f;  // --cycle
         f32  LoadDelay    = 0.0f;  // --load-delay
         bool Mute         = false; // --mute
+        i32  Display      = -1;    // --display
     };
 
     explicit DemoApp(const Options& options) :
-        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot }),
+        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot,
+                      .Display = options.Display }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running
@@ -327,6 +330,7 @@ int main(const int argc, char* argv[])
         if (arg == "--cycle" && more) options.CycleSeconds = std::stof(argv[i + 1]);
         if (arg == "--load-delay" && more) options.LoadDelay = std::stof(argv[i + 1]);
         if (arg == "--mute") options.Mute = true;
+        if (arg == "--display" && more) options.Display = std::stoi(argv[i + 1]);
     }
 
     DemoApp app(options);
