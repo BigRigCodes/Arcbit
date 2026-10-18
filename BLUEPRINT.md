@@ -514,6 +514,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Turn-based AI: action selection (attack / use item / move) driven by heuristics or Lua script
 - [ ] Real-time AI: target acquisition, attack range check, cooldown management (used in Phase 32)
 - [ ] Debug overlay: draw paths, awareness radius, LOS rays
+- [ ] Dialog respects: AI leaves entities held in a dialog (Phase 27) alone - hostile AI doesn't target or attack the player mid-conversation - unless the game opts in
 
 ---
 
