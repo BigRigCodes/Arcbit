@@ -30,6 +30,7 @@ add_executable(arcbit-tests
     physics/SpatialHashTests.cpp
     physics/SweepTests.cpp
     render/Camera2DTests.cpp
+    render/FontSdfTests.cpp
     render/FontTests.cpp
     save/SaveSealTests.cpp
     save/SaveTests.cpp
@@ -55,6 +56,7 @@ add_executable(arcbit-tests
 )
 
 target_include_directories(arcbit-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}) # TestSupport.h
+target_include_directories(arcbit-tests PRIVATE ${CMAKE_SOURCE_DIR}/engine/src) # white-box tests of private helpers (FontSdf.h)
 
 # Lets tests validate the assets that actually ship (engine/assets, game/assets)
 # in place, rather than copies.

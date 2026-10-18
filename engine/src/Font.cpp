@@ -4,6 +4,8 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/core/Utf8.h>
 
+#include "FontSdf.h"
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
@@ -289,6 +291,49 @@ bool FontAtlas::BakeGlyph(const u32 codepoint) const
     return BakeArrow(codepoint);
 }
 
+namespace
+{
+struct Raster
+{
+    std::vector<u8> Pixels;
+    u32             Width = 0, Height = 0;
+    Vec2            Bearing;
+};
+
+// A glyph's bitmap from stb: coverage, or a distance field from stb's own SDF.
+Raster StbRaster(const stbtt_fontinfo& info, const int index, const f32 scale, const bool sdf)
+{
+    int w = 0, h = 0, xoff = 0, yoff = 0;
+    u8* bitmap = sdf ? stbtt_GetGlyphSDF(&info, scale, index, SdfPadding, SdfOnEdge, SdfDistScale, &w, &h, &xoff, &yoff)
+                     : stbtt_GetGlyphBitmap(&info, scale, scale, index, &w, &h, &xoff, &yoff);
+    Raster r{ .Bearing = { static_cast<f32>(xoff), static_cast<f32>(yoff) } };
+    if (bitmap && w > 0 && h > 0) {
+        r.Pixels.assign(bitmap, bitmap + static_cast<usize>(w) * h);
+        r.Width  = static_cast<u32>(w);
+        r.Height = static_cast<u32>(h);
+    }
+    if (bitmap) {
+        if (sdf) stbtt_FreeSDF(bitmap, nullptr);
+        else     stbtt_FreeBitmap(bitmap, nullptr);
+    }
+    return r;
+}
+
+// stb's SDF skips cubic curves, which are all a CFF (OpenType) outline has:
+// rasterize those larger and measure the distances on that instead.
+Raster CubicSdf(const stbtt_fontinfo& info, const int index, const f32 scale, const f32 pixelSize)
+{
+    const u32 up     = std::clamp(static_cast<u32>(256.0f / pixelSize), 2u, 8u); // ~256px glyphs to measure
+    const f32 bigger = scale * static_cast<f32>(up);
+    Raster    big    = StbRaster(info, index, bigger, false);
+    if (big.Pixels.empty()) return big;
+
+    SdfBitmap sdf = SdfFromCoverage(big.Pixels.data(), big.Width, big.Height, up, SdfPadding, SdfOnEdge, SdfDistScale);
+    return { .Pixels  = std::move(sdf.Pixels), .Width = sdf.Width, .Height = sdf.Height,
+             .Bearing = { big.Bearing.X / static_cast<f32>(up) - SdfPadding, big.Bearing.Y / static_cast<f32>(up) - SdfPadding } };
+}
+} // namespace
+
 // Rasterize a codepoint from one face, at this atlas's size and mode. Faces
 // are matched by em, not line height: CJK faces have tall lines, and sizing
 // by those would draw their characters small next to the font's.
@@ -298,23 +343,17 @@ bool FontAtlas::BakeFrom(const FontFace& face, const u32 codepoint) const
     const int             index = stbtt_FindGlyphIndex(&info, static_cast<int>(codepoint));
     if (index == 0) return false;
 
-    const f32 scale = stbtt_ScaleForMappingEmToPixels(&info, _emPixels);
-    int w = 0, h = 0, xoff = 0, yoff = 0;
-    u8* bitmap = _mode == FontMode::SDF
-        ? stbtt_GetGlyphSDF(&info, scale, index, SdfPadding, SdfOnEdge, SdfDistScale, &w, &h, &xoff, &yoff)
-        : stbtt_GetGlyphBitmap(&info, scale, scale, index, &w, &h, &xoff, &yoff);
+    const f32    scale = stbtt_ScaleForMappingEmToPixels(&info, _emPixels);
+    const bool   sdf   = _mode == FontMode::SDF;
+    const Raster r     = sdf && info.cff.size > 0 ? CubicSdf(info, index, scale, _pixelSize) : StbRaster(info, index, scale, sdf);
     int advance, lsb;
     stbtt_GetGlyphHMetrics(&info, index, &advance, &lsb);
 
     GlyphInfo g{};
-    g.Bearing = { static_cast<f32>(xoff), static_cast<f32>(yoff) };
+    g.Bearing = r.Bearing;
     g.Advance = static_cast<f32>(advance) * scale;
-    if (bitmap && w > 0 && h > 0 && Place(bitmap, static_cast<u32>(w), static_cast<u32>(h), g))
-        g.BitmapSize = { static_cast<f32>(w), static_cast<f32>(h) };
-    if (bitmap) {
-        if (_mode == FontMode::SDF) stbtt_FreeSDF(bitmap, nullptr);
-        else                        stbtt_FreeBitmap(bitmap, nullptr);
-    }
+    if (!r.Pixels.empty() && Place(r.Pixels.data(), r.Width, r.Height, g))
+        g.BitmapSize = { static_cast<f32>(r.Width), static_cast<f32>(r.Height) };
     _glyphs[codepoint] = g;
     return true;
 }
