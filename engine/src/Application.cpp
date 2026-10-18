@@ -254,7 +254,8 @@ void Application::Run()
                                 },
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
-                                .AutoSave = [this] { return AutoSave(); } });
+                                .AutoSave = [this] { return AutoSave(); },
+                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); } });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -443,6 +444,7 @@ void Application::Run()
             _textures->CheckReloads([this] { _renderThread.WaitIdle(); });
 #ifdef ARCBIT_DEBUG
             _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
+            Loc::CheckReloads();          // and edited locale files (text follows the generation)
 #endif
             _hotReloadAccumulator -= 1.0;
         }

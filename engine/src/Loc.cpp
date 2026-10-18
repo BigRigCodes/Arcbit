@@ -20,11 +20,19 @@ using Table = std::unordered_map<std::string, std::string>;
 
 struct Language
 {
-    Loc::Locale                        Info;
-    std::vector<std::filesystem::path> Files;   // read in order: later files' strings win
-    Table                              Strings; // all its files, once loaded
-    bool                               Loaded = false;
+    Loc::Locale                                  Info;
+    std::vector<std::filesystem::path>           Files;   // read in order: later files' strings win
+    std::vector<std::filesystem::file_time_type> Stamps;  // each file's write time when last read
+    Table                                        Strings; // all its files, once loaded
+    bool                                         Loaded = false;
 };
+
+std::filesystem::file_time_type StampOf(const std::filesystem::path& file)
+{
+    std::error_code ec;
+    const auto      stamp = std::filesystem::last_write_time(file, ec);
+    return ec ? std::filesystem::file_time_type{} : stamp;
+}
 
 struct State
 {
@@ -95,8 +103,14 @@ void ReadMeta(const nlohmann::json& root, const std::filesystem::path& file, Loc
 void LoadStrings(Language& language)
 {
     language.Strings.clear();
-    for (const auto& file : language.Files)
-        if (const auto root = ReadJson(file)) Flatten(*root, "", language.Strings);
+    language.Stamps.clear();
+    for (const auto& file : language.Files) {
+        language.Stamps.push_back(StampOf(file));
+        if (const auto root = ReadJson(file)) {
+            Flatten(*root, "", language.Strings);
+            ReadMeta(*root, file, language.Info);
+        }
+    }
     language.Loaded = true;
     ++S().Generation;
 }
@@ -206,7 +220,10 @@ bool Loc::Load(const std::string_view path)
     if (language.Info.Code.empty()) language.Info = { .Code = S().Active, .Name = S().Active };
     language.Files.push_back(file);
     ReadMeta(*root, file, language.Info);
-    if (language.Loaded) Flatten(*root, "", language.Strings);
+    if (language.Loaded) {
+        Flatten(*root, "", language.Strings);
+        language.Stamps.push_back(StampOf(file));
+    }
     else LoadStrings(language);
     ++S().Generation;
     RebuildChain();
@@ -276,6 +293,37 @@ std::string Loc::Interpolate(const std::string_view text, const std::span<const 
         i = close;
     }
     return out;
+}
+
+std::vector<std::string> Loc::GetMissing(const std::string_view code)
+{
+    const std::string wanted = code.empty() ? S().Active : std::string(code);
+    Language*         target = Find(wanted);
+    const Language*   base   = Find(Normalize(wanted).substr(0, Normalize(wanted).find('-')));
+    const Language*   en     = Find(English);
+    if (!target || !en) return {};
+    if (!target->Loaded) LoadStrings(*target);
+
+    std::vector<std::string> missing;
+    for (const auto& key : en->Strings | std::views::keys)
+        if (!target->Strings.contains(key) && !(base && base != target && base->Strings.contains(key))) missing.push_back(key);
+    std::ranges::sort(missing);
+    return missing;
+}
+
+u32 Loc::CheckReloads()
+{
+    u32 reloaded = 0;
+    for (auto& [code, language] : S().Languages) {
+        if (!language.Loaded) continue;
+        bool changed = language.Stamps.size() != language.Files.size();
+        for (usize i = 0; !changed && i < language.Files.size(); ++i) changed = StampOf(language.Files[i]) != language.Stamps[i];
+        if (!changed) continue;
+        LoadStrings(language);
+        LOG_INFO(Engine, "Loc: reloaded '{}'", language.Info.Code);
+        ++reloaded;
+    }
+    return reloaded;
 }
 
 void Loc::ForEachString(const std::function<void(std::string_view)>& visit)

@@ -125,6 +125,7 @@ struct ApplicationConfig
     const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
     i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
+    const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
 };
 
 // ---------------------------------------------------------------------------
@@ -397,6 +398,7 @@ private:
     void UpdateAutoSave();       // run a queued autosave once the game is idle
     void WriteCapture();         // a captured frame arrived: write the save's thumbnail or the screenshot
     void StartLanguage();        // ApplicationLocale.cpp: find the locales, pick the first language
+    void PrintMissing(std::string_view code); // console loc.missing
     void ApplyLanguageFonts();   // the languages' fonts as every font's fallbacks
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;

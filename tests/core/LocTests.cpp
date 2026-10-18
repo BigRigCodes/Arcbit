@@ -6,6 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -261,4 +262,37 @@ TEST_CASE("A count picks the plural form, by the rules of the language that has 
     REQUIRE(Loc::SetLanguage("ru")); // no Russian forms: English's, by English rules
     CHECK(Loc::Format("coins", { { "count", 21 } }) == "21 coins");
     CHECK(Loc::Format("coins", { { "count", "many" } }) == "coins"); // a count that isn't a number picks nothing
+}
+
+TEST_CASE("GetMissing lists the English keys a language lacks, its base language counting", "[core][loc]")
+{
+    LocScope scope;
+    Folders  f;
+    f.Write(f.Engine, "en.json", R"({ "a": "1", "b": "2", "c": "3" })");
+    f.Write(f.Engine, "pt.json", R"({ "a": "um" })");
+    f.Write(f.Engine, "pt-BR.json", R"({ "b": "dois" })");
+    f.AddBoth();
+    REQUIRE(Loc::SetLanguage("pt-BR"));
+    CHECK(Loc::GetMissing() == std::vector<std::string>{ "c" });
+    CHECK(Loc::GetMissing("pt") == std::vector<std::string>{ "b", "c" });
+    CHECK(Loc::GetMissing("en").empty());
+    CHECK(Loc::GetMissing("xx").empty());
+}
+
+TEST_CASE("CheckReloads reads changed locale files again", "[core][loc]")
+{
+    LocScope scope;
+    Folders  f;
+    f.Write(f.Engine, "en.json", R"({ "a": "before" })");
+    f.AddBoth();
+    REQUIRE(Loc::SetLanguage("en"));
+    CHECK(Loc::CheckReloads() == 0);
+
+    f.Write(f.Engine, "en.json", R"({ "a": "after" })");
+    const auto file = f.Engine / "en.json";
+    std::filesystem::last_write_time(file, std::filesystem::last_write_time(file) + std::chrono::seconds(5));
+    const u64 generation = Loc::GetGeneration();
+    CHECK(Loc::CheckReloads() == 1);
+    CHECK(Loc::Get("a") == "after");
+    CHECK(Loc::GetGeneration() != generation); // text on screen follows
 }

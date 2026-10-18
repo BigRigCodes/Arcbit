@@ -88,12 +88,14 @@ constexpr const char* BattleScene = "Battle";
 constexpr const char* LastDemoKey = "demo.last";
 } // namespace
 
-// Debug builds run the scripts in the source tree, so edits hot-reload; the
+// Debug builds run the scripts and locale files in the source tree, so edits hot-reload; the
 // copy in bin/ is only refreshed by a build.
 #ifdef ARCBIT_DEBUG
-constexpr const char* ScriptRoot = ARCBIT_GAME_ASSETS "/scripts";
+constexpr const char* ScriptRoot   = ARCBIT_GAME_ASSETS "/scripts";
+constexpr const char* LocaleFolder = ARCBIT_GAME_ASSETS "/locale";
 #else
-constexpr const char* ScriptRoot = "assets/scripts";
+constexpr const char* ScriptRoot   = "assets/scripts";
+constexpr const char* LocaleFolder = "assets/locale";
 #endif
 
 class DemoApp : public Application
@@ -109,7 +111,7 @@ public:
 
     explicit DemoApp(const Options& options) :
         Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot,
-                      .Display = options.Display }),
+                      .Display = options.Display, .LocaleFolder = LocaleFolder }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running

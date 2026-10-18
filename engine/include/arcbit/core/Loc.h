@@ -112,6 +112,16 @@ public:
     // Languages without built-in rules count like English.
     [[nodiscard]] static std::string_view PluralForm(std::string_view language, f64 n);
 
+    // English keys a language (default: the active one) has no string for,
+    // itself or through the language it's a region of - what's left to
+    // translate. Sorted.
+    [[nodiscard]] static std::vector<std::string> GetMissing(std::string_view code = {});
+
+    // Read again the files of every loaded language that changed on disk
+    // since they were read. Returns how many languages reloaded (debug
+    // builds call it once a second, so edits show without a restart).
+    static u32 CheckReloads();
+
     // Every string the active language can show (its own, then the ones it
     // falls back to) - to bake their glyphs ahead (FontAtlas::Prepare).
     static void ForEachString(const std::function<void(std::string_view)>& visit);

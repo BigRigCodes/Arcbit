@@ -176,6 +176,22 @@ error rather than corrupting the world.
 
 Subscriptions end with the script that made them.
 
+### Loc
+
+Player-visible text belongs in the locale files as keys, so it's shown in the
+player's language (docs/localization.md).
+
+| | |
+|---|---|
+| `Loc.Get(key)` | the string in the current language (else English, else the key itself) |
+| `Loc.Format(key, { name = "Ana", count = 3 })` | with `{name}` placeholders filled; a number named `count` picks the plural form |
+| `Loc.Interpolate(text, args)`, `Loc.Has(key)` | placeholders in text that isn't a key; whether a key has a string |
+| `Loc.Language()`, `Loc.Languages()` | the current code (`"fr"`); every language as `{ Code, Name }` |
+| `Loc.SetLanguage(code)` | switch, as the Game settings screen does (saved, `engine.locale.changed` fires); false if there's no such language |
+
+A widget's `.TextKey = "ui.shop.title"` shows that key and follows language
+changes; setting `.Text` shows exactly that text instead.
+
 ### Basics
 
 `print(...)` and `Log.Info / Warn / Error(...)` (prefixed with the script and
@@ -264,7 +280,7 @@ close) - and the handlers: `self:OnBuy(widget)` for `on_click` (buttons),
 `self:OnVolume(widget, value)` for `on_change` (sliders, switches,
 checkboxes, text inputs, dropdowns and radio groups - choices count from 1).
 
-`self.Screen:Find(name)` gives a widget with `.Text`, `.Value`, `.Visible`,
+`self.Screen:Find(name)` gives a widget with `.Text`, `.TextKey`, `.Value`, `.Visible`,
 `.Enabled`, `.Name`; `self.Screen:Close()`, `:IsOpen()`. `"meta": { "layer":
 "hud" }` makes it a HUD (no input) instead of a menu. A UI script has the
 whole API (acting on the active scene); its tasks and subscriptions end when
@@ -291,6 +307,8 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `save [n \| quick]`, `load [n \| quick]` | |
 | `set <key> <value>` - cheat, `get <key>` | save data |
 | `fps`, `colliders` | toggles |
+| `lang [code]` | list the languages (current marked), or switch to one |
+| `loc.missing [code]` | the English keys a language has no string for |
 | `screenshot` | save the screen (closing the console first) as a PNG in the user folder's `screenshots/` - also `Application::Screenshot()` |
 | `quit` | |
 
@@ -323,6 +341,11 @@ from the files you edit: `ApplicationConfig::ScriptRoot` says where. The demo
 app points it at `game/assets/scripts` in debug builds (the
 `ARCBIT_GAME_ASSETS` define in `game/CMakeLists.txt`); a shipped build uses
 `assets/scripts`.
+
+Locale files hot-reload the same way: on screen text follows within a second.
+`ApplicationConfig::LocaleFolder` is the game's folder (the demo uses
+`game/assets/locale` in debug builds); the engine's own strings reload from
+`bin/`, after a build copies them there.
 
 **Errors** never take the game down. Every call into Lua is protected; an
 error is logged with the script, line and traceback, printed in the console,

@@ -22,7 +22,7 @@ constexpr const char* LanguageKey = "engine.language"; // the player's choice, o
 void Application::StartLanguage()
 {
     Loc::AddFolder("assets/engine/locale");
-    Loc::AddFolder("assets/locale");
+    Loc::AddFolder(_config.LocaleFolder);
 
     std::string code;
     if (_config.Language && Loc::FindLocale(_config.Language)) code = _config.Language;
