@@ -1,0 +1,62 @@
+{
+    "camera": { "position": [256.0, 0.0], "zoom": 1.5 },
+    "config": { "tile_size": 64.0 },
+    "entities": {
+        "chest": {
+            "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Prop" },
+            "Interactable": { "prompt": "Open" },
+            "Persistent": {},
+            "Script": { "properties": { "Gold": 25 }, "script": "demo.chest" },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.6, 0.2, 1.0] },
+            "Tag": { "value": "Chest" },
+            "Transform2D": { "position": [384.0, -192.0], "scale": [56.0, 56.0] }
+        },
+        "door": {
+            "Interactable": { "prompt": "Enter" },
+            "Script": { "properties": { "Scene": "World" }, "script": "demo.door" },
+            "SpriteRenderer": { "layer": -1, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.3, 0.6, 1.0] },
+            "Tag": { "value": "Door" },
+            "Transform2D": { "position": [448.0, 256.0], "scale": [60.0, 60.0] }
+        },
+        "guard": {
+            "Collider2D": { "half_extents": [24.0, 24.0], "layer": "NPC" },
+            "Script": { "properties": { "Distance": 448, "Pause": 1, "Seconds": 3 }, "script": "demo.guard" },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.8, 0.25, 0.25, 1.0] },
+            "Tag": { "value": "Guard" },
+            "Transform2D": { "position": [-320.0, -320.0], "scale": [48.0, 48.0] }
+        },
+        "lookout": {
+            "Collider2D": { "half_extents": [256.0, 32.0], "is_trigger": true, "kind": "static", "layer": "Trigger", "mask": "Player" },
+            "Script": { "script": "demo.lookout" },
+            "SpriteRenderer": { "layer": -2, "sampler": "nearest", "texture": "builtin:white", "tint": [0.9, 0.3, 0.3, 0.2] },
+            "Tag": { "value": "Lookout" },
+            "Transform2D": { "position": [-96.0, -256.0], "scale": [512.0, 64.0] }
+        },
+        "player": {
+            "CameraTarget": { "lag": 0.05 },
+            "Collider2D": { "half_extents": [25.0, 25.0], "layer": "Player" },
+            "InputMovement": { "move_down": "Move_Down", "move_left": "Move_Left", "move_right": "Move_Right", "move_up": "Move_Up" },
+            "Interactor": {},
+            "MoveIntent": {},
+            "Persistent": { "components": ["Transform2D"] },
+            "SmoothTileMovement": { "speed": 5.0 },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.3, 0.5, 1.0, 1.0] },
+            "Tag": { "value": "Player" },
+            "Transform2D": { "position": [256.0, 0.0], "scale": [48.0, 48.0] }
+        },
+        "sign": {
+            "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },
+            "Interactable": { "prompt": "Read" },
+            "Script": { "properties": { "Text": "Scripted in Lua: scripts/demo/*.lua. Edit one while the game runs." }, "script": "demo.sign" },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.7, 0.7, 0.55, 1.0] },
+            "Tag": { "value": "Sign" },
+            "Transform2D": { "position": [320.0, 128.0], "scale": [48.0, 32.0] }
+        }
+    },
+    "physics": { "debug_draw": false },
+    "render": { "ambient": [1.0, 1.0, 1.0, 1.0] },
+    "script": "demo.scene",
+    "tile_overrides": [{ "id": 409, "solid": true }],
+    "tilemap": "assets/maps/physics.arcmap",
+    "version": 1
+}

@@ -102,6 +102,7 @@ namespace
             { "Demo_EventLog", "Event Log", "Debug", { Key::F3 } },
             { "Demo_QuickSave", "Quicksave", "Demo", { Key::F5 } },
             { "Demo_QuickLoad", "Quickload", "Demo", { Key::F9 } },
+            { "Demo_LuaMenu", "Lua Menu", "Demo", { Key::L } },
         };
         return defs;
     }

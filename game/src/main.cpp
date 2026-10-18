@@ -64,6 +64,8 @@ std::span<const Demo::Entry> Demo::Entries()
         { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
           "M movement style, F2 colliders, G grid, F3 events",
           &CreateTriggerDemo },
+        { "Scripted", "Lua: a chest, door, sign, patrolling guard, HUD and menu (26)", "E use, L menu, ` console",
+          [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/scripted.arcscene"); } },
     };
     return entries;
 }

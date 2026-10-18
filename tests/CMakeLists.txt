@@ -35,6 +35,7 @@ add_executable(arcbit-tests
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp
+    script/DemoScriptTests.cpp
     script/SceneScriptTests.cpp
     script/ScriptConsoleTests.cpp
     script/ScriptApiTests.cpp
