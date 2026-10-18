@@ -212,6 +212,9 @@ void Application::Run()
     _input.BindKey(ConsoleScreen::ActionHistoryDown, Key::Down);
     _input.RegisterAction(ConsoleScreen::ActionComplete, "Console_Complete");
     _input.BindKey(ConsoleScreen::ActionComplete, Key::Tab);
+    for (const ActionID action : { ActionEngineFullscreen, ActionEngineConsole, ConsoleScreen::ActionHistoryUp,
+                                   ConsoleScreen::ActionHistoryDown, ConsoleScreen::ActionComplete })
+        _input.KeepWhileTyping(action);
 
     // Stock samplers and the scene registry's built-ins, before any scene loads.
     _nearestSampler = _device->CreateSampler(SamplerDesc{ .MinFilter = Filter::Nearest, .MagFilter = Filter::Nearest,
@@ -287,7 +290,10 @@ void Application::Run()
     });
     _window->SetScrollCallback([this](f32 delta) { _input.InjectMouseScroll(delta); });
     _window->SetTextInputCallback([this](const char* text) { _input.InjectTextInput(text); });
-    _ui.SetTextInputActiveCallback([this](bool active) { _window->SetTextInputActive(active); });
+    _ui.SetTextInputActiveCallback([this](const bool active) {
+        _window->SetTextInputActive(active);
+        _input.SetTyping(active); // the game's keys rest while someone types
+    });
 
     // High-resolution wall-clock timer for accurate delta time.
     using Clock    = std::chrono::steady_clock;

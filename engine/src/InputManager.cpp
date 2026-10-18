@@ -637,24 +637,28 @@ void InputManager::ProcessEdges()
 
 bool InputManager::IsPressed(const ActionID action) const
 {
+    if (_typing && !_keepWhileTyping.contains(action)) return false;
     const auto it = _actions.find(action);
     return it != _actions.end() && it->second.Pressed;
 }
 
 bool InputManager::JustPressed(const ActionID action) const
 {
+    if (_typing && !_keepWhileTyping.contains(action)) return false;
     const auto it = _actions.find(action);
     return it != _actions.end() && it->second.JustPressed;
 }
 
 bool InputManager::JustReleased(const ActionID action) const
 {
+    if (_typing && !_keepWhileTyping.contains(action)) return false;
     const auto it = _actions.find(action);
     return it != _actions.end() && it->second.JustReleased;
 }
 
 f32 InputManager::AxisValue(const ActionID action) const
 {
+    if (_typing && !_keepWhileTyping.contains(action)) return 0.0f;
     const auto it = _actions.find(action);
     return it != _actions.end() ? it->second.AxisValue : 0.0f;
 }

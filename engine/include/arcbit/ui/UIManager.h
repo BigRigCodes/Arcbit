@@ -197,6 +197,7 @@ private:
 
     std::function<void(bool)> _textInputActiveCallback;
     bool _textInputActive = false; // tracks current SDL text input mode
+    void SyncTextInput(bool active); // report a change through the callback
 
     // Returns the topmost screen that is not fading out (receives input).
     [[nodiscard]] UIScreen* ActiveInputScreen() const;

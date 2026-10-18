@@ -201,3 +201,26 @@ TEST_CASE("Releasing a key doesn't switch the device", "[input]")
     CHECK(input.GetLastDevice() == InputDevice::Gamepad);
     CHECK(ToString(InputDevice::Gamepad) == "gamepad");
 }
+
+TEST_CASE("While typing, actions read idle unless kept for typing", "[input]")
+{
+    constexpr ActionID Grid    = MakeAction("Debug_ToggleGrid");
+    constexpr ActionID Confirm = MakeAction("UI_Confirm");
+    InputManager input;
+    input.RegisterAction(Grid, "Debug_ToggleGrid");
+    input.BindKey(Grid, Key::G);
+    input.RegisterAction(Confirm, "UI_Confirm");
+    input.BindKey(Confirm, Key::Enter);
+    input.KeepWhileTyping(Confirm);
+
+    input.SetTyping(true);
+    Tap(input, SDL_SCANCODE_G, true);
+    Tap(input, SDL_SCANCODE_RETURN, true);
+    CHECK_FALSE(input.JustPressed(Grid)); // the G was typed into a text field
+    CHECK(input.JustPressed(Confirm));
+
+    input.SetTyping(false);
+    Tap(input, SDL_SCANCODE_G, false);
+    Tap(input, SDL_SCANCODE_G, true);
+    CHECK(input.JustPressed(Grid));
+}

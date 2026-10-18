@@ -82,6 +82,13 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     input.BindKey(ActionCtrlMod, Key::RightCtrl);
 
     input.BindGamepadButton(ActionBack, GamepadButton::East);
+
+    // The UI drives text entry, so its keys keep working while someone types.
+    for (const ActionID action : { ActionConfirm, ActionFocusNext, ActionFocusPrev, ActionCursorLeft, ActionCursorRight,
+                                   ActionCursorUp, ActionCursorDown, ActionScrollUp, ActionScrollDown, ActionCursorClick,
+                                   ActionTextLeft, ActionTextRight, ActionTextHome, ActionTextEnd, ActionTextBackspace,
+                                   ActionTextDelete, ActionTextEscape, ActionTabNext, ActionShiftMod, ActionCtrlMod, ActionBack })
+        input.KeepWhileTyping(action);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +308,10 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     UpdatePointer(dt, windowSize, input);
 
     UIScreen* active = ActiveInputScreen();
-    if (!active) return;
+    if (!active) {
+        SyncTextInput(false); // the screen being typed into just closed
+        return;
+    }
 
     // Screens set this flag on the frame they are pushed so that the key event
     // that caused the push (e.g. Escape to open a menu) is not also processed
@@ -395,11 +405,14 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // Done last so any focus change above (Tab/arrow nav, ClearFocus on back,
     // ActivateFocused) is reflected before the next SDL pump.
     UIWidget* const finalFocused = active->GetFocusedWidget();
-    const bool      consumesNav  = finalFocused && finalFocused->ConsumesFocusNav();
-    if (consumesNav != _textInputActive) {
-        _textInputActive = consumesNav;
-        if (_textInputActiveCallback) _textInputActiveCallback(_textInputActive);
-    }
+    SyncTextInput(finalFocused && finalFocused->ConsumesFocusNav());
+}
+
+void UIManager::SyncTextInput(const bool active)
+{
+    if (active == _textInputActive) return;
+    _textInputActive = active;
+    if (_textInputActiveCallback) _textInputActiveCallback(_textInputActive);
 }
 
 // ---------------------------------------------------------------------------
