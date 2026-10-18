@@ -9,18 +9,21 @@
   "ui.common.no":        "Non",
   "ui.common.ok":        "OK",
   "ui.common.percent":   "{value} %",
+  "ui.common.filter":     "Tapez pour filtrer…",
+  "ui.common.no_matches": "Aucun résultat",
 
   "ui.pause.title":    "PAUSE",
   "ui.pause.resume":   "Reprendre",
   "ui.pause.save":     "Sauvegarder",
   "ui.pause.load":     "Charger",
+  "ui.pause.game":     "Jeu",
   "ui.pause.controls": "Commandes",
   "ui.pause.audio":    "Audio",
   "ui.pause.graphics": "Graphismes",
-  "ui.pause.language": "Langue",
   "ui.pause.quit":     "Quitter",
 
-  "ui.language.title": "Langue",
+  "ui.game.title":    "Paramètres du jeu",
+  "ui.game.language": "Langue",
 
   "ui.audio.title":  "Paramètres audio",
   "ui.audio.master": "Volume général",

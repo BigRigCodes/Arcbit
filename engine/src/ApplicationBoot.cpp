@@ -111,7 +111,7 @@ void Application::ShowTitle()
     title->OnAudioSettings    = [this] { ShowAudioScreen(); };
     title->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
     title->OnCredits          = [this] { ShowCredits(); };
-    title->OnLanguage         = [this] { ShowLanguageScreen(); };
+    title->OnGameSettings     = [this] { ShowGameSettingsScreen(); };
     title->OnQuit             = [this] { RequestShutdown(); };
     _ui.OpenMenu(std::move(title));
 }

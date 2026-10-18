@@ -30,6 +30,7 @@ class Window;          // full type only needed in Application.cpp
 class SavingIndicator; // ApplicationSaves.cpp
 class ErrorToasts;     // ApplicationConsole.cpp
 class SaveSlotScreen;
+class GameSettingsScreen;
 
 // ---------------------------------------------------------------------------
 // How the game starts once the engine's own splash has played: the game's
@@ -295,7 +296,7 @@ public:
     void ShowControlsScreen();
     void ShowAudioScreen();
     void ShowGraphicsScreen();
-    void ShowLanguageScreen(); // LanguageScreen; pause and title menus show it when there's a choice
+    void ShowGameSettingsScreen(); // GameSettingsScreen: the language, and the game's own (OnGameSettings)
 
     // Switch the player-visible language (a locale code: "fr", "pt-BR"): every
     // screen's text follows, the language's fonts load, the choice is saved
@@ -340,6 +341,11 @@ protected:
     // Called at a fixed rate (fixedTimestep seconds per call) for game logic
     // that must be frame-rate-independent (physics, AI, gameplay state).
     virtual void OnUpdate(f32 dt) {}
+
+    // The Game settings screen was built: wire the game's own rows (difficulty,
+    // text speed) - from a layout of its own set in screen.LayoutPath, which
+    // keeps the engine's "language-dd" and "back-btn".
+    virtual void OnGameSettings(GameSettingsScreen& /*screen*/) {}
 
     // Called every frame (variable rate) to build the render packet.
     // The packet is pre-filled with Swapchain, Width, Height, NeedsResize,

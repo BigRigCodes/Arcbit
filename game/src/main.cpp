@@ -237,7 +237,7 @@ private:
         pause->OnControls         = [this] { ShowControlsScreen(); };
         pause->OnAudioSettings    = [this] { ShowAudioScreen(); };
         pause->OnGraphicsSettings = [this] { ShowGraphicsScreen(); };
-        pause->OnLanguage         = [this] { ShowLanguageScreen(); };
+        pause->OnGameSettings     = [this] { ShowGameSettingsScreen(); };
         pause->OnQuit             = [this] { RequestShutdown(); };
         GetUI().OpenMenu(std::move(pause));
     }

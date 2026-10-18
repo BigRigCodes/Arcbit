@@ -7,7 +7,7 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/settings/Settings.h>
-#include <arcbit/ui/LanguageScreen.h>
+#include <arcbit/ui/GameSettingsScreen.h>
 
 namespace Arcbit
 {
@@ -66,11 +66,12 @@ void Application::ApplyLanguageFonts()
     Loc::ForEachString([this](const std::string_view text) { _debugFont.Prepare(text); });
 }
 
-void Application::ShowLanguageScreen()
+void Application::ShowGameSettingsScreen()
 {
-    auto screen      = std::make_unique<LanguageScreen>();
-    screen->OnSelect = [this](const std::string& code) { SetLanguage(code); };
-    screen->OnBack   = [this, ptr = screen.get()] { _ui.Close(ptr); };
+    auto screen        = std::make_unique<GameSettingsScreen>();
+    screen->OnLanguage = [this](const std::string& code) { SetLanguage(code); };
+    screen->OnBack     = [this, ptr = screen.get()] { _ui.Close(ptr); };
+    screen->OnBuilt    = [this](GameSettingsScreen& built) { OnGameSettings(built); };
     _ui.Push(std::move(screen));
 }
 } // namespace Arcbit

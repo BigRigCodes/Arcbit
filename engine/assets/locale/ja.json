@@ -9,18 +9,21 @@
   "ui.common.no":        "いいえ",
   "ui.common.ok":        "OK",
   "ui.common.percent":   "{value}%",
+  "ui.common.filter":     "入力して絞り込み…",
+  "ui.common.no_matches": "該当なし",
 
   "ui.pause.title":    "ポーズ",
   "ui.pause.resume":   "再開",
   "ui.pause.save":     "セーブ",
   "ui.pause.load":     "ロード",
+  "ui.pause.game":     "ゲーム",
   "ui.pause.controls": "操作設定",
   "ui.pause.audio":    "サウンド",
   "ui.pause.graphics": "グラフィック",
-  "ui.pause.language": "言語",
   "ui.pause.quit":     "終了",
 
-  "ui.language.title": "言語",
+  "ui.game.title":    "ゲーム設定",
+  "ui.game.language": "言語",
 
   "ui.audio.title":  "サウンド設定",
   "ui.audio.master": "マスター音量",

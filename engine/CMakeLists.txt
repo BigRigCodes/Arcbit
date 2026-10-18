@@ -75,7 +75,7 @@ add_library(arcbit-engine STATIC
     src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
     src/ConfirmScreen.cpp
-    src/LanguageScreen.cpp
+    src/GameSettingsScreen.cpp
     src/SaveSlotScreen.cpp
     src/SavingIndicator.cpp
     src/Screenshot.cpp

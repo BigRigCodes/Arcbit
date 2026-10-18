@@ -30,6 +30,11 @@ void PauseMenuScreen::OnEnter()
         btn->OnClick = OnLoadGame;
     }
 
+    if (auto* btn = FindWidget<Button>("game-btn")) {
+        btn->Visible = HasGameSettings();
+        btn->OnClick = OnGameSettings;
+    }
+
     if (auto* btn = FindWidget<Button>("controls-btn")) {
         btn->Visible = ShowControls;
         btn->OnClick = OnControls;
@@ -45,23 +50,17 @@ void PauseMenuScreen::OnEnter()
         btn->OnClick = OnGraphicsSettings;
     }
 
-    if (auto* btn = FindWidget<Button>("language-btn")) {
-        btn->Visible = HasLanguageChoice();
-        btn->OnClick = OnLanguage;
-    }
 
     if (auto* btn = FindWidget<Button>("quit-btn"))
         btn->OnClick = OnQuit;
 
     StackButtons(FindWidget<UIWidget>("bg"),
-                 { "resume-btn", "save-btn", "load-btn", "controls-btn", "audio-btn", "graphics-btn", "language-btn",
+                 { "resume-btn", "save-btn", "load-btn", "game-btn", "controls-btn", "audio-btn", "graphics-btn",
                    "quit-btn" },
                  GetMetaF32("btn_start_y", 72.0f), GetMetaF32("btn_gap", 56.0f), 24.0f);
 }
 
 void PauseMenuScreen::OnBackPressed() { if (OnResume) OnResume(); }
-
-bool PauseMenuScreen::HasLanguageChoice() const { return ShowLanguage && OnLanguage && Loc::GetLocales().size() > 1; }
 
 // ---------------------------------------------------------------------------
 // BuildFallback — inline layout used when the .arcui file is unavailable.
@@ -77,7 +76,7 @@ void PauseMenuScreen::BuildFallback()
             + (ShowControls ? 1 : 0)
             + (ShowAudioSettings ? 1 : 0)
             + (ShowGraphicsSettings ? 1 : 0)
-            + (HasLanguageChoice() ? 1 : 0);
+            + (HasGameSettings() ? 1 : 0);
 
     const f32 panelW = 360.0f;
     const f32 panelH = 80.0f + static_cast<f32>(btnCount) * 56.0f + 20.0f;
@@ -144,6 +143,10 @@ void PauseMenuScreen::BuildFallback()
         MakeButton("ui.pause.load", y, OnLoadGame);
         y += gap;
     }
+    if (HasGameSettings()) {
+        MakeButton("ui.pause.game", y, OnGameSettings);
+        y += gap;
+    }
     if (ShowControls) {
         MakeButton("ui.pause.controls", y, OnControls);
         y += gap;
@@ -154,10 +157,6 @@ void PauseMenuScreen::BuildFallback()
     }
     if (ShowGraphicsSettings) {
         MakeButton("ui.pause.graphics", y, OnGraphicsSettings);
-        y += gap;
-    }
-    if (HasLanguageChoice()) {
-        MakeButton("ui.pause.language", y, OnLanguage);
         y += gap;
     }
     MakeButton("ui.pause.quit", y, OnQuit, {0.88f, 0.30f, 0.30f, 1.0f});

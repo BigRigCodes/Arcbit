@@ -1,12 +1,12 @@
 // UI that follows the language: widgets' text keys, screens told the
-// language changed, and the Language screen.
+// language changed, and the Game settings screen.
 
 #include "TestSupport.h"
 
 #include <arcbit/core/Loc.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/InputWidgets.h>
-#include <arcbit/ui/LanguageScreen.h>
+#include <arcbit/ui/GameSettingsScreen.h>
 #include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/Widgets.h>
 
@@ -86,29 +86,29 @@ TEST_CASE("Loc::Match takes the first preferred language the game has", "[ui][lo
     CHECK_FALSE(Loc::Match(List{}));
 }
 
-TEST_CASE("The Language screen lists each language by its own name and picks one", "[ui][loc]")
+TEST_CASE("The Game settings screen offers every language by its own name", "[ui][loc]")
 {
     Languages    languages;
     UIManager    ui;
     InputManager input;
 
     std::vector<std::string> picked;
-    auto                     screen = std::make_unique<LanguageScreen>();
-    screen->OnSelect                = [&](const std::string& code) { picked.push_back(code); };
+    int                      built  = 0;
+    auto                     screen = std::make_unique<GameSettingsScreen>();
+    screen->LayoutPath              = ArcbitTests::SourcePath("engine/assets/ui/game_settings.arcui").string();
+    screen->OnLanguage              = [&](const std::string& code) { picked.push_back(code); };
+    screen->OnBuilt                 = [&](GameSettingsScreen&) { ++built; };
     auto* raw                       = screen.get();
     ui.Push(std::move(screen));
     Tick(ui, input);
 
-    auto* en = raw->FindWidget<Button>("lang-en");
-    auto* fr = raw->FindWidget<Button>("lang-fr");
-    REQUIRE(en);
-    REQUIRE(fr);
-    CHECK(en->Text == "English");
-    CHECK(fr->Text == "Francais");
-    CHECK(raw->GetFocusedWidget() == en); // the current language
-    CHECK(en->SkinOverride.TextLabel.has_value());
-    CHECK_FALSE(fr->SkinOverride.TextLabel.has_value());
+    auto* dropdown = raw->FindWidget<Dropdown>("language-dd");
+    REQUIRE(dropdown);
+    CHECK(dropdown->Items == std::vector<std::string>{ "English", "Francais" });
+    CHECK(dropdown->SearchTerms == std::vector<std::string>{ "en", "fr" });
+    CHECK(dropdown->SelectedIndex == 0); // the current language
+    CHECK(built == 1);
 
-    fr->OnClick();
+    dropdown->OnChanged(1);
     CHECK(picked == std::vector<std::string>{ "fr" });
 }
