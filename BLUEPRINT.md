@@ -671,3 +671,17 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Save editing in mod mode**: open, edit and reseal a player's `.arcsave` with the mod key (Phase 25, Phase 36)
 - [ ] **Persistence in the scene editor**: `Persistent` and `persist_all` as checkboxes, with the component list picker (Phase 25)
 - [ ] **Editor mode detection**: on open, inspect the loaded `project.arcbit` to determine mode — full dev mode (dev key present) or restricted mod mode (mod key only, `mod_support = true`); mod mode disables save-over-original and shows a clear "Mod Editor" banner so end users know what they are working with
+
+---
+
+## Phase 41: C# Scripting
+*Optional, alongside Lua (Phase 26). C# is for a game's own trusted code: .NET has no sandbox, so mods (Phase 37) stay Lua-only. Comes after the editor (Phase 40), which brings .NET into the toolchain and can share the bindings.*
+
+- [ ] Host .NET from the engine with `nethost` / `hostfxr`; load the game's assembly and call `[UnmanagedCallersOnly]` entry points through function pointers
+- [ ] A language-neutral script runtime seam under `SceneScripts`: create an instance, call a hook, end an owner; Lua becomes one runtime, C# another
+- [ ] A flat C API exported by the engine (entities, components by registered name, events, scenes, input, audio, saves, UI, console), JSON-based first, with typed fast paths (`Transform`, `Position`) where profiling asks for them
+- [ ] `Arcbit.Scripting` C# library over that API: `Entity`, `Scene`, `Event`, `Input`, `Save`, and a script base class with `OnStart` / `OnUpdate` / `OnDestroy` / contact and interact hooks; async tasks in place of Lua's `self:Run` / `Wait`
+- [ ] `Script` component names a C# class (`"module": "MyGame.Chest"`) as well as a Lua module; `self.Saved`-style saved state through a `[Saved]` field attribute
+- [ ] Hot reload in debug builds through a collectible `AssemblyLoadContext`, carrying `[Saved]` fields across the reload
+- [ ] Shipping: self-contained .NET runtime next to the game, or the game's C# compiled with NativeAOT into a native library (no runtime to ship; needed for consoles)
+- [ ] Console commands and the error handler / toasts work the same as for Lua
