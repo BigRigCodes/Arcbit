@@ -1,4 +1,5 @@
 #include "DemoSelectScreen.h"
+#include <arcbit/core/Loc.h>
 
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/Widgets.h>
@@ -11,8 +12,8 @@ namespace
 {
 constexpr ActionID ActionDemoMenu = MakeAction("Demo_Menu");
 
-constexpr f32   PanelW      = 720.0f;
-constexpr f32   ButtonW     = 640.0f;
+constexpr f32   PanelW      = 880.0f;
+constexpr f32   ButtonW     = 800.0f; // room for longer translations
 constexpr f32   ButtonH     = 44.0f;
 constexpr f32   ButtonGap   = 52.0f;
 constexpr f32   ListTop     = 104.0f;
@@ -32,7 +33,7 @@ void DemoSelectScreen::OnEnter()
     bg->ZOrder = 1;
 
     auto* title   = bg->AddChild<Label>();
-    title->Text   = "Arcbit Demos";
+    title->SetTextKey("demo.title");
     title->Align  = TextAlign::Center;
     title->Size   = { PanelW, 32.0f };
     title->Anchor = { 0.5f, 0.0f };
@@ -41,7 +42,7 @@ void DemoSelectScreen::OnEnter()
     title->ZOrder = 2;
 
     auto* hint   = bg->AddChild<Label>();
-    hint->Text   = "PgUp / PgDn cycle demos   -   F1 or Esc closes";
+    hint->SetTextKey("demo.select.hint");
     hint->Align  = TextAlign::Center;
     hint->Size   = { PanelW, 24.0f };
     hint->Anchor = { 0.5f, 0.0f };
@@ -51,7 +52,8 @@ void DemoSelectScreen::OnEnter()
 
     for (size_t i = 0; i < entries.size(); ++i) {
         auto* btn      = bg->AddChild<Button>();
-        btn->Text      = std::format("{}  -  {}", entries[i].Name, entries[i].Summary);
+        const std::string key(entries[i].Key);
+        btn->Text      = Loc::Format("demo.select.row", { { "name", Loc::Get(key + ".name") }, { "summary", Loc::Get(key + ".summary") } });
         btn->Size      = { ButtonW, ButtonH };
         btn->Anchor    = { 0.5f, 0.0f };
         btn->Pivot     = { 0.5f, 0.0f };

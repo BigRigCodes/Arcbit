@@ -49,23 +49,16 @@ using namespace Arcbit;
 std::span<const Demo::Entry> Demo::Entries()
 {
     static const Entry entries[] = {
-        { "World", "tilemap world: lights, audio, ships, HUD",
-          "Space attack, E shake, G grid", &CreateWorldDemo },
-        { "Physics", "free movement, knockback bumper, pushable crate (22B, 22I)", "F2 colliders, G grid",
-          &CreatePhysicsDemo },
-        { "Physics File", "the Physics demo as a scene file - no C++ scene class (23)", "F2 colliders",
+        { "World", "demo.world", &CreateWorldDemo },
+        { "Physics", "demo.physics", &CreatePhysicsDemo },
+        { "Physics File", "demo.physics_file",
           [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/physics.arcscene"); } },
-        { "Tile Move", "tile movement, smooth and snap, pushable crates (22C, 22H, 22I)",
-          "M smooth/snap, F2 colliders, G grid",
-          &CreateTileMoveDemo },
-        { "Arcs", "directional colliders, free movement (22D)", "F2 colliders, G grid", &CreateArcDemo },
-        { "Tile Arcs", "directional colliders, tile movement (22D)", "F2 colliders, G grid",
-          &CreateTileMoveArcDemo },
-        { "OBB", "rotated colliders (22E)", "R pause gate, C player shape, F2 colliders, G grid", &CreateObbDemo },
-        { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
-          "M movement style, F2 colliders, G grid, F3 events",
-          &CreateTriggerDemo },
-        { "Scripted", "Lua: a chest, door, sign, patrolling guard, HUD and menu (26)", "E use, L menu, ` console",
+        { "Tile Move", "demo.tile_move", &CreateTileMoveDemo },
+        { "Arcs", "demo.arcs", &CreateArcDemo },
+        { "Tile Arcs", "demo.tile_arcs", &CreateTileMoveArcDemo },
+        { "OBB", "demo.obb", &CreateObbDemo },
+        { "Triggers", "demo.triggers", &CreateTriggerDemo },
+        { "Scripted", "demo.scripted",
           [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/scripted.arcscene"); } },
     };
     return entries;
@@ -137,6 +130,7 @@ protected:
         GetScenes().Register(BattleScene, [] { return std::make_unique<FileScene>("assets/scenes/battle.arcscene"); });
         GetScenes().PrepareDelay = _loadDelay;
         // A loaded save picks its own demo: keep the title and F1 menu in step.
+        _localeChanged = GetEvents().Subscribe(EngineEvents::LocaleChanged, [this](const Event&) { RetitleWindow(); });
         _sceneLoaded = GetEvents().Subscribe(EngineEvents::SceneLoaded, [this](const Event& e) {
             FollowLoadedScene(e.Payload.Get<std::string>("name", ""));
         });
@@ -178,9 +172,15 @@ private:
 
     void SetDemoTitle(const Demo::Entry& demo)
     {
-        SetWindowTitle(std::format("Arcbit Demos - {}  ({})   |   Esc pause, F1 demos, PgUp/PgDn cycle, B battle, "
-                                   "T widgets, F3 events, F5 / F9 quicksave / load",
-                                   demo.Name, demo.Keys));
+        const std::string key(demo.Key);
+        SetWindowTitle(Loc::Format("demo.window_title", { { "name", Loc::Get(key + ".name") }, { "keys", Loc::Get(key + ".keys") } }));
+    }
+
+    // The title is text too: the language changed, so it follows.
+    void RetitleWindow()
+    {
+        if (GetScenes().GetDepth() > 1) SetWindowTitle(Loc::Get("demo.window_battle"));
+        else SetDemoTitle(Demo::Entries()[_current]);
     }
 
     // A scene loaded some other way than Open (a save loading): if it's one
@@ -207,7 +207,7 @@ private:
             return;
         }
         GetScenes().Push(BattleScene);
-        SetWindowTitle("Arcbit Demos - Battle, pushed over the demo   |   B returns to it, WASD move");
+        SetWindowTitle(Loc::Get("demo.window_battle"));
     }
 
     // Pause opens the pause menu - over any demo, the battle too - swapping out
@@ -308,7 +308,8 @@ private:
     }
 
     std::unique_ptr<EventHistory> _eventHistory;
-    Subscription                  _sceneLoaded; // FollowLoadedScene
+    Subscription                  _sceneLoaded;   // FollowLoadedScene
+    Subscription                  _localeChanged; // RetitleWindow
     const UIScreen*               _eventLog = nullptr; // the F3 overlay while shown
     const UIScreen*               _demoMenu = nullptr; // the F1 menu (check GetUI().IsOpen)
     const UIScreen*               _pauseMenu = nullptr; // Esc / Start (check GetUI().IsOpen)

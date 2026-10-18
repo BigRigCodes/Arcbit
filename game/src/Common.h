@@ -55,9 +55,8 @@ void RegisterSceneTypes(Arcbit::SceneRegistry& registry);
 // One demo scene in the switcher. Each demo TU defines its Create function.
 struct Entry
 {
-    const char* Name;    // registered scene name, shown in the menu
-    const char* Summary; // one line for the menu
-    const char* Keys;    // demo-specific keys, shown in the window title
+    const char* Name; // registered scene name (and save id) - not shown
+    const char* Key;  // locale key prefix: <Key>.name, .summary (the menu) and .keys (the window title)
     std::unique_ptr<Arcbit::Scene> (*Create)();
 };
 

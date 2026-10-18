@@ -8,7 +8,7 @@ function DemoScene:OnLoad()
         Save.Set("gold", math.tointeger(tonumber(amount or "") or 0) or 0)
         Event.Publish("game.gold.changed", {})
     end, "gold <n> - set the Scripted demo's gold", true)
-    Event.Publish("game.toast", { text = "This scene runs on Lua. E uses things, L opens the menu." })
+    Event.Publish("game.toast", { text = "demo.scripted.welcome" })
 end
 
 function DemoScene:OnUpdate()

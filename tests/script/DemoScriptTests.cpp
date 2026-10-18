@@ -5,8 +5,10 @@
 #include "TestSupport.h"
 
 #include <arcbit/app/DebugConsole.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
+#include <arcbit/events/EngineEvents.h>
 #include <arcbit/events/EventBus.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/save/SaveManager.h>
@@ -83,8 +85,22 @@ struct InGameFolder
     ~InGameFolder() { std::filesystem::current_path(Was); }
 };
 
+// The engine's and the demo's strings, English, for the length of a test.
+struct ShippedLocales
+{
+    ShippedLocales()
+    {
+        Loc::Clear();
+        Loc::AddFolder(ArcbitTests::SourcePath("engine/assets/locale"));
+        Loc::AddFolder(ArcbitTests::SourcePath("game/assets/locale"));
+        REQUIRE(Loc::SetLanguage("en"));
+    }
+    ~ShippedLocales() { Loc::Clear(); }
+};
+
 struct Fixture
 {
+    ShippedLocales           locales; // first: the scripts and layouts read strings as they load
     InGameFolder             folder;
     ArcbitTests::TempDir     dir;
     EventBus                 bus;
@@ -164,10 +180,18 @@ TEST_CASE("The Scripted demo: the chest pays out once and the HUD shows it", "[s
     f.Tick();
     CHECK(f.saves.Data().Get<i64>("gold", 0) == 25);
     CHECK(f.Find<Label>("gold")->Text == "Gold: 25");
+    CHECK(f.Find<Label>("message")->Text == "Found 25 gold coins!"); // a key and its count, formatted by the HUD
 
     f.Press(SDL_SCANCODE_E); // empty now
     f.Tick();
     CHECK(f.saves.Data().Get<i64>("gold", 0) == 25);
+    CHECK(f.Find<Label>("message")->Text == "The chest is empty.");
+
+    // The language changes: the HUD's gold follows (the event Application publishes).
+    REQUIRE(Loc::SetLanguage("fr"));
+    f.bus.PublishEngine(EngineEvents::LocaleChanged, { { "from", "en" }, { "to", "fr" } });
+    f.Tick();
+    CHECK(f.Find<Label>("gold")->Text == "Or\xC2\xA0: 25");
     CHECK(f.errors.empty());
 }
 

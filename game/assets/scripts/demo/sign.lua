@@ -1,4 +1,5 @@
--- A sign: shows its text (a property, set in the scene file) when read.
+-- A sign: shows its text (a property, set in the scene file - a locale key)
+-- when read.
 local Sign = { Properties = { Text = "..." } }
 
 function Sign:OnInteract(by)

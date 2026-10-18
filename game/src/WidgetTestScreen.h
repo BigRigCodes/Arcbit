@@ -26,11 +26,13 @@ public:
     }
 
 protected:
+    void OnLocaleChanged() override; // the composed lines follow the language
     void OnEnter() override;
     void OnBackPressed() override;
     void OnTick(f32 dt, const InputManager& input) override;
 
 private:
+    [[nodiscard]] static std::string Percent(f32 value);
     void WireWidgets();
     void UpdateOutput();
 

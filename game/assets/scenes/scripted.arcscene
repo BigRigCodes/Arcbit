@@ -4,7 +4,7 @@
     "entities": {
         "chest": {
             "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Prop" },
-            "Interactable": { "prompt": "Open" },
+            "Interactable": { "prompt": "demo.scripted.prompt.open" },
             "Persistent": {},
             "Script": { "properties": { "Gold": 25 }, "script": "demo.chest" },
             "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.6, 0.2, 1.0] },
@@ -12,7 +12,7 @@
             "Transform2D": { "position": [384.0, -192.0], "scale": [56.0, 56.0] }
         },
         "door": {
-            "Interactable": { "prompt": "Enter" },
+            "Interactable": { "prompt": "demo.scripted.prompt.enter" },
             "Script": { "properties": { "Scene": "World" }, "script": "demo.door" },
             "SpriteRenderer": { "layer": -1, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.3, 0.6, 1.0] },
             "Tag": { "value": "Door" },
@@ -46,8 +46,8 @@
         },
         "sign": {
             "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },
-            "Interactable": { "prompt": "Read" },
-            "Script": { "properties": { "Text": "Scripted in Lua: scripts/demo/*.lua. Edit one while the game runs." }, "script": "demo.sign" },
+            "Interactable": { "prompt": "demo.scripted.prompt.read" },
+            "Script": { "properties": { "Text": "demo.scripted.sign" }, "script": "demo.sign" },
             "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.7, 0.7, 0.55, 1.0] },
             "Tag": { "value": "Sign" },
             "Transform2D": { "position": [320.0, 128.0], "scale": [48.0, 32.0] }

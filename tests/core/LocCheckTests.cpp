@@ -95,3 +95,16 @@ TEST_CASE("Check finds missing and unused keys, raw layout text and coverage", "
     CHECK(file["ui.unused"] == "y");
     CHECK(file.size() == 5);
 }
+
+TEST_CASE("The engine and the demos use only keys English has, and translate them all", "[core][loc][tools][shipped]")
+{
+    LocScope                    scope;
+    const std::filesystem::path locales[] = { ArcbitTests::SourcePath("engine/assets/locale"),
+                                              ArcbitTests::SourcePath("game/assets/locale") };
+    const std::filesystem::path content[] = { ArcbitTests::SourcePath("engine/src"), ArcbitTests::SourcePath("engine/assets"),
+                                              ArcbitTests::SourcePath("game/src"), ArcbitTests::SourcePath("game/assets") };
+    const LocCheck::Report      report    = LocCheck::Check(locales, content);
+    for (const auto& use : report.Missing) FAIL_CHECK(use.Text << " (" << use.File << ":" << use.Line << ") isn't in English");
+    for (const auto& raw : report.RawText) FAIL_CHECK("raw text \"" << raw.Text << "\" in " << raw.File << ":" << raw.Line);
+    for (const auto& language : report.Languages) CHECK(language.Translated == language.Total);
+}

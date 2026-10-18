@@ -703,7 +703,7 @@ private:
         _hud->GetManaBar()->Value   = 0.425f + 0.375f * std::sin(_simTime * 0.524f + 1.0f);
 
         _hud->GetFpsLabel()->Visible = Settings::Graphics.ShowFps;
-        _hud->GetFpsLabel()->Text    = std::format("FPS: {:.0f}", GetApp().GetFPS());
+        _hud->GetFpsLabel()->Text    = Loc::Format("demo.world.fps", { { "fps", static_cast<i32>(std::round(GetApp().GetFPS())) } });
     }
 
 private:

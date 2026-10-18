@@ -11,14 +11,14 @@ end
 
 function Chest:OnInteract(by)
     if self.Saved.Opened then
-        Event.Publish("game.toast", { text = "The chest is empty." })
+        Event.Publish("game.toast", { text = "demo.scripted.chest_empty" })
         return
     end
     self.Saved.Opened = true
     self.Entity:Set("SpriteRenderer", { tint = OpenTint })
     Save.Set("gold", Save.Get("gold", 0) + self.Properties.Gold)
     Event.Publish("game.gold.changed", {})
-    Event.Publish("game.toast", { text = "Found " .. self.Properties.Gold .. " gold!" })
+    Event.Publish("game.toast", { text = "demo.scripted.chest_found", count = self.Properties.Gold })
 end
 
 return Chest

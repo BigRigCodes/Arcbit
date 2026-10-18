@@ -1,13 +1,13 @@
 {
-    "title": "Arcbit Demos",
+    "title": "demo.title",
     "scroll_speed": 60,
     "sections": [
-        { "heading": "Engine and demos", "names": ["BigRigCodes"] },
-        { "heading": "Art", "names": ["Cute Fantasy asset pack (author to credit)", "MiniWorldSprites (author to credit)"] },
-        { "heading": "Sound", "names": ["footsteps, sword slash (source to credit)"] },
-        { "heading": "Music", "names": ["Placeholder demo loops, synthesized for Arcbit"] },
-        { "heading": "Font", "names": ["Roboto - Google Fonts"] },
-        { "heading": "Built with", "names": ["SDL3", "Vulkan", "miniaudio", "nlohmann/json", "stb", "spdlog", "Catch2"] },
-        { "names": ["Thanks for playing"] }
+        { "heading": "credits.engine", "names": ["BigRigCodes"] },
+        { "heading": "credits.art", "names": ["Cute Fantasy asset pack (author to credit)", "MiniWorldSprites (author to credit)"] },
+        { "heading": "credits.sound", "names": ["footsteps, sword slash (source to credit)"] },
+        { "heading": "credits.music", "names": ["credits.music_note"] },
+        { "heading": "credits.font", "names": ["Roboto - Google Fonts", "Noto Sans JP - SIL Open Font License"] },
+        { "heading": "credits.built_with", "names": ["SDL3", "Vulkan", "miniaudio", "nlohmann/json", "stb", "spdlog", "Catch2"] },
+        { "names": ["credits.thanks"] }
     ]
 }
