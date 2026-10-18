@@ -7,7 +7,13 @@
 #include <arcbit/core/Assert.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/ecs/Interaction.h>
+#include <arcbit/events/EngineEvents.h>
+#include <arcbit/input/InputManager.h>
 #include <arcbit/save/SceneState.h>
+#include <arcbit/script/Script.h>
+
+#include "SceneScripts.h"
 #include <arcbit/render/RenderThread.h>
 
 #include <utility>
@@ -40,6 +46,12 @@ Scene::Scene()
     });
 
     HookEntityEvents();
+
+    // A Script leaving its entity (removed, or the entity destroyed) runs its
+    // OnDestroy - but not as the scene itself is torn down: EndScripts did that.
+    _world.OnRemove<Script>([this](const Entity e, Script&) {
+        if (_scripts && !_tearingDown) _scripts->Removed(e);
+    });
 }
 
 Scene::~Scene() // out-of-line: SpriteSheet and PhysicsWorld are complete here
@@ -141,6 +153,42 @@ void Scene::Subscribe(const EventId id, EventHandler handler)
     if (_events) _subscriptions.push_back(_events->Subscribe(id, std::move(handler)));
 }
 
+void Scene::StartScripts()
+{
+    if (!_scriptEngine || _scripts) return;
+    _scripts = std::make_unique<SceneScripts>(*_scriptEngine, *this, _scriptModule);
+    _scripts->Start();
+}
+
+void Scene::EndScripts()
+{
+    if (!_scripts) return;
+    _scripts->End();
+    _scripts.reset();
+}
+
+void Scene::SyncScriptState()
+{
+    if (_scripts) _scripts->SyncSaved();
+}
+
+// Interactors are listed first and used after: OnInteract may change the world.
+void Scene::UpdateInteraction()
+{
+    if (!_input || _inputBlocked) return;
+    std::vector<Entity> pressed;
+    _world.Query<Interactor>().ForEach([&](const Entity e, const Interactor& interactor) {
+        if (_input->JustPressed(MakeAction(interactor.Action))) pressed.push_back(e);
+    });
+    for (const Entity by : pressed) {
+        if (!_world.IsValid(by)) continue;
+        const Entity target = FindInteractTarget(_world, by, _config.TileSize);
+        if (!target.IsValid()) continue;
+        if (_scripts) _scripts->Interact(target, by);
+        if (_events) _events->PublishEngine(EngineEvents::EntityInteracted, { { "entity", target }, { "by", by } });
+    }
+}
+
 void Scene::ReleaseResources()
 {
     if (_app)
@@ -161,6 +209,8 @@ void Scene::Update(const f32 dt)
 {
     PublishPendingSpawns();
     OnUpdate(dt);
+    UpdateInteraction();
+    if (_scripts) _scripts->Update(dt);
     _camera.Update(dt);
     _world.RunUpdateSystems(*this, dt);
 }

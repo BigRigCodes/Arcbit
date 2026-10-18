@@ -25,6 +25,7 @@ bool UIScreen::LoadLayout(const std::string_view path)
     _roots.clear();
     _metaF32.clear();
     _metaStr.clear();
+    _scriptHandlers.clear();
     return UILoader::Load(path, *this);
 }
 

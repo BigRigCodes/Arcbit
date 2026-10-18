@@ -164,6 +164,14 @@ public:
     // True for exactly ONE tick — the tick all bindings are released.
     [[nodiscard]] bool JustReleased (ActionID action) const;
 
+    // Typing into a text field (Application sets it from the UI): every action
+    // reads as idle except those kept with KeepWhileTyping - the UI's own keys
+    // (Enter, Backspace, arrows, Escape) and a few engine ones - so letters
+    // typed into the console don't also toggle the game's G or open its menus.
+    void               SetTyping(bool typing) { _typing = typing; }
+    [[nodiscard]] bool IsTyping() const { return _typing; }
+    void               KeepWhileTyping(ActionID action) { _keepWhileTyping.insert(action); }
+
     // Analogue value in [-1, 1] (axes) or 0/1 (buttons/keys).
     // For actions with multiple bindings, returns the value with the largest
     // absolute magnitude.
@@ -270,6 +278,9 @@ public:
     [[nodiscard]] static std::string BindingToString(const Binding& b);
 
 private:
+    bool                         _typing = false; // SetTyping
+    std::unordered_set<ActionID> _keepWhileTyping;  // actions that still work while typing
+
     // Record the kind of device just used; flags a change for ConsumeDeviceChanged.
     void NoteDevice(InputDevice device)
     {

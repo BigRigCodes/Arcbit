@@ -1,0 +1,16 @@
+{
+  "script": "demo.hud",
+  "meta": { "layer": "hud" },
+  "widgets": [
+    { "type": "Label", "name": "gold", "size": [300, 40], "anchor": [0.0, 0.0], "offset": [24, 140] },
+    {
+      "type":   "Label",
+      "name":   "message",
+      "align":  "center",
+      "size":   [1400, 40],
+      "anchor": [0.5, 1.0],
+      "pivot":  [0.5, 1.0],
+      "offset": [0, -60]
+    }
+  ]
+}

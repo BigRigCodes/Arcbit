@@ -121,6 +121,18 @@ public:
     void SetMetaF32(std::string_view key, f32 value);
     void SetMetaStr(std::string_view key, std::string_view value);
 
+    // Lua handlers a loaded layout names on its widgets ("on_click": "OnBuy",
+    // "on_change": "OnVolume"). A ScriptedScreen wires them to its script
+    // (the layout's "script"); every other screen ignores them.
+    struct ScriptHandler
+    {
+        UIWidget*   Widget = nullptr; // in this screen's tree, as loaded
+        std::string Event;            // "click" or "change"
+        std::string Function;
+    };
+    void                                            AddScriptHandler(ScriptHandler handler) { _scriptHandlers.push_back(std::move(handler)); }
+    [[nodiscard]] const std::vector<ScriptHandler>& GetScriptHandlers() const { return _scriptHandlers; }
+
     void Update(f32 dt, UIRect screenRect, Vec2 mousePos,
                 bool mouseDown, bool mouseJustDown, bool mouseJustUp, f32 scrollDelta = 0.0f);
 
@@ -169,6 +181,7 @@ protected:
 private:
     enum class TransitionState { Idle, FadingIn, FadingOut };
 
+    std::vector<ScriptHandler>                   _scriptHandlers; // LoadLayout
     std::unordered_map<std::string, f32>         _metaF32;
     std::unordered_map<std::string, std::string>  _metaStr;
 

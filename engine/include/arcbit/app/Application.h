@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/app/DebugConsole.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/input/InputTypes.h>
@@ -11,6 +12,7 @@
 #include <arcbit/save/SaveManager.h>
 #include <arcbit/save/SceneState.h>
 #include <arcbit/scene/SceneManager.h>
+#include <arcbit/script/ScriptEngine.h>
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
@@ -25,6 +27,7 @@ namespace Arcbit
 {
 class Window;          // full type only needed in Application.cpp
 class SavingIndicator; // ApplicationSaves.cpp
+class ErrorToasts;     // ApplicationConsole.cpp
 class SaveSlotScreen;
 
 // ---------------------------------------------------------------------------
@@ -79,6 +82,25 @@ struct SavingConfig
 };
 
 // ---------------------------------------------------------------------------
+// Who may open the debug console (docs/scripting.md) - on its rebindable key,
+// Engine_Console (` by default). Set Application::_consoleConfig in the
+// subclass constructor or OnStart.
+// ---------------------------------------------------------------------------
+enum class ConsoleAccess : u8
+{
+    Off,     // never
+    DevOnly, // debug builds only
+    Players, // shipped builds too
+};
+
+struct ConsoleConfig
+{
+    ConsoleAccess Access    = ConsoleAccess::DevOnly;
+    f32           FontScale = 1.0f;   // its text, on top of the skin's font scale
+    f32           Height    = 480.0f; // pixels, from the top of the screen
+};
+
+// ---------------------------------------------------------------------------
 // ApplicationConfig
 //
 // Passed to the Application constructor to set startup defaults.
@@ -98,6 +120,7 @@ struct ApplicationConfig
     const char* SettingsPath = "settings.json";
     const char* Studio       = "Arcbit";
     const char* GameName     = nullptr; // null = Title
+    const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
 };
 
 // ---------------------------------------------------------------------------
@@ -208,6 +231,13 @@ public:
     // Save slots, migrations and the game's save data (docs/saves.md). Its
     // folder is the per-user data folder's saves\.
     [[nodiscard]] SaveManager& GetSaves() { return _saves; }
+
+    // The Lua state scripts run in (docs/scripting.md); modules load from
+    // assets/scripts.
+    [[nodiscard]] ScriptEngine& GetScripts() { return _scriptEngine; }
+
+    // The debug console: register a game's own commands (help shows them).
+    [[nodiscard]] DebugConsole& GetConsole() { return _debugConsole; }
 
     // The per-user data folder: settings, saves (see ApplicationConfig).
     [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
@@ -325,6 +355,9 @@ protected:
     // SavingConfig). Set it in the constructor or OnStart.
     SavingConfig _saving;
 
+    // Who may open the debug console (see ConsoleConfig).
+    ConsoleConfig _consoleConfig;
+
     // The engine's built-in SDF debug font — Roboto loaded at engine startup.
     [[nodiscard]] const FontAtlas& GetDebugFont() const { return _debugFont; }
     
@@ -368,14 +401,17 @@ private:
     // So declaration order is the reverse of that (destructor fires bottom-up):
     // Engine system actions — registered before OnStart so settings can rebind them.
     static constexpr ActionID ActionEngineFullscreen = MakeAction("Engine_Fullscreen");
+    static constexpr ActionID ActionEngineConsole    = MakeAction("Engine_Console");
 
     bool _shouldShutdown = false;
 
     FontAtlas   _debugFont;
     RenderStats _renderStats{};
 
+    DebugConsole _debugConsole;  // before _scriptEngine: scripts' commands unregister from it as they end
+    EventBus     _events;       // before _scriptEngine and _scenes: their subscriptions end before the bus goes
+    ScriptEngine _scriptEngine; // before _ui and _scenes: scripted screens and scenes hold references into it
     UIManager    _ui;
-    EventBus     _events;   // before _scenes: scenes' subscriptions end before the bus goes
     Subscription _eventLog; // every delivered event, on the EventBus log channel (debug level)
 
     SceneManager                    _scenes;
@@ -401,6 +437,16 @@ private:
     void FinishSplash();
     void ShowTitle();
     std::vector<TextureHandle> _splashTextures; // released once the splash ends
+
+    // The debug console (ApplicationConsole.cpp).
+    [[nodiscard]] bool IsConsoleAllowed() const;
+    void               StartConsole();
+    void               ToggleConsole();
+    void               RegisterConsoleCommands();
+    void               RegisterSaveCommands();
+    const UIScreen*    _consoleScreen = nullptr; // on the UI stack while open
+    ErrorToasts*       _errorToasts   = nullptr; // debug builds: script errors on screen
+    f32                _timeScale     = 1.0f;    // the timescale command
 
     // Loading screen over a scene change held at black.
     void            UpdateLoadingScreen(f32 dt);

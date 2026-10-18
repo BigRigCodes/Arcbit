@@ -253,7 +253,7 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Save / load slot screens, a yes / no confirm screen, the saving indicator (Phase 25)
 
 ### Phase 21F - Text styling & animation
-*Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
+*Built together with Phase 27 (dialog), after Phase 28 (localization), so the dialog box gets styled, animated text from the start. Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
 
 - [ ] Font styles: bold, italic, bold italic, and weights (thin to black) - a font family maps each style / weight to its own `.ttf`, falling back to faux bold (SDF threshold) and faux italic (shear) when a face is missing
 - [ ] Text decorations: outline / stroke (color, width), drop shadow (offset, color, softness), glow, underline and strikethrough
@@ -400,7 +400,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] Opt-in entity events: `EntityEvents` (code or `.arcscene`) announces spawned / destroyed for chosen entities only, each renameable per entity (`"boss.defeated"`); scene unloads and component removal aren't deaths. New `World::OnAdd<T>` / `OnDestroy` hooks underneath
 - [x] Bus vs callbacks settled: per-entity callbacks (triggers, collisions, animation events) stay; a game publishes from them in one line when it wants a broadcast
 - [x] Debugging: `SubscribeAll` (the editor monitor's hook), every event logged on the `EventBus` channel; demo app F3 event overlay and coin pickups in the Triggers demo
-- [ ] Lua integration: `Event.Subscribe("name", handler)`, `Event.Unsubscribe`, `Event.Publish("name", payload)` - Phase 26
+- [x] Lua integration: `Event.Subscribe("name", handler)`, `Event.Unsubscribe`, `Event.Publish("name", payload)` - Phase 26
 - [ ] Editor integration: live event monitor (name, payload, source) - Phase 40
 - [ ] Progression events (`quest.started`, `player.leveled_up` and friends) - when a quest / progression system is planned; until then games define them as their own events
 - [ ] Day / night events - with a day / night cycle, when one is planned
@@ -423,29 +423,33 @@ The rest of the original event list moved to the phases that build those systems
 - [x] Save / load slot screens; pause menu Save / Load, title Continue / Load Game
 - [x] Migration / version-upgrade path so old saves stay compatible after content updates
 - [x] Publishes `engine.game.saved` and `engine.game.loaded` via the Event Bus (Phase 24)
-- [ ] Lua API exposure so scripts can read and write custom save keys (Phase 26)
+- [x] Lua API exposure so scripts can read and write custom save keys (Phase 26)
 
 ---
 
 ## Phase 26: Lua Scripting
-- [ ] Lua integration (sol2 via vcpkg)
-- [ ] Script component (path to `.lua` file, loaded via asset system)
-- [ ] Core lifecycle hooks: `OnStart`, `OnUpdate(dt)`, `OnDestroy`
-- [ ] Entity hooks: `OnInteract`, `OnCombatStart`, `OnCombatEnd`
-- [ ] `OnEvent(eventName, payload)` — called when a subscribed event fires; scripts call `Event.Subscribe` in `OnStart` to opt in
-- [ ] Engine API surface: ECS queries, entity create/destroy, component read/write
-- [ ] Tilemap API: read/write tile properties, trigger map mutations
-- [ ] Scene API: load scene, change entry point, spawn entities
-- [ ] Save API: read / write `SaveData` keys, `SaveTo` / `LoadFrom` / `AutoSave` (Phase 25)
-- [ ] Input API: query action state from scripts
-- [ ] Audio API: play sound/music from scripts
-- [ ] Event API: `Event.Subscribe`, `Event.Unsubscribe`, `Event.Publish` (Phase 24)
-- [ ] Sandboxed execution: scripts cannot access filesystem or network directly
+*See [docs/scripting.md](docs/scripting.md).*
+
+- [x] Lua 5.4 integration (sol2 via vcpkg), kept out of engine headers; `ScriptEngine` owns the state
+- [x] Sandboxed execution: no filesystem, OS, debug or bytecode access; `require` only from the script root; per-module environments; instruction and memory limits; every call protected
+- [x] Opt-in `Script` component (module, properties, saved state) and scene scripts (`.arcscene` `"script"`)
+- [x] Lifecycle hooks: `OnLoad`, `OnStart` (after saved state is applied), `OnUpdate(dt)`, `OnDestroy`, `OnUnload`
+- [x] Entity hooks: `OnInteract` (`Interactor` / `Interactable`, `engine.entity.interacted`), `OnTriggerEnter/Stay/Exit`, `OnCollisionEnter/Exit` alongside C++ callbacks
+- [x] `OnEvent(eventName, payload)` for `Event.Subscribe(name)` without a function
+- [x] Engine API: entities (find, create, destroy, any registered component by name, stale-safe handles), Scene, Tilemap, Input, Audio, Save, Event (`Subscribe` / `Unsubscribe` / `Publish`)
+- [x] Script state in saves (`self.Saved`)
+- [x] Tasks and timers: `self:Run`, `Wait`, `WaitUntil`, `Timer.After / Every`
+- [x] Lua UI: `.arcui` `"script"`, `"on_click"` / `"on_change"`, `UI.Open`
+- [x] Debug console: commands (C++ and Lua), Lua, history, predictive completion, `ConsoleAccess`, cheats flag `engine.cheats_used`
+- [x] Hot reload (debug builds) keeping instance state; script errors in the console and on screen
+- [x] The Scripted demo, built entirely in Lua
 
 ---
 
 ## Phase 27: Dialog / Conversation System
-*Default implementation — can be replaced by a Lua script if the game dev prefers a custom system.*
+*Default implementation — can be replaced by a Lua script if the game dev prefers a custom system. Built after Phase 28 (localization) and together with Phase 21F (text styling and animation).*
+
+- [ ] Default look is game art, not the flat UI skin: a nine-slice frame texture that stretches to any size (Pokemon-style text box), shipped as the engine's stock art and replaceable per game
 
 - [ ] `DialogGraph` — node-based conversation tree (speak, choice, condition, branch, action)
 - [ ] Node types: `SpeakNode` (portrait, speaker name, text), `ChoiceNode` (up to N options), `ConditionNode` (check quest flag / inventory / stat), `ActionNode` (run Lua callback)
@@ -484,6 +488,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder
 - [ ] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable
 - [ ] Both views built on the GUI system (Phase 21) and switchable at runtime
+- [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game
 - [ ] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component
 - [ ] Loot tables: weighted random drops defined in JSON
 - [ ] Save / load integration (Phase 25)
@@ -516,7 +521,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Transition in/out of battle (trigger from overworld collision or script)
 - [ ] Basic combat animations (Phase 17 clip playback) for attack and hurt reactions
 - [ ] Rewards: XP, gold, item drops via loot tables (Phase 29)
-- [ ] Lua hooks: `OnBattleStart`, `OnTurnStart`, `OnActionResolved`, `OnBattleEnd`
+- [ ] Lua hooks: `OnBattleStart`, `OnTurnStart`, `OnActionResolved`, `OnBattleEnd`; entity hooks `OnCombatStart` / `OnCombatEnd` (moved from Phase 26)
 - [ ] Publishes `engine.combat.started` and `engine.combat.ended` via the Event Bus (Phase 24)
 
 ---
@@ -532,6 +537,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Combo system: input sequence maps to chained attacks (optional; data-driven per weapon type)
 - [ ] Screen effects: hit-stop (brief time-scale reduction), screen flash, camera shake (Phase 15)
 - [ ] Boss encounter flag: phase transitions at HP thresholds, scripted via Lua
+- [ ] Lua entity hooks `OnCombatStart` / `OnCombatEnd` when an entity enters or leaves a fight (moved from Phase 26)
 - [ ] Publishes `engine.combat.started`, `engine.combat.ended`, `engine.player.died` and `engine.player.respawned` via the Event Bus (Phase 24); per-entity death through `EntityEvents` (a renameable "died" event, opt-in per enemy)
 
 ---
@@ -668,3 +674,17 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Save editing in mod mode**: open, edit and reseal a player's `.arcsave` with the mod key (Phase 25, Phase 36)
 - [ ] **Persistence in the scene editor**: `Persistent` and `persist_all` as checkboxes, with the component list picker (Phase 25)
 - [ ] **Editor mode detection**: on open, inspect the loaded `project.arcbit` to determine mode — full dev mode (dev key present) or restricted mod mode (mod key only, `mod_support = true`); mod mode disables save-over-original and shows a clear "Mod Editor" banner so end users know what they are working with
+
+---
+
+## Phase 41: C# Scripting
+*Optional, alongside Lua (Phase 26). C# is for a game's own trusted code: .NET has no sandbox, so mods (Phase 37) stay Lua-only. Comes after the editor (Phase 40), which brings .NET into the toolchain and can share the bindings.*
+
+- [ ] Host .NET from the engine with `nethost` / `hostfxr`; load the game's assembly and call `[UnmanagedCallersOnly]` entry points through function pointers
+- [ ] A language-neutral script runtime seam under `SceneScripts`: create an instance, call a hook, end an owner; Lua becomes one runtime, C# another
+- [ ] A flat C API exported by the engine (entities, components by registered name, events, scenes, input, audio, saves, UI, console), JSON-based first, with typed fast paths (`Transform`, `Position`) where profiling asks for them
+- [ ] `Arcbit.Scripting` C# library over that API: `Entity`, `Scene`, `Event`, `Input`, `Save`, and a script base class with `OnStart` / `OnUpdate` / `OnDestroy` / contact and interact hooks; async tasks in place of Lua's `self:Run` / `Wait`
+- [ ] `Script` component names a C# class (`"module": "MyGame.Chest"`) as well as a Lua module; `self.Saved`-style saved state through a `[Saved]` field attribute
+- [ ] Hot reload in debug builds through a collectible `AssemblyLoadContext`, carrying `[Saved]` fields across the reload
+- [ ] Shipping: self-contained .NET runtime next to the game, or the game's C# compiled with NativeAOT into a native library (no runtime to ship; needed for consoles)
+- [ ] Console commands and the error handler / toasts work the same as for Lua

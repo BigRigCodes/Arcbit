@@ -64,6 +64,8 @@ std::span<const Demo::Entry> Demo::Entries()
         { "Triggers", "triggers, collision events, coins on the event bus (22F, 24)",
           "M movement style, F2 colliders, G grid, F3 events",
           &CreateTriggerDemo },
+        { "Scripted", "Lua: a chest, door, sign, patrolling guard, HUD and menu (26)", "E use, L menu, ` console",
+          [] -> std::unique_ptr<Scene> { return std::make_unique<FileScene>("assets/scenes/scripted.arcscene"); } },
     };
     return entries;
 }
@@ -85,6 +87,14 @@ constexpr const char* BattleScene = "Battle";
 constexpr const char* LastDemoKey = "demo.last";
 } // namespace
 
+// Debug builds run the scripts in the source tree, so edits hot-reload; the
+// copy in bin/ is only refreshed by a build.
+#ifdef ARCBIT_DEBUG
+constexpr const char* ScriptRoot = ARCBIT_GAME_ASSETS "/scripts";
+#else
+constexpr const char* ScriptRoot = "assets/scripts";
+#endif
+
 class DemoApp : public Application
 {
 public:
@@ -96,7 +106,7 @@ public:
     };
 
     explicit DemoApp(const Options& options) :
-        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080 }),
+        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running

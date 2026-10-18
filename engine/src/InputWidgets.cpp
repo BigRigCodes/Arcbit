@@ -81,6 +81,21 @@ void TextInput::DeleteSelection()
     _cursor = _selAnchor = lo;
 }
 
+void TextInput::SetText(std::string text)
+{
+    Text       = std::move(text);
+    _cursor    = static_cast<u32>(Text.size());
+    _selAnchor = _cursor;
+    _scrollX   = 0.0f;
+}
+
+void TextInput::ClampCursor()
+{
+    const u32 size = static_cast<u32>(Text.size());
+    _cursor        = std::min(_cursor, size);
+    _selAnchor     = std::min(_selAnchor, size);
+}
+
 void TextInput::MoveCursor(const u32 pos, const bool extendSel)
 {
     _cursor = static_cast<u32>(std::min(static_cast<usize>(pos), Text.size()));
@@ -108,6 +123,7 @@ u32 TextInput::NextWordBoundary() const
 void TextInput::OnTextInput(const std::string_view chars)
 {
     if (!_focused) return;
+    ClampCursor();
     DeleteSelection(); // replace selected text
     for (const char c : chars) {
         if (!AcceptsChar(c)) continue;
@@ -121,6 +137,7 @@ void TextInput::OnTextInput(const std::string_view chars)
 
 void TextInput::OnControlKey(const UIControlKey key)
 {
+    ClampCursor();
     switch (key) {
     // Plain motion — clears selection
     case UIControlKey::Left:
@@ -208,6 +225,7 @@ void TextInput::OnCollect(FramePacket&        packet, const UIRect          myRe
                           const TextureHandle whiteTex, const SamplerHandle whiteSampler,
                           const UISkin&       skin)
 {
+    ClampCursor();
     const Color borderColor = _focused ? skin.InputFocusBorder : skin.InputBorder;
     // Draw border rect slightly outside, then background on top
     const UIRect border = {myRect.X - 1, myRect.Y - 1, myRect.W + 2, myRect.H + 2};
@@ -263,6 +281,15 @@ void TextInput::OnCollect(FramePacket&        packet, const UIRect          myRe
     {
         const size_t mark = packet.UISprites.size();
         DrawTextUI(packet, *skin.Font, display, {textX, textY}, skin.FontScale, textColor, TextLayer(*this, skin));
+        clip(mark);
+    }
+
+    // The suggestion, dimmed, right after the text.
+    if (_focused && !Suggestion.empty() && _cursor == Text.size()) {
+        const f32    sx   = textX + MeasureTextWidth(*skin.Font, Text, skin.FontScale);
+        const size_t mark = packet.UISprites.size();
+        DrawTextUI(packet, *skin.Font, Suggestion, {sx, textY}, skin.FontScale,
+                   WithAlpha(skin.InputPlaceholder, effectiveOpacity), TextLayer(*this, skin));
         clip(mark);
     }
 

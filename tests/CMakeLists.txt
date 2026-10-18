@@ -6,11 +6,13 @@ find_package(nlohmann_json CONFIG REQUIRED) # JSON format tests build documents 
 # render device, or assets are created.
 add_executable(arcbit-tests
     main.cpp
+    app/DebugConsoleTests.cpp
     assets/SpriteSheetTests.cpp
     audio/VolumeTests.cpp
     core/LocTests.cpp
     core/MathTests.cpp
     ecs/AnimatorStateMachineTests.cpp
+    ecs/InteractionTests.cpp
     ecs/MovementTests.cpp
     ecs/PhysicsResponseTests.cpp
     ecs/SystemsTests.cpp
@@ -33,8 +35,17 @@ add_executable(arcbit-tests
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp
+    script/DemoScriptTests.cpp
+    script/SceneScriptTests.cpp
+    script/ScriptConsoleTests.cpp
+    script/ScriptApiTests.cpp
+    script/ScriptHookTests.cpp
+    script/ScriptTaskTests.cpp
+    script/ScriptUITests.cpp
+    script/ScriptEngineTests.cpp
     settings/SettingsTests.cpp
     tilemap/TileMapTests.cpp
+    ui/ConsoleScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
     ui/UISkinTests.cpp

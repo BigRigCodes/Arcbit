@@ -6,10 +6,12 @@
 
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Interaction.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
 #include <arcbit/scene/SceneAssets.h>
+#include <arcbit/script/Script.h>
 
 #include <array>
 #include <bit>
@@ -125,6 +127,31 @@ namespace
                 j["id"]         = c.Id;
                 j["enabled"]    = c.Enabled;
                 j["components"] = c.Components;
+            });
+        r.RegisterComponent<Interactor>(
+            "Interactor",
+            [](Interactor& c, const json& j, SceneAssets&) {
+                Read(j, "action", c.Action);
+                Read(j, "reach", c.Reach);
+            },
+            [](const Interactor& c, json& j, const SceneAssets&) {
+                j["action"] = c.Action;
+                j["reach"]  = c.Reach;
+            });
+        r.RegisterComponent<Interactable>(
+            "Interactable", [](Interactable& c, const json& j, SceneAssets&) { Read(j, "prompt", c.Prompt); },
+            [](const Interactable& c, json& j, const SceneAssets&) { j["prompt"] = c.Prompt; });
+        r.RegisterComponent<Script>(
+            "Script",
+            [](Script& c, const json& j, SceneAssets&) {
+                Read(j, "script", c.Module);
+                if (const auto it = j.find("properties"); it != j.end() && it->is_object()) c.Properties = *it;
+                if (const auto it = j.find("saved"); it != j.end() && it->is_object()) c.Saved = *it;
+            },
+            [](const Script& c, json& j, const SceneAssets&) {
+                j["script"]     = c.Module;
+                j["properties"] = c.Properties;
+                j["saved"]      = c.Saved;
             });
         r.RegisterComponent<EntityEvents>(
             "EntityEvents",

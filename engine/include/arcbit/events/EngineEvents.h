@@ -41,6 +41,10 @@ namespace EngineEvents
     constexpr std::string_view EntitySpawnedName   = "engine.entity.spawned";
     constexpr std::string_view EntityDestroyedName = "engine.entity.destroyed";
 
+    // An Interactor used an Interactable (docs/scripting.md). entity (the
+    // one used), by (the interactor).
+    constexpr std::string_view EntityInteractedName = "engine.entity.interacted";
+
     // The game was saved / its save loaded (Application::SaveTo / LoadFrom;
     // loaded fires once the save's state is back, as its scenes load). slot:
     // "manual_3", "auto_1" or "quick"; saved also name.
@@ -57,6 +61,7 @@ namespace EngineEvents
     constexpr EventId SettingsChanged    = MakeEvent(SettingsChangedName);
     constexpr EventId EntitySpawned      = MakeEvent(EntitySpawnedName);
     constexpr EventId EntityDestroyed    = MakeEvent(EntityDestroyedName);
+    constexpr EventId EntityInteracted   = MakeEvent(EntityInteractedName);
     constexpr EventId GameSaved          = MakeEvent(GameSavedName);
     constexpr EventId GameLoaded         = MakeEvent(GameLoadedName);
 
@@ -66,6 +71,7 @@ namespace EngineEvents
         SceneLoadedName,        SceneUnloadedName,      SceneSuspendedName, SceneResumedName,
         InputDeviceChangedName, WindowFocusChangedName, WindowResizedName,  SettingsChangedName,
         EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
+        EntityInteractedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

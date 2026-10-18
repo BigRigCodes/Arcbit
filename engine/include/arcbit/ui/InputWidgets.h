@@ -33,7 +33,18 @@ public:
     std::function<void(const std::string&)> OnChanged;
     std::function<void(const std::string&)> OnConfirm;
 
+    // What typing would most likely go on with ("lp" after "he"), drawn
+    // dimmed after the text while the cursor is at its end. The owner fills
+    // it in and decides what accepts it (the console: Tab).
+    std::string Suggestion;
+
     TextInput() { Focusable = true; }
+
+    // Replace the text and put the cursor at its end - for code changing the
+    // text while it's being edited (a console line cleared after Enter, a
+    // recalled history line). Writing Text directly works too: the cursor is
+    // pulled back inside it before the next edit.
+    void SetText(std::string text);
 
     [[nodiscard]] bool ConsumesFocusNav() const override { return _focused; }
 
@@ -66,6 +77,7 @@ private:
     f32 _cursorBlink = 0.0f;
 
     [[nodiscard]] bool HasSelection() const { return _selAnchor != _cursor; }
+    void               ClampCursor(); // Text was changed from outside: keep the cursor inside it
     [[nodiscard]] u32  SelMin() const { return _cursor < _selAnchor ? _cursor : _selAnchor; }
     [[nodiscard]] u32  SelMax() const { return _cursor > _selAnchor ? _cursor : _selAnchor; }
 

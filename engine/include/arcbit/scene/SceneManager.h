@@ -19,6 +19,7 @@ class EventBus;
 class InputManager;
 class SceneAssets;
 class SceneRegistry;
+class ScriptEngine;
 struct WorldState;
 class MusicPlayer;
 class TextureManager;
@@ -95,6 +96,10 @@ struct SceneStackEntry
 // applied on top; just before it unloads, what changed is captured back into
 // the world state - so a scene remembers its changes after it's gone.
 //
+// Scripts (Host::Scripts) start right after that - so OnStart sees the scene
+// as the player left it - and end (OnDestroy, the scene's OnUnload) as it
+// unloads, after its state is captured.
+//
 // Each swap is announced on the host's event bus (EngineEvents): unloaded,
 // suspended, loaded, resumed - delivered at the next flush, after the swap.
 // Unnamed scenes (Application's default) aren't announced.
@@ -135,6 +140,11 @@ public:
         WorldState*                                         World    = nullptr;
         const SceneRegistry*                                Registry = nullptr;
         std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets;
+
+        // Lua (docs/scripting.md): scenes' and entities' scripts start after
+        // the saved state is applied and end as the scene unloads. Null = no
+        // scripts run.
+        ScriptEngine* Scripts = nullptr;
     };
 
     SceneManager() = default;
@@ -280,7 +290,8 @@ private:
     void RestoreMusic(Scene* oldTop, bool ownerLeft);
     void UnloadAll();
     void               Unload(Scene& scene);     // capture its state, OnUnload, then its subscriptions end
-    void               BeginState(Scene& scene); // after OnLoad: snapshot, apply its saved changes, track tiles
+    void               BeginState(Scene& scene); // after OnLoad: saved state, then its scripts start
+    void               ApplySavedState(Scene& scene); // snapshot, apply its saved changes, track tiles
     void               CaptureState(Scene& scene);
     [[nodiscard]] bool TracksState(const Scene& scene) const;
     void        Announce(EventId id, const Scene& scene) const; // an engine scene event, if named

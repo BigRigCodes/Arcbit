@@ -2,6 +2,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Stb REQUIRED) # header-only; exposes ${Stb_INCLUDE_DIR}
 find_package(unofficial-sodium CONFIG REQUIRED) # libsodium: sealed saves (SaveSeal)
 find_package(zstd CONFIG REQUIRED)              # compression for sealed saves
+find_package(Lua REQUIRED)                      # Lua 5.4: scripting (LUA_INCLUDE_DIR / LUA_LIBRARIES)
+find_path(SOL2_INCLUDE_DIRS "sol/abort.hpp" REQUIRED) # sol2: header-only C++ binding for Lua
 # miniaudio is header-only; vcpkg adds its include path automatically — no find_package needed.
 
 # arcbit-engine is a STATIC library that provides the engine's public API:
@@ -11,6 +13,7 @@ add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
     src/ApplicationSaves.cpp
+    src/DebugConsole.cpp
     src/UserFolder.cpp
     src/Camera2D.cpp
     src/RenderThread.cpp
@@ -30,6 +33,21 @@ add_library(arcbit-engine STATIC
     src/SaveGame.cpp
     src/SaveManager.cpp
     src/SaveThumbnail.cpp
+    src/ScriptEngine.cpp
+    src/ScriptLibrary.cpp
+    src/ScriptEntity.cpp
+    src/ScriptGame.cpp
+    src/ScriptTasks.cpp
+    src/ScriptScreens.cpp
+    src/ScriptReload.cpp
+    src/ScriptComplete.cpp
+    src/ScriptConsole.cpp
+    src/ConsoleScreen.cpp
+    src/ApplicationConsole.cpp
+    src/ScriptWorld.cpp
+    src/ScriptJson.cpp
+    src/SceneScripts.cpp
+    src/Interaction.cpp
     src/SaveSeal.cpp
     src/SceneState.cpp
     src/SceneComponents.cpp
@@ -83,11 +101,15 @@ target_link_libraries(arcbit-engine
         SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
         unofficial-sodium::sodium     # SaveSeal.cpp only
         zstd::libzstd                 # SaveSeal.cpp only
+        ${LUA_LIBRARIES}
 )
 
 # stb is header-only; vcpkg exposes it as an include directory, not a CMake target.
 # TextureManager.cpp uses STB_IMAGE_IMPLEMENTATION; Font.cpp uses STB_TRUETYPE_IMPLEMENTATION.
 target_include_directories(arcbit-engine PRIVATE ${Stb_INCLUDE_DIR})
+# Lua and sol2 stay out of public headers: sol2 is template-heavy, so only the
+# Script*.cpp files include it and the rest of the engine builds as fast as before.
+target_include_directories(arcbit-engine PRIVATE ${LUA_INCLUDE_DIR} ${SOL2_INCLUDE_DIRS})
 
 # Engine does NOT link Vulkan directly — its render interfaces are
 # graphics-agnostic. Backends link Vulkan; the game links the backend DLL.

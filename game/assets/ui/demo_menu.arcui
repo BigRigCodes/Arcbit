@@ -1,0 +1,21 @@
+{
+  "script": "demo.menu",
+  "widgets": [
+    { "type": "Scrim" },
+    {
+      "type":   "Panel",
+      "name":   "bg",
+      "size":   [420, 300],
+      "anchor": [0.5, 0.5],
+      "pivot":  [0.5, 0.5],
+      "zorder": 1,
+      "children": [
+        { "type": "Label", "name": "title", "text": "Lua Shop", "align": "center", "size": [420, 32], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 18], "zorder": 2 },
+        { "type": "Label", "name": "gold", "align": "center", "size": [420, 28], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 70], "zorder": 2 },
+        { "type": "Label", "name": "lanterns", "align": "center", "size": [420, 28], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 104], "zorder": 2 },
+        { "type": "Button", "name": "buy", "text": "Buy a lantern (5 gold)", "on_click": "OnBuy", "size": [300, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 160], "focusable": true, "zorder": 2 },
+        { "type": "Button", "name": "close", "text": "Close", "on_click": "OnClose", "size": [300, 44], "anchor": [0.5, 0.0], "pivot": [0.5, 0.0], "offset": [0, 222], "focusable": true, "zorder": 2 }
+      ]
+    }
+  ]
+}
