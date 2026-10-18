@@ -110,8 +110,10 @@ void Application::ToggleConsole()
         _consoleScreen = nullptr;
         return;
     }
-    auto screen     = std::make_unique<ConsoleScreen>();
-    screen->Console = &_debugConsole;
+    auto screen       = std::make_unique<ConsoleScreen>();
+    screen->Console   = &_debugConsole;
+    screen->FontScale = _consoleConfig.FontScale;
+    screen->Height    = _consoleConfig.Height;
     screen->OnClose = [this] { ToggleConsole(); };
     _consoleScreen  = screen.get();
     _ui.Push(std::move(screen));

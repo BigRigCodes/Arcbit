@@ -26,8 +26,10 @@ public:
     static constexpr ActionID ActionHistoryDown = MakeAction("Console_HistoryDown");
     static constexpr ActionID ActionComplete    = MakeAction("Console_Complete");
 
-    DebugConsole*         Console = nullptr;
+    DebugConsole*         Console   = nullptr;
     std::function<void()> OnClose;
+    f32                   FontScale = 1.0f;   // text size, on top of the skin's (ConsoleConfig)
+    f32                   Height    = 480.0f; // pixels
 
     ConsoleScreen()
     {

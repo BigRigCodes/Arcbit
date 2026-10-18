@@ -95,7 +95,9 @@ enum class ConsoleAccess : u8
 
 struct ConsoleConfig
 {
-    ConsoleAccess Access = ConsoleAccess::DevOnly;
+    ConsoleAccess Access    = ConsoleAccess::DevOnly;
+    f32           FontScale = 1.0f;   // its text, on top of the skin's font scale
+    f32           Height    = 480.0f; // pixels, from the top of the screen
 };
 
 // ---------------------------------------------------------------------------

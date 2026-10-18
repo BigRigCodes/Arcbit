@@ -13,9 +13,8 @@ namespace Arcbit
 {
 namespace
 {
-    constexpr f32    PanelHeight = 420.0f;
-    constexpr f32    LineHeight  = 18.0f;
-    constexpr size_t ShownLines  = 200; // older lines stay in the console, just not drawn
+    constexpr f32    LineSpacing = 28.0f; // per line at FontScale 1 (the 24 px UI font)
+    constexpr size_t ShownLines  = 200;   // older lines stay in the console, just not drawn
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -26,21 +25,23 @@ void ConsoleScreen::OnEnter()
 {
     _roots.clear();
     auto* bg                 = Add<Panel>();
+    const f32 inputHeight    = LineSpacing * FontScale + 12.0f;
     bg->SizePercent          = { 1.0f, 0.0f };
-    bg->Size                 = { 0.0f, PanelHeight };
+    bg->Size                 = { 0.0f, Height };
     bg->ZOrder               = 1;
     bg->SkinOverride.PanelBg = Color{ 0.04f, 0.04f, 0.07f, 0.92f };
 
     _scroll              = bg->AddChild<ScrollPanel>();
     _scroll->SizePercent = { 0.98f, 0.0f };
-    _scroll->Size        = { 0.0f, PanelHeight - 60.0f };
+    _scroll->Size        = { 0.0f, Height - inputHeight - 28.0f };
     _scroll->Offset      = { 10.0f, 8.0f };
     _scroll->ZOrder      = 2;
 
     _input              = bg->AddChild<TextInput>();
     _input->Name        = "console-line";
     _input->SizePercent = { 0.98f, 0.0f };
-    _input->Size        = { 0.0f, 36.0f };
+    _input->Size        = { 0.0f, inputHeight };
+    _input->SkinOverride.FontScale = FontScale;
     _input->Anchor      = { 0.0f, 1.0f };
     _input->Pivot       = { 0.0f, 1.0f };
     _input->Offset      = { 10.0f, -8.0f };
@@ -84,16 +85,17 @@ void ConsoleScreen::ShowLines()
     _shownVersion = Console->GetVersion();
     _scroll->ClearChildren();
     const auto& lines = Console->GetLines();
-    const size_t first = lines.size() > ShownLines ? lines.size() - ShownLines : 0;
-    f32          y     = 0.0f;
-    for (size_t i = first; i < lines.size(); ++i, y += LineHeight) {
+    const size_t first      = lines.size() > ShownLines ? lines.size() - ShownLines : 0;
+    const f32    lineHeight = LineSpacing * FontScale;
+    f32          y          = 0.0f;
+    for (size_t i = first; i < lines.size(); ++i, y += lineHeight) {
         auto* label                   = _scroll->AddChild<Label>();
         label->Text                   = lines[i];
         label->SizePercent            = { 1.0f, 0.0f };
-        label->Size                   = { 0.0f, LineHeight };
+        label->Size                   = { 0.0f, lineHeight };
         label->Offset                 = { 0.0f, y };
         label->ZOrder                 = 3;
-        label->SkinOverride.FontScale = 0.7f;
+        label->SkinOverride.FontScale = FontScale;
         if (lines[i].starts_with("> ")) label->SkinOverride.TextLabel = Color{ 0.6f, 0.8f, 1.0f, 1.0f };
     }
     _scroll->ContentHeight = y;
