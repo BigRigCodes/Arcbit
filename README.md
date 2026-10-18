@@ -10,11 +10,19 @@ For a road map and current progress, see the [Blueprint](./BLUEPRINT.md).
 ## Development
 
 This project is designed with cmake and vcpkg in mind. Tested via CLion on windows only at this stage.
-Currently, the [CMakePresets](./CMakePresets.json) file has the path to my installed vcpkg hardcoded, as with the Vulkan SDK. Bare that in mind if you clone this repo.
+
+It needs two things installed, found through environment variables:
+
+- **vcpkg**: [CMakePresets](./CMakePresets.json) uses `$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake`. Set `VCPKG_ROOT` to your vcpkg checkout. [vcpkg.json](./vcpkg.json) pins the vcpkg baseline, so library versions match on every machine.
+- **Vulkan SDK**: its installer sets `VULKAN_SDK`, which CMake's FindVulkan reads (headers, loader, and `glslc` for shaders).
+
+For anything machine-specific beyond that, add presets of your own in a `CMakeUserPresets.json` (gitignored), inheriting from the project's.
 
 vcpkg dependencies are built with the overlay triplet in [cmake/triplets](./cmake/triplets), which pins them to the Visual Studio 2022 (v143) toolset the project compiles with. Update it alongside any compiler upgrade.
 
 ### Tests
+
+[CI](./.github/workflows/ci.yml) builds and runs them on every pull request into `master` and every push to it.
 
 Unit tests live in [tests/](./tests) (Catch2 v3) and build as `arcbit-tests` alongside the game. They are headless — no window or GPU device. Run them from the build directory with `ctest --output-on-failure`, run `bin/arcbit-tests` directly, or use the IDE's test runner. Set `-DARCBIT_BUILD_TESTS=OFF` to skip them.
 
