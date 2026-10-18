@@ -91,85 +91,224 @@ f32 BoxDistance(const f32 px, const f32 py, const f32 cx, const f32 cy, const f3
     const f32 ox = std::max(qx, 0.0f), oy = std::max(qy, 0.0f);
     return std::sqrt(ox * ox + oy * oy) + std::min(std::max(qx, qy), 0.0f);
 }
+// Every atlas with a face loaded, for UploadAll. Main thread only.
+std::vector<FontAtlas*>& LiveAtlases()
+{
+    static std::vector<FontAtlas*> atlases;
+    return atlases;
+}
+
+std::vector<std::shared_ptr<const FontFace>>& SharedFallbacks()
+{
+    static std::vector<std::shared_ptr<const FontFace>> faces;
+    return faces;
+}
 } // namespace
 
-struct FontAtlas::Face
+// ---------------------------------------------------------------------------
+// FontFace
+// ---------------------------------------------------------------------------
+
+struct FontFace::Impl
 {
-    std::vector<u8> Ttf; // stb reads from this for as long as the font lives
+    std::vector<u8> Data; // stb reads from this for as long as the face lives
     stbtt_fontinfo  Info{};
 };
 
-FontAtlas::FontAtlas()                                = default;
-FontAtlas::~FontAtlas()                               = default;
-FontAtlas::FontAtlas(FontAtlas&&) noexcept            = default;
-FontAtlas& FontAtlas::operator=(FontAtlas&&) noexcept = default;
+FontFace::FontFace()  = default;
+FontFace::~FontFace() = default;
+
+std::shared_ptr<FontFace> FontFace::Load(const std::string_view path)
+{
+    auto data = ReadFile(path);
+    if (!data) {
+        LOG_WARN(Engine, "FontFace: cannot open '{}'", path);
+        return nullptr;
+    }
+    std::shared_ptr<FontFace> face(new FontFace());
+    face->_impl       = std::make_unique<Impl>();
+    face->_impl->Data = std::move(*data);
+    face->_path       = std::string(path);
+    const u8* bytes   = face->_impl->Data.data();
+    const int offset  = face->_impl->Data.size() < 12 ? -1 : stbtt_GetFontOffsetForIndex(bytes, 0); // stb reads the header unchecked
+    if (offset < 0 || !stbtt_InitFont(&face->_impl->Info, bytes, offset)) {
+        LOG_WARN(Engine, "FontFace: '{}' isn't a font stb_truetype can read", path);
+        return nullptr;
+    }
+    return face;
+}
+
+bool FontFace::HasCodepoint(const u32 codepoint) const
+{
+    return stbtt_FindGlyphIndex(&_impl->Info, static_cast<int>(codepoint)) != 0;
+}
+
+// ---------------------------------------------------------------------------
+// FontAtlas: lifetime and loading
+// ---------------------------------------------------------------------------
+
+FontAtlas::FontAtlas() = default;
+FontAtlas::~FontAtlas() { Untrack(); }
+
+FontAtlas::FontAtlas(FontAtlas&& other) noexcept { *this = std::move(other); }
+
+// The live list holds addresses, so a moved atlas takes the other's place in it.
+FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept
+{
+    if (this == &other) return *this;
+    Untrack();
+    _face       = std::move(other._face);
+    _fallbacks  = std::move(other._fallbacks);
+    _glyphs     = std::move(other._glyphs);
+    _absent     = std::move(other._absent);
+    _pages      = std::move(other._pages);
+    _missing    = other._missing;
+    _sampler    = std::exchange(other._sampler, {});
+    _mode       = other._mode;
+    _pixelSize  = other._pixelSize;
+    _emPixels   = other._emPixels;
+    _lineHeight = other._lineHeight;
+    _ascent     = other._ascent;
+    if (other._tracked) {
+        other.Untrack();
+        Track();
+    }
+    return *this;
+}
+
+void FontAtlas::Track()
+{
+    if (std::exchange(_tracked, true)) return;
+    LiveAtlases().push_back(this);
+}
+
+void FontAtlas::Untrack()
+{
+    if (!std::exchange(_tracked, false)) return;
+    std::erase(LiveAtlases(), this);
+}
 
 std::span<const GlyphRange> FontAtlas::DefaultGlyphs() { return Default; }
 
-bool FontAtlas::Load(const std::string_view ttfPath, const f32 pixelSize, const FontMode mode,
+bool FontAtlas::Load(const std::string_view path, const f32 pixelSize, const FontMode mode,
                      RenderDevice& device, const std::span<const GlyphRange> glyphs)
 {
-    if (!LoadFace(ttfPath, pixelSize, mode, glyphs)) return false;
+    if (!LoadFace(path, pixelSize, mode, glyphs)) return false;
     Upload(device);
     return true;
 }
 
-bool FontAtlas::LoadFace(const std::string_view ttfPath, const f32 pixelSize, const FontMode mode,
+bool FontAtlas::LoadFace(const std::string_view path, const f32 pixelSize, const FontMode mode,
                          const std::span<const GlyphRange> glyphs)
 {
-    auto ttf = ReadFile(ttfPath);
-    if (!ttf) {
-        LOG_WARN(Engine, "FontAtlas: cannot open '{}'", ttfPath);
-        return false;
-    }
-    auto face = std::make_unique<Face>();
-    face->Ttf = std::move(*ttf);
-    if (!stbtt_InitFont(&face->Info, face->Ttf.data(), stbtt_GetFontOffsetForIndex(face->Ttf.data(), 0))) {
-        LOG_WARN(Engine, "FontAtlas: stbtt_InitFont failed for '{}'", ttfPath);
-        return false;
-    }
+    auto face = FontFace::Load(path);
+    if (!face) return false;
 
-    _face      = std::move(face);
-    _mode      = mode;
-    _pixelSize = pixelSize;
-    _scale     = stbtt_ScaleForPixelHeight(&_face->Info, pixelSize);
+    const stbtt_fontinfo& info  = face->_impl->Info;
+    const f32             scale = stbtt_ScaleForPixelHeight(&info, pixelSize);
     int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&_face->Info, &ascent, &descent, &lineGap);
-    _ascent     = static_cast<f32>(ascent) * _scale;
-    _lineHeight = static_cast<f32>(ascent - descent + lineGap) * _scale;
+    stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
+    _face       = std::move(face);
+    _mode       = mode;
+    _pixelSize  = pixelSize;
+    _emPixels   = scale / stbtt_ScaleForMappingEmToPixels(&info, 1.0f);
+    _ascent     = static_cast<f32>(ascent) * scale;
+    _lineHeight = static_cast<f32>(ascent - descent + lineGap) * scale;
     _glyphs.clear();
+    _absent.clear();
     _pages.clear();
+    Track();
 
     BakeMissingBox();
     for (const auto [first, last] : glyphs)
         for (u32 cp = first; cp <= last; ++cp) BakeGlyph(cp);
 
-    LOG_INFO(Engine, "FontAtlas: '{}' @ {}px ({}) - {} glyphs on {} page(s)", ttfPath, pixelSize,
+    LOG_INFO(Engine, "FontAtlas: '{}' @ {}px ({}) - {} glyphs on {} page(s)", path, pixelSize,
              mode == FontMode::SDF ? "SDF" : "Bitmap", _glyphs.size(), _pages.size());
     return true;
 }
 
-// Rasterize one codepoint the font has; codepoints it lacks are left to the box.
-void FontAtlas::BakeGlyph(const u32 codepoint)
-{
-    if (_glyphs.contains(codepoint)) return;
-    const int index = stbtt_FindGlyphIndex(&_face->Info, static_cast<int>(codepoint));
-    if (index == 0) {
-        if (const auto em = SpaceWidth(codepoint)) _glyphs[codepoint] = { .Advance = *em * _pixelSize };
-        else BakeArrow(codepoint);
-        return;
-    }
+// ---------------------------------------------------------------------------
+// FontAtlas: glyphs
+// ---------------------------------------------------------------------------
 
+const GlyphInfo* FontAtlas::GetGlyph(const u32 codepoint) const
+{
+    if (!_face) return nullptr;
+    if (const auto it = _glyphs.find(codepoint); it != _glyphs.end()) return &it->second;
+    if (_absent.contains(codepoint) || !BakeGlyph(codepoint)) {
+        _absent.insert(codepoint);
+        return &_missing;
+    }
+    return &_glyphs.at(codepoint);
+}
+
+void FontAtlas::Prepare(const std::string_view text) const
+{
+    for (const u32 cp : Utf8::Codepoints(text))
+        if (cp >= 32) (void)GetGlyph(cp);
+}
+
+// Fallbacks change what a codepoint no face had resolves to; glyphs already
+// baked (from any face) stay.
+void FontAtlas::AddFallback(std::shared_ptr<const FontFace> face)
+{
+    if (!face) return;
+    _fallbacks.push_back(std::move(face));
+    _absent.clear();
+}
+
+void FontAtlas::ClearFallbacks()
+{
+    _fallbacks.clear();
+    _absent.clear();
+}
+
+void FontAtlas::SetSharedFallbacks(std::vector<std::shared_ptr<const FontFace>> faces)
+{
+    std::erase(faces, nullptr);
+    SharedFallbacks() = std::move(faces);
+    for (FontAtlas* atlas : LiveAtlases()) atlas->_absent.clear();
+}
+
+const std::vector<std::shared_ptr<const FontFace>>& FontAtlas::GetSharedFallbacks() { return SharedFallbacks(); }
+
+// The font, then its fallback faces, the shared ones, and the shapes drawn here.
+bool FontAtlas::BakeGlyph(const u32 codepoint) const
+{
+    if (_glyphs.contains(codepoint)) return true;
+    if (BakeFrom(*_face, codepoint)) return true;
+    for (const auto& face : _fallbacks)
+        if (BakeFrom(*face, codepoint)) return true;
+    for (const auto& face : SharedFallbacks())
+        if (BakeFrom(*face, codepoint)) return true;
+    if (const auto em = SpaceWidth(codepoint)) {
+        _glyphs[codepoint] = { .Advance = *em * _pixelSize };
+        return true;
+    }
+    return BakeArrow(codepoint);
+}
+
+// Rasterize a codepoint from one face, at this atlas's size and mode. Faces
+// are matched by em, not line height: CJK faces have tall lines, and sizing
+// by those would draw their characters small next to the font's.
+bool FontAtlas::BakeFrom(const FontFace& face, const u32 codepoint) const
+{
+    const stbtt_fontinfo& info  = face._impl->Info;
+    const int             index = stbtt_FindGlyphIndex(&info, static_cast<int>(codepoint));
+    if (index == 0) return false;
+
+    const f32 scale = stbtt_ScaleForMappingEmToPixels(&info, _emPixels);
     int w = 0, h = 0, xoff = 0, yoff = 0;
     u8* bitmap = _mode == FontMode::SDF
-        ? stbtt_GetGlyphSDF(&_face->Info, _scale, index, SdfPadding, SdfOnEdge, SdfDistScale, &w, &h, &xoff, &yoff)
-        : stbtt_GetGlyphBitmap(&_face->Info, _scale, _scale, index, &w, &h, &xoff, &yoff);
+        ? stbtt_GetGlyphSDF(&info, scale, index, SdfPadding, SdfOnEdge, SdfDistScale, &w, &h, &xoff, &yoff)
+        : stbtt_GetGlyphBitmap(&info, scale, scale, index, &w, &h, &xoff, &yoff);
     int advance, lsb;
-    stbtt_GetGlyphHMetrics(&_face->Info, index, &advance, &lsb);
+    stbtt_GetGlyphHMetrics(&info, index, &advance, &lsb);
 
     GlyphInfo g{};
     g.Bearing = { static_cast<f32>(xoff), static_cast<f32>(yoff) };
-    g.Advance = static_cast<f32>(advance) * _scale;
+    g.Advance = static_cast<f32>(advance) * scale;
     if (bitmap && w > 0 && h > 0 && Place(bitmap, static_cast<u32>(w), static_cast<u32>(h), g))
         g.BitmapSize = { static_cast<f32>(w), static_cast<f32>(h) };
     if (bitmap) {
@@ -177,9 +316,10 @@ void FontAtlas::BakeGlyph(const u32 codepoint)
         else                        stbtt_FreeBitmap(bitmap, nullptr);
     }
     _glyphs[codepoint] = g;
+    return true;
 }
 
-GlyphInfo FontAtlas::BakeDrawn(const f32 w, const f32 h, const f32 lift, const std::function<f32(f32 x, f32 y)>& distance)
+GlyphInfo FontAtlas::BakeDrawn(const f32 w, const f32 h, const f32 lift, const std::function<f32(f32 x, f32 y)>& distance) const
 {
     const u32 pad = _mode == FontMode::SDF ? SdfPadding : 0;
     const u32 bw = static_cast<u32>(std::ceil(w)) + pad * 2, bh = static_cast<u32>(std::ceil(h)) + pad * 2;
@@ -215,7 +355,7 @@ void FontAtlas::BakeMissingBox()
 
 // Solid triangles centered on the lowercase height, so a dropdown or a
 // scroll arrow shows even in a font without them.
-bool FontAtlas::BakeArrow(const u32 codepoint)
+bool FontAtlas::BakeArrow(const u32 codepoint) const
 {
     const f32 s = std::round(_pixelSize * 0.4f), lift = std::round(_ascent * 0.35f - s * 0.5f);
     std::array<Vec2, 3> points;
@@ -230,7 +370,7 @@ bool FontAtlas::BakeArrow(const u32 codepoint)
     return true;
 }
 
-bool FontAtlas::Place(const u8* bitmap, const u32 w, const u32 h, GlyphInfo& glyph)
+bool FontAtlas::Place(const u8* bitmap, const u32 w, const u32 h, GlyphInfo& glyph) const
 {
     if (w + GlyphPadding * 2 > PageSize || h + GlyphPadding * 2 > PageSize) {
         LOG_WARN(Engine, "FontAtlas: a {}x{} glyph is larger than a page", w, h);
@@ -304,18 +444,22 @@ void FontAtlas::Upload(RenderDevice& device)
     _sampler       = device.CreateSampler(desc);
 }
 
+void FontAtlas::UploadAll(RenderDevice& device, const std::function<void()>& beforeUpload)
+{
+    const auto dirty = [](const FontAtlas* atlas) {
+        return std::ranges::any_of(atlas->_pages, [](const Page& page) { return page.Dirty; });
+    };
+    if (!std::ranges::any_of(LiveAtlases(), dirty)) return;
+    if (beforeUpload) beforeUpload();
+    for (FontAtlas* atlas : LiveAtlases())
+        if (dirty(atlas)) atlas->Upload(device);
+}
+
 void FontAtlas::Release(RenderDevice& device)
 {
     for (Page& page : _pages)
         if (page.Texture.IsValid()) device.DestroyTexture(std::exchange(page.Texture, {}));
     if (_sampler.IsValid()) device.DestroySampler(std::exchange(_sampler, {}));
-}
-
-const GlyphInfo* FontAtlas::GetGlyph(const u32 codepoint) const
-{
-    if (!_face) return nullptr;
-    const auto it = _glyphs.find(codepoint);
-    return it != _glyphs.end() ? &it->second : &_missing;
 }
 
 TextureHandle FontAtlas::GetTexture(const u32 page) const
@@ -375,6 +519,7 @@ void LayoutText(const FontAtlas& font, const std::string_view text, const Vec2 p
             const Vec2 topLeft = { pen + g.Bearing.X * scale, baseline + g.Bearing.Y * scale };
             Sprite     s{};
             s.Texture  = font.GetTexture(g.Page);
+            if (!s.Texture.IsValid()) return; // on a page made this frame: drawn from the next
             s.Sampler  = font.GetSampler();
             s.Position = { topLeft.X + size.X * 0.5f, topLeft.Y + size.Y * 0.5f };
             s.Size     = size;

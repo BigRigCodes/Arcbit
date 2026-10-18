@@ -418,6 +418,8 @@ void Application::Run()
             DrawText(packet, _debugFont, overlay, {8.0f, 8.0f}, 1.0f, {1.0f, 1.0f, 0.0f, 1.0f});
         }
 
+        // Glyphs baked while drawing this frame reach the GPU before it renders.
+        FontAtlas::UploadAll(*_device, [this] { _renderThread.WaitIdle(); });
         _renderThread.SubmitFrame(std::move(packet));
         WriteCapture(); // a frame captured for a save or a screenshot, once the render thread has it
 

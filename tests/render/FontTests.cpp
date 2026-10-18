@@ -3,6 +3,7 @@
 
 #include "TestSupport.h"
 
+#include <arcbit/core/Utf8.h>
 #include <arcbit/render/Font.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -102,4 +103,78 @@ TEST_CASE("WrapText breaks a word wider than the line between its characters", "
     const f32       two  = MeasureTextWidth(font, "mm", 1.0f);
     CHECK(WrapText(font, "mmmmm", two + 1.0f, 1.0f) == "mm\nmm\nm");
     CHECK(WrapText(font, "a mmmmm", two + 1.0f, 1.0f) == "a\nmm\nmm\nm");
+}
+
+namespace
+{
+std::shared_ptr<FontFace> NotoJP()
+{
+    auto face = FontFace::Load(ArcbitTests::SourcePath("game/assets/fonts/NotoSansJP-Regular.otf").string());
+    REQUIRE(face);
+    return face;
+}
+} // namespace
+
+TEST_CASE("A codepoint outside the baked set is baked the first time it's asked for", "[render][font]")
+{
+    const FontAtlas font = Roboto();
+    constexpr u32   Zhe  = 0x0416; // Cyrillic: Roboto has it, the default set doesn't
+    CHECK_FALSE(font.HasGlyph(Zhe));
+    const GlyphInfo* g = font.GetGlyph(Zhe);
+    CHECK(font.HasGlyph(Zhe));
+    CHECK(g != font.GetGlyph(0x4E00)); // not the box
+    CHECK(g->BitmapSize.X > 0.0f);
+}
+
+TEST_CASE("Fallback faces supply what the font lacks, at the atlas's size", "[render][font]")
+{
+    FontAtlas        font = Roboto();
+    const GlyphInfo* box  = font.GetGlyph(JaA);
+    const f32        a    = Advance(font, 'A');
+
+    font.AddFallback(NotoJP());
+    const GlyphInfo* ja = font.GetGlyph(JaA); // the box is forgotten once a fallback arrives
+    CHECK(ja != box);
+    CHECK(ja->BitmapSize.X > 0.0f);
+    CHECK(ja->Advance > 19.0f); // a full-width character is about an em: ~20.5px for Roboto at 24px
+    CHECK(ja->Advance < 22.0f);
+    CHECK(Advance(font, 'A') == a); // the font's own glyphs still come first
+
+    font.ClearFallbacks();
+    CHECK(font.GetGlyph(JaA) == ja);    // baked glyphs stay
+    CHECK(font.GetGlyph(0x65E5) == box); // nothing new comes from a removed face
+}
+
+TEST_CASE("Prepare bakes a text's glyphs ahead, onto new pages as needed", "[render][font]")
+{
+    FontAtlas font = Roboto(96.0f);
+    font.AddFallback(NotoJP());
+    const u32 pages = font.GetPageCount();
+
+    std::string text;
+    for (u32 cp = 0x4E00; cp < 0x4E00 + 200; ++cp) Utf8::Append(text, cp); // 200 kanji
+    font.Prepare(text);
+    CHECK(font.HasGlyph(0x4E00 + 199));
+    CHECK(font.GetPageCount() > pages);
+}
+
+TEST_CASE("FontFace refuses a file that isn't a font", "[render][font]")
+{
+    ArcbitTests::TempDir dir;
+    CHECK_FALSE(FontFace::Load(dir.Write("fake.ttf", "not a font")));
+    CHECK_FALSE(FontFace::Load(dir.Write("tiny.ttf", "ab")));
+    CHECK_FALSE(FontFace::Load(dir.File("missing.ttf").string()));
+}
+
+TEST_CASE("Shared fallbacks reach every atlas, loaded before or after", "[render][font]")
+{
+    struct Reset { ~Reset() { FontAtlas::SetSharedFallbacks({}); } } reset;
+    const FontAtlas before = Roboto();
+    CHECK(before.GetGlyph(JaA) == before.GetGlyph(0x4E00)); // the box, remembered
+
+    FontAtlas::SetSharedFallbacks({ NotoJP() });
+    const FontAtlas after = Roboto(32.0f);
+    CHECK(before.GetGlyph(JaA)->BitmapSize.X > 0.0f);
+    CHECK(before.GetGlyph(JaA) != before.GetGlyph(0x10FFFD)); // no longer the box
+    CHECK(after.GetGlyph(JaA) != after.GetGlyph(0x10FFFD));
 }
