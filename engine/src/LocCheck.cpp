@@ -36,12 +36,19 @@ const std::regex& DottedLiteral()
     return literal;
 }
 
-// A layout's "text" / "label" with words in it: player text that skipped the
-// locale files ("<", "50%" and "..." don't count).
+// A layout's "text" / "label" / "placeholder" with words in it: player text
+// that skipped the locale files ("<", "50%" and "..." don't count).
 const std::regex& RawTextPattern()
 {
-    static const std::regex raw(R"re("(?:text|label)"\s*:\s*"([^"]*[A-Za-z]{2}[^"]*)")re");
+    static const std::regex raw(R"re("(?:text|label|placeholder)"\s*:\s*"([^"]*[A-Za-z]{2}[^"]*)")re");
     return raw;
+}
+
+// "item_keys": [ "a", "b" ] - an array of keys, on one line.
+const std::regex& KeyArray()
+{
+    static const std::regex array(R"re("\w+_keys"\s*:\s*\[([^\]]*)\])re");
+    return array;
 }
 
 struct Scan
@@ -49,32 +56,50 @@ struct Scan
     std::vector<Place>    Uses;
     std::set<std::string> Literals;
     std::vector<Place>    RawText;
+
+    void Use(std::string key, const std::string& file, const u32 line)
+    {
+        Literals.insert(key); // a used key needn't be dotted ("coins")
+        Uses.push_back({ std::move(key), file, line });
+    }
 };
 
+void ScanLine(const std::string& line, const std::string& file, const u32 number, const std::string& extension, Scan& scan)
+{
+    static const std::regex quoted(R"re("([^"]+)")re");
+    for (const std::regex& pattern : UsePatterns(extension))
+        for (std::sregex_iterator it(line.begin(), line.end(), pattern), end; it != end; ++it) scan.Use((*it)[1].str(), file, number);
+    for (std::sregex_iterator it(line.begin(), line.end(), DottedLiteral()), end; it != end; ++it) scan.Literals.insert((*it)[1].str());
+    if (extension != ".arcui" && extension != ".arcscene") return;
+    for (std::sregex_iterator it(line.begin(), line.end(), KeyArray()), end; it != end; ++it) {
+        const std::string keys = (*it)[1].str();
+        for (std::sregex_iterator key(keys.begin(), keys.end(), quoted), last; key != last; ++key) scan.Use((*key)[1].str(), file, number);
+    }
+    if (extension == ".arcui")
+        for (std::sregex_iterator it(line.begin(), line.end(), RawTextPattern()), end; it != end; ++it)
+            scan.RawText.push_back({ (*it)[1].str(), file, number });
+}
+
+// Other JSON content (credits, data files) can mention keys too; the locale
+// files themselves don't count.
 void ScanFile(const std::filesystem::path& file, Scan& scan)
 {
     const std::string extension = file.extension().string();
-    const auto&       patterns  = UsePatterns(extension);
-    if (patterns.empty()) return;
-    const bool    layout = extension == ".arcui";
+    if (UsePatterns(extension).empty() && extension != ".json") return;
     std::ifstream in(file);
     std::string   line;
-    for (u32 number = 1; std::getline(in, line); ++number) {
-        for (const std::regex& pattern : patterns)
-            for (std::sregex_iterator it(line.begin(), line.end(), pattern), end; it != end; ++it) {
-                scan.Uses.push_back({ (*it)[1].str(), file.generic_string(), number });
-                scan.Literals.insert((*it)[1].str()); // a used key needn't be dotted ("coins")
-            }
-        for (std::sregex_iterator it(line.begin(), line.end(), DottedLiteral()), end; it != end; ++it)
-            scan.Literals.insert((*it)[1].str());
-        if (layout)
-            for (std::sregex_iterator it(line.begin(), line.end(), RawTextPattern()), end; it != end; ++it)
-                scan.RawText.push_back({ (*it)[1].str(), file.generic_string(), number });
-    }
+    for (u32 number = 1; std::getline(in, line); ++number) ScanLine(line, file.generic_string(), number, extension, scan);
 }
 
-Scan ScanRoots(const std::span<const std::filesystem::path> roots)
+Scan ScanRoots(const std::span<const std::filesystem::path> roots, const std::span<const std::filesystem::path> skip)
 {
+    std::vector<std::filesystem::path> skipped;
+    for (const auto& folder : skip) skipped.push_back(std::filesystem::weakly_canonical(folder));
+    const auto inSkipped = [&](const std::filesystem::path& file) {
+        const auto folder = std::filesystem::weakly_canonical(file).parent_path();
+        return std::ranges::find(skipped, folder) != skipped.end();
+    };
+
     Scan            scan;
     std::error_code ec;
     for (const auto& root : roots) {
@@ -83,17 +108,17 @@ Scan ScanRoots(const std::span<const std::filesystem::path> roots)
             continue;
         }
         for (auto it = std::filesystem::recursive_directory_iterator(root, ec); !ec && it != decltype(it){}; it.increment(ec))
-            if (it->is_regular_file()) ScanFile(it->path(), scan);
+            if (it->is_regular_file() && !inSkipped(it->path())) ScanFile(it->path(), scan);
     }
     return scan;
 }
 
-// "item.coins.one" -> "item.coins": a plural form is used through its key.
-std::string PluralParent(const std::string& key)
+// "item.coins.one" -> "item.coins": a plural form is used through its key,
+// and "demo.world.name" may be built from "demo.world" at run time.
+std::string Parent(const std::string& key)
 {
-    static const std::set<std::string> forms = { "zero", "one", "two", "few", "many", "other" };
     const auto dot = key.rfind('.');
-    return dot != std::string::npos && forms.contains(key.substr(dot + 1)) ? key.substr(0, dot) : key;
+    return dot != std::string::npos ? key.substr(0, dot) : key;
 }
 
 std::vector<std::string> EnglishKeys()
@@ -111,13 +136,13 @@ Report Check(const std::span<const std::filesystem::path> localeFolders,
     for (const auto& folder : localeFolders) Loc::AddFolder(folder);
     const std::vector<std::string> english = EnglishKeys();
     const std::set<std::string>    known(english.begin(), english.end());
-    const Scan                     scan = ScanRoots(scanRoots);
+    const Scan                     scan = ScanRoots(scanRoots, localeFolders);
 
     Report report;
     for (const Place& use : scan.Uses)
         if (!known.contains(use.Text) && !known.contains(use.Text + ".other")) report.Missing.push_back(use);
     for (const std::string& key : english)
-        if (!scan.Literals.contains(key) && !scan.Literals.contains(PluralParent(key))) report.Unused.push_back(key);
+        if (!scan.Literals.contains(key) && !scan.Literals.contains(Parent(key))) report.Unused.push_back(key);
     report.RawText = scan.RawText;
 
     for (const Loc::Locale& locale : Loc::GetLocales())

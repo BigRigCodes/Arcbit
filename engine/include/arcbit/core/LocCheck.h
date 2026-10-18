@@ -11,11 +11,13 @@
 // and the editor later): keys the content uses that English lacks, English
 // keys nothing uses, raw text in layouts, and each language's coverage.
 //
-// Content is scanned as text: .arcui / .arcscene ("..._key" fields, raw
-// "text" / "label"), .lua (Loc.Get / Format / Has, TextKey =), .cpp / .h
-// (Loc::Get / Format, SetTextKey / SetLabelKey). Keys built at run time
-// ("ui.slot." .. n) can't be seen, so Unused is a list to look over, not to
-// delete blindly.
+// Content is scanned as text: .arcui / .arcscene ("..._key" fields and
+// "..._keys" arrays, raw "text" / "label" / "placeholder"), .lua (Loc.Get /
+// Format / Has, TextKey =), .cpp / .h (Loc::Get / Format, SetTextKey /
+// SetLabelKey), and other .json (credits) for keys it mentions. A key counts
+// as used when it, or the key it extends ("demo.world" for
+// "demo.world.name"), is mentioned anywhere; keys built from smaller pieces
+// can't be seen, so Unused is a list to look over, not to delete blindly.
 namespace Arcbit::LocCheck
 {
 struct Place
