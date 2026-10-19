@@ -56,6 +56,7 @@
   "demo.shop.close": "閉じる",
   "demo.widgets.title": "ウィジェットテスト",
   "demo.widgets.close": "閉じる",
+  "demo.widgets.dialog": "会話",
   "demo.widgets.text": "テキスト：",
   "demo.widgets.placeholder": "何か入力…",
   "demo.widgets.number": "数値：",
@@ -111,5 +112,18 @@
   "credits.music_note": "Arcbit 用に合成した仮のループ曲",
   "credits.font": "フォント",
   "credits.built_with": "使用技術",
-  "credits.thanks": "遊んでくれてありがとう"
+  "credits.thanks": "遊んでくれてありがとう",
+
+  "dialog.sample.speaker.sage": "さすらいの賢者",
+  "dialog.sample.start.1": "今夜の風は<i>ふしぎな</i>歌を運んでくる……",
+  "dialog.sample.start.2": "おや、旅の人か！<pause=0.4>さあ、火のそばに座りなさい。",
+  "dialog.sample.again.1": "また来たのか。火はまだ<color=orange>あたたかい</color>よ。",
+  "dialog.sample.ask.1": "古い塔は夜になると<shake>ふるえ</shake>、満月の夜には川が<wave>歌う</wave>という。何の話を聞きたい？",
+  "dialog.sample.ask.tower": "塔の話。",
+  "dialog.sample.ask.river": "川の話。",
+  "dialog.sample.ask.secret": "<rainbow>秘密の話。</rainbow>",
+  "dialog.sample.ask.bye": "なんでもない。さようなら。",
+  "dialog.sample.tower.1": "その石は、<speed=0.4>だれも知らない戦</speed>を覚えている。",
+  "dialog.sample.river.1": "あの川は年に<b>一度</b>だけ、坂をのぼる。一度だけだ。",
+  "dialog.sample.secret.1": "<rainbow>秘密などない。</rainbow><pause=0.6>あるのは物語だけさ。"
 }

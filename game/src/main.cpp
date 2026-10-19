@@ -86,9 +86,11 @@ constexpr const char* LastDemoKey = "demo.last";
 #ifdef ARCBIT_DEBUG
 constexpr const char* ScriptRoot   = ARCBIT_GAME_ASSETS "/scripts";
 constexpr const char* LocaleFolder = ARCBIT_GAME_ASSETS "/locale";
+constexpr const char* DialogFolder = ARCBIT_GAME_ASSETS "/dialog";
 #else
 constexpr const char* ScriptRoot   = "assets/scripts";
 constexpr const char* LocaleFolder = "assets/locale";
+constexpr const char* DialogFolder = "assets/dialog";
 #endif
 
 class DemoApp : public Application
@@ -104,7 +106,8 @@ public:
 
     explicit DemoApp(const Options& options) :
         Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot,
-                      .Display = options.Display, .LocaleFolder = LocaleFolder }),
+                      .Display = options.Display, .LocaleFolder = LocaleFolder,
+                      .DialogFolder = DialogFolder }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
         // Splash, then the title menu over the last demo (already running
@@ -250,7 +253,23 @@ private:
         auto      screen = std::make_unique<WidgetTestScreen>();
         UIScreen* ptr    = screen.get();
         screen->OnClose  = [this, ptr] { GetUI().Close(ptr); };
+        screen->OnDialog = [this, ptr] {
+            GetUI().Close(ptr);
+            ShowSampleDialog();
+        };
         GetUI().OpenMenu(std::move(screen));
+    }
+
+    // The dialog box with the sample conversation (assets/dialog/sample.arcdialog).
+    void ShowSampleDialog()
+    {
+        auto dialog = GetDialogs().Get("sample");
+        if (!dialog) return;
+        auto          screen = CreateDialogScreen();
+        DialogScreen* ptr    = screen.get();
+        screen->OnFinished   = [this, ptr](const std::string&) { GetUI().Close(ptr); };
+        screen->Begin(std::move(dialog), { .Data = &GetSaves().Data(), .Events = &GetEvents() });
+        GetUI().Push(std::move(screen));
     }
 
     void ToggleEventLog()

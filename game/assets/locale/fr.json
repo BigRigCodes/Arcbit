@@ -51,6 +51,7 @@
   "demo.shop.close": "Fermer",
   "demo.widgets.title": "Test des widgets",
   "demo.widgets.close": "Fermer",
+  "demo.widgets.dialog": "Dialogue",
   "demo.widgets.text": "Texte :",
   "demo.widgets.placeholder": "Écrivez quelque chose…",
   "demo.widgets.number": "Nombre :",
@@ -106,5 +107,18 @@
   "credits.music_note": "Boucles provisoires, synthétisées pour Arcbit",
   "credits.font": "Polices",
   "credits.built_with": "Réalisé avec",
-  "credits.thanks": "Merci d'avoir joué"
+  "credits.thanks": "Merci d'avoir joué",
+
+  "dialog.sample.speaker.sage": "Sage errant",
+  "dialog.sample.start.1": "Le vent porte un chant <i>étrange</i> ce soir...",
+  "dialog.sample.start.2": "Ah, un voyageur !<pause=0.4> Viens, assieds-toi près du feu.",
+  "dialog.sample.again.1": "Encore toi ? Le feu est toujours <color=orange>chaud</color>.",
+  "dialog.sample.ask.1": "On dit que la vieille tour <shake>tremble</shake> la nuit, et que la rivière <wave>chante</wave> à la pleine lune. Que veux-tu entendre ?",
+  "dialog.sample.ask.tower": "La tour.",
+  "dialog.sample.ask.river": "La rivière.",
+  "dialog.sample.ask.secret": "<rainbow>Le secret.</rainbow>",
+  "dialog.sample.ask.bye": "Rien. Au revoir.",
+  "dialog.sample.tower.1": "Ses pierres se souviennent d'une guerre <speed=0.4>que nul autre n'a connue</speed>.",
+  "dialog.sample.river.1": "Elle remonte la pente, <b>une</b> fois par an. Une seule.",
+  "dialog.sample.secret.1": "<rainbow>Il n'y a pas de secret.</rainbow><pause=0.6> Seulement des histoires."
 }

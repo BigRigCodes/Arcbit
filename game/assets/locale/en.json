@@ -51,6 +51,7 @@
   "demo.shop.close": "Close",
   "demo.widgets.title": "Widget Test",
   "demo.widgets.close": "Close",
+  "demo.widgets.dialog": "Dialog",
   "demo.widgets.text": "Text:",
   "demo.widgets.placeholder": "Type something...",
   "demo.widgets.number": "Number:",

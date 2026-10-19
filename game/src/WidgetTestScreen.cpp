@@ -28,6 +28,8 @@ void WidgetTestScreen::WireWidgets()
 {
     if (auto* btn = FindWidget<Button>("close-btn"))
         btn->OnClick = [this] { if (OnClose) OnClose(); };
+    if (auto* btn = FindWidget<Button>("dialog-btn"))
+        btn->OnClick = [this] { if (OnDialog) OnDialog(); };
 
     if (auto* ti = FindWidget<TextInput>("text-input"))
         ti->OnChanged = [this](const std::string& v) { _textVal = v; UpdateOutput(); };

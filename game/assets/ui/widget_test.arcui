@@ -32,6 +32,16 @@
           "focusable": true,
           "tab_order": 2
         },
+        {
+          "type": "Button",
+          "name": "dialog-btn",
+          "text_key": "demo.widgets.dialog",
+          "anchor": [1.0, 0.0],
+          "pivot": [1.0, 0.0],
+          "offset": [-80, 10],
+          "size": [90, 26],
+          "tab_order": 10
+        },
 
         {
           "type": "Label",

@@ -18,6 +18,7 @@ class WidgetTestScreen : public UIScreen
 {
 public:
     std::function<void()> OnClose;
+    std::function<void()> OnDialog; // the dialog box with a sample conversation
 
     WidgetTestScreen()
     {
