@@ -478,7 +478,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] While it runs: the player and the NPC are held (`Held`; tile movers finish their step), the NPC turns to the player, autosaves wait; `entity:Move` / `entity:IsHeld` for scripts
 - [x] Lua hook `OnDialogEnd(id, choice)` on the NPC's script and the scene script; events `engine.dialog.started`, `.line`, `.choice`, `.ended`
 - [x] `FacingAnimation` component: four-way idle / walk clips from facing and movement (so a held NPC visibly turns)
-- [ ] `arcbit-loc` reads dialog files: their keys in coverage and templates, and their problems reported
+- [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
 - [ ] Demo: an elder in the Scripted demo - greeting, a choice, a gold check, a reward, a remembered outcome - in English, French and Japanese
 - [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 

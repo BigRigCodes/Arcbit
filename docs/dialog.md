@@ -158,7 +158,10 @@ Text can use **rich text** - `<b>`, `<i>`, `<color=gold>`, `<wave>`,
 save data, and a game can supply more (`DialogHost::Args`, e.g. `{player}`).
 Number formatting and plural forms work as in any localized string.
 
-The console's `loc.missing <lang>` includes dialog keys a language lacks.
+The console's `loc.missing <lang>` includes dialog keys a language lacks, and
+`arcbit-loc` reads dialog files (`--dialogs`): their lines in coverage and
+translator templates, their problems reported, and translations of lines that
+were renumbered or removed flagged ([localization.md](localization.md)).
 
 ---
 

@@ -9,7 +9,12 @@
 
 // Checks a game's localization against its content (the arcbit-loc tool,
 // and the editor later): keys the content uses that English lacks, English
-// keys nothing uses, raw text in layouts, and each language's coverage.
+// keys nothing uses, raw text in layouts, translations English no longer
+// has, each language's coverage, and the dialog files' problems.
+//
+// Dialog files (docs/dialog.md) carry their own English: it's loaded into
+// Loc like a locale file's, so dialog lines count in coverage and templates
+// and are used by their dialog.
 //
 // Content is scanned as text: .arcui / .arcscene ("..._key" fields and
 // "..._keys" arrays, raw "text" / "label" / "placeholder"), .lua (Loc.Get /
@@ -35,18 +40,41 @@ struct Coverage
     usize       Total      = 0;
 };
 
-struct Report
+// A translation of a key English doesn't have - often a dialog line that was
+// renumbered or removed; the translation is lost until it's moved.
+struct StaleKey
 {
-    std::vector<Place>       Missing; // used, but English has no such key (nor plural forms of it)
-    std::vector<std::string> Unused;  // English keys no scanned file mentions
-    std::vector<Place>       RawText; // player text written into a layout instead of a key
-    std::vector<Coverage>    Languages;
+    std::string Code; // the language
+    std::string Key;
 };
 
-// Load the locale folders (into Loc, replacing what it held) and check the
-// content under the scan roots against them.
+// Something wrong with a dialog file: its own checks (docs/dialog.md), or
+// English for one of its lines that a locale file overrides.
+struct DialogProblem
+{
+    std::string Dialog; // its id
+    std::string File;
+    bool        Error = true;
+    std::string Message;
+};
+
+struct Report
+{
+    std::vector<Place>         Missing; // used, but English has no such key (nor plural forms of it)
+    std::vector<std::string>   Unused;  // English keys no scanned file mentions
+    std::vector<Place>         RawText; // player text written into a layout instead of a key
+    std::vector<StaleKey>      Stale;
+    std::vector<DialogProblem> Dialogs;
+    std::vector<Coverage>      Languages;
+
+    [[nodiscard]] bool HasDialogErrors() const;
+};
+
+// Load the locale folders and dialog folders (into Loc, replacing what it
+// held) and check the content under the scan roots against them.
 [[nodiscard]] Report Check(std::span<const std::filesystem::path> localeFolders,
-                           std::span<const std::filesystem::path> scanRoots);
+                           std::span<const std::filesystem::path> scanRoots,
+                           std::span<const std::filesystem::path> dialogFolders = {});
 
 // A starting file for translating into a new language: "$locale" with an
 // empty name, then every English key with its English text to replace.
