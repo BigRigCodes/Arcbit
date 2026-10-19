@@ -2,8 +2,9 @@
 
 This is the single canonical format for all sprite sheet assets in Arcbit.
 It covers named frames, uniform tile grids, and animation clips in one file.
-The editor reads and writes this format; `arcbit-pack` (Phase 36) compiles it
-into the binary `.arcasset` container for shipped builds.
+`SpriteSheet` loads it; the editor (Phase 40) will read and write it, and
+`arcbit-pack` (Phase 36) will compile it into the `.arcasset` container for
+shipped builds.
 
 ---
 
@@ -245,29 +246,6 @@ A file may use any combination of the optional sections:
 
 ## Carrot import
 
-The Carrot engine uses a compatible sprite format. Arcbit can import it and
-convert it to Arcbit native. Import is always **explicit** — the importer never
-auto-detects or guesses the format, because Carrot files have no stable
-identifying marker (the Carrot format may or may not gain a `version` field in
-future, and absent fields are not a reliable signal).
-
-Differences between Carrot format and Arcbit native:
-
-| Aspect | Carrot | Arcbit native |
-|--------|--------|---------------|
-| Version field | not guaranteed | `"version": "1.0"` (required) |
-| Animation frame reference | integer index into `frames` array | frame name string |
-| Tile grid | not supported | `tile_grid` section |
-
-The importer converts integer frame indices to the corresponding frame `name`
-values and writes a versioned Arcbit native file. The original Carrot file is
-not modified. If the source file does not conform to the expected Carrot
-structure (missing required fields, wrong types, etc.) the import fails with a
-clear error rather than producing a silently broken output.
-
-Import paths:
-- **Editor**: right-click a `.json` in the asset panel → *Import as Carrot format*
-- **CLI**: `arcbit-pack --import-carrot source.json output.json`
-
-Any `.json` without a `"version"` field that is opened as a plain Arcbit asset
-(not via the explicit Carrot import path) is rejected with an error.
+Importing sheets in the Carrot engine's similar format (integer frame indices,
+no version) is planned - an explicit import, never auto-detected (blueprint
+Phase 12). Until then a `.json` without a `"version"` is rejected.

@@ -130,13 +130,17 @@ restored transforms into the physics broadphase.
 
 **`SaveData`** (`GetSaves().Data()`) is a key / value store for flags and
 counters - string keys, the same value types as event payloads (`bool`, `i64`,
-`f64`, `std::string`, `Vec2`), so Lua can use it in Phase 26:
+`f64`, `std::string`, `Vec2`) bar entities:
 
 ```cpp
 SaveData& data = GetSaves().Data();
 data.Set("gold", static_cast<i64>(120));
 const i64 gold = data.Get<i64>("gold", 0); // numbers convert on read
 ```
+
+Scripts read and write the same store (`Save.Get` / `Save.Set`,
+[scripting.md](scripting.md)), and dialog conditions and actions test and
+change it ([dialog.md](dialog.md)).
 
 **Participants** are systems with structured state of their own (an
 inventory, a quest log). Each registers write / read callbacks and gets its
