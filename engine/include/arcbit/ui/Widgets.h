@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/render/RichText.h>
 #include <arcbit/ui/UIWidget.h>
 #include <arcbit/render/Font.h>
 #include <arcbit/core/Math.h>
@@ -55,12 +56,30 @@ public:
     TextAlign   Align      = TextAlign::Left;
     bool        WordWrap   = false; // wrap lines at word boundaries to fit myRect.W
     bool        AutoCenter = false;
+    bool        Markup     = false; // tags in Text style it: <b>, <color=gold>, ... (docs/gui.md#rich-text)
+
+    // The text as laid out for a width, cached until something it depends on changes.
+    [[nodiscard]] const TextLayout& GetLayout(const FontAtlas& font, f32 width, f32 scale);
 
 protected:
     void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
     void OnLocaleChanged() override;
+
+private:
+    struct LayoutKey
+    {
+        std::string      Text;
+        const FontAtlas* Font = nullptr;
+        f32              Width = -1.0f, Scale = 0.0f;
+        u64              Fallbacks = 0;
+        TextAlign        Align     = TextAlign::Left;
+        bool             Wrap = false, Markup = false;
+        bool operator==(const LayoutKey&) const = default;
+    };
+    LayoutKey  _layoutKey;
+    TextLayout _layout;
 };
 
 // ---------------------------------------------------------------------------

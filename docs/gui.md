@@ -609,6 +609,33 @@ Chinese / Japanese characters, never before closing punctuation (`。`,
 Right-to-left text and complex shaping (Arabic, Hebrew, Thai, Hindi) aren't
 supported yet.
 
+## Rich text
+
+A Label with `"markup": true` (`Label::Markup`) reads tags in its text -
+localized strings included - and lays the styled runs out together, wrapping
+across them:
+
+```json
+{ "type": "Label", "markup": true, "text": "Take the <color=gold>golden</color> key, <b>quickly</b>." }
+```
+
+| Tag | |
+|---|---|
+| `<b>` `<i>` `<u>` `<s>` | bold, italic, underline, strikethrough |
+| `<color=#e33>` `<color=gold>` | color: `#rgb`, `#rrggbb`, `#rrggbbaa`, or white, black, gray, red, green, blue, yellow, gold, orange, purple, cyan |
+| `<size=1.5>` | scale, times the label's |
+| `<outline>` `<outline=#000>`, `<shadow>` | an outline, a drop shadow |
+| `<wave>` `<shake>` `<rainbow>` | animated effects |
+| `<speed=0.5>`, `<pause=0.4>` | a typewriter's pace, and a wait (seconds) |
+
+Each closes with `</name>` (`<pause>` has none). Only these names are tags,
+so `a < b` and `<3` stay text; `<<` writes a literal `<`; a tag with a bad
+value (`<color=nonsense>`) stays as written, so the mistake shows.
+
+In code: `ParseMarkup` / `StripMarkup`, and `LayoutRichText` (a glyph list:
+each character's place, style and index - what a typewriter reveals and
+effects move) with `DrawRichText`.
+
 ## Theming (UISkin)
 
 `UISkin` is a plain data struct loaded from JSON (`LoadFromFile` / `SaveToFile`).

@@ -166,6 +166,7 @@
           "type": "Label",
           "name": "unicode-sample",
           "text_key": "demo.widgets.sample",
+          "markup": true,
           "offset": [14, 588],
           "size": [552, 56],
           "word_wrap": true

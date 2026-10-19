@@ -166,6 +166,7 @@ static void ApplyLabel(UIWidget& w, const json& j)
     if (const auto it = j.find("text_key"); it != j.end()) l.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("word_wrap"); it != j.end()) l.WordWrap = it->get<bool>();
     if (const auto it = j.find("auto_center"); it != j.end()) l.AutoCenter = it->get<bool>();
+    if (const auto it = j.find("markup"); it != j.end()) l.Markup = it->get<bool>();
     if (const auto it = j.find("text_color"); it != j.end()) l.SkinOverride.TextLabel = ReadColor(*it);
     if (const auto it = j.find("align"); it != j.end()) {
         if (const std::string s = it->get<std::string>(); s == "center")

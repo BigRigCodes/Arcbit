@@ -73,7 +73,7 @@
   "demo.widgets.autosave": "オートセーブ：",
   "demo.widgets.empty": "（空）",
   "demo.widgets.output": "テキスト：「{text}」   数値：{number}   音量：{volume}\n画質：{quality}   機能：{feature}   難易度：{difficulty}   オートセーブ：{autosave}",
-  "demo.widgets.sample": "Café, naïve, cœur, «bonjour», 5 € — 日本語のテキストも折り返して表示できます。",
+  "demo.widgets.sample": "Café, naïve, cœur, «bonjour», <color=gold>5 €</color> — <size=1.2>日本語</size>のテキストも折り返して表示できます。",
   "input.move_left": "左へ移動",
   "input.move_right": "右へ移動",
   "input.move_up": "上へ移動",

@@ -187,18 +187,23 @@ void Label::OnCollect(FramePacket& packet, const UIRect myRect, const f32 effect
                       const UISkin& skin)
 {
     if (!skin.Font || Text.empty()) return;
-
     const Color col = WithAlpha(Enabled ? skin.TextLabel : skin.TextDisabled, effectiveOpacity);
+    DrawRichText(packet, *skin.Font, GetLayout(*skin.Font, myRect.W, skin.FontScale),
+                 { .Position = { myRect.X, myRect.Y }, .Color = col, .Layer = TextLayer(*this, skin) });
+}
 
-    f32 textX = myRect.X;
-    if (Align == TextAlign::Center || AutoCenter) textX = myRect.X + myRect.W * 0.5f;
-    else if (Align == TextAlign::Right) textX = myRect.X + myRect.W;
-
-    const std::string& display = WordWrap
-                                 ? WrapText(*skin.Font, Text, myRect.W, skin.FontScale)
-                                 : Text;
-    DrawTextUI(packet, *skin.Font, display, {textX, myRect.Y}, skin.FontScale, col,
-               TextLayer(*this, skin), Align);
+const TextLayout& Label::GetLayout(const FontAtlas& font, const f32 width, const f32 scale)
+{
+    const TextAlign align = AutoCenter ? TextAlign::Center : Align;
+    LayoutKey       key{ Text, &font, width, scale, FontAtlas::GetFallbackGeneration(), align, WordWrap, Markup };
+    if (key == _layoutKey) return _layout;
+    _layout    = LayoutRichText(font, Text, { .Scale     = scale,
+                                              .WrapWidth = WordWrap ? width : 0.0f,
+                                              .BoxWidth  = width,
+                                              .Align     = align,
+                                              .Markup    = Markup });
+    _layoutKey = std::move(key);
+    return _layout;
 }
 
 // ---------------------------------------------------------------------------
