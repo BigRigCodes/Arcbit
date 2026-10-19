@@ -57,6 +57,7 @@ add_executable(arcbit-tests
     tilemap/TileMapTests.cpp
     ui/AudioSettingsTests.cpp
     ui/ConsoleScreenTests.cpp
+    ui/DialogScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
     ui/DropdownTests.cpp

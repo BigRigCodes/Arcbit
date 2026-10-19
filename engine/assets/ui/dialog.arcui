@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "text_left":  40,
+    "text_right": 40,
+    "choice_row": 44
+  },
+  "widgets": [
+    {
+      "type":   "NineSlice",
+      "name":   "box",
+      "size":   [1000, 208],
+      "anchor": [0.5, 1.0],
+      "pivot":  [0.5, 1.0],
+      "offset": [0, -24],
+      "zorder": 1,
+      "uv_border_left": 0.3333, "uv_border_right": 0.3333, "uv_border_top": 0.3333, "uv_border_bottom": 0.3333,
+      "pixel_left": 24, "pixel_right": 24, "pixel_top": 24, "pixel_bottom": 24,
+      "children": [
+        {
+          "type":   "Image",
+          "name":   "portrait",
+          "size":   [160, 160],
+          "anchor": [0.0, 0.5],
+          "pivot":  [0.0, 0.5],
+          "offset": [28, 0],
+          "zorder": 2,
+          "visible": false
+        },
+        {
+          "type":       "Label",
+          "name":       "text",
+          "markup":     true,
+          "word_wrap":  true,
+          "size":       [920, 150],
+          "anchor":     [0.0, 0.0],
+          "offset":     [40, 36],
+          "zorder":     2,
+          "text_color": [0.15, 0.17, 0.26, 1.0],
+          "skin":       { "FontScale": 1.25 }
+        },
+        {
+          "type":   "Image",
+          "name":   "next-arrow",
+          "size":   [30, 21],
+          "anchor": [1.0, 1.0],
+          "pivot":  [1.0, 1.0],
+          "offset": [-32, -24],
+          "zorder": 2,
+          "visible": false
+        },
+        {
+          "type":   "NineSlice",
+          "name":   "name-plate",
+          "size":   [240, 48],
+          "anchor": [0.0, 0.0],
+          "pivot":  [0.0, 1.0],
+          "offset": [28, 14],
+          "zorder": 3,
+          "visible": false,
+          "uv_border_left": 0.375, "uv_border_right": 0.375, "uv_border_top": 0.375, "uv_border_bottom": 0.375,
+          "pixel_left": 18, "pixel_right": 18, "pixel_top": 18, "pixel_bottom": 18,
+          "children": [
+            {
+              "type":       "Label",
+              "name":       "name",
+              "align":      "center",
+              "size":       [240, 30],
+              "anchor":     [0.5, 0.5],
+              "pivot":      [0.5, 0.5],
+              "offset":     [0, 0],
+              "zorder":     4,
+              "text_color": [0.98, 0.96, 0.91, 1.0],
+              "text_style": { "bold": true }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type":   "NineSlice",
+      "name":   "choices",
+      "size":   [380, 100],
+      "anchor": [0.5, 1.0],
+      "pivot":  [1.0, 1.0],
+      "offset": [500, -240],
+      "zorder": 5,
+      "visible": false,
+      "uv_border_left": 0.3333, "uv_border_right": 0.3333, "uv_border_top": 0.3333, "uv_border_bottom": 0.3333,
+      "pixel_left": 24, "pixel_right": 24, "pixel_top": 24, "pixel_bottom": 24
+    }
+  ]
+}

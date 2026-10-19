@@ -3,6 +3,7 @@
 #include <arcbit/app/DebugConsole.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
+#include <arcbit/dialog/DialogLibrary.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
@@ -15,6 +16,7 @@
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/script/ScriptEngine.h>
 #include <arcbit/scene/SceneRegistry.h>
+#include <arcbit/ui/DialogScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
 
@@ -126,6 +128,7 @@ struct ApplicationConfig
     i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
     const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
+    const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +246,14 @@ public:
 
     // The debug console: register a game's own commands (help shows them).
     [[nodiscard]] DebugConsole& GetConsole() { return _debugConsole; }
+
+    // Every conversation in the dialog folders (ApplicationConfig::DialogFolder).
+    [[nodiscard]] DialogLibrary& GetDialogs() { return _dialogs; }
+
+    // A dialog box with the engine's stock art, portraits from the texture
+    // manager and voices through the audio manager - Begin a dialog in it
+    // and push it.
+    [[nodiscard]] std::unique_ptr<DialogScreen> CreateDialogScreen();
 
     // The per-user data folder: settings, saves (see ApplicationConfig).
     [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
@@ -403,6 +414,9 @@ private:
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
+
+    DialogLibrary          _dialogs;
+    DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 
     SavingIndicator*       _savingIndicator = nullptr; // on the UI stack from StartBoot
     TextureHandle          _savingIcon;
