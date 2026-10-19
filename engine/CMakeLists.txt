@@ -30,6 +30,9 @@ add_library(arcbit-engine STATIC
     src/SceneManager.cpp
     src/ScenePreloader.cpp
     src/SceneRegistry.cpp
+    src/Dialog.cpp
+    src/DialogLibrary.cpp
+    src/DialogRunner.cpp
     src/SaveData.cpp
     src/SaveGame.cpp
     src/SaveManager.cpp
