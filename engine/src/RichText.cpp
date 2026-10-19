@@ -53,15 +53,18 @@ std::optional<f32> ParseNumber(const std::string_view value)
 class StyleStack
 {
 public:
+    explicit StyleStack(const SpanStyle& base) : _base(base) {}
+
     [[nodiscard]] SpanStyle Current() const
     {
-        SpanStyle s;
+        SpanStyle s = _base;
         if (!_colors.empty()) s.Color = _colors.back(), s.HasColor = true;
         if (!_sizes.empty()) s.Size = _sizes.back();
         if (!_speeds.empty()) s.Speed = _speeds.back();
         if (!_outlines.empty()) s.Outline = true, s.OutlineColor = _outlines.back();
-        s.Bold = _bold > 0, s.Italic = _italic > 0, s.Underline = _underline > 0, s.Strike = _strike > 0;
-        s.Shadow = _shadow > 0;
+        s.Bold = s.Bold || _bold > 0, s.Italic = s.Italic || _italic > 0;
+        s.Underline = _underline > 0, s.Strike = _strike > 0;
+        s.Shadow  = s.Shadow || _shadow > 0;
         s.Effects = static_cast<u8>((_wave > 0 ? EffectWave : 0) | (_shake > 0 ? EffectShake : 0) | (_rainbow > 0 ? EffectRainbow : 0));
         return s;
     }
@@ -106,6 +109,7 @@ private:
         return true;
     }
 
+    SpanStyle          _base;
     std::vector<Color> _colors, _outlines;
     std::vector<f32>   _sizes, _speeds;
     i32                _bold = 0, _italic = 0, _underline = 0, _strike = 0, _shadow = 0, _wave = 0, _shake = 0, _rainbow = 0;
@@ -120,17 +124,9 @@ struct SpanBuilder
     void Text(const std::string_view text, const SpanStyle& style)
     {
         if (text.empty()) return;
-        if (Out.Spans.empty() || !SameStyle(Out.Spans.back().Style, style)) Out.Spans.push_back({ {}, style });
+        if (Out.Spans.empty() || !(Out.Spans.back().Style == style)) Out.Spans.push_back({ {}, style });
         Out.Spans.back().Text += text;
         Chars += static_cast<u32>(Utf8::Length(text));
-    }
-
-    static bool SameStyle(const SpanStyle& a, const SpanStyle& b)
-    {
-        const auto same = [](const Color& x, const Color& y) { return x.R == y.R && x.G == y.G && x.B == y.B && x.A == y.A; };
-        return same(a.Color, b.Color) && a.HasColor == b.HasColor && a.Size == b.Size && a.Bold == b.Bold &&
-               a.Italic == b.Italic && a.Underline == b.Underline && a.Strike == b.Strike && a.Outline == b.Outline &&
-               same(a.OutlineColor, b.OutlineColor) && a.Shadow == b.Shadow && a.Effects == b.Effects && a.Speed == b.Speed;
     }
 };
 
@@ -154,9 +150,9 @@ usize ReadTag(const std::string_view text, const usize open, StyleStack& styles,
 }
 } // namespace
 
-ParsedText ParseMarkup(const std::string_view text)
+ParsedText ParseMarkup(const std::string_view text, const SpanStyle& base)
 {
-    StyleStack  styles;
+    StyleStack  styles(base);
     SpanBuilder spans;
     usize       plain = 0; // start of text not yet added
     for (usize i = 0; i < text.size(); ++i) {
@@ -200,13 +196,21 @@ struct Atom
     f32 Advance   = 0.0f; // scaled
 };
 
+FontStyle StyleOf(const SpanStyle& style)
+{
+    if (style.Bold && style.Italic) return FontStyle::BoldItalic;
+    if (style.Bold) return FontStyle::Bold;
+    return style.Italic ? FontStyle::Italic : FontStyle::Regular;
+}
+
 std::vector<Atom> ToAtoms(const FontAtlas& font, const std::vector<TextSpan>& spans, const f32 scale)
 {
     std::vector<Atom> atoms;
     for (u32 s = 0; s < spans.size(); ++s) {
         const f32 size = scale * spans[s].Style.Size;
+        const FontStyle style = StyleOf(spans[s].Style);
         for (const u32 cp : Utf8::Codepoints(spans[s].Text)) {
-            const GlyphInfo* glyph   = cp >= 32 ? font.GetGlyph(cp) : nullptr;
+            const GlyphInfo* glyph   = cp >= 32 ? font.GetStyledGlyph(cp, style).Glyph : nullptr;
             const f32        advance = cp == '\t' ? (font.GetGlyph(' ') ? font.GetGlyph(' ')->Advance * 4.0f : 0.0f)
                                      : glyph      ? glyph->Advance
                                                   : 0.0f;
@@ -287,18 +291,24 @@ void PlaceLine(const FontAtlas& font, TextLayout& layout, const std::vector<Atom
     TextLine line{ .Top = top, .Height = height, .Baseline = top + ascent };
     f32      pen = 0.0f;
     for (usize k = first; k < end; ++k) {
-        const Atom&      atom  = atoms[k];
-        const f32        size  = scale * layout.Spans[atom.Span].Style.Size;
-        const GlyphInfo* glyph = atom.Codepoint >= 32 ? font.GetGlyph(atom.Codepoint) : nullptr;
+        const Atom&      atom   = atoms[k];
+        const SpanStyle& style  = layout.Spans[atom.Span].Style;
+        const f32        size   = scale * style.Size;
+        const auto       styled = atom.Codepoint >= 32 ? font.GetStyledGlyph(atom.Codepoint, StyleOf(style)) : FontAtlas::StyledGlyph{};
+        const GlyphInfo* glyph  = styled.Glyph;
         if (glyph && glyph->BitmapSize.X > 0.0f)
-            layout.Glyphs.push_back({ .Glyph    = *glyph,
-                                      .Position = { pen + glyph->Bearing.X * size, line.Baseline + glyph->Bearing.Y * size },
-                                      .Size     = glyph->BitmapSize * size,
-                                      .Baseline = line.Baseline,
-                                      .Advance  = atom.Advance,
-                                      .Index    = static_cast<u32>(k),
-                                      .Span     = atom.Span,
-                                      .Line     = static_cast<u32>(layout.Lines.size()) });
+            layout.Glyphs.push_back({ .Glyph      = *glyph,
+                                      .Position   = { pen + glyph->Bearing.X * size, line.Baseline + glyph->Bearing.Y * size },
+                                      .Size       = glyph->BitmapSize * size,
+                                      .Baseline   = line.Baseline,
+                                      .Advance    = atom.Advance,
+                                      .Pen        = pen,
+                                      .Scale      = size,
+                                      .Index      = static_cast<u32>(k),
+                                      .Span       = atom.Span,
+                                      .Line       = static_cast<u32>(layout.Lines.size()),
+                                      .FauxBold   = styled.FauxBold,
+                                      .FauxItalic = styled.FauxItalic });
         pen += atom.Advance;
         if (!IsSpace(atom.Codepoint)) line.Width = pen;
     }
@@ -310,7 +320,10 @@ void PlaceLine(const FontAtlas& font, TextLayout& layout, const std::vector<Atom
 TextLayout LayoutRichText(const FontAtlas& font, const std::string_view text, const TextLayoutOptions& options)
 {
     TextLayout layout;
-    ParsedText parsed = options.Markup ? ParseMarkup(text) : ParsedText{ { { std::string(text), {} } }, {} };
+    SpanStyle base;
+    base.Bold = options.Style.Bold, base.Italic = options.Style.Italic, base.Shadow = options.Style.Shadow;
+    base.Outline = options.Style.Outline, base.OutlineColor = options.Style.OutlineColor;
+    ParsedText parsed = options.Markup ? ParseMarkup(text, base) : ParsedText{ { { std::string(text), base } }, {} };
     layout.Spans      = std::move(parsed.Spans);
     layout.Pauses     = std::move(parsed.Pauses);
     if (!font.GetGlyph(' ')) return layout; // no font loaded
@@ -326,7 +339,7 @@ TextLayout LayoutRichText(const FontAtlas& font, const std::string_view text, co
     const f32 box   = options.BoxWidth > 0.0f ? options.BoxWidth : layout.Size.X;
     const f32 share = options.Align == TextAlign::Center ? 0.5f : options.Align == TextAlign::Right ? 1.0f : 0.0f;
     for (TextLine& line : layout.Lines) line.Left = (box - line.Width) * share;
-    for (LaidGlyph& glyph : layout.Glyphs) glyph.Position.X += layout.Lines[glyph.Line].Left;
+    for (LaidGlyph& glyph : layout.Glyphs) glyph.Position.X += layout.Lines[glyph.Line].Left, glyph.Pen += layout.Lines[glyph.Line].Left;
     return layout;
 }
 
@@ -334,25 +347,121 @@ TextLayout LayoutRichText(const FontAtlas& font, const std::string_view text, co
 // Drawing
 // ---------------------------------------------------------------------------
 
+namespace
+{
+constexpr f32 FauxBoldPixels = 0.7f; // how far a faux bold edge moves out, in baked pixels
+constexpr f32 FauxItalicSlant = 0.2f;
+
+Color TintOf(const LaidGlyph& glyph, const TextLayout& layout, const TextDrawOptions& options)
+{
+    const SpanStyle& style = layout.Spans[glyph.Span].Style;
+    Color            tint  = style.HasColor ? style.Color : options.Color;
+    tint.A *= options.Color.A;
+    return tint;
+}
+
+// One glyph's quad, its look in distance-field units of its own size.
+Sprite GlyphSprite(const FontAtlas& font, const LaidGlyph& glyph, const TextLayout& layout, const TextDrawOptions& options)
+{
+    const SpanStyle& style = layout.Spans[glyph.Span].Style;
+    const f32        units = FontAtlas::SdfUnitsPerPixel();
+    Sprite           s{};
+    s.Texture      = font.GetTexture(glyph.Glyph.Page);
+    s.Sampler      = font.GetSampler();
+    s.Position     = options.Position + glyph.Position + glyph.Size * 0.5f;
+    s.Size         = glyph.Size;
+    s.UV           = glyph.Glyph.UV;
+    s.Tint         = TintOf(glyph, layout, options);
+    s.Layer        = options.Layer;
+    s.SDFMode      = true;
+    s.ClipIndex    = options.Clip;
+    s.Weight       = glyph.FauxBold ? FauxBoldPixels * units : 0.0f;
+    s.Shear        = glyph.FauxItalic ? FauxItalicSlant : 0.0f;
+    s.Outline      = style.Outline ? options.Style.OutlineWidth / glyph.Scale * units : 0.0f;
+    s.OutlineColor = style.OutlineColor;
+    s.OutlineColor.A *= options.Color.A;
+    return s;
+}
+
+// A shadow: the glyph again, offset, in the shadow's color, softened.
+Sprite ShadowSprite(Sprite s, const LaidGlyph& glyph, const TextDrawOptions& options)
+{
+    const f32 units = FontAtlas::SdfUnitsPerPixel();
+    s.Position += options.Style.ShadowOffset;
+    s.Layer    -= 1; // under every glyph, whatever atlas page it's on (the UI sorts by texture within a layer)
+    s.Tint     = options.Style.ShadowColor;
+    s.Tint.A  *= options.Color.A;
+    s.Weight  += s.Outline; // as wide as the outlined glyph
+    s.Outline  = 0.0f;
+    s.Softness = options.Style.ShadowSoftness / glyph.Scale * units;
+    return s;
+}
+
+// Underlines and strikethroughs: a bar under (or through) each run of
+// consecutive marked glyphs on a line, pen to pen, so spaces between marked
+// words are marked too.
+void DrawDecorations(FramePacket& packet, const FontAtlas& font, const TextLayout& layout, const TextDrawOptions& options)
+{
+    if (!options.White.IsValid()) return;
+    for (const bool under : { true, false }) {
+        const auto marked = [&](const LaidGlyph& g) {
+            const SpanStyle& st = layout.Spans[g.Span].Style;
+            return g.Index < options.Visible && (under ? st.Underline : st.Strike);
+        };
+        for (usize i = 0; i < layout.Glyphs.size();) {
+            if (!marked(layout.Glyphs[i])) { ++i; continue; }
+            usize end = i + 1;
+            while (end < layout.Glyphs.size() && marked(layout.Glyphs[end]) && layout.Glyphs[end].Line == layout.Glyphs[i].Line &&
+                   TintOf(layout.Glyphs[end], layout, options) == TintOf(layout.Glyphs[i], layout, options))
+                ++end;
+            const LaidGlyph& first = layout.Glyphs[i];
+            const LaidGlyph& last  = layout.Glyphs[end - 1];
+            const f32 ascent = font.GetAscent() * first.Scale;
+            const f32 thick  = std::max(1.0f, font.GetLineHeight() * first.Scale * 0.06f);
+            const f32 y      = first.Baseline + (under ? ascent * 0.14f : -ascent * 0.32f);
+            const f32 x0 = first.Pen, x1 = last.Pen + last.Advance;
+            Sprite    bar{};
+            bar.Texture   = options.White;
+            bar.Sampler   = options.WhiteSampler;
+            bar.Position  = options.Position + Vec2{ (x0 + x1) * 0.5f, y + thick * 0.5f };
+            bar.Size      = { x1 - x0, thick };
+            bar.Tint      = TintOf(first, layout, options);
+            bar.Layer     = options.Layer;
+            bar.ClipIndex = options.Clip;
+            packet.UISprites.push_back(bar);
+            i = end;
+        }
+    }
+}
+} // namespace
+
 void DrawRichText(FramePacket& packet, const FontAtlas& font, const TextLayout& layout, const TextDrawOptions& options)
 {
-    for (const LaidGlyph& glyph : layout.Glyphs) {
-        if (glyph.Index >= options.Visible) break; // glyphs are in reading order
-        const TextSpan& span = layout.Spans[glyph.Span];
-        Sprite          s{};
-        s.Texture = font.GetTexture(glyph.Glyph.Page);
-        if (!s.Texture.IsValid()) continue; // on a page made this frame: drawn from the next
-        Color tint = span.Style.HasColor ? span.Style.Color : options.Color;
-        tint.A *= options.Color.A;
-        s.Sampler   = font.GetSampler();
-        s.Position  = options.Position + glyph.Position + glyph.Size * 0.5f;
-        s.Size      = glyph.Size;
-        s.UV        = glyph.Glyph.UV;
-        s.Tint      = tint;
-        s.Layer     = options.Layer;
-        s.SDFMode   = true;
-        s.ClipIndex = options.Clip;
-        packet.UISprites.push_back(s);
-    }
+    // Glyphs are in reading order; a reveal draws a prefix. Shadows go first so
+    // no glyph's shadow falls on another glyph.
+    for (const bool shadows : { true, false })
+        for (const LaidGlyph& glyph : layout.Glyphs) {
+            if (glyph.Index >= options.Visible) break;
+            Sprite s = GlyphSprite(font, glyph, layout, options);
+            if (!s.Texture.IsValid()) continue; // on a page made this frame: drawn from the next
+            if (shadows) {
+                if (layout.Spans[glyph.Span].Style.Shadow) packet.UISprites.push_back(ShadowSprite(s, glyph, options));
+            } else {
+                packet.UISprites.push_back(s);
+            }
+        }
+    DrawDecorations(packet, font, layout, options);
+}
+
+const TextLayout& CachedTextLayout::Get(const FontAtlas& font, const std::string_view text, const TextLayoutOptions& options)
+{
+    const u64 fallbacks = FontAtlas::GetFallbackGeneration();
+    if (_font == &font && _fallbacks == fallbacks && _text == text && _options == options) return _layout;
+    _layout    = LayoutRichText(font, text, options);
+    _text      = std::string(text);
+    _font      = &font;
+    _fallbacks = fallbacks;
+    _options   = options;
+    return _layout;
 }
 } // namespace Arcbit

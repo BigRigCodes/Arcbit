@@ -58,8 +58,8 @@ public:
     bool        AutoCenter = false;
     bool        Markup     = false; // tags in Text style it: <b>, <color=gold>, ... (docs/gui.md#rich-text)
 
-    // The text as laid out for a width, cached until something it depends on changes.
-    [[nodiscard]] const TextLayout& GetLayout(const FontAtlas& font, f32 width, f32 scale);
+    // The text as laid out for a width and skin, cached until something it depends on changes.
+    [[nodiscard]] const TextLayout& GetLayout(const UISkin& skin, f32 width);
 
 protected:
     void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
@@ -68,18 +68,7 @@ protected:
     void OnLocaleChanged() override;
 
 private:
-    struct LayoutKey
-    {
-        std::string      Text;
-        const FontAtlas* Font = nullptr;
-        f32              Width = -1.0f, Scale = 0.0f;
-        u64              Fallbacks = 0;
-        TextAlign        Align     = TextAlign::Left;
-        bool             Wrap = false, Markup = false;
-        bool operator==(const LayoutKey&) const = default;
-    };
-    LayoutKey  _layoutKey;
-    TextLayout _layout;
+    CachedTextLayout _layout;
 };
 
 // ---------------------------------------------------------------------------
@@ -108,8 +97,9 @@ protected:
     void OnActivate() override; // fires sound + OnClick
 
 private:
-    bool _hovered = false;
-    bool _pressed = false;
+    bool             _hovered = false;
+    bool             _pressed = false;
+    CachedTextLayout _layout;
 };
 
 // ---------------------------------------------------------------------------
@@ -214,8 +204,9 @@ protected:
     void OnActivate() override; // fires sound + OnClick
 
 private:
-    bool _hovered = false;
-    bool _pressed = false;
+    bool             _hovered = false;
+    bool             _pressed = false;
+    CachedTextLayout _layout;
 };
 
 // ---------------------------------------------------------------------------

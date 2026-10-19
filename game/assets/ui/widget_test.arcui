@@ -9,7 +9,7 @@
       "name": "panel",
       "anchor": [0.5, 0.5],
       "pivot": [0.5, 0.5],
-      "size": [580, 646],
+      "size": [580, 690],
       "draw_border": true,
       "children": [
         {
@@ -170,6 +170,15 @@
           "offset": [14, 588],
           "size": [552, 56],
           "word_wrap": true
+        },
+        {
+          "type": "Label",
+          "name": "styles-sample",
+          "text_key": "demo.widgets.styles",
+          "markup": true,
+          "word_wrap": true,
+          "offset": [14, 646],
+          "size": [552, 34]
         }
       ]
     }

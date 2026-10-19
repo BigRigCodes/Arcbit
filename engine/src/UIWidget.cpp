@@ -71,6 +71,7 @@ UISkin UIWidget::GetEffectiveSkin(const UISkin& base) const
     UISkin s = base;
     if (o.Font)               s.Font               = *o.Font;
     if (o.FontScale)          s.FontScale          = *o.FontScale;
+    if (o.Text)               s.Text               = *o.Text;
     if (o.PanelBg)            s.PanelBg            = *o.PanelBg;
     if (o.PanelBorder)        s.PanelBorder        = *o.PanelBorder;
     if (o.ButtonNormal)       s.ButtonNormal       = *o.ButtonNormal;

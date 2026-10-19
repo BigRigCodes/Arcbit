@@ -183,27 +183,38 @@ void Scrim::OnCollect(FramePacket&        packet, const UIRect myRect, const f32
 // ---------------------------------------------------------------------------
 
 void Label::OnCollect(FramePacket& packet, const UIRect myRect, const f32 effectiveOpacity,
-                      TextureHandle /*whiteTex*/, SamplerHandle /*whiteSampler*/,
+                      const TextureHandle whiteTex, const SamplerHandle whiteSampler,
                       const UISkin& skin)
 {
     if (!skin.Font || Text.empty()) return;
     const Color col = WithAlpha(Enabled ? skin.TextLabel : skin.TextDisabled, effectiveOpacity);
-    DrawRichText(packet, *skin.Font, GetLayout(*skin.Font, myRect.W, skin.FontScale),
-                 { .Position = { myRect.X, myRect.Y }, .Color = col, .Layer = TextLayer(*this, skin) });
+    DrawRichText(packet, *skin.Font, GetLayout(skin, myRect.W),
+                 { .Position = { myRect.X, myRect.Y }, .Color = col, .Layer = TextLayer(*this, skin), .Style = skin.Text,
+                   .White = whiteTex, .WhiteSampler = whiteSampler });
 }
 
-const TextLayout& Label::GetLayout(const FontAtlas& font, const f32 width, const f32 scale)
+const TextLayout& Label::GetLayout(const UISkin& skin, const f32 width)
 {
-    const TextAlign align = AutoCenter ? TextAlign::Center : Align;
-    LayoutKey       key{ Text, &font, width, scale, FontAtlas::GetFallbackGeneration(), align, WordWrap, Markup };
-    if (key == _layoutKey) return _layout;
-    _layout    = LayoutRichText(font, Text, { .Scale     = scale,
-                                              .WrapWidth = WordWrap ? width : 0.0f,
-                                              .BoxWidth  = width,
-                                              .Align     = align,
-                                              .Markup    = Markup });
-    _layoutKey = std::move(key);
-    return _layout;
+    return _layout.Get(*skin.Font, Text, { .Scale     = skin.FontScale,
+                                           .WrapWidth = WordWrap ? width : 0.0f,
+                                           .BoxWidth  = width,
+                                           .Align     = AutoCenter ? TextAlign::Center : Align,
+                                           .Markup    = Markup,
+                                           .Style     = skin.Text });
+}
+
+// A button's one line of text, centered in it, in the skin's style.
+static void DrawButtonText(FramePacket& packet, CachedTextLayout& cache, const std::string& text, const UIRect rect, const Color color,
+                           const i32 layer, const TextureHandle white, const SamplerHandle whiteSampler, const UISkin& skin)
+{
+    const TextLayout& layout = cache.Get(*skin.Font, text, { .Scale    = skin.FontScale,
+                                                             .BoxWidth = rect.W,
+                                                             .Align    = TextAlign::Center,
+                                                             .Markup   = false,
+                                                             .Style    = skin.Text });
+    const f32 top = rect.Y + rect.H * 0.5f - skin.Font->GetAscent() * skin.FontScale * 0.5f;
+    DrawRichText(packet, *skin.Font, layout, { .Position = { rect.X, top }, .Color = color, .Layer = layer, .Style = skin.Text,
+                                               .White = white, .WhiteSampler = whiteSampler });
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +269,7 @@ void Button::OnCollect(FramePacket&        packet, const UIRect          myRect,
     if (skin.Font && !Text.empty()) {
         const Color col = WithAlpha(Enabled ? skin.TextLabel : skin.TextDisabled, effectiveOpacity);
 
-        const Vec2 pos = {
-            myRect.X + myRect.W * 0.5f, myRect.Y + myRect.H * 0.5f
-            - skin.Font->GetAscent() * skin.FontScale * 0.5f
-        };
-        DrawTextUI(packet, *skin.Font, Text, pos, skin.FontScale, col,
-                   TextLayer(*this, skin), TextAlign::Center);
+        DrawButtonText(packet, _layout, Text, myRect, col, TextLayer(*this, skin), whiteTex, whiteSampler, skin);
     }
 }
 
@@ -337,7 +343,7 @@ void NineSliceButton::OnActivate()
 }
 
 void NineSliceButton::OnCollect(FramePacket& packet, const UIRect myRect, const f32 effectiveOpacity,
-                                TextureHandle /*whiteTex*/, SamplerHandle /*whiteSampler*/,
+                                const TextureHandle whiteTex, const SamplerHandle whiteSampler,
                                 const UISkin& skin)
 {
     _interactSound = skin.SoundActivate;
@@ -356,12 +362,7 @@ void NineSliceButton::OnCollect(FramePacket& packet, const UIRect myRect, const 
 
     if (skin.Font && !Text.empty()) {
         const Color col = WithAlpha(Enabled ? skin.TextLabel : skin.TextDisabled, effectiveOpacity);
-        const Vec2  pos = {
-            myRect.X + myRect.W * 0.5f,
-            myRect.Y + myRect.H * 0.5f - skin.Font->GetAscent() * skin.FontScale * 0.5f
-        };
-        DrawTextUI(packet, *skin.Font, Text, pos, skin.FontScale, col,
-                   TextLayer(*this, skin), TextAlign::Center);
+        DrawButtonText(packet, _layout, Text, myRect, col, TextLayer(*this, skin), whiteTex, whiteSampler, skin);
     }
 }
 

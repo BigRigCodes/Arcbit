@@ -141,3 +141,60 @@ TEST_CASE("The pseudo-locale leaves tags working", "[render][richtext]")
     CHECK(pseudo.find("</color>") != std::string::npos);
     CHECK(ParseMarkup(pseudo).Spans.size() == 3);
 }
+
+namespace
+{
+FontAtlas RobotoFamily()
+{
+    FontAtlas font = Roboto();
+    font.SetStyleFace(FontStyle::Bold, FontFace::Load(ArcbitTests::SourcePath("engine/assets/fonts/Roboto-Bold.ttf").string()));
+    font.SetStyleFace(FontStyle::Italic, FontFace::Load(ArcbitTests::SourcePath("engine/assets/fonts/Roboto-Italic.ttf").string()));
+    return font;
+}
+} // namespace
+
+TEST_CASE("Style faces supply bold and italic; anything else is faked", "[render][richtext]")
+{
+    const FontAtlas family = RobotoFamily();
+    const auto      bold   = family.GetStyledGlyph('W', FontStyle::Bold);
+    CHECK_FALSE(bold.FauxBold);
+    CHECK(bold.Glyph != family.GetGlyph('W')); // its own glyph, from the bold face
+
+    const auto both = family.GetStyledGlyph('W', FontStyle::BoldItalic); // no bold-italic face: bold, slanted
+    CHECK(both.FauxItalic);
+    CHECK_FALSE(both.FauxBold);
+
+    const auto kana = family.GetStyledGlyph(0x3042, FontStyle::Bold); // not in Roboto Bold: the regular glyph, thickened
+    CHECK(kana.FauxBold);
+
+    const FontAtlas plain = Roboto();
+    const auto      faux  = plain.GetStyledGlyph('W', FontStyle::Italic);
+    CHECK(faux.FauxItalic);
+    CHECK(faux.Glyph == plain.GetGlyph('W'));
+}
+
+TEST_CASE("Layout uses the style faces; a base style styles every span", "[render][richtext]")
+{
+    const FontAtlas  family = RobotoFamily();
+    const TextLayout plain  = LayoutRichText(family, "Wow", {});
+    const TextLayout bold   = LayoutRichText(family, "<b>Wow</b>", {});
+    CHECK(bold.Glyphs[0].Glyph.UV.U0 != plain.Glyphs[0].Glyph.UV.U0); // the bold face's W, not the regular one
+    CHECK_FALSE(bold.Glyphs[0].FauxBold);
+
+    const TextLayout based = LayoutRichText(family, "a <i>b</i>", { .Style = { .Bold = true } });
+    REQUIRE(based.Spans.size() == 2);
+    CHECK(based.Spans[0].Style.Bold);
+    CHECK((based.Spans[1].Style.Bold && based.Spans[1].Style.Italic));
+    CHECK(based.Glyphs[1].FauxItalic); // bold italic from the bold face, slanted
+}
+
+TEST_CASE("A cached layout is laid out again only when something changes", "[render][richtext]")
+{
+    const FontAtlas   font = Roboto();
+    CachedTextLayout  cache;
+    const TextLayout* first = &cache.Get(font, "Hello", {});
+    const u32         count = static_cast<u32>(first->Glyphs.size());
+    CHECK(&cache.Get(font, "Hello", {}) == first);
+    CHECK(cache.Get(font, "Hello!", {}).Glyphs.size() == count + 1);
+    CHECK(cache.Get(font, "Hello!", { .Style = { .Bold = true } }).Spans[0].Style.Bold);
+}

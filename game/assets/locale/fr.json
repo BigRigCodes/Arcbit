@@ -68,6 +68,7 @@
   "demo.widgets.autosave": "Sauv. auto :",
   "demo.widgets.empty": "(vide)",
   "demo.widgets.output": "Texte : « {text} »   Nombre : {number}   Volume : {volume}\nQualité : {quality}   Option : {feature}   Difficulté : {difficulty}   Sauvegarde auto : {autosave}",
+  "demo.widgets.styles": "<b>Gras</b>  <i>Italique</i>  <b><i>Les deux</i></b>  <u>Souligné</u>  <s>Barré</s>  <outline>Contour</outline>  <shadow>Ombre</shadow>  <color=gold><outline>Or</outline></color>",
   "demo.widgets.sample": "Café, naïve, cœur, «bonjour», <color=gold>5 €</color> — <size=1.2>日本語</size>のテキストも折り返して表示できます。",
   "input.move_left": "Aller à gauche",
   "input.move_right": "Aller à droite",

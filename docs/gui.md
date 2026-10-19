@@ -632,6 +632,25 @@ Each closes with `</name>` (`<pause>` has none). Only these names are tags,
 so `a < b` and `<3` stay text; `<<` writes a literal `<`; a tag with a bad
 value (`<color=nonsense>`) stays as written, so the mistake shows.
 
+### Text styles
+
+A skin's `"text_style"` (`UISkin::Text`) is how every label and button draws
+its text, and any widget can carry its own `"text_style"` (replacing the
+skin's whole). Tags build on it - `<i>` in bold text is bold italic.
+
+```json
+"text_style": { "bold": false, "italic": false,
+                "outline": true, "outline_width": 2, "outline_color": [0, 0, 0, 1],
+                "shadow": true, "shadow_offset": [2, 2], "shadow_color": [0, 0, 0, 0.6], "shadow_softness": 1 }
+```
+
+Bold and italic come from a font's style faces when it has them
+(`FontAtlas::SetStyleFace` - the engine font has Roboto Bold, Italic and Bold
+Italic) and are faked otherwise: a thicker edge for bold, a slant for italic
+(Japanese, for one). Outlines, glows and faux bold are distance-field
+thresholds in `ui.frag`; shadows, underlines and strikethroughs are extra
+quads.
+
 In code: `ParseMarkup` / `StripMarkup`, and `LayoutRichText` (a glyph list:
 each character's place, style and index - what a typewriter reveals and
 effects move) with `DrawRichText`.

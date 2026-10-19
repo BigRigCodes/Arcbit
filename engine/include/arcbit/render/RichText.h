@@ -32,6 +32,23 @@ enum TextEffect : u8
     EffectRainbow = 1 << 2,
 };
 
+// A text's look beyond its tags - a skin's text style (UISkin::Text): the
+// base the tags build on, and how outlines and shadows are drawn.
+struct TextStyle
+{
+    bool  Bold           = false;
+    bool  Italic         = false;
+    bool  Outline        = false;
+    f32   OutlineWidth   = 2.0f;               // screen pixels (for <outline> too)
+    Color OutlineColor   = { 0, 0, 0, 1 };
+    bool  Shadow         = false;
+    Vec2  ShadowOffset   = { 2.0f, 2.0f };     // screen pixels, down and right
+    Color ShadowColor    = { 0, 0, 0, 0.6f };
+    f32   ShadowSoftness = 1.0f;               // screen pixels of blur
+
+    bool operator==(const TextStyle&) const = default;
+};
+
 // How a span of text looks, from the tags around it.
 struct SpanStyle
 {
@@ -47,6 +64,8 @@ struct SpanStyle
     bool  Shadow       = false;
     u8    Effects      = 0;     // TextEffect bits
     f32   Speed        = 1.0f;  // <speed>: reveal pace
+
+    bool operator==(const SpanStyle&) const = default;
 };
 
 struct TextSpan
@@ -68,8 +87,9 @@ struct ParsedText
     std::vector<TextPause> Pauses;
 };
 
-// Split marked-up text into styled spans (and the pauses between them).
-[[nodiscard]] ParsedText ParseMarkup(std::string_view text);
+// Split marked-up text into styled spans (and the pauses between them),
+// starting from base (bold, italic, outline and shadow from a TextStyle).
+[[nodiscard]] ParsedText ParseMarkup(std::string_view text, const SpanStyle& base = {});
 
 // The text without its tags ("<b>Hi</b> <<3" -> "Hi <3").
 [[nodiscard]] std::string StripMarkup(std::string_view text);
@@ -82,9 +102,13 @@ struct LaidGlyph
     Vec2      Size;       // the bitmap, scaled
     f32       Baseline;   // its line's baseline (y)
     f32       Advance;    // scaled: where the next glyph starts
+    f32       Pen;        // x where its advance starts (underlines run pen to pen)
+    f32       Scale;      // the text's scale times its span's size
     u32       Index = 0;  // its character's place in the text: a reveal shows the first N
     u32       Span  = 0;  // its style: TextLayout::Spans
     u32       Line  = 0;
+    bool      FauxBold   = false; // the font has no bold face for it: thickened instead
+    bool      FauxItalic = false; // ... no italic face: slanted
 };
 
 struct TextLine
@@ -113,6 +137,9 @@ struct TextLayoutOptions
     f32       BoxWidth  = 0.0f;  // the width Align aligns lines within (0: the widest line)
     TextAlign Align     = TextAlign::Left;
     bool      Markup    = true;  // false: tags are plain text
+    TextStyle Style;             // the base look (bold, italic, outline, shadow)
+
+    bool operator==(const TextLayoutOptions&) const = default;
 };
 
 // Lay out text (marked up or plain) into placed glyphs, wrapping like
@@ -127,8 +154,27 @@ struct TextDrawOptions
     i32   Layer   = 0;
     u32   Visible = ~0u;           // characters shown (a typewriter's progress)
     u16   Clip    = 0;             // ScrollPanel clip index
+    TextStyle     Style;           // outline width, shadow offset / color / softness
+    TextureHandle White;           // a white texture and its sampler: underlines and
+    SamplerHandle WhiteSampler;    //   strikethroughs (none drawn without one)
 };
 
-// Draw a layout as UI text (FramePacket::UISprites, SDF).
+// Draw a layout as UI text (FramePacket::UISprites, SDF): shadows first,
+// then the glyphs, then underlines and strikethroughs.
 void DrawRichText(FramePacket& packet, const FontAtlas& font, const TextLayout& layout, const TextDrawOptions& options);
+
+// A layout kept between frames, laid out again only when its text, options
+// or the font's fallbacks change - what a label or button holds.
+class CachedTextLayout
+{
+public:
+    [[nodiscard]] const TextLayout& Get(const FontAtlas& font, std::string_view text, const TextLayoutOptions& options);
+
+private:
+    std::string       _text;
+    const FontAtlas*  _font      = nullptr;
+    u64               _fallbacks = 0;
+    TextLayoutOptions _options;
+    TextLayout        _layout;
+};
 } // namespace Arcbit
