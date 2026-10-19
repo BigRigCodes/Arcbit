@@ -61,6 +61,12 @@ void WidgetTestScreen::WireWidgets()
         rg->OnChanged = [this](const i32 idx) { _radioIdx = idx; UpdateOutput(); };
     }
 
+    // The typewriter: a line with effects, a pause and a slow span; Replay starts it over.
+    if (auto* reveal = FindWidget<Label>("reveal-sample")) {
+        reveal->StartReveal(30.0f);
+        if (auto* replay = FindWidget<Button>("replay-btn")) replay->OnClick = [reveal] { reveal->StartReveal(30.0f); };
+    }
+
     if (auto* sw = FindWidget<Switch>("autosave-switch")) {
         _switchOn = sw->On;
         sw->OnChanged = [this](const bool v) { _switchOn = v; UpdateOutput(); };

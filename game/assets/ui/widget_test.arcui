@@ -9,7 +9,7 @@
       "name": "panel",
       "anchor": [0.5, 0.5],
       "pivot": [0.5, 0.5],
-      "size": [580, 690],
+      "size": [580, 736],
       "draw_border": true,
       "children": [
         {
@@ -179,6 +179,22 @@
           "word_wrap": true,
           "offset": [14, 646],
           "size": [552, 34]
+        },
+        {
+          "type": "Label",
+          "name": "reveal-sample",
+          "text_key": "demo.widgets.reveal",
+          "markup": true,
+          "offset": [14, 692],
+          "size": [460, 34]
+        },
+        {
+          "type": "Button",
+          "name": "replay-btn",
+          "text_key": "demo.widgets.replay",
+          "offset": [480, 690],
+          "size": [86, 32],
+          "tab_order": 9
         }
       ]
     }
