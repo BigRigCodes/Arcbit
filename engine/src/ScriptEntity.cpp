@@ -6,6 +6,7 @@
 
 #include <arcbit/core/Log.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -85,6 +86,11 @@ void ScriptEngine::State::BindEntity()
     sol::usertype<ScriptEntity> type = Lua.new_usertype<ScriptEntity>(
         "Entity", sol::no_constructor,
         "IsValid", [this](const ScriptEntity& e) { return Resolve(e) != nullptr; },
+        // Held in a conversation (or by anything else): stand still.
+        "IsHeld", [this](const ScriptEntity& e) {
+            Scene* scene = Resolve(e);
+            return scene && IsHeld(scene->GetWorld(), e.Id);
+        },
         sol::meta_function::equal_to,
         [](const ScriptEntity& a, const ScriptEntity& b) { return a.Id == b.Id && a.SceneSerial == b.SceneSerial; },
         sol::meta_function::to_string, [this](const ScriptEntity& e) {

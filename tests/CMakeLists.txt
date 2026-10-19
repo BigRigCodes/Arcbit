@@ -47,6 +47,7 @@ add_executable(arcbit-tests
     script/DemoScriptTests.cpp
     script/SceneScriptTests.cpp
     script/ScriptConsoleTests.cpp
+    script/ScriptDialogTests.cpp
     script/ScriptApiTests.cpp
     script/ScriptHookTests.cpp
     script/ScriptLocTests.cpp

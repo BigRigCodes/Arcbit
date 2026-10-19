@@ -167,6 +167,12 @@ public:
     void                             SetScript(std::string module) { _scriptModule = std::move(module); }
     [[nodiscard]] const std::string& GetScript() const { return _scriptModule; }
 
+    // The Lua side of a conversation (Application's dialogs): self:method()
+    // on target's script (false if it has none), and OnDialogEnd(id, choice)
+    // on the script of the entity talked to, then on the scene script.
+    bool CallScript(Entity target, std::string_view method);
+    void DialogEnded(Entity with, std::string_view id, std::string_view choice);
+
     // Called by Application each fixed tick: OnUpdate, the scripts' OnUpdate,
     // the camera, then all registered update systems in registration order.
     void Update(f32 dt);

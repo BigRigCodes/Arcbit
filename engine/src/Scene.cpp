@@ -167,6 +167,16 @@ void Scene::EndScripts()
     _scripts.reset();
 }
 
+bool Scene::CallScript(const Entity target, const std::string_view method)
+{
+    return _scripts && _scripts->CallMethod(target, method);
+}
+
+void Scene::DialogEnded(const Entity with, const std::string_view id, const std::string_view choice)
+{
+    if (_scripts) _scripts->DialogEnded(with, id, choice);
+}
+
 void Scene::SyncScriptState()
 {
     if (_scripts) _scripts->SyncSaved();

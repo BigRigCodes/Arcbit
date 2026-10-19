@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace Arcbit
 {
@@ -39,6 +40,14 @@ public:
 
     // `by` interacted with `target`: target's OnInteract(by).
     void Interact(Entity target, Entity by);
+
+    // self:method() on target's script; false if it has no such function
+    // (or no script).
+    bool CallMethod(Entity target, std::string_view method);
+
+    // A conversation with `with` ended: its OnDialogEnd(id, choice), then the
+    // scene script's OnDialogEnd(id, choice, with).
+    void DialogEnded(Entity with, std::string_view id, std::string_view choice);
 
     // Copy each script's self.Saved into its Script component - before the
     // scene's state is captured, so a Persistent entity's script state saves.

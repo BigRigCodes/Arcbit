@@ -12,6 +12,7 @@
 #include <array>
 #include <ranges>
 #include <cstdlib>
+#include <optional>
 
 namespace Arcbit
 {
@@ -120,6 +121,7 @@ ScriptEngine::State::State(std::filesystem::path root, const ScriptLimits limits
     BindUI();
     BindConsole();
     BindLoc();
+    BindDialog();
     BindRequire();
 }
 
@@ -242,6 +244,48 @@ ScriptResult ScriptEngine::Run(const std::string_view code, const std::string_vi
     catch (const std::exception& e) {
         return Fail(s, e.what());
     }
+}
+
+namespace
+{
+// Run code in the dialog environment: whether its first result is true
+// (nil and false aren't, nor is no result), or nullopt for an error
+// (reported).
+std::optional<bool> RunDialogLua(ScriptEngine::State& s, const std::string& code, const std::string_view chunkName)
+{
+    if (!s.Dialog.valid()) s.Dialog = s.NewEnvironment();
+    const sol::load_result chunk = s.Lua.load(code, "=" + std::string(chunkName), sol::load_mode::text);
+    if (!chunk.valid()) {
+        (void)Fail(s, chunk.get<sol::error>().what());
+        return std::nullopt;
+    }
+    sol::protected_function fn = chunk;
+    s.Dialog.set_on(fn);
+    try {
+        const sol::protected_function_result result = s.Call(fn);
+        if (!result.valid()) {
+            (void)Fail(s, result.get<sol::error>().what());
+            return std::nullopt;
+        }
+        if (result.return_count() == 0) return false;
+        const sol::object value = result.get<sol::object>(0);
+        return value.get_type() != sol::type::lua_nil && !(value.get_type() == sol::type::boolean && !value.as<bool>());
+    }
+    catch (const std::exception& e) {
+        (void)Fail(s, e.what());
+        return std::nullopt;
+    }
+}
+} // namespace
+
+bool ScriptEngine::Test(const std::string_view expression, const std::string_view chunkName)
+{
+    return RunDialogLua(*_state, "return " + std::string(expression), chunkName).value_or(false);
+}
+
+bool ScriptEngine::Execute(const std::string_view code, const std::string_view chunkName)
+{
+    return RunDialogLua(*_state, std::string(code), chunkName).has_value();
 }
 
 ScriptResult ScriptEngine::Require(const std::string_view module)
