@@ -14,6 +14,7 @@ add_executable(arcbit-tests
     core/LocTests.cpp
     core/MathTests.cpp
     core/Utf8Tests.cpp
+    dialog/DemoDialogTests.cpp
     dialog/DialogRunnerTests.cpp
     dialog/DialogTests.cpp
     ecs/AnimatorStateMachineTests.cpp

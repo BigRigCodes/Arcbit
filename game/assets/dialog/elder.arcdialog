@@ -1,0 +1,50 @@
+{
+  "speaker": "elder",
+  "speakers": {
+    "elder": { "name": "Elder Maren" }
+  },
+  "nodes": {
+    "start": [
+      { "branch": [
+          { "if": { "elder.met": true }, "goto": "again" }
+      ] },
+      { "id": "welcome", "say": "Welcome to the village, traveler. I am Maren, keeper of its stories.", "set": { "elder.met": true } },
+      { "id": "chest", "say": "The chest up the path holds a little gold.<pause=0.3> It's yours, if you can find it.", "goto": "ask" }
+    ],
+    "again": [
+      { "branch": [
+          { "if": { "elder.map": true }, "goto": "again_map" }
+      ] },
+      { "id": "back", "say": "Back again? Sit a while.", "goto": "ask" }
+    ],
+    "again_map": [
+      { "id": "map_use", "say": "Has the map served you? <shake>Mind the cliffs</shake> to the east.", "goto": "ask" }
+    ],
+    "ask": [
+      { "id": "what", "say": "What can I do for you?" },
+      { "choice": [
+          { "id": "map", "text": "A map of the coast. (5 gold)",
+            "if": { "elder.map": false, "gold": [">=", 5] },
+            "add": { "gold": -5 }, "set": { "elder.map": true }, "event": "game.gold.changed", "goto": "map" },
+          { "id": "map_poor", "text": "A map of the coast. (5 gold)",
+            "if": { "elder.map": false, "gold": ["<", 5] }, "goto": "poor" },
+          { "id": "blessing", "text": "Your blessing, Elder.",
+            "if": { "elder.blessed": false }, "goto": "blessing" },
+          { "id": "bye", "text": "Nothing. Goodbye.", "goto": "farewell" }
+      ] }
+    ],
+    "map": [
+      { "id": "map_given", "say": "<b>Five</b> coins, and the whole coast is yours. Don't lose it in the river.", "goto": "farewell" }
+    ],
+    "poor": [
+      { "id": "poor", "say": "You have {gold} gold. Come back with five - the chest might help.", "goto": "ask" }
+    ],
+    "blessing": [
+      { "id": "blessed", "say": "<wave>May the road rise to meet you.</wave><pause=0.4> And take this, for the journey.",
+        "add": { "gold": 10 }, "set": { "elder.blessed": true }, "event": "game.gold.changed", "call": "Bless", "goto": "ask" }
+    ],
+    "farewell": [
+      { "id": "farewell", "say": "Safe travels, traveler." }
+    ]
+  }
+}

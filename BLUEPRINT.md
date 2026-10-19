@@ -464,7 +464,7 @@ The rest of the original event list moved to the phases that build those systems
 
 ---
 
-## Phase 27: Dialog / Conversation System
+## Phase 27: Dialog / Conversation System ✓
 *Built together with Phase 21F (text styling and animation), after Phase 28. See [docs/dialog.md](docs/dialog.md). The default implementation - a game can run conversations its own way (`DialogRunner`, its own screen) or in Lua.*
 
 - [x] `.arcdialog` files: speakers (name, portrait, voice) and named nodes of steps - lines (`say`, or a bare string), choices, branches, actions - each with an optional `if` and `goto` (a node or `"end"`); `"world": "run"` / `"pause"`
@@ -479,7 +479,8 @@ The rest of the original event list moved to the phases that build those systems
 - [x] Lua hook `OnDialogEnd(id, choice)` on the NPC's script and the scene script; events `engine.dialog.started`, `.line`, `.choice`, `.ended`
 - [x] `FacingAnimation` component: four-way idle / walk clips from facing and movement (so a held NPC visibly turns)
 - [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
-- [ ] Demo: an elder in the Scripted demo - greeting, a choice, a gold check, a reward, a remembered outcome - in English, French and Japanese
+- [x] Demo: Elder Maren in the Scripted demo - a greeting, choices, a gold check, a gift (`call` into her script), a map to buy, remembered on the next talk - and the guard, who knows whether you've met her; English, French and Japanese
+- [x] Dialog placeholders read an unsaved key as 0, as conditions do ("You have {gold} gold" before any gold)
 - [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 
 ---

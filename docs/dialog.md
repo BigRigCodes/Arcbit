@@ -6,6 +6,10 @@ picks from choices; lines and choices can depend on the game's state and change
 it. A conversation is a `.arcdialog` file - no code needed to write one or to
 make an NPC say it.
 
+The Scripted demo has two: Elder Maren (`game/assets/dialog/elder.arcdialog` -
+a gold check, a gift, a map to buy, remembered next time, in English, French
+and Japanese) and the guard, who knows whether you've met her.
+
 - [Writing a dialog](#writing-a-dialog)
 - [Conditions and actions](#conditions-and-actions)
 - [Text, keys and translation](#text-keys-and-translation)

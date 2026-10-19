@@ -18,11 +18,22 @@
             "Tag": { "value": "Door" },
             "Transform2D": { "position": [448.0, 256.0], "scale": [60.0, 60.0] }
         },
+        "elder": {
+            "Animator": { "clip": "idle_down", "sheet": "assets/spritesheets/player.json" },
+            "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "NPC" },
+            "FacingAnimation": { "mirror_left": true },
+            "Interactable": { "dialog": "elder", "prompt": "demo.scripted.prompt.talk" },
+            "MoveIntent": {},
+            "Script": { "script": "demo.elder" },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "assets/textures/Cute_Fantasy_Free/Player/Player.png", "tint": [0.7, 0.8, 1.0, 1.0] },
+            "Tag": { "value": "Elder" },
+            "Transform2D": { "position": [128.0, 128.0], "scale": [64.0, 64.0] }
+        },
         "guard": {
             "Animator": { "clip": "idle_down", "sheet": "assets/spritesheets/player.json" },
             "Collider2D": { "half_extents": [24.0, 24.0], "layer": "NPC" },
             "FacingAnimation": { "mirror_left": true },
-            "Interactable": { "dialog": "sample", "prompt": "demo.scripted.prompt.talk" },
+            "Interactable": { "dialog": "guard", "prompt": "demo.scripted.prompt.talk" },
             "MoveIntent": {},
             "Script": { "properties": { "Pause": 1, "Tiles": 7 }, "script": "demo.guard" },
             "SmoothTileMovement": { "speed": 2.5 },
