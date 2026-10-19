@@ -24,6 +24,8 @@
 #include <SDL3/SDL_scancode.h>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
+
 #include <fstream>
 #include <string>
 #include <unordered_map>
@@ -202,6 +204,18 @@ TEST_CASE("The Scripted demo: the guard patrols and the Lua menu spends gold", "
     const Vec2   start = f.Demo().GetWorld().GetTransform(guard)->Position;
     f.Tick(60);
     CHECK(f.Demo().GetWorld().GetTransform(guard)->Position.X > start.X + 50.0f);
+
+    // Held mid-step (talked to), it finishes the step: it stands on a tile.
+    f.Tick(5);
+    Hold(f.Demo().GetWorld(), guard);
+    f.Tick(60);
+    const Vec2 held = f.Demo().GetWorld().GetTransform(guard)->Position;
+    CHECK(std::fmod(held.X, 64.0f) == 0.0f);
+    f.Tick(60);
+    CHECK(f.Demo().GetWorld().GetTransform(guard)->Position == held);
+    Release(f.Demo().GetWorld(), guard);
+    f.Tick(30);
+    CHECK(f.Demo().GetWorld().GetTransform(guard)->Position != held);
 
     f.saves.Data().Set("gold", static_cast<i64>(12));
     f.Press(SDL_SCANCODE_L);
