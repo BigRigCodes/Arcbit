@@ -22,10 +22,10 @@ namespace Arcbit {
 
 namespace
 {
-constexpr u32 SdfPadding   = 4;
+constexpr u32 SdfPadding   = 6;     // room outside a glyph for an outline or a glow
 constexpr u32 GlyphPadding = 1;     // pixels between glyphs in a page
 constexpr u8  SdfOnEdge    = 128;
-constexpr f32 SdfDistScale = 64.0f; // stb: value change per pixel of distance
+constexpr f32 SdfDistScale = 20.0f; // stb: value change per pixel of distance; 128 / 20 reaches past the padding
 
 constexpr GlyphRange Default[] = {
     { 0x0020, 0x007E }, // Basic Latin
@@ -174,6 +174,7 @@ FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept
     _emPixels   = other._emPixels;
     _lineHeight = other._lineHeight;
     _ascent     = other._ascent;
+    for (int i = 0; i < 4; ++i) _styleFaces[i] = std::move(other._styleFaces[i]);
     if (other._tracked) {
         other.Untrack();
         Track();
@@ -288,11 +289,11 @@ u64 FontAtlas::GetFallbackGeneration() { return s_fallbackGeneration; }
 bool FontAtlas::BakeGlyph(const u32 codepoint) const
 {
     if (_glyphs.contains(codepoint)) return true;
-    if (BakeFrom(*_face, codepoint)) return true;
+    if (BakeFrom(*_face, codepoint, codepoint)) return true;
     for (const auto& face : _fallbacks)
-        if (BakeFrom(*face, codepoint)) return true;
+        if (BakeFrom(*face, codepoint, codepoint)) return true;
     for (const auto& face : SharedFallbacks())
-        if (BakeFrom(*face, codepoint)) return true;
+        if (BakeFrom(*face, codepoint, codepoint)) return true;
     if (const auto em = SpaceWidth(codepoint)) {
         _glyphs[codepoint] = { .Advance = *em * _pixelSize };
         return true;
@@ -346,7 +347,7 @@ Raster CubicSdf(const stbtt_fontinfo& info, const int index, const f32 scale, co
 // Rasterize a codepoint from one face, at this atlas's size and mode. Faces
 // are matched by em, not line height: CJK faces have tall lines, and sizing
 // by those would draw their characters small next to the font's.
-bool FontAtlas::BakeFrom(const FontFace& face, const u32 codepoint) const
+bool FontAtlas::BakeFrom(const FontFace& face, const u32 codepoint, const u32 key) const
 {
     const stbtt_fontinfo& info  = face._impl->Info;
     const int             index = stbtt_FindGlyphIndex(&info, static_cast<int>(codepoint));
@@ -363,9 +364,57 @@ bool FontAtlas::BakeFrom(const FontFace& face, const u32 codepoint) const
     g.Advance = static_cast<f32>(advance) * scale;
     if (!r.Pixels.empty() && Place(r.Pixels.data(), r.Width, r.Height, g))
         g.BitmapSize = { static_cast<f32>(r.Width), static_cast<f32>(r.Height) };
-    _glyphs[codepoint] = g;
+    _glyphs[key] = g;
     return true;
 }
+
+// ---------------------------------------------------------------------------
+// Style faces (bold, italic)
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// Styled glyphs share the cache: the style above every codepoint's 21 bits.
+u32 StyleKey(const u32 codepoint, const FontStyle style) { return codepoint | (static_cast<u32>(style) << 24); }
+} // namespace
+
+void FontAtlas::SetStyleFace(const FontStyle style, std::shared_ptr<const FontFace> face)
+{
+    if (style == FontStyle::Regular) return;
+    _styleFaces[static_cast<u8>(style)] = std::move(face);
+    std::erase_if(_glyphs, [](const auto& entry) { return (entry.first >> 24) != 0; });
+    std::erase_if(_absent, [](const u32 key) { return (key >> 24) != 0; });
+    ++s_fallbackGeneration;
+}
+
+const GlyphInfo* FontAtlas::StyleGlyph(const u32 codepoint, const FontStyle style) const
+{
+    const auto& face = _styleFaces[static_cast<u8>(style)];
+    if (!face) return nullptr;
+    const u32 key = StyleKey(codepoint, style);
+    if (const auto it = _glyphs.find(key); it != _glyphs.end()) return &it->second;
+    if (_absent.contains(key)) return nullptr;
+    if (BakeFrom(*face, codepoint, key)) return &_glyphs.at(key);
+    _absent.insert(key); // the face lacks it (CJK in a Latin bold): faked from the regular glyph
+    return nullptr;
+}
+
+// The style's own face, else a near one faked the rest of the way (bold
+// italic from the bold face, slanted), else the regular glyph faked.
+FontAtlas::StyledGlyph FontAtlas::GetStyledGlyph(const u32 codepoint, const FontStyle style) const
+{
+    if (style == FontStyle::Regular || codepoint < 32) return { GetGlyph(codepoint) };
+    if (const GlyphInfo* g = StyleGlyph(codepoint, style)) return { g };
+    const bool bold = style == FontStyle::Bold || style == FontStyle::BoldItalic;
+    const bool italic = style == FontStyle::Italic || style == FontStyle::BoldItalic;
+    if (style == FontStyle::BoldItalic) {
+        if (const GlyphInfo* g = StyleGlyph(codepoint, FontStyle::Bold)) return { g, false, true };
+        if (const GlyphInfo* g = StyleGlyph(codepoint, FontStyle::Italic)) return { g, true, false };
+    }
+    return { GetGlyph(codepoint), bold, italic };
+}
+
+f32 FontAtlas::SdfUnitsPerPixel() { return SdfDistScale / 255.0f; }
 
 GlyphInfo FontAtlas::BakeDrawn(const f32 w, const f32 h, const f32 lift, const std::function<f32(f32 x, f32 y)>& distance) const
 {

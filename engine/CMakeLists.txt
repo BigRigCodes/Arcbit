@@ -194,9 +194,9 @@ add_custom_target(arcbit-engine-locale-assets ALL
 add_custom_target(arcbit-engine-fonts ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Roboto-Regular.ttf"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
+        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts"
     COMMENT "Copying engine fonts to bin/assets/engine/fonts/"
     VERBATIM
 )

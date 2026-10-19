@@ -261,6 +261,10 @@ void Application::Run()
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
     _debugFont.Load("assets/engine/fonts/Roboto-Regular.ttf", 24.0f, FontMode::SDF, *_device);
+    // The family's other faces: <b> / <i> text and bold / italic text styles.
+    _debugFont.SetStyleFace(FontStyle::Bold, FontFace::Load("assets/engine/fonts/Roboto-Bold.ttf"));
+    _debugFont.SetStyleFace(FontStyle::Italic, FontFace::Load("assets/engine/fonts/Roboto-Italic.ttf"));
+    _debugFont.SetStyleFace(FontStyle::BoldItalic, FontFace::Load("assets/engine/fonts/Roboto-BoldItalic.ttf"));
 
     // Init UI manager after the render thread is running so white-texture handles are valid.
     // Registers UI navigation actions (UI_Confirm, UI_FocusNext, UI_FocusPrev) before OnStart

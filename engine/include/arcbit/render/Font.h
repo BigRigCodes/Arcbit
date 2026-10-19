@@ -40,6 +40,9 @@ struct GlyphInfo
     u32    Page = 0;    // which atlas page (texture) holds the bitmap
 };
 
+// A font's style faces: a family's bold and italic files (FontAtlas::SetStyleFace).
+enum class FontStyle : u8 { Regular, Bold, Italic, BoldItalic };
+
 // An inclusive range of codepoints to bake.
 struct GlyphRange
 {
@@ -120,6 +123,23 @@ public:
     void ClearFallbacks();
     [[nodiscard]] const std::vector<std::shared_ptr<const FontFace>>& GetFallbacks() const { return _fallbacks; }
 
+    // A family's bold, italic or bold-italic face: glyphs in that style come
+    // from it, drawn at this atlas's size onto its pages. Without one, a
+    // style is faked from the regular glyph (GetStyledGlyph says so).
+    void SetStyleFace(FontStyle style, std::shared_ptr<const FontFace> face);
+
+    struct StyledGlyph
+    {
+        const GlyphInfo* Glyph      = nullptr;
+        bool             FauxBold   = false; // no bold face had it: thicken in the shader
+        bool             FauxItalic = false; // no italic face had it: slant the quad
+    };
+    [[nodiscard]] StyledGlyph GetStyledGlyph(u32 codepoint, FontStyle style) const;
+
+    // Distance-field units per baked pixel (SDF mode): what an outline or a
+    // faux-bold weight a pixel wide is in Sprite::Outline / Weight.
+    [[nodiscard]] static f32 SdfUnitsPerPixel();
+
     // Faces every atlas, loaded now or later, falls back to after its own
     // fallbacks: the active language's fonts (a Japanese face while Japanese is on).
     static void SetSharedFallbacks(std::vector<std::shared_ptr<const FontFace>> faces);
@@ -161,7 +181,8 @@ private:
     bool Place(const u8* bitmap, u32 w, u32 h, GlyphInfo& glyph) const;
     void Write(Page& page, const u8* bitmap, u32 w, u32 h, u32 x, u32 y) const;
     bool BakeGlyph(u32 codepoint) const; // false if no face has it
-    bool BakeFrom(const FontFace& face, u32 codepoint) const;
+    bool BakeFrom(const FontFace& face, u32 codepoint, u32 key) const; // into _glyphs[key]
+    [[nodiscard]] const GlyphInfo* StyleGlyph(u32 codepoint, FontStyle style) const; // from the style's face, if any
     void BakeMissingBox();
 
     // A glyph drawn here rather than by a font: a w x h shape lift pixels
@@ -175,6 +196,7 @@ private:
 
     std::shared_ptr<const FontFace>              _face;
     std::vector<std::shared_ptr<const FontFace>> _fallbacks;
+    std::shared_ptr<const FontFace>              _styleFaces[4]; // by FontStyle; [Regular] unused
     mutable std::unordered_map<u32, GlyphInfo>   _glyphs;
     mutable std::unordered_set<u32>              _absent; // asked for, no face has it: the box
     mutable std::vector<Page>                    _pages;
