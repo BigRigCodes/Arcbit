@@ -605,6 +605,53 @@ namespace
         });
     }
 
+    // Moving: wanting to, or partway through a tile step, or still sliding.
+    bool IsMoving(World& ecs, const Entity e, const MoveIntent& intent)
+    {
+        if (intent.Direction != Vec2{}) return true;
+        if (const auto* tile = ecs.GetComponent<SmoothTileMovement>(e); tile && tile->Progress < 1.0f) return true;
+        const auto* free = ecs.GetComponent<FreeMovement>(e);
+        return free && free->Velocity != Vec2{};
+    }
+
+    std::string_view FacingName(const Vec2 facing)
+    {
+        if (std::abs(facing.X) >= std::abs(facing.Y)) return facing.X < 0.0f ? "left" : "right";
+        return facing.Y < 0.0f ? "up" : "down";
+    }
+
+    // The clip name with "{facing}" filled in.
+    std::string FacingClip(const std::string& pattern, const std::string_view facing)
+    {
+        std::string name = pattern;
+        if (const usize at = name.find("{facing}"); at != std::string::npos) name.replace(at, 8, facing);
+        return name;
+    }
+
+    void RegisterFacingAnimationSystem(World& world)
+    {
+        world.RegisterSystem("FacingAnimation", [](Scene& scene, f32 /*dt*/) {
+            World& ecs = scene.GetWorld();
+            ecs.Query<const FacingAnimation, const MoveIntent, Animator, SpriteRenderer>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, const FacingAnimation& fa, const MoveIntent& intent, Animator& anim,
+                            SpriteRenderer& sprite) {
+                   if (!anim.Sheet) return;
+                   const std::string_view facing = FacingName(intent.Facing);
+                   const bool             mirror = fa.MirrorLeft && facing == "left";
+                   const std::string&     clip   = IsMoving(ecs, e, intent) ? fa.Walk : fa.Idle;
+                   const AnimationClip* next = clip.empty() ? nullptr : anim.Sheet->GetAnimation(FacingClip(clip, mirror ? "right" : facing));
+                   if (!next) return;
+                   sprite.FlipX = mirror;
+                   if (next == anim.Clip) return;
+                   anim.Clip       = next;
+                   anim.FrameIndex = 0;
+                   anim.Elapsed    = 0.0f;
+                   anim.Finished   = false;
+               });
+        });
+    }
+
     // Float slack so a cooldown that should land exactly on zero after N
     // ticks (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
     constexpr f32 CooldownEpsilon = 1e-4f;
@@ -1207,6 +1254,7 @@ void RegisterBuiltinSystems(World& world)
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
     RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
     RegisterCameraFollowSystem(world);
+    RegisterFacingAnimationSystem(world);      // MoveIntent facing + moving -> Animator clip
     RegisterAnimatorStateMachineSystem(world); // evaluates transitions, updates Animator clip
     RegisterAnimatorSystem(world);             // advances frames, fires events, writes UV
     RegisterAudioSystem(world);                // spatial sound lifecycle + listener update

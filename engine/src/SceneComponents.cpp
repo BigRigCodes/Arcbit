@@ -219,6 +219,18 @@ namespace
     {
         r.RegisterComponent<SpriteRenderer>("SpriteRenderer", ReadSprite, WriteSprite);
         r.RegisterComponent<Animator>("Animator", ReadAnimator, WriteAnimator);
+        r.RegisterComponent<FacingAnimation>(
+            "FacingAnimation",
+            [](FacingAnimation& c, const json& j, SceneAssets&) {
+                Read(j, "idle", c.Idle);
+                Read(j, "walk", c.Walk);
+                Read(j, "mirror_left", c.MirrorLeft);
+            },
+            [](const FacingAnimation& c, json& j, const SceneAssets&) {
+                j["idle"]        = c.Idle;
+                j["walk"]        = c.Walk;
+                j["mirror_left"] = c.MirrorLeft;
+            });
         r.RegisterComponent<LightEmitter>(
             "LightEmitter",
             [](LightEmitter& c, const json& j, SceneAssets&) {

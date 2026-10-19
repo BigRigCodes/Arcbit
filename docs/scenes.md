@@ -380,11 +380,11 @@ matches a default-constructed component, so writers stay simple.
 
 Built-in components: `Tag`, `Name`, `Transform2D`, `SpriteRenderer`,
 `LightEmitter`, `Parallax`, `CameraTarget`, `Disabled`, `Lifetime`,
-`AudioSource`, `Animator`, `Collider2D`, `MoveIntent`, `InputMovement`,
+`AudioSource`, `Animator`, `FacingAnimation`, `Collider2D`, `MoveIntent`, `InputMovement`,
 `AIMovement`, `FreeMovement`, `SmoothTileMovement`, `SnapTileMovement`,
 `Pushable`, `PendingMove`, `EntityEvents`, `Persistent`, `Script`, `Interactor`, `Interactable`.
 `AnimatorStateMachine` and the callback components
-aren't serializable yet.
+aren't serializable yet; `Held` is never saved (a conversation's, while it runs).
 
 Collision layers are written by name (`"layer": "Prop"`,
 `"mask": ["Player", "Wall"]`, `"mask": "all"`); game-defined bits are written

@@ -5,6 +5,8 @@
 
 #include "TestSupport.h"
 
+#include <arcbit/assets/SpriteSheet.h>
+
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/input/InputManager.h>
@@ -15,6 +17,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <fstream>
 
 using namespace Arcbit;
 using Catch::Matchers::WithinAbs;
@@ -360,4 +366,40 @@ TEST_CASE("A held entity stands still, keeps its facing, and moves once released
     Step(scene, 30);
     CHECK(PositionOf(scene, e).X > 0.0f);
     Release(world, e); // releasing what isn't held does nothing
+}
+
+TEST_CASE("FacingAnimation plays the clip for the facing and walking, mirroring left", "[ecs][movement]")
+{
+    std::ifstream     file(ArcbitTests::SourcePath("game/assets/spritesheets/player.json"));
+    const SpriteSheet sheet = SpriteSheet::FromJson(nlohmann::json::parse(file), TextureHandle::Make(1, 0), 192, 320);
+    REQUIRE(sheet.GetAnimation("walk_right"));
+
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity e     = world.CreateEntity();
+    world.AddComponent<MoveIntent>(e);
+    world.AddComponent<SmoothTileMovement>(e);
+    world.AddComponent<SpriteRenderer>(e);
+    world.AddComponent<Animator>(e, Animator{ .Clip = sheet.GetAnimation("idle_up"), .Sheet = &sheet });
+    world.AddComponent<FacingAnimation>(e, FacingAnimation{ .MirrorLeft = true });
+    const auto clip = [&] { return world.GetComponent<Animator>(e)->Clip->Name; };
+    const auto flip = [&] { return world.GetComponent<SpriteRenderer>(e)->FlipX; };
+
+    Step(scene);
+    CHECK(clip() == "idle_down"); // MoveIntent starts facing down
+
+    SetIntent(scene, e, { -1.0f, 0.0f });
+    Step(scene);
+    CHECK(clip() == "walk_right");
+    CHECK(flip());
+
+    SetIntent(scene, e, {});
+    Step(scene, 60); // the step lands
+    CHECK(clip() == "idle_right");
+    CHECK(flip());
+
+    world.GetComponent<MoveIntent>(e)->Facing = { 0.0f, -1.0f }; // turned (a conversation), not moving
+    Step(scene);
+    CHECK(clip() == "idle_up");
+    CHECK_FALSE(flip());
 }

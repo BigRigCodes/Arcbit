@@ -526,6 +526,7 @@ systems first; game code registers its systems in `OnStart` and they run after.
 |-------|--------|-------|--------|--------|
 | 1 | `LifetimeSystem` | `Lifetime` | destroys entity (unregisters its collider) | ✓ Done |
 | 2 | `InputMovementSystem` | `InputMovement`, InputManager | `MoveIntent` | ✓ Done (22H) |
+| 2b | `HoldSystem` | `Held` (a conversation's player and NPC) | `MoveIntent.Direction` (cleared: they stand still) | ✓ Done (27) |
 | 3 | `PushOutSystem` | free movers' `Collider2D`, entered-overlap record | `Transform2D.Position` (out of colliders that moved into them) | ✓ Done (22I) |
 | — | `AIMovementSystem` | `AIMovement` | `MoveIntent` | Deferred (Phase 30) |
 | 4 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity` / `External`, `PendingMove` | ✓ Done |
@@ -534,6 +535,7 @@ systems first; game code registers its systems in `OnStart` and they run after.
 | 7 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) | ✓ Done (22B, 22I) |
 | 8 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
 | 9 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
+| 9b | `FacingAnimationSystem` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` | ✓ Done (27) |
 | 10 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
 | 11 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
 | 12 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
