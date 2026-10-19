@@ -25,6 +25,10 @@ class DialogLibrary
 public:
     static constexpr std::string_view Extension = ".arcdialog";
 
+    // Log each file's problems as it's read (tools that report them their
+    // own way - arcbit-loc - turn it off; GetIssues has them either way).
+    bool LogIssues = true;
+
     // Returns how many dialogs were read (a missing folder is fine: 0).
     u32 AddFolder(const std::filesystem::path& folder);
 
@@ -32,10 +36,12 @@ public:
     // through a reload.
     [[nodiscard]] std::shared_ptr<const Dialog> Get(std::string_view id) const;
     [[nodiscard]] bool                          Has(std::string_view id) const { return _dialogs.contains(id); }
-    [[nodiscard]] std::vector<std::string>      GetIds() const; // sorted
+    [[nodiscard]] std::vector<std::string>      GetIds() const;    // the ones that loaded, sorted
+    [[nodiscard]] std::vector<std::string>      GetAllIds() const; // every file read, loaded or not, sorted
 
     // What's wrong with a dialog's file, from its last read.
     [[nodiscard]] const std::vector<DialogIssue>& GetIssues(std::string_view id) const;
+    [[nodiscard]] std::filesystem::path           GetFile(std::string_view id) const; // empty if unknown
 
     // Read again the files changed on disk since they were read; returns how
     // many (debug builds poll it, so edits show without a restart).

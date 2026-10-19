@@ -49,6 +49,7 @@ void DialogLibrary::Read(const std::string& id, Entry& entry)
         Loc::SetStrings(Loc::English, SourceOf(id), strings);
     }
     for (const DialogIssue& issue : entry.Issues) {
+        if (!LogIssues) break;
         if (issue.Error) LOG_ERROR(Engine, "Dialog '{}': {}", id, issue.Message);
         else LOG_WARN(Engine, "Dialog '{}': {}", id, issue.Message);
     }
@@ -72,11 +73,24 @@ std::vector<std::string> DialogLibrary::GetIds() const
     return ids;
 }
 
+std::vector<std::string> DialogLibrary::GetAllIds() const
+{
+    std::vector<std::string> ids;
+    for (const std::string& id : _dialogs | std::views::keys) ids.push_back(id);
+    return ids;
+}
+
 const std::vector<DialogIssue>& DialogLibrary::GetIssues(const std::string_view id) const
 {
     static const std::vector<DialogIssue> none;
     const auto                            it = _dialogs.find(id);
     return it != _dialogs.end() ? it->second.Issues : none;
+}
+
+std::filesystem::path DialogLibrary::GetFile(const std::string_view id) const
+{
+    const auto it = _dialogs.find(id);
+    return it != _dialogs.end() ? it->second.File : std::filesystem::path{};
 }
 
 u32 DialogLibrary::CheckReloads()
