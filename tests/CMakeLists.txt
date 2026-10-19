@@ -34,6 +34,7 @@ add_executable(arcbit-tests
     render/Camera2DTests.cpp
     render/FontSdfTests.cpp
     render/FontTests.cpp
+    render/RichTextTests.cpp
     save/SaveSealTests.cpp
     save/SaveTests.cpp
     save/SceneStateTests.cpp

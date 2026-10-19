@@ -123,6 +123,10 @@ public:
     // Faces every atlas, loaded now or later, falls back to after its own
     // fallbacks: the active language's fonts (a Japanese face while Japanese is on).
     static void SetSharedFallbacks(std::vector<std::shared_ptr<const FontFace>> faces);
+
+    // Moves whenever any atlas's fallbacks change: a box may now be a real
+    // glyph, so cached layouts compare it to know they're stale.
+    [[nodiscard]] static u64 GetFallbackGeneration();
     [[nodiscard]] static const std::vector<std::shared_ptr<const FontFace>>& GetSharedFallbacks();
 
     // Bake every codepoint in text now (a language's strings, as it loads),

@@ -5,6 +5,7 @@
 #include <arcbit/core/Utf8.h>
 
 #include "FontSdf.h"
+#include "TextBreaks.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
@@ -99,6 +100,8 @@ std::vector<FontAtlas*>& LiveAtlases()
     static std::vector<FontAtlas*> atlases;
     return atlases;
 }
+
+u64 s_fallbackGeneration = 1;
 
 std::vector<std::shared_ptr<const FontFace>>& SharedFallbacks()
 {
@@ -218,6 +221,7 @@ bool FontAtlas::LoadFace(const std::string_view path, const f32 pixelSize, const
     _lineHeight = static_cast<f32>(ascent - descent + lineGap) * scale;
     _glyphs.clear();
     _absent.clear();
+    ++s_fallbackGeneration;
     _pages.clear();
     Track();
 
@@ -258,12 +262,14 @@ void FontAtlas::AddFallback(std::shared_ptr<const FontFace> face)
     if (!face) return;
     _fallbacks.push_back(std::move(face));
     _absent.clear();
+    ++s_fallbackGeneration;
 }
 
 void FontAtlas::ClearFallbacks()
 {
     _fallbacks.clear();
     _absent.clear();
+    ++s_fallbackGeneration;
 }
 
 void FontAtlas::SetSharedFallbacks(std::vector<std::shared_ptr<const FontFace>> faces)
@@ -271,9 +277,12 @@ void FontAtlas::SetSharedFallbacks(std::vector<std::shared_ptr<const FontFace>> 
     std::erase(faces, nullptr);
     SharedFallbacks() = std::move(faces);
     for (FontAtlas* atlas : LiveAtlases()) atlas->_absent.clear();
+    ++s_fallbackGeneration;
 }
 
 const std::vector<std::shared_ptr<const FontFace>>& FontAtlas::GetSharedFallbacks() { return SharedFallbacks(); }
+
+u64 FontAtlas::GetFallbackGeneration() { return s_fallbackGeneration; }
 
 // The font, then its fallback faces, the shared ones, and the shapes drawn here.
 bool FontAtlas::BakeGlyph(const u32 codepoint) const
@@ -606,25 +615,6 @@ f32 MeasureTextWidth(const FontAtlas& font, const std::string_view line, const f
 
 namespace
 {
-// Scripts written without spaces between words: CJK punctuation, kana and
-// ideographs, and full-width forms. (Korean uses spaces, so it isn't here.)
-bool IsCjk(const u32 cp)
-{
-    return (cp >= 0x2E80 && cp <= 0x9FFF) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFF00 && cp <= 0xFFEF);
-}
-
-// Closing punctuation and small kana stay on the line they end (kinsoku).
-bool NoBreakBefore(const u32 cp)
-{
-    static constexpr u32 Closers[] = {
-        0x3001, 0x3002, 0x30FB, 0x30FC, 0x300D, 0x300F, 0x3011, 0x3015, 0x3009, 0x300B, // punctuation, brackets
-        0x3041, 0x3043, 0x3045, 0x3047, 0x3049, 0x3063, 0x3083, 0x3085, 0x3087, 0x308E, // small hiragana
-        0x30A1, 0x30A3, 0x30A5, 0x30A7, 0x30A9, 0x30C3, 0x30E3, 0x30E5, 0x30E7, 0x30EE, // small katakana
-        0xFF01, 0xFF09, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0xFF1F,                         // full-width ! ) , . : ; ?
-    };
-    return std::ranges::find(Closers, cp) != std::end(Closers);
-}
-
 // Split a word (no spaces) into the pieces a line may break between.
 std::vector<std::string_view> BreakUnits(const std::string_view word)
 {

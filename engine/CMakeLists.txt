@@ -60,6 +60,7 @@ add_library(arcbit-engine STATIC
     src/TileAtlas.cpp
     src/TileMap.cpp
     src/Font.cpp
+    src/RichText.cpp
     src/FontSdf.cpp
     src/UIWidget.cpp
     src/UIScreen.cpp

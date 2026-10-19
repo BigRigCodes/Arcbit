@@ -5,6 +5,7 @@
 #include <arcbit/core/Utf8.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <utility>
 
@@ -25,15 +26,17 @@ constexpr std::pair<char, const char*> Accents[] = {
 constexpr f32 Growth = 0.35f; // translations often run this much longer than English
 } // namespace
 
-// "[Pause ~~]" -> "[Páúšé ~~]": letters accented outside {placeholders},
+// "[Pause ~~]" -> "[Páúšé ~~]": letters accented outside {placeholders} and <tags>,
 // padded about 35%, in brackets so cut-off text shows.
 std::string Loc::Pseudo(const std::string_view english)
 {
     std::string out = "[";
-    i32         depth = 0; // inside a {placeholder}
-    for (const char c : english) {
-        if (c == '{') ++depth;
-        if (c == '}') depth = std::max(0, depth - 1);
+    i32         depth = 0; // inside a {placeholder} or a <tag>
+    for (usize i = 0; i < english.size(); ++i) {
+        const char c = english[i];
+        const bool tag = c == '<' && i + 1 < english.size() && (std::isalpha(static_cast<unsigned char>(english[i + 1])) || english[i + 1] == '/');
+        if (c == '{' || tag) ++depth;
+        if (c == '}' || (c == '>' && depth > 0)) depth = std::max(0, depth - 1);
         const auto it = std::ranges::find(Accents, c, &std::pair<char, const char*>::first);
         if (depth == 0 && it != std::end(Accents)) out += it->second;
         else out += c;
