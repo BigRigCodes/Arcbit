@@ -66,6 +66,7 @@ public:
     // its speed, voice blips, done callback). Skip shows the rest.
     void                      StartReveal(f32 charsPerSecond = 40.0f);
     void                      SkipReveal();
+    void                      StopReveal() { _reveal = TextReveal{}; } // the whole text again, no typewriter
     [[nodiscard]] bool        IsRevealing() const { return _reveal.IsStarted() && !_reveal.IsDone(); }
     [[nodiscard]] TextReveal& GetReveal() { return _reveal; }
 
@@ -95,6 +96,8 @@ public:
 
     Button() { Focusable = true; }
     void SetTextKey(std::string key);
+
+    [[nodiscard]] bool IsHovered() const { return _hovered; }
 
 protected:
     void OnLocaleChanged() override;

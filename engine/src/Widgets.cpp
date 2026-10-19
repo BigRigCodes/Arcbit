@@ -199,6 +199,7 @@ void Label::StartReveal(const f32 charsPerSecond)
 {
     _reveal.CharsPerSecond = charsPerSecond;
     _reveal.Start();
+    _laidOut = nullptr; // the text may have just changed: wait for its layout, drawn next
 }
 
 void Label::SkipReveal()
