@@ -4,6 +4,7 @@
 #include <arcbit/app/Application.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/ecs/Interaction.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/scene/Scene.h>
@@ -87,6 +88,9 @@ void Application::BeginNextDialog()
         if (!_scenes.Contains(request.Scene)) request = { .Id = request.Id, .Node = request.Node, .Scene = _scenes.GetActive() };
 
         auto screen = CreateDialogScreen();
+        if (_scenes.Contains(request.Scene)) // the key that started the talk moves it on too
+            if (const auto* by = request.Scene->GetWorld().GetComponent<Interactor>(request.By))
+                screen->AdvanceActions.push_back(MakeAction(by->Action));
         _dialog     = ActiveDialog{ .Request = request, .Screen = screen.get(), .PauseWorld = dialog->PauseWorld };
         HoldDialogParties(request, true);
         WatchDialog(*screen, request);
