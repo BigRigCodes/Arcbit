@@ -211,3 +211,19 @@ TEST_CASE("Scripts see whether an entity is held", "[script][dialog]")
     (void)f.lua.Run("print(tostring(Entity.Find('elder'):IsHeld()) .. ' ' .. tostring(Entity.Find('player'):IsHeld()))");
     CHECK(f.out == Lines{ "true false" });
 }
+
+TEST_CASE("entity:Move steers MoveIntent, and does nothing while held", "[script][dialog]")
+{
+    Fixture f;
+    f.Write("elder.lua", Elder);
+    f.Write("village.lua", "return {}");
+    f.Go();
+    (void)f.lua.Run("Entity.Find('elder'):Move(Vec2(3, 0))"); // gains a MoveIntent, shortened to length 1
+    const MoveIntent* intent = f.Active().GetWorld().GetComponent<MoveIntent>(f.elder);
+    REQUIRE(intent);
+    CHECK(intent->Direction == Vec2{ 1.0f, 0.0f });
+
+    Hold(f.Active().GetWorld(), f.elder);
+    (void)f.lua.Run("Entity.Find('elder'):Move(Vec2(0, -1))");
+    CHECK(f.Active().GetWorld().GetComponent<MoveIntent>(f.elder)->Facing == Vec2{ 1.0f, 0.0f }); // untouched
+}
