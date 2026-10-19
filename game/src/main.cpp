@@ -253,23 +253,11 @@ private:
         auto      screen = std::make_unique<WidgetTestScreen>();
         UIScreen* ptr    = screen.get();
         screen->OnClose  = [this, ptr] { GetUI().Close(ptr); };
-        screen->OnDialog = [this, ptr] {
+        screen->OnDialog = [this, ptr] { // the sample conversation (assets/dialog/sample.arcdialog)
             GetUI().Close(ptr);
-            ShowSampleDialog();
+            (void)StartDialog("sample");
         };
         GetUI().OpenMenu(std::move(screen));
-    }
-
-    // The dialog box with the sample conversation (assets/dialog/sample.arcdialog).
-    void ShowSampleDialog()
-    {
-        auto dialog = GetDialogs().Get("sample");
-        if (!dialog) return;
-        auto          screen = CreateDialogScreen();
-        DialogScreen* ptr    = screen.get();
-        screen->OnFinished   = [this, ptr](const std::string&) { GetUI().Close(ptr); };
-        screen->Begin(std::move(dialog), { .Data = &GetSaves().Data(), .Events = &GetEvents() });
-        GetUI().Push(std::move(screen));
     }
 
     void ToggleEventLog()

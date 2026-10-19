@@ -4,12 +4,15 @@ local Guard = { Properties = { Distance = 256, Seconds = 2, Pause = 1 } }
 
 local Tick = 1 / 60 -- a task resumes once per fixed tick
 
+-- Held (someone's talking to it), it stands where it is until let go.
 local function Walk(entity, to, seconds)
     local from, t = entity.Position, 0
     while t < seconds do
         Wait()
-        t = t + Tick
-        entity.Position = from + (to - from) * math.min(t / seconds, 1)
+        if not entity:IsHeld() then
+            t = t + Tick
+            entity.Position = from + (to - from) * math.min(t / seconds, 1)
+        end
     end
 end
 
