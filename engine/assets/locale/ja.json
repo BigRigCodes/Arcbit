@@ -55,8 +55,14 @@
   "ui.pause.graphics": "グラフィック",
   "ui.pause.quit":     "終了",
 
-  "ui.game.title":    "ゲーム設定",
-  "ui.game.language": "言語",
+  "ui.game.title":         "ゲーム設定",
+  "ui.game.language":      "言語",
+  "ui.game.text_speed":    "文字の速さ",
+  "ui.game.speed.slow":    "おそい",
+  "ui.game.speed.normal":  "ふつう",
+  "ui.game.speed.fast":    "はやい",
+  "ui.game.speed.instant": "瞬間",
+  "ui.game.auto_advance":  "オート送り",
 
   "ui.audio.title":  "サウンド設定",
   "ui.audio.master": "マスター音量",

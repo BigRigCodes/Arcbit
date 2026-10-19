@@ -4,7 +4,7 @@
     {
       "type":   "Panel",
       "name":   "bg",
-      "size":   [420, 186],
+      "size":   [420, 274],
       "anchor": [0.5, 0.5],
       "pivot":  [0.5, 0.5],
       "zorder": 1,
@@ -31,7 +31,13 @@
         },
 
         { "type": "Label",    "text_key": "ui.game.language", "size": [180, 32], "anchor": [0.0, 0.0], "offset": [20, 72], "zorder": 2 },
-        { "type": "Dropdown", "name": "language-dd", "size": [200, 32], "anchor": [0.0, 0.0], "offset": [200, 72], "focusable": true, "tab_order": 0, "zorder": 3 },
+        { "type": "Dropdown", "name": "language-dd", "size": [200, 32], "anchor": [0.0, 0.0], "offset": [200, 72], "focusable": true, "tab_order": 0, "zorder": 5 },
+
+        { "type": "Label",    "text_key": "ui.game.text_speed", "size": [180, 32], "anchor": [0.0, 0.0], "offset": [20, 116], "zorder": 2 },
+        { "type": "Dropdown", "name": "text-speed-dd", "size": [200, 32], "anchor": [0.0, 0.0], "offset": [200, 116], "focusable": true, "tab_order": 1, "zorder": 4 },
+
+        { "type": "Label",    "text_key": "ui.game.auto_advance", "size": [180, 32], "anchor": [0.0, 0.0], "offset": [20, 160], "zorder": 2 },
+        { "type": "Switch",   "name": "auto-advance", "size": [56, 28], "anchor": [0.0, 0.0], "offset": [200, 162], "focusable": true, "tab_order": 2, "zorder": 3 },
 
         {
           "type":     "Button",
@@ -42,7 +48,7 @@
           "pivot":    [0.5, 1.0],
           "offset":   [0, -20],
           "focusable": true,
-          "tab_order": 1,
+          "tab_order": 3,
           "zorder":   2
         }
       ]
