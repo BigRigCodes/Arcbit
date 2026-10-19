@@ -7,9 +7,9 @@ namespace Arcbit::CollisionLayers
 // Engine-reserved layer bits. Each constant is a single bit identifying what
 // the collider IS; combine bits to build masks describing what to collide with.
 //
-// Bits 0-8 are reserved for the engine. Game-defined layers should use bits
-// 9-31, registered through `project.arcbit` (Phase 38) or
-// `PhysicsWorld::RegisterLayer` until then.
+// Bits 0-8 are reserved for the engine. Game-defined layers use bits 9-31
+// (1u << FirstUserBit and up); scene files write them as numbers until
+// `project.arcbit` (Phase 38) can name them.
 constexpr u32 Default    = 1u << 0; // unclassified — fallback
 constexpr u32 Player     = 1u << 1;
 constexpr u32 NPC        = 1u << 2; // friendly / neutral

@@ -1,8 +1,9 @@
-# Arcbit ECS — Design Document
+# Entities, Components & Systems
 
-Phase 16 of the Arcbit blueprint. This document covers the architecture, API,
-component catalogue, system execution order, and integration strategy for the
-entity-component-system that all game objects will use from this phase forward.
+Every game object in Arcbit is an entity in a scene's `World`: a handle with
+components (plain data) that systems (functions run each tick or frame)
+query. This covers the data model, the built-in components, the system order
+and the query API.
 
 ---
 
@@ -57,9 +58,9 @@ assigns its ID; subsequent calls return the same value.
 ### Component mask
 
 A `u64` bitmask where bit N is set when component `TypeID == N` is present.
-This caps the engine at **64 distinct component types**, which is ample for
-this project (approximately 20 are planned across all phases). Expanding to
-`std::bitset<128>` is a one-line change if needed later.
+This caps a program at **64 distinct component types** - the engine uses
+about 30, leaving room for a game's own. Widening the mask is a contained
+change if a game ever needs more.
 
 ### Archetype
 
@@ -127,7 +128,7 @@ Scene-wide constants that systems read instead of hard-coding per-entity:
 
 ```cpp
 struct WorldConfig {
-    f32  TileSize = 16.0f;           // world pixels per tile (used by tile movement systems)
+    f32  TileSize = 32.0f;           // world pixels per tile (used by tile movement systems)
     Vec2 Gravity  = { 0.0f, 0.0f }; // pixels/s² (zero = top-down, no gravity)
 };
 ```
@@ -156,18 +157,10 @@ with unit scale and zero rotation.
 decorative props do not need stored names — requiring them would create thousands
 of unnecessary `std::string` allocations with no value.
 
-The editor derives a display label on the fly from Tag + the first four
-characters of the entity's scene-file UUID:
-
-```
-Wall   #3f25
-Player #a91c
-Chest  #77bd
-```
-
-`Name` is added explicitly for entities with game-design identity: the player,
-named NPCs, quest objects, anything referenced by name in a dialog graph or
-Lua script.
+An entity from a scene file is already identified by its file id
+(`FileScene::FindEntity`, Lua `Entity.Find`). `Name` is for entities with
+game-design identity that scripts or other code look up by name: the player,
+named NPCs, quest objects.
 
 ---
 
@@ -205,8 +198,7 @@ struct Name {
 };
 ```
 
-Add only when the entity needs a stable human-readable identity. The editor
-uses it in the entity list and dialog graph node pickers.
+Add only when the entity needs a stable human-readable identity.
 
 ### SpriteRenderer *(optional)*
 
@@ -216,9 +208,11 @@ Visual representation without duplicating position (Transform2D owns that).
 struct SpriteRenderer {
     TextureHandle Texture;
     SamplerHandle Sampler;
-    UVRect        UV     = { 0.0f, 0.0f, 1.0f, 1.0f };
-    Color         Tint   = Color::White();
-    i32           Layer  = 0;
+    UVRect        UV    = { 0.0f, 0.0f, 1.0f, 1.0f };
+    Vec2          Pivot = { 0.5f, 0.5f }; // normalized origin; the Animator writes it from frame data
+    Color         Tint  = Color::White();
+    i32           Layer = 0;
+    bool          FlipX = false;
 };
 ```
 
@@ -227,11 +221,10 @@ into `FramePacket.Sprites`. Frustum culling is applied at this point. If the
 entity also has a `Parallax` component the position is adjusted before submission
 (see `Parallax` below).
 
-UV rectangles come from `SpriteSheet`, which loads the unified Arcbit sprite
-format (see `docs/sprite-format.md`). The format covers named frames, tile grids,
-and animation clips in one file. The `Animator` component (Phase 17) will drive
-`UV` automatically from the active clip; until then it is set directly by game
-code via `SpriteSheet::GetTile` or `SpriteSheet::GetSprite`.
+UV rectangles come from `SpriteSheet`, which loads the Arcbit sprite format
+(`docs/sprite-format.md`): named frames, tile grids and animation clips in one
+file. An `Animator` writes `UV` and `Pivot` from its clip; without one, set
+them from `SpriteSheet::GetTile` / `GetSprite`.
 
 ### LightEmitter *(optional)*
 
@@ -239,9 +232,10 @@ Light properties without position (Transform2D owns that).
 
 ```cpp
 struct LightEmitter {
-    f32   Radius     = 200.0f;
-    f32   Intensity  = 1.0f;
-    Color LightColor = Color::NaturalLight();
+    f32   Radius       = 200.0f;
+    f32   Intensity    = 1.0f;
+    Color LightColor   = Color::NaturalLight();
+    bool  CastsShadows = false; // solid tiles with BlocksLight shadow it (a 1D shadow map per light)
 };
 ```
 
@@ -318,6 +312,60 @@ struct EntityEvents {
 };
 ```
 
+### Animator, AnimatorStateMachine, FacingAnimation *(optional)*
+
+`Animator` plays a clip from a `SpriteSheet`: `AnimatorSystem` advances its
+frames, writes `SpriteRenderer.UV` and `Pivot`, and calls `OnEvent` for frame
+events (`"events": ["FootStep"]` in the sheet). Which clip plays is up to game
+code, or:
+
+- `AnimatorStateMachine` - named states, float / bool / trigger parameters and
+  conditional transitions, for real animation logic (attacks, hurt, death).
+- `FacingAnimation` - a four-way character's idle / walk clip from its
+  `MoveIntent` facing and whether it's moving (`"walk_{facing}"` plays
+  `walk_left`), optionally drawing left as right flipped. Most NPCs and players
+  need nothing more.
+
+```cpp
+struct FacingAnimation {
+    std::string Idle       = "idle_{facing}";
+    std::string Walk       = "walk_{facing}";
+    bool        MirrorLeft = false; // left plays the right clip, flipped
+};
+```
+
+### AudioSource *(optional)*
+
+A looping or one-shot sound at the entity, attenuated by its distance from the
+listener (the camera). `AudioSystem` starts, positions and stops it; setting
+`Playing = false` releases it.
+
+### Collider2D and its callbacks *(optional)*
+
+Collision shape, layer / mask, directional arcs and the trigger flag, plus
+`TriggerCallback` / `CollisionCallback` for contact events and `Pushable` for
+things that get shoved: see [physics.md](physics.md).
+
+### Interactor / Interactable *(optional)*
+
+The player's `Interactor` uses the `Interactable` in front of it when its
+action is pressed: an `Interactable` with a `Dialog` starts that conversation,
+the target's script hears `OnInteract`, and `engine.entity.interacted` is
+published. See [scripting.md](scripting.md) and [dialog.md](dialog.md).
+
+### Script, Persistent *(optional)*
+
+`Script` gives an entity Lua behavior ([scripting.md](scripting.md));
+`Persistent` saves its changes with the game ([saves.md](saves.md)).
+
+### Held *(runtime only)*
+
+Something has the entity's attention - a conversation holds the player and the
+NPC they talk to. `HoldSystem` clears a held entity's `MoveIntent` direction
+after every controller and script has written it, so it stands still (a tile
+mover finishes the step it's on); its facing is kept. Holds nest (`Hold` /
+`Release` in `Movement.h`); scripts check `entity:IsHeld()`. Never saved.
+
 ---
 
 ## Movement Components
@@ -338,8 +386,8 @@ struct MoveIntent {
 ```
 
 Game code reads `MoveIntent` for facing and animation selection instead of
-polling input. Scripts and cutscenes can add one and call `Set` to drive any
-style without a controller. Style systems reduce a non-cardinal intent to its
+polling input. Code and cutscenes can add one and call `Set` to drive any
+style without a controller; scripts use `entity:Move(direction)`. Style systems reduce a non-cardinal intent to its
 dominant axis for tile movers, so an AI heading like `(0.3, 0.8)` steps down.
 
 ### Controller components
@@ -387,9 +435,9 @@ struct AIMovement {
 };
 ```
 
-Driven externally by the pathfinding system (Phase 30). `AIMovementSystem`
-will translate `TargetPosition` into `MoveIntent`, so the style layer is
-shared with `InputMovement`.
+Reserved for the pathfinding system (Phase 30), which will turn
+`TargetPosition` into `MoveIntent` the way `InputMovement` does, so the style
+layer is shared. Nothing reads it yet.
 
 ### Style components
 
@@ -414,12 +462,11 @@ instant start and stop, so `Friction` has no visible effect on it. Without
 one, `Velocity` is yours to drive (ships, projectiles) and `Friction` decays
 it.
 
-`External` (Phase 22I) is movement from the world: knockback, a bumper, a
+`External` is movement from the world: knockback, a bumper, a
 conveyor. `AddImpulse` adds to it; it moves the entity on top of `Velocity`
 and always decays with `Friction`, so it works on intent-driven movers too
 (writing an impulse to `Velocity` would be overwritten next tick). A burst of
-speed `v` travels about `v / Friction` pixels. Acceleration curves are future
-work.
+speed `v` travels about `v / Friction` pixels.
 
 #### Pushable
 
@@ -491,30 +538,23 @@ virtual dispatch. Each system may provide an update function, a render-collect
 function, or both.
 
 ```cpp
-// Update system — runs every fixed tick
-scene.GetWorld().RegisterSystem("FreeMovement",
-    [](Scene& scene, f32 dt) {
-        scene.GetWorld().Query<Transform2D, FreeMovement>()
-            .Without<Disabled>()
-            .Each([dt](Transform2D& t, FreeMovement& fm) {
-                // integrate velocity, apply friction
-            });
-    });
+// Update system - runs every fixed tick
+scene.GetWorld().RegisterSystem("Spin", [](Scene& scene, f32 dt) {
+    scene.GetWorld().Query<Transform2D, const Spinner>()
+        .Without<Disabled>()
+        .ForEach([dt](Transform2D& t, const Spinner& s) { t.Rotation += s.Speed * dt; });
+});
 
-// Render system — runs every frame, fills FramePacket
-scene.GetWorld().RegisterRenderSystem("SpriteRender",
-    [](Scene& scene, FramePacket& packet) {
-        const Vec2 camPos = scene.GetCamera().GetEffectivePosition();
-        scene.GetWorld().Query<Transform2D, SpriteRenderer>()
-            .Without<Disabled>()
-            .Each([&](Entity e, Transform2D& t, SpriteRenderer& s) {
-                // parallax adjust, frustum cull, push to packet.Sprites
-            });
-    });
+// Render system - runs every frame, adds to the FramePacket
+scene.GetWorld().RegisterRenderSystem("Markers", [](Scene& scene, FramePacket& packet) {
+    scene.GetWorld().Query<const Transform2D, const Marker>()
+        .ForEach([&](Entity e, const Transform2D& t, const Marker& m) { /* push sprites */ });
+});
 ```
 
-Systems execute in registration order. The engine registers all built-in
-systems first; game code registers its systems in `OnStart` and they run after.
+Systems run in registration order. The engine registers its built-in systems
+when a scene is created; a scene registers its own in `OnLoad` (or a scene file
+lists named systems, [scenes.md](scenes.md#named-systems)), and they run after.
 
 ---
 
@@ -522,32 +562,33 @@ systems first; game code registers its systems in `OnStart` and they run after.
 
 ### Update phase (fixed timestep)
 
-| Order | System | Reads | Writes | Status |
-|-------|--------|-------|--------|--------|
-| 1 | `LifetimeSystem` | `Lifetime` | destroys entity (unregisters its collider) | ✓ Done |
-| 2 | `InputMovementSystem` | `InputMovement`, InputManager | `MoveIntent` | ✓ Done (22H) |
-| 2b | `HoldSystem` | `Held` (a conversation's player and NPC) | `MoveIntent.Direction` (cleared: they stand still) | ✓ Done (27) |
-| 3 | `PushOutSystem` | free movers' `Collider2D`, entered-overlap record | `Transform2D.Position` (out of colliders that moved into them) | ✓ Done (22I) |
-| — | `AIMovementSystem` | `AIMovement` | `MoveIntent` | Deferred (Phase 30) |
-| 4 | `FreeMovementSystem` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity` / `External`, `PendingMove` | ✓ Done |
-| 5 | `SmoothTileMoveSystem` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) | ✓ Done (22C) |
-| 6 | `SnapTileMoveSystem` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) | ✓ Done (22H) |
-| 7 | `CollisionResolutionSystem` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) | ✓ Done (22B, 22I) |
-| 8 | `ContactEventsSystem` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls | ✓ Done (22F) |
-| 9 | `CameraFollowSystem` | `CameraTarget`, `Transform2D` | `Scene.Camera2D` | ✓ Done |
-| 9b | `FacingAnimationSystem` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` | ✓ Done (27) |
-| 10 | `AnimatorStateMachineSystem` | `AnimatorStateMachine` | `Animator.Clip` | ✓ Done (Phase 17) |
-| 11 | `AnimatorSystem` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` | ✓ Done (Phase 17) |
-| 12 | `AudioSystem` | `AudioSource`, `Transform2D` | spatial sounds, listener | ✓ Done (Phase 18) |
+| # | System | Reads | Writes |
+|---|--------|-------|--------|
+| 1 | `Lifetime` | `Lifetime` | destroys the entity |
+| 2 | `InputMovement` | `InputMovement`, InputManager | `MoveIntent` |
+| 3 | `Hold` | `Held` | `MoveIntent.Direction` (cleared) |
+| 4 | `PushOut` | free movers' `Collider2D`, entered-overlap record | `Transform2D.Position` (out of colliders that moved into them) |
+| 5 | `FreeMovement` | `FreeMovement`, `MoveIntent`? | `FreeMovement.Velocity` / `External`, `PendingMove` |
+| 6 | `SmoothTileMove` | `SmoothTileMovement`, `MoveIntent`?, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit via `QueryTileBlocked`) |
+| 7 | `SnapTileMove` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) |
+| 8 | `CollisionResolution` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) |
+| 9 | `ContactEvents` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls |
+| 10 | `CameraFollow` | `CameraTarget`, `Transform2D` | the scene's `Camera2D` |
+| 11 | `FacingAnimation` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` |
+| 12 | `AnimatorStateMachine` | `AnimatorStateMachine` | `Animator.Clip` |
+| 13 | `Animator` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` / `Pivot`, frame events |
+| 14 | `Audio` | `AudioSource`, `Transform2D` | spatial sounds, the listener |
 
-`?` marks an optional component: the system reads it when present.
+`?` marks an optional component: the system reads it when present. An
+`AIMovement` system joins after `InputMovement` in Phase 30.
 
-### Render-collect phase (variable rate, before SubmitFrame)
+### Render-collect phase (every frame, before SubmitFrame)
 
-| Order | System | Reads | Writes | Status |
-|-------|--------|-------|--------|--------|
-| 1 | `SpriteRenderSystem` | `Transform2D`, `SpriteRenderer`, `Parallax`? | `FramePacket.Sprites` | ✓ Done |
-| 2 | `LightRenderSystem` | `Transform2D`, `LightEmitter` | `FramePacket.Lights` | ✓ Done |
+| # | System | Reads | Writes |
+|---|--------|-------|--------|
+| 1 | `TilemapRender` | the scene's `TileMap`, camera | `FramePacket.Sprites` (visible chunks) |
+| 2 | `SpriteRender` | `Transform2D`, `SpriteRenderer`, `Parallax`? | `FramePacket.Sprites` |
+| 3 | `LightRender` | `Transform2D`, `LightEmitter` | `FramePacket.Lights`, shadow maps |
 
 ---
 
@@ -560,17 +601,21 @@ query object is stack-allocated and performs no heap allocation.
 
 ```cpp
 world.Query<Transform2D, SpriteRenderer>()
-     .Each([](Entity e, Transform2D& t, SpriteRenderer& s) { ... });
+     .ForEach([](Entity e, Transform2D& t, SpriteRenderer& s) { ... });
 ```
+
+The callback takes the components in order, optionally after the `Entity`.
+Inside it, don't create or destroy entities or add / remove components (it
+asserts): collect them and change the world after `ForEach` returns. Reading
+and writing component values, `GetComponent` and nested queries are fine.
 
 ### Read-only access
 
-Passing `const T` in the template signals read-only intent; the implementation
-provides a `const T&` reference and may skip write-back in future SIMD paths.
+Passing `const T` hands the callback a `const T&`:
 
 ```cpp
 world.Query<const Transform2D, SpriteRenderer>()
-     .Each([](const Transform2D& t, SpriteRenderer& s) { ... });
+     .ForEach([](const Transform2D& t, SpriteRenderer& s) { ... });
 ```
 
 ### Exclusion filter
@@ -578,7 +623,7 @@ world.Query<const Transform2D, SpriteRenderer>()
 ```cpp
 world.Query<Transform2D, FreeMovement>()
      .Without<Disabled>()
-     .Each(...);
+     .ForEach(...);
 ```
 
 ### Tag filter
@@ -591,7 +636,7 @@ per-frame inner loops.
 ```cpp
 world.Query<Transform2D>()
      .WithTag("Enemy")
-     .Each([](Entity e, Transform2D& t) { ... });
+     .ForEach([](Entity e, Transform2D& t) { ... });
 ```
 
 For high-frequency filtering (e.g. "all active enemies each tick"), prefer a
@@ -607,17 +652,20 @@ bitmask with zero per-entity branching.
 
 ```
 [fixed tick]
+  input edges, a waiting conversation starts (docs/dialog.md)
   Application::OnUpdate(dt)
-  SceneManager::Update(dt)        — fades, and a pending swap
-  Scene::Update(dt)               — the active scene
-    → Scene::OnUpdate(dt), the camera, then the World's update systems in order
+  SceneManager::Update(dt)        - fades, and a pending swap
+  Scene::Update(dt)               - the active scene:
+    Scene::OnUpdate, interaction (Interactor), scripts' OnUpdate,
+    the camera, then the World's update systems in order
+  EventBus::Flush                 - this tick's events delivered
   UIManager::Update(dt)
 
-[variable tick]
+[every frame]
   FramePacket packet = ...
   Application::OnRender(packet)
   Scene::CollectRenderData(packet)
-    → Scene::OnRender(packet), then the World's render systems in order
+    -> Scene::OnRender(packet), then the World's render systems in order
   scene fade quad, UI
   RenderThread::SubmitFrame(packet)
 ```
@@ -625,8 +673,8 @@ bitmask with zero per-entity branching.
 The app-level `OnUpdate(dt)` and `OnRender(packet)` hooks run **before** the
 scene, for global work (input actions, debug overlays); per-scene logic goes in
 the scene's own hooks. While a game-blocking UI screen is up (the splash), the
-game and scene steps are skipped. Only the top scene of the stack is updated
-and drawn.
+game and scene steps are skipped; a conversation with `"world": "pause"` skips
+the scene update. Only the top scene of the stack is updated and drawn.
 
 ---
 
@@ -645,183 +693,35 @@ generational `Entity` handles, and `FileScene` keeps an id -> `Entity` table
 
 ```
 engine/include/arcbit/ecs/
-    Entity.h      — Entity handle
-    World.h       — World, archetype internals, ComponentTypeID, OnRemove hooks
-    Query.h       — Query<Ts...> template, WithTag(), Without<T>()
-    System.h      — SystemRegistry, RegisterSystem / RegisterRenderSystem
-    Components.h  — Transform2D, SpriteRenderer, LightEmitter, Parallax,
-                    CameraTarget, Disabled, Lifetime, Name, Tag
-    Movement.h    — MoveIntent, InputMovement, AIMovement, FreeMovement,
-                    SmoothTileMovement, SnapTileMovement, PendingMove
+    Entity.h               - the Entity handle
+    World.h                - World, queries (QueryView: ForEach, Without, WithTag),
+                             systems (RegisterSystem / RegisterRenderSystem),
+                             OnAdd / OnRemove / OnDestroy hooks
+    Components.h           - Transform2D, Tag, Name, SpriteRenderer, LightEmitter,
+                             Parallax, CameraTarget, Disabled, Lifetime, Animator,
+                             FacingAnimation, AudioSource, EntityEvents
+    Movement.h             - MoveIntent, InputMovement, AIMovement, FreeMovement,
+                             SmoothTileMovement, SnapTileMovement, Pushable,
+                             PendingMove, Held
+    AnimatorStateMachine.h - AnimatorStateMachine
+    Interaction.h          - Interactor, Interactable, FindInteractTarget
 
 engine/include/arcbit/scene/
-    Scene.h          — Scene class (owns World, Camera2D, WorldConfig, TileMap, PhysicsWorld)
-    WorldConfig.h    — WorldConfig struct
-    SceneManager.h   — scene stack, switching, fades, loading ahead (scenes.md)
-    ScenePreloader.h — what OnPrepare names for background decoding; load progress
-    FileScene.h      — a scene built from an .arcscene file
-    SceneFile.h      — .arcscene load / save
-    SceneRegistry.h  — component name <-> type <-> JSON, named systems
-    SceneAssets.h    — asset path <-> handle for scene files
+    Scene.h          - Scene (owns World, Camera2D, WorldConfig, TileMap, PhysicsWorld)
+    WorldConfig.h    - WorldConfig
+    SceneManager.h   - scene stack, switching, fades, loading ahead (scenes.md)
+    ScenePreloader.h - what OnPrepare names for background decoding; load progress
+    FileScene.h      - a scene built from an .arcscene file
+    SceneFile.h      - .arcscene load / save
+    SceneRegistry.h  - component name <-> type <-> JSON, named systems
+    SceneAssets.h    - asset path <-> handle for scene files
 
 engine/src/
-    World.cpp     — World implementation (archetype management, entity table)
-    Systems.cpp   — built-in system implementations (all systems listed above)
-    Movement.cpp  — ResolveInputDirection (input → direction, tie-break)
-    Scene.cpp     — Scene::Update, Scene::CollectRenderData
+    World.cpp      - archetypes, the entity table
+    Systems.cpp    - the built-in systems listed above
+    Movement.cpp   - ResolveInputDirection (input -> direction, tie-break), Hold / Release
+    Interaction.cpp, AnimatorStateMachine.cpp
+    Scene.cpp      - Scene::Update, Scene::CollectRenderData
     SceneManager.cpp, ScenePreloader.cpp, FileScene.cpp, SceneFile.cpp,
     SceneRegistry.cpp, SceneComponents.cpp (built-in component serializers)
 ```
-
----
-
-## Migration: Current Demo → ECS
-
-The current `main.cpp` demo manually fills `_sprites` and `_lights` vectors and
-culls them by hand in `OnRender`. After this phase it migrates to:
-
-1. ✓ Create entities with `Transform2D + SpriteRenderer` for each sprite.
-2. ✓ Create entities with `Transform2D + LightEmitter` for each light source.
-3. ✓ WASD movement goes through `InputMovement` + `MoveIntent` (Phase 22H).
-4. ✓ Delete `_sprites`, `_lights`, and the manual cull loops — `SpriteRenderSystem`
-   and `LightRenderSystem` handle everything.
-5. ✓ The `Camera2D` moves from being a game-owned member to `scene.GetCamera()`.
-
-The demo can migrate incrementally: manual sprites and ECS sprites both feed
-into `FramePacket.Sprites` and are rendered identically.
-
----
-
-## Entity Templates
-
-An **Entity Template** (also called a Component Group in editor parlance) is a
-named, serialized description of an entity's initial component set and default
-values. It is the ECS equivalent of a prefab — a reusable starting point for
-creating entities with a known configuration.
-
-### Why "Entity Template" not "Component Group"
-
-"Component group" risks confusion with ECS query filters (`.Query<A, B, C>()` is
-already a kind of component group). "Entity Template" is unambiguous: it is a
-template for an entity, not a filter over components.
-
-### Two uses
-
-**Editor** — the "New Entity" workflow shows a template picker. Selecting
-`"Guard NPC"` creates an entity pre-populated with `SpriteRenderer`, `Animator`,
-`AIBehavior`, and `ScriptComponent(guard.lua)` rather than requiring the designer
-to add and configure each component manually.
-
-**Runtime** — `World::SpawnFromTemplate(name, position)` lets game code spawn
-entities without hard-coding component setup inline. Enemy wave spawners,
-projectile factories, and loot drops all benefit from this.
-
-### What a template is not
-
-Applying a template is a **one-time stamp** — there is no live link back to the
-template definition afterward. Changing the template does not retroactively
-update existing entities. This is simpler than Unity's prefab override system and
-is the right tradeoff for Phase 19: the editor can batch-update entities by query
-if needed, and a live-link system can be added later without breaking the format.
-
-### Definition format
-
-Templates are stored in a `templates.json` file in the project directory
-(referenced by `project.arcbit`). Each template lists component types and their
-serialized initial values:
-
-```json
-{
-    "version": "1.0",
-    "templates": [
-        {
-            "name": "Guard NPC",
-            "tag": "NPC",
-            "components": [
-                {
-                    "type": "SpriteRenderer",
-                    "texture": "assets/textures/guard.png",
-                    "layer": 0
-                },
-                {
-                    "type": "Animator",
-                    "sheet": "assets/spritesheets/guard.json",
-                    "default_clip": "idle_down"
-                },
-                {
-                    "type": "AIBehavior",
-                    "behavior": "patrol",
-                    "alert_radius": 128.0
-                },
-                {
-                    "type": "ScriptComponent",
-                    "script": "scripts/guard.lua"
-                }
-            ]
-        },
-        {
-            "name": "Chest",
-            "tag": "Interactive",
-            "components": [
-                {
-                    "type": "SpriteRenderer",
-                    "texture": "assets/textures/chest.png",
-                    "layer": 0
-                },
-                {
-                    "type": "Interactable",
-                    "on_interact": "scripts/open_chest.lua"
-                }
-            ]
-        }
-    ]
-}
-```
-
-### Runtime API
-
-```cpp
-// Spawn an entity from a template at the given world position.
-// Returns Entity::Invalid() if the template name is not found.
-Entity World::SpawnFromTemplate(std::string_view templateName, Vec2 position);
-
-// Register templates at startup (called by Application after OnStart).
-void World::LoadTemplates(std::string_view path);
-```
-
-`SpawnFromTemplate` creates the entity, sets `Transform2D.Position`, and applies
-each component listed in the template with its default values. Game code then
-modifies the entity normally — the template has no further influence.
-
-```cpp
-// Spawn a guard at a patrol waypoint:
-Entity guard = world.SpawnFromTemplate("Guard NPC", waypointPos);
-world.GetComponent<AIBehavior>(guard)->PatrolPath = myPath;
-```
-
-### Editor workflow
-
-1. Open **Templates** panel — lists all templates in `templates.json`.
-2. Drag a template onto the scene viewport — snaps to tile grid, creates entity
-   at that position with all listed components.
-3. Select an existing entity — "Save as Template" button extracts its current
-   component set into a new template entry (useful for capturing a configured NPC
-   you want to reuse).
-4. Edit a template's default values — changes affect new spawns only (no
-   retroactive update, by design).
-
-### Template inheritance (deferred)
-
-A future extension can add `"extends": "Base NPC"` so templates compose rather
-than copy. Deferred until Phase 26+ when the scripting layer makes cross-template
-component sharing practical.
-
----
-
-## Out of Scope for This Phase
-
-- Lua scripting of entities (Phase 26)
-- Physics integration — `Rigidbody2D`, `Collider2D` (Phase 22)
-- Animation system — `Animator` component, clip playback (Phase 17)
-- `AudioSource` component (Phase 18)
-- Editor integration — entity inspector, UUID generation, scene file authoring (Phase 40)

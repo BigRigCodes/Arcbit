@@ -1,407 +1,148 @@
-# Arcbit Tilemap System — Design Document
+# Tilemaps
 
-Phase 19 of the Arcbit blueprint. This document covers the full architecture of
-the tilemap system: tile definitions, chunk storage, the tile atlas file format,
-the map file format, the render pipeline, camera culling, multiple layers, light
-layers, the tile occlusion grid, and shadow casting.
+A scene's ground, walls and scenery are a `TileMap`: chunks of tile ids in
+three layers, drawn through the sprite batcher, colliding through the physics
+tile rectangles (`docs/physics.md`) and casting shadows from the lights that ask
+for them. Tile types come from atlases - a texture plus a `.tileatlas.json` of
+per-tile properties - and a map is saved as an `.arcmap`.
 
----
-
-## Goals
-
-- Represent arbitrarily large worlds without loading everything into memory.
-- Render only what is visible, using the existing sprite batcher.
-- Support three logical layers (ground / objects / overlay) that interleave
-  correctly with entity sprites via Y-sorting.
-- Animate large-area tiles via two modes: **UV scroll** (water, lava — continuous
-  texture flow) and **flip-book** (coins, status effects — discrete frame swap);
-  specific props (campfires, torches) are ECS entities.
-- Drive the point-light shadow system via a per-frame GPU occlusion texture built
-  from `light_blocking` tile flags.
+Source: `engine/include/arcbit/tilemap/` (`TileMap.h`, `TileDef.h`,
+`TileAtlas.h`), `engine/src/TileMap.cpp`, `TileAtlas.cpp`, and the
+`TilemapRender` / `LightRender` systems in `Systems.cpp`.
 
 ---
 
-## Core Concepts
+## Tile ids and atlases
 
-### Tile ID
-
-A `u32` where `0` means **empty** (no tile — transparent, passable, non-blocking).
-IDs `>= 1` reference entries in the `TileDef` table loaded from a `TileAtlas`.
-IDs are assigned left-to-right, top-to-bottom from the atlas texture, 1-indexed:
+A tile id is a `u32`; `0` is **empty** (transparent, passable, blocks
+nothing). A map can use several atlases, each owning a contiguous id range from
+its `base_id`:
 
 ```
-Atlas texture (4 columns × 2 rows):
-  ID 1  ID 2  ID 3  ID 4
-  ID 5  ID 6  ID 7  ID 8
+grass atlas, base_id 1    ids 1 .. 400
+water atlas, base_id 401  ids 401 ..
 ```
 
-### TileDef
+Within an atlas, a tile's `local_id` counts its cells from 0, left to right then
+top to bottom, so its id is `base_id + local_id`. Every cell of an atlas is a
+tile; only tiles with properties need an entry in the atlas file.
 
-The static definition for one tile type — immutable after atlas load:
+---
+
+## TileDef
+
+The properties of one tile id:
 
 ```cpp
 struct TileAnimFrame
 {
-    u32 TileId     = 0;   // which tile ID to display for this frame
-    u32 DurationMs = 200; // how long to show it
+    u32 TileX      = 0;   // atlas cell shown for this frame
+    u32 TileY      = 0;
+    u32 DurationMs = 150;
 };
 
 struct TileDef
 {
-    u32         Id            = 0;
-    std::string Name;          // human-readable; used in editor and Lua
-    bool        Solid         = false; // blocks entity movement (NavGrid)
-    bool        LightBlocking = false; // blocks light ray-march (shadow casting)
-    bool        Interactable  = false; // can fire OnInteract (Phase 31)
+    bool Solid       = false; // blocks movement (feeds the tile colliders)
+    bool BlocksLight = false; // casts shadows - independent of Solid
+    bool Flat        = false; // an Objects-layer tile that always sorts below entities (sticks, leaves, decals)
 
-    // --- Animation (mutually exclusive — use one mode or neither) -----------
+    std::vector<TileAnimFrame> Animation; // flip-book frames; empty = none
+    Vec2 UVScroll = {};                    // UV offset per second; continuous flow
 
-    // Flip-book: cycle through discrete tile IDs on a timer.
-    // Use for: coins spinning, status effects, anything with distinct visual states.
-    // Position-based phase offset is applied automatically (see Animated Tiles).
-    std::vector<TileAnimFrame> Animation;
-
-    // UV scroll: continuously offset the sampling UV over time.
-    // Use for: water, lava, conveyor belts, flowing rivers.
-    // Units: UV space per second — 0.1 scrolls one full texture width in 10 s.
-    // The source tile must be seamlessly tileable for this to look correct.
-    Vec2 UVScroll = { 0.0f, 0.0f };
+    std::vector<DirectionArc> BlockedFrom = {};                   // empty = blocks from every direction
+    u32                       Layer       = CollisionLayers::Wall; // collision layer
 };
 ```
 
-### TileLayer
-
-Three named layers, rendered in order from bottom to top:
-
-```cpp
-enum class TileLayer : u32
-{
-    Ground  = 0, // terrain, floor, water
-    Objects = 1, // walls, furniture, tree trunks — Y-sorted with entities
-    Overlay = 2, // tree canopies, rooftops — always above everything
-    Count   = 3
-};
-```
-
-Ground and Overlay use fixed sprite layer integers. Objects tiles and all entity
-sprites share a **Y-sorted band** so that tall props (tree trunks, fences, walls)
-and moving characters depth-sort correctly against each other:
-
-| Layer | Sort key | Examples |
-|-------|----------|---------|
-| Ground | Fixed: −100 | Grass, stone floor, water, paths |
-| Objects | **Y position of tile bottom edge** | Tree trunks, walls, furniture, NPCs, player |
-| Overlay | Fixed: +100 | Tree canopies, rooftops, flying effects |
-
-See **Y-Sorting and Entity Depth** below for the full rationale and sort key formula.
+`TileMap::FindTileDef(id)` returns it (null for a tile without properties),
+and `IsSolid(x, y)` / `BlocksLight(x, y)` check every layer at a cell.
 
 ---
 
-## Animated Tiles
+## Layers and draw order
 
-### Three categories, three solutions
+Three layers, stored together in each chunk:
 
-| Category | Examples | Solution |
-|----------|----------|----------|
-| Continuous flowing tiles | Ocean water, lava, river, conveyor belts | UV scroll on `TileDef` |
-| Discrete state tiles | Coins spinning, blinking lights, tide pools | Flip-book on `TileDef` |
-| Specific interactive props | Campfires, torches, waterfalls, animated chests | ECS entity (SpriteRenderer + Animator) |
+| Layer | Holds | Sorted at |
+|-------|-------|-----------|
+| `Ground` (0) | terrain, floors, water, paths | `-1000000` - behind everything |
+| `Objects` (1) | trunks, walls, furniture | the tile's bottom edge (world Y), so it sorts with characters; a `Flat` tile at `-999999` |
+| `Overlay` (2) | canopies, rooftops | `1000000` - in front of everything |
 
-The dividing line between the two tile modes: if the animation looks like the
-**texture itself is moving** (waves flowing, lava churning), use UV scroll. If it
-looks like the tile is **cycling through distinct states** (coin face → edge →
-back), use flip-book. If the object emits light, plays sounds, or reacts to
-interaction, it should be an entity regardless.
+Sprites draw in ascending `Layer`. An Objects tile's layer is the world Y of its
+bottom edge, so a character drawn with **its own feet's Y as its layer** sorts
+against them: above a trunk it's covered by it, below it covers it. A tree
+splits across the layers - canopy in Overlay, trunk in Objects, roots in Ground.
 
-### UV scroll animation
-
-UV scroll is the right mode for water, lava, and anything designed as a
-seamlessly tiling texture that flows continuously. Instead of swapping tile IDs,
-the renderer adds a time-based offset to the UV coordinates before sampling —
-the texture glides across the quad with no frame boundaries and no visual pop.
-
-```json
-{ "id": 5, "name": "ocean_water", "uv_scroll": { "x":  0.04, "y":  0.02 } },
-{ "id": 6, "name": "river",       "uv_scroll": { "x":  0.08, "y":  0.0  } },
-{ "id": 7, "name": "lava",        "uv_scroll": { "x": -0.03, "y":  0.03 } }
-```
-
-The diagonal scroll on ocean water (`x` and `y` both non-zero) is intentional —
-pure horizontal scroll looks mechanical; a slight vertical component makes the
-surface feel alive.
-
-The renderer applies it at submission time with no per-tile state:
-
-```cpp
-UVRect uv = _atlas.GetUV(tileId);
-if (def->UVScroll.X != 0.0f || def->UVScroll.Y != 0.0f)
-{
-    const f32 offsetU = std::fmod(elapsedSeconds * def->UVScroll.X, 1.0f);
-    const f32 offsetV = std::fmod(elapsedSeconds * def->UVScroll.Y, 1.0f);
-    uv.U0 += offsetU; uv.U1 += offsetU;
-    uv.V0 += offsetV; uv.V1 += offsetV;
-}
-```
-
-**The source tile must tile seamlessly** — if there is a hard edge at the tile
-boundary the scroll will expose it as a repeating seam. Water tiles designed for
-RPG tilesets (like the Water+ sheet) are almost always seamlessly tileable by
-design.
-
-All tiles of the same ID scroll at the same phase — there is no per-tile offset
-for UV scroll (unlike flip-book below). This is correct: you want all ocean tiles
-to flow in the same direction at the same rate, like a real body of water.
-
-### Flip-book animation
-
-The `TileDef::Animation` array lists frames with per-frame durations. The
-renderer maintains a global elapsed-milliseconds counter and resolves the current
-frame at render time with no per-tile state:
-
-```json
-{
-    "local_id": 12,
-    "animation": [
-        { "local_id": 12, "duration_ms": 120 },
-        { "local_id": 13, "duration_ms": 80  },
-        { "local_id": 14, "duration_ms": 120 },
-        { "local_id": 13, "duration_ms": 80  }
-    ]
-}
-```
-
-Each frame names a cell of the same atlas by `local_id`, like the rest of the
-atlas file. Placing the tile's own ID in the map plays the whole sequence; the
-frame cells don't need to be placed anywhere. The shipped example is the
-whirlpool in `water.tileatlas.json` (local IDs 156–157), shown in `TriggerDemo`.
-
-#### Phase offset for variation
-
-If all tiles of the same type animate from the same global clock they march in
-lockstep, which looks artificial for things like tide pools or blinking gems. A
-position-based hash offsets each tile's phase with no per-tile storage:
-
-```cpp
-u32 ResolveTileId(const TileDef& def, i32 tileX, i32 tileY, u64 elapsedMs)
-{
-    if (def.Animation.empty()) return def.Id;
-
-    u32 totalMs = 0;
-    for (const auto& f : def.Animation) totalMs += f.DurationMs;
-
-    // Deterministic phase offset from tile position.
-    const u32 phaseMs = static_cast<u32>((tileX * 37u + tileY * 53u) % totalMs);
-    u32 t = static_cast<u32>((elapsedMs + phaseMs) % totalMs);
-
-    for (const auto& f : def.Animation)
-    {
-        if (t < f.DurationMs) return f.TileId;
-        t -= f.DurationMs;
-    }
-    return def.Id;
-}
-```
-
-The constants 37 and 53 are arbitrary primes that spread tile coordinates across
-the cycle. UV scroll tiles intentionally skip this offset — all water tiles flow
-together.
-
-### Entity-based animated props
-
-Campfires, torches, waterfalls, and animated chests are ECS entities placed at
-tile-grid positions. The editor places them via the Tile Object stamp mechanism
-(an `interactable` or special-tag cell triggers entity placement). At runtime
-they are fully normal entities:
-
-```
-campfire entity:
-  Transform2D   — snapped to tile center
-  SpriteRenderer — flame sprite sheet
-  Animator       — cycles flame frames
-  LightEmitter   — flickering warm light, LightLayer::World
-  AudioSource    — crackling fire loop, Radius = 200
-```
-
-The tilemap has no knowledge of these entities. The editor records them in the
-scene's entity list alongside NPCs and the player.
+Entity sprites don't do this by themselves: `SpriteRenderer.Layer` is fixed
+until something sets it. A character that walks among Objects tiles sets its
+layer to its feet's Y as it moves (the World demo's player does each tick:
+`sr->Layer = static_cast<i32>(position.Y + scale.Y * 0.5f)`).
 
 ---
 
-## Y-Sorting and Entity Depth
+## Animated tiles
 
-### The problem
+| Kind | Examples | How |
+|------|----------|-----|
+| Continuous flow | ocean, lava, rivers, conveyors | `uv_scroll` on the tile |
+| Discrete states | spinning coins, blinking lights, a whirlpool | `animation` (flip-book) on the tile |
+| Props that do more | campfires, torches, chests | an entity: `SpriteRenderer` + `Animator` (+ light, sound, script) |
 
-A tree trunk occupies the Objects layer. A player character is an ECS entity.
-Both need to depth-sort against each other: when the player stands above the
-trunk they should appear in front of it; when below it, behind it. A fixed sprite
-layer integer cannot express this — it is either always in front or always behind.
+If the texture itself seems to move, scroll it; if the tile cycles between
+distinct pictures, flip-book it; if it lights, sounds or reacts, make it an
+entity.
 
-### The solution: sort by Y position of the bottom edge
+**UV scroll** offsets the tile's UVs by `elapsed * uv_scroll` (wrapped), so a
+seamlessly tiling texture glides with no frame boundaries. Every tile of an id
+scrolls in phase - all the water flows together. The texture must tile
+seamlessly, or the scroll exposes a repeating seam; a slight diagonal scroll
+looks less mechanical than a pure horizontal one.
 
-Everything in the Objects band — both Objects-layer tile quads and entity sprites
-— uses the **world-space Y coordinate of its bottom edge** as its sort key within
-the band. Things higher on screen (smaller Y, farther away in top-down
-perspective) render first and get covered by things lower on screen.
+**Flip-book** frames name cells of the same atlas, with durations. Placing the
+tile's id plays the sequence - the frame cells needn't be placed anywhere. Each
+tile's phase is offset by its position (`(x * 37 + y * 53) % cycle`), so a
+field of them doesn't blink in lockstep. A tile with both uses the flip-book.
+The shipped example is the whirlpool in `water.tileatlas.json`, in the
+Triggers demo.
 
-```
-Sort key = Y_bottom_edge_in_world_space
-         = tile: (tileY + 1) * tileSize          (bottom edge of tile cell)
-         = entity: Transform2D.Position.Y          (pivot is at feet for characters)
-```
-
-The sprite batcher sorts all submissions within the Objects band by this key
-before drawing. Ground and Overlay tiles bypass the sort entirely and use their
-fixed layer integers.
-
-### Why this works for Tile Objects
-
-The tree design splits correctly across layers:
-
-```
-[ canopy  ]  → Overlay (+100 fixed) — always renders above everything
-[ trunk   ]  → Objects (Y-sorted)   — sorts with the player naturally
-[ roots   ]  → Ground  (−100 fixed) — always renders below everything
-```
-
-When the player is above the trunk (player Y < trunk Y):
-- Player's sort key < trunk's sort key → player renders first → trunk covers player ✓
-
-When the player is below the trunk (player Y > trunk Y):
-- Player's sort key > trunk's sort key → trunk renders first → player covers trunk ✓
-
-### NPCs and animals
-
-NPCs, animals, and all other moving characters are ECS entities with
-`SpriteRenderer` at the default layer 0. Layer 0 falls inside the Objects Y-sort
-band. They automatically depth-sort against Objects-layer tiles and against each
-other. **No 4th tilemap layer is needed** — the three existing layers combined
-with Y-sorting handle all depth relationships correctly.
-
-### Implementation note
-
-The sprite batcher's sort needs to understand the two-level sort key:
-`(band, Y_within_band)`. A practical encoding:
-
-```cpp
-// Packs a band integer and a Y position into a single f32 sort key.
-// Ground = −100, Objects = Y-position mapped to [−9, +9], Overlay = +100.
-f32 SpriteLayer(i32 band, f32 worldY)
-{
-    if (band != 0) return static_cast<f32>(band); // Ground or Overlay: fixed
-    // Objects band: scale worldY into a narrow range that stays between −10 and +10.
-    return worldY * 0.0001f; // at 10 000 world units tall, still fits in the band
-}
-```
-
-The exact encoding is an implementation detail of `SpriteRenderSystem` and the
-batcher. The important contract is that everything in the Objects band is sorted
-by Y, and Ground/Overlay tiles are not.
+Neither mode keeps per-tile state: both resolve from a global clock as the
+tile is drawn.
 
 ---
 
-## Data Model
+## Chunks and the TileMap
 
-### TileChunk
-
-A fixed-size 16 × 16 block of tiles, storing one `u32` tile ID per cell per layer.
-All three layers are stored together so a single chunk load covers the full stack.
-
-```cpp
-struct TileChunk
-{
-    static constexpr i32 Size = 16;
-
-    // [layer][y * Size + x]; 0 = empty
-    u32 Tiles[static_cast<u32>(TileLayer::Count)][Size * Size] = {};
-};
-```
-
-Chunk memory per chunk: `3 × 256 × 4 bytes = 3 KB`. A 100 × 100 tile map
-occupies roughly 7 × 7 = 49 chunks ≈ 147 KB — trivially small.
-
-### TileMap
-
-Owns all chunks and exposes the tile access API. Chunks are allocated on demand
-and keyed by a packed 64-bit coordinate so the world is effectively infinite.
+The map is a sparse grid of 16x16 chunks, keyed by chunk coordinate, so it's
+effectively unbounded; a chunk holds one id per cell per layer (3 KB). Chunks
+are created as tiles are set; cells outside every chunk are empty.
 
 ```cpp
-class TileMap
-{
-public:
-    // --- Asset loading ------------------------------------------------------
-    void LoadAtlas(std::string_view path);              // parse TileAtlas JSON
-    void LoadMap(std::string_view path);                // parse .arcmap JSON
-    void SaveMap(std::string_view path) const;
-
-    // --- Tile access --------------------------------------------------------
-    u32  GetTile(i32 tileX, i32 tileY, TileLayer layer) const;
-    void SetTile(i32 tileX, i32 tileY, TileLayer layer, u32 tileId);
-
-    // --- Property helpers ---------------------------------------------------
-    bool IsSolid(i32 tileX, i32 tileY) const;         // any layer solid?
-    bool IsLightBlocking(i32 tileX, i32 tileY) const; // any layer blocking?
-
-    // --- Coordinate conversion ----------------------------------------------
-    Vec2 TileToWorld(i32 tileX, i32 tileY) const;     // returns tile center
-    void WorldToTile(Vec2 pos, i32& outX, i32& outY) const;
-
-    // --- Lookup -------------------------------------------------------------
-    const TileDef* GetTileDef(u32 tileId) const;
-
-    f32 GetTileSize() const { return _tileSize; }
-
-private:
-    // Chunk key: upper 32 bits = chunkY, lower 32 bits = chunkX (signed cast to u32).
-    static u64 ChunkKey(i32 cx, i32 cy);
-
-    TileChunk&       GetOrCreateChunk(i32 cx, i32 cy);
-    const TileChunk* FindChunk(i32 cx, i32 cy) const;
-
-    std::unordered_map<u64, TileChunk> _chunks;
-    TileAtlas                          _atlas;
-    f32                                _tileSize = 16.0f;
-};
+TileMap& map = scene.GetTileMap();
+map.SetTile(x, y, 1, treeTrunkId);           // layer 0 Ground, 1 Objects, 2 Overlay
+const u32  id    = map.GetTile(x, y, 0);
+const Vec2 world = map.TileToWorld(x, y);    // the tile's centre
+map.WorldToTile(world, x, y);
 ```
 
-Tile → chunk mapping:
+Tile coordinates map to chunks with floor division, so negative tiles land in
+negative chunks. Tile `t`'s centre is at `t * tileSize`, and it spans half a
+tile either side.
 
-```
-chunkX = floor(tileX / ChunkSize)   (integer division, rounds toward −∞)
-chunkY = floor(tileY / ChunkSize)
-localX = tileX - chunkX * ChunkSize
-localY = tileY - chunkY * ChunkSize
-```
+Setting a tile rebuilds that chunk's collision rectangles. Once a scene has
+loaded, the map records the tiles that change (`BeginTrackingChanges` /
+`GetChanges`), which is how a save keeps a dug hole or an opened gate
+(`docs/saves.md`).
 
-Use `std::floor` on the tile coordinate divided by `ChunkSize` so negative tile
-indices map correctly to negative chunk coordinates rather than rounding toward 0.
-
-### TileAtlas
-
-Loaded once per map; holds the texture handle, UV table, and TileDef array.
-
-```cpp
-struct TileAtlas
-{
-    TextureHandle            Texture;
-    SamplerHandle            Sampler;
-    i32                      TileWidth  = 16;
-    i32                      TileHeight = 16;
-    i32                      Columns    = 0;  // texture width / TileWidth
-    std::vector<TileDef>     Defs;            // index = id - 1 (id 0 is empty)
-
-    // Returns nullptr for id == 0 or id out of range.
-    const TileDef* GetDef(u32 id) const;
-
-    // UV rect for tile id (top-left origin, normalised 0–1).
-    UVRect GetUV(u32 id) const;
-};
-```
+Atlases are registered before tiles that use them: `LoadMap` does it from the
+map file; code can call `LoadAtlasJson(baseId, path, ...)` or `RegisterAtlas`.
 
 ---
 
-## File Formats
+## File formats
 
-### TileAtlas JSON (`.tileatlas.json`)
+### Atlas (`.tileatlas.json`)
 
 ```json
 {
@@ -412,31 +153,27 @@ struct TileAtlas
     "tiles": [
         { "local_id": 7,  "uv_scroll": { "x": 0.08, "y": 0.04 }, "blocks_light": true },
         { "local_id": 12, "solid": true, "layer": 32, "blocked_from": [ { "center": -90, "half_width": 90 } ] },
-        { "local_id": 30, "flat": true }
+        { "local_id": 30, "flat": true },
+        { "local_id": 156, "animation": [ { "local_id": 156, "duration_ms": 200 }, { "local_id": 157 } ] }
     ]
 }
 ```
 
-Parsed by `TileMap::LoadAtlasJson` (file + texture) and `TileMap::ParseTileDef`
-(one `tiles` entry → `TileDef`). Only tiles with non-default properties need an
-entry; every other cell of the atlas is a plain, non-solid tile.
-
 | Key            | Type                          | Default  | Meaning |
 |----------------|-------------------------------|----------|---------|
-| `local_id`     | integer                       | required | Cell index within this atlas; the registered tile ID is `base_id + local_id` |
+| `local_id`     | integer                       | required | The cell; the tile's id is `base_id + local_id` |
 | `solid`        | bool                          | `false`  | Blocks movement (feeds the greedy-meshed tile colliders) |
 | `blocks_light` | bool                          | `false`  | Casts shadows |
 | `flat`         | bool                          | `false`  | Objects-layer tile that always sorts below entities |
-| `uv_scroll`    | `{ "x", "y" }`                | `0, 0`   | Continuous UV offset per second |
+| `uv_scroll`    | `{ "x", "y" }`                | `0, 0`   | UV offset per second |
 | `layer`        | integer bitmask               | `Wall`   | Collision layer (`CollisionLayers.h` bit values) |
 | `blocked_from` | `[{ "center", "half_width" }]` | `[]`     | Directional arcs in degrees; empty = blocks from every direction |
 | `animation`    | `[{ "local_id", "duration_ms" }]` | `[]` | Flip-book frames (cells of this atlas); `duration_ms` defaults to 150 |
 
-Flip-book frames are converted to atlas grid cells using the atlas's column and
-row count; a frame without a `local_id` or outside the atlas is dropped with a
-warning. If a tile has both `animation` and `uv_scroll`, the flip-book wins.
+A flip-book frame without a `local_id`, or outside the atlas, is dropped with a
+warning.
 
-### Map File (`.arcmap`)
+### Map (`.arcmap`)
 
 ```json
 {
@@ -457,422 +194,43 @@ warning. If a tile has both `animation` and `uv_scroll`, the flip-book wins.
 }
 ```
 
-`TileMap::SaveMap` writes this (via `ToJson`); `TileMap::LoadMap` loads each atlas,
-then applies `tile_size` and the chunks via `LoadTilesFromJson`. Each layer array is
-row-major with `ChunkSize × ChunkSize = 256` tile IDs — the writer always emits all
-256. On load a missing layer is empty and a shorter array leaves the remaining cells
-empty, but any chunk with more than 256 entries, a negative or non-integer ID, or
-non-integer `x` / `y` rejects the whole file without modifying the map.
-Chunks absent from the file have all tiles = 0 (empty); the world outside is
-implicitly empty.
+`TileMap::SaveMap` writes it; `LoadMap` loads each atlas, then the tile size and
+the chunks. Each layer array is row-major, 16 x 16 = 256 ids, and the writer
+always writes all 256. On load a missing layer is empty and a short array
+leaves the rest empty; a chunk with more than 256 ids, a negative or
+non-integer id, or non-integer `x` / `y` rejects the whole file, leaving the
+map untouched.
+
+A scene file names its map (`"tilemap"`) and can change tile properties for that
+scene only (`"tile_overrides"`); entities live in the scene file, not the map,
+so one map can back several scenes ([scenes.md](scenes.md)). The scene's
+`config.tile_size` is the map's tile size too.
 
 ---
 
-## Tile Objects
+## Rendering
 
-A **Tile Object** is a named, multi-cell, multi-layer tile template — a tree
-that is 1 tile wide and 2 tiles tall, a house that spans 6 × 4 tiles across
-two layers, a bridge that occupies the Ground and Objects layers simultaneously.
+`TilemapRender` is the first render-collect system, ahead of entity sprites. It
+walks only the chunks the camera can see, skips tiles outside the view, resolves
+each visible tile's UVs (flip-book frame, UV scroll) and pushes it into the
+frame's sprite list with its layer (above). Tiles go through the same batched
+sprite renderer as everything else - no separate pipeline. The debug overlay
+counts chunks and tiles drawn.
 
-### Runtime vs. editor
-
-Tile Objects exist **only at editor time**. When the editor stamps a Tile Object
-onto the map it writes the individual tile IDs into the affected chunk cells
-exactly as if you had painted them by hand. The saved `.arcmap` contains only
-tile IDs — there is no runtime concept of "this collection of tiles is a tree."
-This keeps the runtime simple and makes map serialization a flat array.
-
-The one exception: if a Tile Object contains a tile cell marked `interactable`,
-the editor additionally places an **entity** (ECS) at that cell's world position
-with the relevant components (e.g., a `DoorTrigger` script). That entity *is* a
-runtime concept, stored in the scene's entity list rather than the tile data.
-
-### Definition
-
-Tile Objects are defined in the tileatlas JSON under an `"objects"` key, since
-every cell references tile IDs from that same atlas:
-
-```json
-{
-    "version": "1.0",
-    "texture": "overworld_tiles.png",
-    "tile_width": 16,
-    "tile_height": 16,
-    "tiles": [ ... ],
-
-    "objects": [
-        {
-            "name": "oak_tree",
-            "anchor": { "x": 0, "y": 1 },
-            "cells": [
-                { "dx": 0, "dy":  0, "layer": "overlay",  "tile": 12 },
-                { "dx": 0, "dy":  1, "layer": "objects",  "tile": 11, "solid": true, "light_blocking": true }
-            ]
-        },
-        {
-            "name": "small_house",
-            "anchor": { "x": 1, "y": 3 },
-            "cells": [
-                { "dx": 0, "dy": 0, "layer": "overlay",  "tile": 20 },
-                { "dx": 1, "dy": 0, "layer": "overlay",  "tile": 21 },
-                { "dx": 0, "dy": 1, "layer": "objects",  "tile": 22, "solid": true, "light_blocking": true },
-                { "dx": 1, "dy": 1, "layer": "objects",  "tile": 22, "solid": true, "light_blocking": true },
-                { "dx": 0, "dy": 2, "layer": "objects",  "tile": 23, "solid": true, "light_blocking": true },
-                { "dx": 1, "dy": 2, "layer": "objects",  "tile": 24, "interactable": true },
-                { "dx": 0, "dy": 3, "layer": "ground",   "tile": 3 },
-                { "dx": 1, "dy": 3, "layer": "ground",   "tile": 3 }
-            ]
-        }
-    ]
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `name` | Identifier shown in the editor's object palette |
-| `anchor` | The cell the editor cursor snaps to when placing — typically the bottom-center or the logical "root" tile |
-| `cells[].dx`, `cells[].dy` | Offset in tiles from the anchor position |
-| `cells[].layer` | Which layer this cell writes to (`"ground"`, `"objects"`, `"overlay"`) |
-| `cells[].tile` | Tile ID from the atlas |
-| `cells[].solid`, `light_blocking`, `interactable` | **Per-cell property overrides** — if omitted, the base `TileDef` for that tile ID applies; if present, they override it for this placement only |
-
-### Per-cell property overrides
-
-This is the mechanism for "the door of a house." The door tile itself (`tile: 24`
-above) might be defined in the atlas as a plain visual tile (not interactable by
-default), but the house object overrides `interactable: true` for that specific
-cell. When the editor stamps the house, it writes the override into the chunk's
-property layer rather than the atlas TileDef, so the door works as a trigger
-while identical-looking tiles elsewhere are inert.
-
-Property overrides are stored per-cell in the `.arcmap` as a sparse table
-alongside the tile ID:
-
-```json
-{
-    "x": 0, "y": 0,
-    "ground":  [...],
-    "objects": [...],
-    "overlay": [...],
-    "overrides": [
-        { "x": 5, "y": 12, "layer": "objects", "interactable": true }
-    ]
-}
-```
-
-The runtime `TileMap::IsSolid` / `IsLightBlocking` / `GetTileDef` API checks the
-override table before falling back to the base `TileDef`. Overrides are rare
-enough that a small `std::vector` per chunk is more cache-friendly than a full
-per-cell override array.
-
-### Editor workflow
-
-1. Open the **Object Palette** (populated from `"objects"` in the tileatlas).
-2. Select a Tile Object — a preview shows all cells at their relative offsets.
-3. Hover over the map — the anchor cell follows the cursor; other cells render
-   as a ghost overlay.
-4. Click to stamp: all cells are written to their layers and chunks; any
-   `interactable` cells also spawn entities at the correct world positions.
-5. To remove a placed object, the editor must undo as a unit (all cells
-   together) — individual cell erasure is still supported via the normal tile
-   painter.
+`TileMap::CollectGridDebugDraw` draws tile edges, for the demos' grid toggle.
 
 ---
 
-## Scene Integration
-
-`Scene` gains a `TileMap` member alongside `World`, `Camera2D`, and `WorldConfig`:
-
-```
-Scene
-├── World       — ECS entities + systems
-├── Camera2D    — active camera
-├── WorldConfig — tile size, gravity
-└── TileMap     — chunk storage, atlas, occlusion state
-```
-
-The Scene is the **merged map** — it is the single runtime object that holds both
-the tile data and the placed entities. There is no separate concept of a
-"combined map"; the Scene already is that.
-
-`WorldConfig::TileSize` is kept in sync with `TileMap::GetTileSize()` after a
-map load so movement systems see the right value.
-
----
-
-## Scene File Format (`.arcscene`)
-
-The scene file is the single thing the editor saves for a level and the
-engine loads. It *references* the tilemap as an `.arcmap` and *embeds* the
-entity list. The format is specified in [scenes.md](scenes.md#scene-file-format-arcscene);
-`FileScene` loads it (map first, then `tile_overrides`, then entities).
-
-### Why tilemap and entity list are separate files
-
-- **The tilemap can be large** — hundreds of chunks, each 3 KB. Keeping it in a
-  dedicated `.arcmap` means the editor can stream and dirty-write only the chunks
-  that changed rather than rewriting the whole scene file.
-- **The tilemap is an asset** — a `.arcmap` can be referenced by two `.arcscene`
-  files if you want two variants of the same level with different enemy placements
-  (e.g., a day variant and a night variant, or normal vs. hard mode).
-- **The entity list is scene-specific** — entities belong to a particular
-  play-through of a level, not to the tile geometry.
-
-### Loading at runtime
-
-`FileScene::OnLoad` reads the scene file, loads the referenced `.arcmap`
-through `TileMap::LoadMap` (atlases, tile size, chunks), applies the scene's
-`tile_overrides`, then creates the entities. See [scenes.md](scenes.md).
-
-### Editor tool → file mapping
-
-| Editor tool | Writes to |
-|-------------|-----------|
-| Tile painter | `.arcmap` (chunk tile IDs) |
-| Tile Object stamp | `.arcmap` (tiles) + `.arcscene` (any spawned entities) |
-| Entity placer | `.arcscene` (entity list) |
-| Entity property panel | `.arcscene` (component overrides) |
-
-The editor viewport shows tiles and entities together in one unified view, even
-though they are saved to different files. This mirrors how Tiled separates tile
-layers from object layers but displays both in the same canvas.
-
----
-
-## Render Pipeline
-
-### TilemapRenderSystem
-
-Registered in the render-collect phase, **before** `SpriteRenderSystem`, so tile
-quads land in the batcher before entity sprites. Layer ordering then sorts them
-correctly by the sprite layer int.
-
-```
-Render-collect phase (per frame):
-  TilemapRenderSystem   — emits tile quads into FramePacket.Sprites
-  SpriteRenderSystem    — emits entity quads into FramePacket.Sprites
-  LightRenderSystem     — emits PointLights + uploads occlusion texture
-```
-
-### Camera Culling
-
-Only visible chunks are iterated. The culling bounds in tile space:
-
-```
-camLeft   = cameraPos.X - halfViewportWidth  / zoom
-camRight  = cameraPos.X + halfViewportWidth  / zoom
-camTop    = cameraPos.Y - halfViewportHeight / zoom
-camBottom = cameraPos.Y + halfViewportHeight / zoom
-
-minTileX = floor(camLeft   / tileSize) - 1   // one-tile margin for partial tiles
-maxTileX = ceil (camRight  / tileSize) + 1
-minTileY = floor(camTop    / tileSize) - 1
-maxTileY = ceil (camBottom / tileSize) + 1
-```
-
-From tile range → chunk range → iterate only present chunks in that range via
-the `_chunks` map.
-
-### Per-tile Sprite submission
-
-For each non-zero tile in a visible chunk, resolve the animation mode and push a
-`Sprite` into `FramePacket`. The two animation modes are handled separately:
-UV scroll adjusts the UV rect in place; flip-book swaps the source tile ID first.
-
-```cpp
-const TileDef* def = _atlas.GetDef(tileId);
-
-// --- Flip-book: swap tile ID to get the current frame's UV.
-const u32 resolvedId = (def && !def->Animation.empty())
-    ? ResolveTileId(*def, tileX, tileY, elapsedMs)
-    : tileId;
-
-Sprite s{};
-s.Texture  = _atlas.Texture;
-s.Sampler  = _atlas.Sampler;
-s.UV       = _atlas.GetUV(resolvedId);
-
-// --- UV scroll: shift the UV rect continuously over time.
-if (def && (def->UVScroll.X != 0.0f || def->UVScroll.Y != 0.0f))
-{
-    const f32 offsetU = std::fmod(elapsedSeconds * def->UVScroll.X, 1.0f);
-    const f32 offsetV = std::fmod(elapsedSeconds * def->UVScroll.Y, 1.0f);
-    s.UV.U0 += offsetU; s.UV.U1 += offsetU;
-    s.UV.V0 += offsetV; s.UV.V1 += offsetV;
-}
-
-s.Position = TileToWorld(tileX, tileY);   // tile center
-
-// Y-sort: Objects layer uses bottom-edge world Y; Ground and Overlay use fixed values.
-const f32 bottomY = static_cast<f32>(tileY + 1) * _tileSize;
-s.Layer = (layer == TileLayer::Objects) ? bottomY * 0.0001f
-        : (layer == TileLayer::Ground)  ? -100.0f
-        :                                  100.0f; // Overlay
-
-FramePacket.Sprites.push_back(s);
-```
-
-No new GPU API is needed — tile quads go through the same instanced sprite
-batcher as entities.
-
----
-
-## Light Layers
-
-Phase 19 splits point lights into two categories that differ only in whether
-shadow casting applies:
-
-```cpp
-enum class LightLayer
-{
-    World,    // blocked by tile occlusion (walls cast shadows)
-    Overhead, // bypasses occlusion — sunlight, moonlight, sky effects
-};
-```
-
-`LightEmitter` gains a `LightLayer` field (default `World`):
-
-```cpp
-struct LightEmitter
-{
-    f32        Radius     = 200.0f;
-    f32        Intensity  = 1.0f;
-    Color      LightColor = Color::NaturalLight();
-    LightLayer Layer      = LightLayer::World;
-};
-```
-
-`Overhead` lights are rendered with full radial attenuation but the fragment
-shader skips the ray-march, so they illuminate everything in their radius
-regardless of walls. Use them for:
-- Ambient daylight or moonlight
-- Magical sky effects (aurora, meteor glow)
-- UI indicators that should always be visible
-
----
-
-## Tile Occlusion Grid
-
-A single-channel GPU texture that encodes which tiles are light-blocking for the
-current visible area. The fragment shader samples it during the shadow ray-march.
-
-### Texture layout
-
-- Format: `R8Unorm` (1 byte per texel; 0.0 = passable, 1.0 = blocking)
-- Dimensions: `occlusionWidth × occlusionHeight` tiles, where the dimensions
-  cover the visible tile range (clamped to a max of 128 × 128 for GPU budget)
-- Origin texel corresponds to `(minVisibleTileX, minVisibleTileY)`
-
-### Update strategy
-
-Rebuilt **every frame** if any tile changed since the last frame, or if the
-camera moved enough to shift the visible tile range. Because it covers only the
-visible area and the max size is 128 × 128 = 16 KB, a full CPU-side rebuild and
-`UpdateBuffer` upload costs roughly 16 µs — acceptable per frame.
-
-A `_occlusionDirty` flag is set by `TileMap::SetTile()`. If the camera hasn't
-moved and no tile changed, the GPU texture is reused as-is.
-
-### Shader binding
-
-Uploaded to the light render pass as a new descriptor binding (texture slot 1,
-alongside the existing light buffer at slot 0). The fragment shader receives the
-visible-area origin and dimensions as a push constant alongside the existing
-light data.
-
----
-
-## Shadow Casting
-
-### World-layer lights — hard shadows
-
-For each fragment lit by a `World`-layer point light, the fragment shader
-ray-marches from the **fragment's tile coordinate** toward the **light's tile
-coordinate** through the occlusion texture:
-
-```glsl
-// Pseudocode — actual GLSL in the light pass fragment shader
-vec2 fragTile  = (fragWorldPos - occlusionOrigin) / tileSize;
-vec2 lightTile = (lightWorldPos - occlusionOrigin) / tileSize;
-vec2 dir       = normalize(lightTile - fragTile);
-float dist     = length(lightTile - fragTile);
-
-float stepSize = 0.5; // half-tile steps
-float t        = stepSize;
-bool  shadowed = false;
-
-while (t < dist)
-{
-    vec2  samplePos = fragTile + dir * t;
-    float occlusion = texture(occlusionTex, samplePos / occlusionSize).r;
-    if (occlusion > 0.5) { shadowed = true; break; }
-    t += stepSize;
-}
-
-float lightContrib = shadowed ? 0.0 : ComputeAttenuation(dist * tileSize, light);
-```
-
-### Overhead-layer lights
-
-The while-loop is skipped entirely. `ComputeAttenuation` runs as normal.
-
-### Soft shadows (configurable)
-
-Instead of one ray per fragment, fire N slightly-offset rays and average the
-results. N is stored in `project.arcbit` (Phase 34) under `render.shadow_samples`:
-
-| shadow_samples | Quality | Cost |
-|:-:|---|---|
-| 1 (default) | Hard shadows | Baseline |
-| 4 | Soft fringe (0.5-tile penumbra) | ~4× ray cost |
-| 8 | Smoother penumbra | ~8× ray cost |
-
-Soft shadows are off by default. The setting is applied as a compile-time
-specialization constant in the SPIR-V shader (or a `#define` path) so the
-default path pays zero cost for the branch.
-
----
-
-## System Execution Order (Phase 19 additions)
-
-```
-Update phase (unchanged):
-  LifetimeSystem
-  FreeMovementSystem
-  CameraFollowSystem
-  AnimatorStateMachineSystem
-  AnimatorSystem
-  AudioSystem
-
-Render-collect phase:
-  TilemapRenderSystem    ← NEW: submits tile quads before entity sprites
-  SpriteRenderSystem     — entity sprites at layer 0 (between Objects + Overlay)
-  LightRenderSystem      ← UPDATED: uploads occlusion texture, handles LightLayer
-```
-
-`TilemapRenderSystem` runs as a render system (receives `Scene& + FramePacket&`)
-but reads `scene.GetTileMap()` rather than querying the ECS World.
-
----
-
-## Implementation Phases
-
-The blueprint items map to discrete implementation steps in this order:
-
-| Step | Blueprint item | What it enables |
-|------|---------------|-----------------|
-| 1 | Tile definition + TileAtlas | Load and query tile properties |
-| 2 | Chunk storage + TileMap API | `SetTile` / `GetTile`, `IsSolid` |
-| 3 | Map file load/save | Load `.arcmap`, persist editor changes |
-| 4 | Tilemap renderer + culling | Tiles visible on screen |
-| 5 | Multiple layers | Ground / Objects / Overlay z-order |
-| 6 | Scene integration | `scene.GetTileMap()`, WorldConfig sync |
-| 7 | LightLayer enum | Overhead lights bypass shadows |
-| 8 | Occlusion grid upload | GPU texture built each frame |
-| 9 | Shadow casting (hard) | World lights blocked by walls |
-| 10 | Soft shadow option | Quality knob in project.arcbit |
-
-Steps 1–6 form the core map system and are independent of the shadow work (7–10).
-The shadow steps require the Vulkan backend to add a new texture binding and
-update the light fragment shader — that is the only phase where the graphics
-backend is touched.
+## Shadows
+
+A light with `LightEmitter.CastsShadows` is shadowed by tiles with
+`BlocksLight`. Each frame, for each such light (up to 8), the CPU casts 256
+rays around it through the tile grid (a DDA walk), recording how far each gets
+before a light-blocking tile - a one-dimensional polar shadow map. The sprite
+shader looks up the map for its angle from the light and compares distances,
+averaging three neighboring angles (PCF) to soften the edge. Lights without
+the flag light everything in their radius.
+
+Shadows are hard-edged at a tile's resolution. Light layers (overhead lights
+that ignore shadows), a GPU occlusion grid and wider soft shadows are open
+items in the blueprint (Phase 19).
