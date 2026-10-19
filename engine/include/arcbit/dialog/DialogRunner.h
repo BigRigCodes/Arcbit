@@ -69,6 +69,11 @@ public:
         u32         Option = 0; // in the step's options
     };
 
+    // Told as each line shows and as the player chooses (the choice's id) -
+    // Application publishes them as engine events.
+    std::function<void(const Line&)>               OnLine;
+    std::function<void(const std::string& choice)> OnChoose;
+
     // From node (default: the dialog's start). A null dialog ends at once.
     void Start(std::shared_ptr<const Dialog> dialog, DialogHost host, std::string_view node = {});
     void Next();             // past the line shown

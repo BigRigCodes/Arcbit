@@ -213,6 +213,10 @@ public:
     // the stack hasn't unloaded yet, so a save needs this first.
     void CaptureLive();
 
+    // Whether `scene` is on the stack (loaded, maybe suspended). Compares
+    // pointers only, so it's safe to ask about one that may be gone.
+    [[nodiscard]] bool Contains(const Scene* scene) const;
+
     // Number of scenes on the stack, the active one included.
     [[nodiscard]] size_t GetDepth() const { return _stack.size(); }
 

@@ -139,8 +139,17 @@ namespace
                 j["reach"]  = c.Reach;
             });
         r.RegisterComponent<Interactable>(
-            "Interactable", [](Interactable& c, const json& j, SceneAssets&) { Read(j, "prompt", c.Prompt); },
-            [](const Interactable& c, json& j, const SceneAssets&) { j["prompt"] = c.Prompt; });
+            "Interactable",
+            [](Interactable& c, const json& j, SceneAssets&) {
+                Read(j, "prompt", c.Prompt);
+                Read(j, "dialog", c.Dialog);
+                Read(j, "dialog_node", c.DialogNode);
+            },
+            [](const Interactable& c, json& j, const SceneAssets&) {
+                j["prompt"] = c.Prompt;
+                if (!c.Dialog.empty()) j["dialog"] = c.Dialog;
+                if (!c.DialogNode.empty()) j["dialog_node"] = c.DialogNode;
+            });
         r.RegisterComponent<Script>(
             "Script",
             [](Script& c, const json& j, SceneAssets&) {

@@ -151,6 +151,7 @@ void DialogRunner::Choose(const u32 choice)
     const DialogOption& option = step.Options[_choices[choice].Option];
     _lastChoice                = option.Id;
     _choices.clear();
+    if (OnChoose) OnChoose(option.Id);
     Act(option.Actions);
     if (_state == State::Ended) return; // an action stopped the dialog
     Follow(option.Goto.empty() ? step.Goto : option.Goto);
@@ -243,6 +244,7 @@ void DialogRunner::ShowLine(const DialogStep& step)
     _lineStep = &step;
     FillLine(step);
     _state = State::Line;
+    if (OnLine) OnLine(_line);
 }
 
 void DialogRunner::FillLine(const DialogStep& step)

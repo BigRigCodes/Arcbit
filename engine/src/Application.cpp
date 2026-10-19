@@ -255,7 +255,10 @@ void Application::Run()
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
                                 .AutoSave = [this] { return AutoSave(); },
-                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); } });
+                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); },
+                                .StartDialog  = [this](const DialogRequest& request) { return StartDialog(request); },
+                                .DialogActive = [this] { return IsDialogActive(); },
+                                .StopDialog   = [this] { StopDialog(); } });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
@@ -347,15 +350,18 @@ void Application::Run()
             _input.ProcessEdges();
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (_input.JustPressed(ActionEngineConsole) && IsConsoleAllowed()) ToggleConsole();
+            UpdateDialogs(); // a waiting conversation starts once the last has gone
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
                 _scenes.Update(_fixedTimestep);
                 if (Scene* scene = _scenes.GetActive()) {
                     // An input-capturing overlay or a scene fade holds the player still.
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
-                    scene->Update(_fixedTimestep * _timeScale);
+                    if (!DialogPausesWorld()) scene->Update(_fixedTimestep * _timeScale);
                 }
-                if (!_ui.HasBlockingScreen() && !_scenes.IsFading()) _playtime += _fixedTimestep;
+                // Play time: not under menus, but a conversation is playing.
+                const bool playing = !_ui.HasBlockingScreen() || (IsDialogActive() && !_ui.HasOpenMenu());
+                if (playing && !_scenes.IsFading()) _playtime += _fixedTimestep;
             }
             // Under a screen that hides the game (the splash on its logo), a
             // queued swap may run - its load stays out of sight - but the
@@ -449,6 +455,7 @@ void Application::Run()
 #ifdef ARCBIT_DEBUG
             _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
             Loc::CheckReloads();          // and edited locale files (text follows the generation)
+            _dialogs.CheckReloads();      // and dialog files (a running one keeps the version it began with)
 #endif
             _hotReloadAccumulator -= 1.0;
         }

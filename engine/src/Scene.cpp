@@ -194,6 +194,9 @@ void Scene::UpdateInteraction()
         if (!_world.IsValid(by)) continue;
         const Entity target = FindInteractTarget(_world, by, _config.TileSize);
         if (!target.IsValid()) continue;
+        const Interactable* used = _world.GetComponent<Interactable>(target);
+        if (_app && used && !used->Dialog.empty())
+            (void)_app->StartDialog({ .Id = used->Dialog, .Node = used->DialogNode, .Scene = this, .With = target, .By = by });
         if (_scripts) _scripts->Interact(target, by);
         if (_events) _events->PublishEngine(EngineEvents::EntityInteracted, { { "entity", target }, { "by", by } });
     }

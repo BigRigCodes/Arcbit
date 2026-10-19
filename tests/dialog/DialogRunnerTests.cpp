@@ -206,3 +206,29 @@ TEST_CASE("A library reads a folder of dialogs by path, English into Loc", "[dia
     library.Clear();
     CHECK_FALSE(Loc::Has("dialog.elder.a.1"));
 }
+
+TEST_CASE("A library reloads a changed dialog; a runner keeps the one it began", "[dialog]")
+{
+    LocScope             scope;
+    ArcbitTests::TempDir dir;
+    const std::string    file = dir.Write("elder.arcdialog", R"({ "nodes": { "a": [ "Old line." ] } })");
+
+    DialogLibrary library;
+    REQUIRE(library.AddFolder(dir.File("")) == 1);
+    DialogRunner runner;
+    runner.Start(library.Get("elder"), {});
+    CHECK(library.CheckReloads() == 0);
+
+    dir.Write("elder.arcdialog", R"({ "nodes": { "a": [ "New line.", "And more." ] } })");
+    std::filesystem::last_write_time(file, std::filesystem::file_time_type::clock::now() + std::chrono::seconds(5));
+    CHECK(library.CheckReloads() == 1);
+    CHECK(Loc::Get("dialog.elder.a.1") == "New line.");
+    CHECK(library.Get("elder")->Nodes[0].Steps.size() == 2);
+    CHECK(runner.GetDialog()->Nodes[0].Steps.size() == 1); // its own copy, still whole
+
+    dir.Write("elder.arcdialog", "{ broken");
+    std::filesystem::last_write_time(file, std::filesystem::file_time_type::clock::now() + std::chrono::seconds(10));
+    CHECK(library.CheckReloads() == 1);
+    CHECK(library.Get("elder")->Nodes[0].Steps.size() == 2); // a bad edit keeps the last good one
+    CHECK_FALSE(library.GetIssues("elder").empty());
+}

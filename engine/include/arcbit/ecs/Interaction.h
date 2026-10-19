@@ -15,8 +15,9 @@ class World;
 //
 // The player gets an Interactor; things it can use get an Interactable. When
 // the Interactor's action is pressed, Scene picks one target
-// (FindInteractTarget), calls its script's OnInteract(interactor) and
-// publishes engine.entity.interacted - so C++ can react too.
+// (FindInteractTarget), starts its Dialog if it has one, calls its script's
+// OnInteract(interactor) and publishes engine.entity.interacted - so C++ can
+// react too.
 // ---------------------------------------------------------------------------
 
 // What does the interacting (the player).
@@ -29,7 +30,9 @@ struct Interactor
 // Something an Interactor can use. A Disabled one is skipped.
 struct Interactable
 {
-    std::string Prompt; // what using it does ("Open", "Talk") - for a prompt UI
+    std::string Prompt;     // what using it does ("Open", "Talk") - for a prompt UI
+    std::string Dialog;     // a dialog id to start when used - talking needs no script
+    std::string DialogNode; // where in it to start; empty: its start
 };
 
 // What `interactor` would use right now, or Entity::Invalid():
