@@ -96,7 +96,13 @@ Checkbox list of every major milestone. Check off items as they are completed.
 - [x] Audio settings: master volume, music volume, SFX volume
 - [x] Input settings: persist action→binding map from Phase 9; apply on load
 - [x] `Settings::Get<T>` / `Set<T>` typed accessors with dirty-flag auto-save
-- [ ] Persist only rebound actions — `SaveInputBindings` writes every action's bindings on shutdown, and `LoadInputBindings` replaces the code's defaults with them. So a default changed in code never reaches an existing settings file (hit in 22H: WorldDemo's broken stick bindings had to be deleted from `settings.json` by hand), and demos sharing one file inherit each other's bindings (TileMoveDemo picks up WorldDemo's arrow keys and stick). Snapshot the defaults at startup, save only actions that differ, and give actions with no saved entry their code defaults. A per-game settings path would also keep the demos apart
+- [ ] **Bindings across game updates** - today `SaveInputBindings` writes every action's bindings and `LoadInputBindings` replaces the code's defaults with them, with no record of what the player chose. The rules, keeping what the player is used to:
+  - Existing actions keep their current binding - rebound or not - even if the game's default for them changed
+  - A new action gets its default if the key is free. If an action that kept its old key holds it, and that action's new default is free, the new action takes that one: an update moving Interact E -> F and giving Melee E leaves Interact on E and puts Melee on F. Otherwise the new action stays unbound
+  - A one-time notice after the update lists what's new and where it landed ("New: Melee is F (E is your Interact)", "Melee has no key yet - set it in Controls")
+  - The developer can reset a chosen action to its new default in an update (an old default that was broken), through the same clash rules and notice
+  - The settings file records each action's bindings with the defaults they were based on, so a load can tell new, changed and kept actions apart
+  - A per-game settings path, so the demos stop sharing (and inheriting) each other's bindings
 
 ---
 
