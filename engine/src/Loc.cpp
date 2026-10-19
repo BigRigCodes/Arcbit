@@ -23,7 +23,9 @@ struct Language
     Loc::Locale                                  Info;
     std::vector<std::filesystem::path>           Files;   // read in order: later files' strings win
     std::vector<std::filesystem::file_time_type> Stamps;  // each file's write time when last read
-    Table                                        Strings; // all its files, once loaded
+    Table                                        Strings; // Extra, then its files on top, once loaded
+    Table                                        FileStrings;
+    std::map<std::string, Table, std::less<>>    Extra;   // by source, from SetStrings
     bool                                         Loaded = false;
     bool                                         Pseudo = false; // made from English, not files (qps)
 };
@@ -106,6 +108,16 @@ void ReadMeta(const nlohmann::json& root, const std::filesystem::path& file, Loc
 
 Language* Find(std::string_view code);
 
+// The strings from code (SetStrings), then the files' over them.
+void Merge(Language& language)
+{
+    language.Strings.clear();
+    for (const Table& extra : language.Extra | std::views::values)
+        for (const auto& [key, text] : extra) language.Strings[key] = text;
+    for (const auto& [key, text] : language.FileStrings) language.Strings[key] = text;
+    ++S().Generation;
+}
+
 void LoadStrings(Language& language)
 {
     if (language.Pseudo) { // from English, loaded first
@@ -119,17 +131,24 @@ void LoadStrings(Language& language)
         ++S().Generation;
         return;
     }
-    language.Strings.clear();
+    language.FileStrings.clear();
     language.Stamps.clear();
     for (const auto& file : language.Files) {
         language.Stamps.push_back(StampOf(file));
         if (const auto root = ReadJson(file)) {
-            Flatten(*root, "", language.Strings);
+            Flatten(*root, "", language.FileStrings);
             ReadMeta(*root, file, language.Info);
         }
     }
     language.Loaded = true;
-    ++S().Generation;
+    Merge(language);
+}
+
+// English changed: the pseudo-locale follows.
+void ReloadPseudo()
+{
+    for (auto& language : S().Languages | std::views::values)
+        if (language.Pseudo && language.Loaded) LoadStrings(language);
 }
 
 Language* Find(const std::string_view code)
@@ -238,8 +257,9 @@ bool Loc::Load(const std::string_view path)
     language.Files.push_back(file);
     ReadMeta(*root, file, language.Info);
     if (language.Loaded) {
-        Flatten(*root, "", language.Strings);
+        Flatten(*root, "", language.FileStrings);
         language.Stamps.push_back(StampOf(file));
+        Merge(language);
     }
     else LoadStrings(language);
     ++S().Generation;
@@ -354,10 +374,29 @@ u32 Loc::CheckReloads()
         LOG_INFO(Engine, "Loc: reloaded '{}'", language.Info.Code);
         ++reloaded;
     }
-    if (reloaded > 0) // English may have changed: the pseudo-locale follows
-        for (auto& language : S().Languages | std::views::values)
-            if (language.Pseudo && language.Loaded) LoadStrings(language);
+    if (reloaded > 0) ReloadPseudo(); // English may have changed
     return reloaded;
+}
+
+void Loc::SetStrings(const std::string_view code, const std::string_view source,
+                     const std::span<const std::pair<std::string, std::string>> strings)
+{
+    Language& language = S().Languages[Normalize(code)];
+    if (language.Info.Code.empty()) language.Info = { .Code = std::string(code), .Name = std::string(code) };
+    if (strings.empty()) {
+        if (const auto it = language.Extra.find(source); it != language.Extra.end()) language.Extra.erase(it);
+    }
+    else {
+        Table& table = language.Extra[std::string(source)];
+        table.clear();
+        for (const auto& [key, text] : strings) table[key] = text;
+    }
+    if (!language.Loaded) { // merged when it's first used - now, if the chain uses it
+        RebuildChain();
+        return;
+    }
+    Merge(language);
+    if (Normalize(code) == English) ReloadPseudo();
 }
 
 void Loc::AddPseudoLocale()

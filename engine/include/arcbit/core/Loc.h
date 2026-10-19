@@ -99,6 +99,12 @@ public:
     // Returns false and logs a warning if it can't be read or parsed.
     [[nodiscard]] static bool Load(std::string_view path);
 
+    // Strings for a language from something other than its locale files -
+    // the English in dialog files. source names the set: setting it again
+    // replaces it, an empty list removes it. A language's files win over these.
+    static void SetStrings(std::string_view code, std::string_view source,
+                           std::span<const std::pair<std::string, std::string>> strings);
+
     // The string for key; the key itself if no language in the chain has it.
     // The reference stays valid until the strings change (GetGeneration).
     [[nodiscard]] static const std::string& Get(std::string_view key);
