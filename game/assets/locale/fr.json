@@ -44,6 +44,7 @@
   "demo.scripted.prompt.open": "Ouvrir",
   "demo.scripted.prompt.enter": "Entrer",
   "demo.scripted.prompt.read": "Lire",
+  "demo.scripted.prompt.talk": "Parler",
   "demo.shop.title": "Boutique Lua",
   "demo.shop.have": "Vous avez {count} pièces d'or",
   "demo.shop.lanterns": "Lanternes : {count}",

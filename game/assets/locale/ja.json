@@ -49,6 +49,7 @@
   "demo.scripted.prompt.open": "開ける",
   "demo.scripted.prompt.enter": "入る",
   "demo.scripted.prompt.read": "読む",
+  "demo.scripted.prompt.talk": "話す",
   "demo.shop.title": "Lua ショップ",
   "demo.shop.have": "所持金：{count} ゴールド",
   "demo.shop.lanterns": "ランタン：{count}",

@@ -20,6 +20,7 @@
         },
         "guard": {
             "Collider2D": { "half_extents": [24.0, 24.0], "layer": "NPC" },
+            "Interactable": { "dialog": "sample", "prompt": "demo.scripted.prompt.talk" },
             "Script": { "properties": { "Distance": 448, "Pause": 1, "Seconds": 3 }, "script": "demo.guard" },
             "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.8, 0.25, 0.25, 1.0] },
             "Tag": { "value": "Guard" },
