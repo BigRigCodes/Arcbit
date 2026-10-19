@@ -41,7 +41,8 @@ struct DialogHost
 //   }
 //
 // Text is looked up in the active language as each line comes, its
-// {placeholders} filled from the host's Args, then SaveData.
+// {placeholders} filled from the host's Args, then SaveData - a key that
+// isn't saved yet reads 0, as in a condition.
 // ---------------------------------------------------------------------------
 class DialogRunner
 {

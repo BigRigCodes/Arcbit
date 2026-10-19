@@ -156,6 +156,8 @@ Text can use **rich text** - `<b>`, `<i>`, `<color=gold>`, `<wave>`,
 `<shake>`, `<rainbow>`, `<pause=0.4>`, `<speed=0.5>` and the rest
 ([gui.md](gui.md#rich-text)) - and **placeholders**: `{gold}` is filled from
 save data, and a game can supply more (`DialogHost::Args`, e.g. `{player}`).
+A save key that isn't set yet shows `0`, as it reads in a condition - so set a
+text value (a title, a name) before a line uses it.
 Number formatting and plural forms work as in any localized string.
 
 The console's `loc.missing <lang>` includes dialog keys a language lacks, and

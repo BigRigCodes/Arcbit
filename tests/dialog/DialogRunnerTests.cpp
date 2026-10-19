@@ -232,3 +232,15 @@ TEST_CASE("A library reloads a changed dialog; a runner keeps the one it began",
     CHECK(library.Get("elder")->Nodes[0].Steps.size() == 2); // a bad edit keeps the last good one
     CHECK_FALSE(library.GetIssues("elder").empty());
 }
+
+TEST_CASE("Placeholders fill from Args, then save data; an unsaved key reads 0", "[dialog]")
+{
+    LocScope scope;
+    SaveData data;
+    data.Set("title", std::string("knight"));
+    auto d = Make(R"({ "nodes": { "a": [ "{player} the {title} has {gold} gold." ] } })");
+
+    DialogRunner runner;
+    runner.Start(d, { .Data = &data, .Args = { { "player", "Ash" }, { "title", "squire" } } });
+    CHECK(runner.GetLine().Text == "Ash the squire has 0 gold."); // Args win over save data
+}

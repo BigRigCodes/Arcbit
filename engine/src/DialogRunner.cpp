@@ -278,13 +278,16 @@ void DialogRunner::End()
     _choices.clear();
 }
 
-// The key's text in the active language, its placeholders filled.
+// The key's text in the active language, its placeholders filled. A save
+// key that isn't set yet reads 0, as it does in a condition: a counter
+// nobody has touched ("You have {gold} gold") is the usual case.
 std::string DialogRunner::Text(const std::string& key) const
 {
     std::vector<LocArg> args = _host.Args;
     for (const std::string_view name : PlaceholderNames(Loc::Get(key))) {
         if (std::ranges::find(args, name, &LocArg::Name) != args.end()) continue;
-        if (const SaveValue* value = _host.Data ? _host.Data->Find(name) : nullptr) args.push_back(ToArg(name, *value));
+        const SaveValue* value = _host.Data ? _host.Data->Find(name) : nullptr;
+        args.push_back(value ? ToArg(name, *value) : LocArg(name, i64{ 0 }));
     }
     return Loc::Format(key, args);
 }
