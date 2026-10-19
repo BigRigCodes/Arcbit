@@ -112,6 +112,15 @@ namespace
         });
     }
 
+    // Held entities stand still whatever their controller or script wants.
+    void RegisterHoldSystem(World& world)
+    {
+        world.RegisterSystem("Hold", [](Scene& scene, f32 /*dt*/) {
+            scene.GetWorld().Query<const Held, MoveIntent>().ForEach(
+                [](const Held&, MoveIntent& intent) { intent.Direction = {}; });
+        });
+    }
+
     // Intent-driven free movers move at Speed in the intended direction and
     // stop the moment intent goes to zero.
     void ApplyIntentToFreeMovers(World& ecs)
@@ -1190,6 +1199,7 @@ void RegisterBuiltinSystems(World& world)
     // Update phase — order matches the blueprint execution table.
     RegisterLifetimeSystem(world);
     RegisterInputMovementSystem(world);         // InputMovement → MoveIntent
+    RegisterHoldSystem(world);                  // Held → no MoveIntent direction
     RegisterPushOutSystem(world);               // out of colliders that moved into a free mover
     RegisterFreeMovementSystem(world);          // MoveIntent → Velocity; writes PendingMove
     RegisterSmoothTileMoveSystem(world);        // MoveIntent → QueuedDir; writes Transform directly

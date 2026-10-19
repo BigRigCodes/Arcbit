@@ -1,4 +1,5 @@
 #include <arcbit/ecs/Movement.h>
+#include <arcbit/ecs/World.h>
 
 namespace Arcbit
 {
@@ -62,4 +63,20 @@ Vec2 ResolveInputDirection(InputMovement& im, const MoveKeys keys, const bool ca
     }
     return dir * (1.0f / Length(dir));
 }
+
+void Hold(World& world, const Entity entity)
+{
+    if (!world.IsValid(entity)) return;
+    if (Held* held = world.GetComponent<Held>(entity)) ++held->Count;
+    else world.AddComponent<Held>(entity, Held{ 1 });
+}
+
+void Release(World& world, const Entity entity)
+{
+    Held* held = world.GetComponent<Held>(entity);
+    if (!held) return;
+    if (--held->Count == 0) world.RemoveComponent<Held>(entity);
+}
+
+bool IsHeld(World& world, const Entity entity) { return world.GetComponent<Held>(entity) != nullptr; }
 } // namespace Arcbit

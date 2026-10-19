@@ -330,3 +330,34 @@ TEST_CASE("A snap mover blocked by an entity raises a collision contact", "[ecs]
     CHECK(PositionOf(scene, mover) == Vec2{});
     CHECK(enters == 1);
 }
+
+TEST_CASE("A held entity stands still, keeps its facing, and moves once released", "[ecs][movement]")
+{
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity e     = AddMover(scene, {});
+    world.AddComponent<FreeMovement>(e, FreeMovement{ .Speed = 120.0f });
+    world.AddComponent<PendingMove>(e);
+
+    Hold(world, e);
+    Hold(world, e); // two holders: a dialog and a cutscene, say
+    for (int i = 0; i < 30; ++i) {
+        SetIntent(scene, e, { 1.0f, 0.0f }); // a controller or script keeps asking
+        Step(scene);
+    }
+    CHECK(PositionOf(scene, e).X == 0.0f);
+    CHECK(world.GetComponent<MoveIntent>(e)->Facing == Vec2{ 1.0f, 0.0f });
+
+    Release(world, e);
+    CHECK(IsHeld(world, e)); // one hold left
+    SetIntent(scene, e, { 1.0f, 0.0f });
+    Step(scene);
+    CHECK(PositionOf(scene, e).X == 0.0f);
+
+    Release(world, e);
+    CHECK_FALSE(IsHeld(world, e));
+    SetIntent(scene, e, { 1.0f, 0.0f });
+    Step(scene, 30);
+    CHECK(PositionOf(scene, e).X > 0.0f);
+    Release(world, e); // releasing what isn't held does nothing
+}
