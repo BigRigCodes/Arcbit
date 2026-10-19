@@ -655,6 +655,19 @@ In code: `ParseMarkup` / `StripMarkup`, and `LayoutRichText` (a glyph list:
 each character's place, style and index - what a typewriter reveals and
 effects move) with `DrawRichText`.
 
+### Typewriter and effects
+
+`Label::StartReveal(charsPerSecond)` shows a label's text a character at a
+time, each one fading in; `SkipReveal` shows the rest (a confirm press
+mid-line). It honors `<pause>` and `<speed>`. `GetReveal()` is the
+`TextReveal` behind it: `OnBlip(codepoint)` for a voice sound per character
+(never for spaces, at most every `BlipGap` seconds) and `OnDone`.
+
+`TextReveal` works on any `TextLayout`: call `Update(dt, layout)` each frame
+and draw with `TextDrawOptions::Visible = GetVisible()`. `<wave>`, `<shake>`
+and `<rainbow>` run on a clock `UIManager::Update` advances
+(`GetTextClock`, passed as `TextDrawOptions::Time`).
+
 ## Theming (UISkin)
 
 `UISkin` is a plain data struct loaded from JSON (`LoadFromFile` / `SaveToFile`).

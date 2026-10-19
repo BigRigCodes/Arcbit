@@ -188,9 +188,27 @@ void Label::OnCollect(FramePacket& packet, const UIRect myRect, const f32 effect
 {
     if (!skin.Font || Text.empty()) return;
     const Color col = WithAlpha(Enabled ? skin.TextLabel : skin.TextDisabled, effectiveOpacity);
-    DrawRichText(packet, *skin.Font, GetLayout(skin, myRect.W),
-                 { .Position = { myRect.X, myRect.Y }, .Color = col, .Layer = TextLayer(*this, skin), .Style = skin.Text,
-                   .White = whiteTex, .WhiteSampler = whiteSampler });
+    _laidOut = &GetLayout(skin, myRect.W);
+    DrawRichText(packet, *skin.Font, *_laidOut,
+                 { .Position = { myRect.X, myRect.Y }, .Color = col, .Layer = TextLayer(*this, skin),
+                   .Visible = _reveal.IsStarted() ? _reveal.GetVisible() : 1e30f, .Time = GetTextClock(),
+                   .Style = skin.Text, .White = whiteTex, .WhiteSampler = whiteSampler });
+}
+
+void Label::StartReveal(const f32 charsPerSecond)
+{
+    _reveal.CharsPerSecond = charsPerSecond;
+    _reveal.Start();
+}
+
+void Label::SkipReveal()
+{
+    if (_laidOut) _reveal.Skip(*_laidOut);
+}
+
+void Label::OnUpdate(const f32 dt, UIRect, Vec2, bool, bool, bool, bool&)
+{
+    if (_laidOut) _reveal.Update(dt, *_laidOut); // the layout is first made when drawn; until then nothing shows
 }
 
 const TextLayout& Label::GetLayout(const UISkin& skin, const f32 width)

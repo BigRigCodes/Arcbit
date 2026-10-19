@@ -61,6 +61,7 @@ add_library(arcbit-engine STATIC
     src/TileMap.cpp
     src/Font.cpp
     src/RichText.cpp
+    src/TextReveal.cpp
     src/FontSdf.cpp
     src/UIWidget.cpp
     src/UIScreen.cpp

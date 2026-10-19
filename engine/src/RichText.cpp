@@ -330,6 +330,7 @@ TextLayout LayoutRichText(const FontAtlas& font, const std::string_view text, co
 
     const std::vector<Atom> atoms = ToAtoms(font, layout.Spans, options.Scale);
     layout.CharCount              = static_cast<u32>(atoms.size());
+    for (const Atom& atom : atoms) layout.Codepoints.push_back(atom.Codepoint), layout.CharSpan.push_back(atom.Span);
     f32 top = 0.0f;
     for (const auto& [first, end] : BreakLines(atoms, options.WrapWidth)) PlaceLine(font, layout, atoms, first, end, options.Scale, top);
 
@@ -346,6 +347,54 @@ TextLayout LayoutRichText(const FontAtlas& font, const std::string_view text, co
 // ---------------------------------------------------------------------------
 // Drawing
 // ---------------------------------------------------------------------------
+
+namespace
+{
+f32 s_textClock = 0.0f;
+
+// A stable "random" number in [-1, 1] for a glyph and a moment.
+f32 Jitter(const u32 index, const u32 step, const u32 salt)
+{
+    u32 h = index * 374761393u + step * 668265263u + salt * 2246822519u;
+    h     = (h ^ (h >> 13)) * 1274126177u;
+    h ^= h >> 16;
+    return static_cast<f32>(h & 0xFFFF) / 32767.5f - 1.0f;
+}
+
+Color Hue(const f32 hue)
+{
+    const auto channel = [hue](const f32 shift) {
+        const f32 x = std::abs(std::fmod(hue * 6.0f + shift, 6.0f) - 3.0f) - 1.0f;
+        return std::clamp(x, 0.0f, 1.0f);
+    };
+    return { channel(0.0f), channel(4.0f), channel(2.0f), 1.0f };
+}
+} // namespace
+
+void AdvanceTextClock(const f32 dt) { s_textClock += dt; }
+f32  GetTextClock() { return s_textClock; }
+
+// Wave: a sine ripple along the line. Shake: a jitter, new 20 times a
+// second. Rainbow: the hue moves along the text and over time.
+Vec2 EffectOffset(const u8 effects, const u32 index, const f32 time, const f32 lineHeight)
+{
+    Vec2 offset;
+    if (effects & EffectWave) offset.Y += std::sin(time * 6.0f - static_cast<f32>(index) * 0.55f) * lineHeight * 0.1f;
+    if (effects & EffectShake) {
+        const u32 step = static_cast<u32>(time * 20.0f);
+        offset += Vec2{ Jitter(index, step, 1), Jitter(index, step, 2) } * (lineHeight * 0.05f);
+    }
+    return offset;
+}
+
+Color EffectTint(const u8 effects, const u32 index, const f32 time, const Color tint)
+{
+    if (!(effects & EffectRainbow)) return tint;
+    Color c = Hue(std::fmod(time * 0.35f + static_cast<f32>(index) * 0.07f, 1.0f));
+    c.R = 0.35f + c.R * 0.65f, c.G = 0.35f + c.G * 0.65f, c.B = 0.35f + c.B * 0.65f; // pastel: readable on any panel
+    c.A = tint.A;
+    return c;
+}
 
 namespace
 {
@@ -380,6 +429,13 @@ Sprite GlyphSprite(const FontAtlas& font, const LaidGlyph& glyph, const TextLayo
     s.Outline      = style.Outline ? options.Style.OutlineWidth / glyph.Scale * units : 0.0f;
     s.OutlineColor = style.OutlineColor;
     s.OutlineColor.A *= options.Color.A;
+
+    // Effects, and a typewriter's newest character fading in.
+    const f32 reveal = std::clamp(options.Visible - static_cast<f32>(glyph.Index), 0.0f, 1.0f);
+    s.Position += EffectOffset(style.Effects, glyph.Index, options.Time, font.GetLineHeight() * glyph.Scale);
+    s.Tint      = EffectTint(style.Effects, glyph.Index, options.Time, s.Tint);
+    s.Tint.A   *= reveal;
+    s.OutlineColor.A *= reveal;
     return s;
 }
 
@@ -389,8 +445,8 @@ Sprite ShadowSprite(Sprite s, const LaidGlyph& glyph, const TextDrawOptions& opt
     const f32 units = FontAtlas::SdfUnitsPerPixel();
     s.Position += options.Style.ShadowOffset;
     s.Layer    -= 1; // under every glyph, whatever atlas page it's on (the UI sorts by texture within a layer)
-    s.Tint     = options.Style.ShadowColor;
-    s.Tint.A  *= options.Color.A;
+    s.Tint.R = options.Style.ShadowColor.R, s.Tint.G = options.Style.ShadowColor.G, s.Tint.B = options.Style.ShadowColor.B;
+    s.Tint.A *= options.Style.ShadowColor.A; // keeps the glyph's fade (options.Color, a reveal)
     s.Weight  += s.Outline; // as wide as the outlined glyph
     s.Outline  = 0.0f;
     s.Softness = options.Style.ShadowSoftness / glyph.Scale * units;

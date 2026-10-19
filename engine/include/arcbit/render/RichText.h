@@ -127,6 +127,8 @@ struct TextLayout
     std::vector<TextLine>  Lines;
     std::vector<TextPause> Pauses;
     u32                    CharCount = 0; // every character, spaces and newlines included
+    std::vector<u32>       Codepoints;    // each character's codepoint, by index
+    std::vector<u32>       CharSpan;      // each character's span (its <speed>, for a typewriter)
     Vec2                   Size;          // the widest line, all lines' height
 };
 
@@ -152,7 +154,8 @@ struct TextDrawOptions
     Vec2  Position;                // the layout's top-left, in screen pixels
     Color Color   = { 1, 1, 1, 1 }; // for spans without their own; its alpha fades everything
     i32   Layer   = 0;
-    u32   Visible = ~0u;           // characters shown (a typewriter's progress)
+    f32   Visible = 1e30f;         // characters shown (TextReveal::GetVisible); the one partly shown fades in
+    f32   Time    = 0.0f;          // seconds, for <wave> <shake> <rainbow> (GetTextClock)
     u16   Clip    = 0;             // ScrollPanel clip index
     TextStyle     Style;           // outline width, shadow offset / color / softness
     TextureHandle White;           // a white texture and its sampler: underlines and
@@ -162,6 +165,15 @@ struct TextDrawOptions
 // Draw a layout as UI text (FramePacket::UISprites, SDF): shadows first,
 // then the glyphs, then underlines and strikethroughs.
 void DrawRichText(FramePacket& packet, const FontAtlas& font, const TextLayout& layout, const TextDrawOptions& options);
+
+// The clock text effects run on, in seconds; UIManager::Update advances it.
+void              AdvanceTextClock(f32 dt);
+[[nodiscard]] f32 GetTextClock();
+
+// What an effect does to a glyph at a time: how far it moves (lineHeight:
+// its line's height in pixels, which scales the motion) and its color.
+[[nodiscard]] Vec2  EffectOffset(u8 effects, u32 index, f32 time, f32 lineHeight);
+[[nodiscard]] Color EffectTint(u8 effects, u32 index, f32 time, Color tint);
 
 // A layout kept between frames, laid out again only when its text, options
 // or the font's fallbacks change - what a label or button holds.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/render/RichText.h>
+#include <arcbit/render/TextReveal.h>
 #include <arcbit/ui/UIWidget.h>
 #include <arcbit/render/Font.h>
 #include <arcbit/core/Math.h>
@@ -61,14 +62,25 @@ public:
     // The text as laid out for a width and skin, cached until something it depends on changes.
     [[nodiscard]] const TextLayout& GetLayout(const UISkin& skin, f32 width);
 
+    // Typewriter: show Text a character at a time from now on (GetReveal:
+    // its speed, voice blips, done callback). Skip shows the rest.
+    void                      StartReveal(f32 charsPerSecond = 40.0f);
+    void                      SkipReveal();
+    [[nodiscard]] bool        IsRevealing() const { return _reveal.IsStarted() && !_reveal.IsDone(); }
+    [[nodiscard]] TextReveal& GetReveal() { return _reveal; }
+
 protected:
     void OnCollect(FramePacket&  packet, UIRect          myRect, f32 effectiveOpacity,
                    TextureHandle whiteTex, SamplerHandle whiteSampler,
                    const UISkin& skin) override;
     void OnLocaleChanged() override;
+    void OnUpdate(f32 dt, UIRect myRect, Vec2 mousePos, bool mouseDown, bool mouseJustDown, bool mouseJustUp,
+                  bool& consumed) override; // advances a reveal
 
 private:
-    CachedTextLayout _layout;
+    CachedTextLayout  _layout;
+    const TextLayout* _laidOut = nullptr; // the layout last drawn, for the reveal
+    TextReveal        _reveal;
 };
 
 // ---------------------------------------------------------------------------
