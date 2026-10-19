@@ -234,6 +234,14 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] SDF font variant — dedicated screen-space pipeline; engine ships Roboto-Regular for the built-in debug overlay
 - [x] Debug overlay — FPS, sprite/batch counts, draw calls, lights, chunk culling stats; toggled via `Settings::Graphics.ShowDebugInfo`
 
+**Revisit: text paths** - today `FontMode` ties how text is rasterized to where it's drawn: `Bitmap` always goes through the lit world sprite pipeline, `SDF` always through the screen-space UI one. Split the two: the font decides rasterization, the caller decides the destination.
+- [ ] Font kind decides rasterization: **pixel** fonts bake as bitmaps at their design size - hard edges (no antialiasing), nearest sampling, whole-number scales, outline / shadow as one-pixel offset copies; **smooth** fonts are SDF (any scale, 21F's effects)
+- [ ] World text, lit (signs, banners in the scene): both kinds; smooth fonts need an SDF mode in the sprite shader so they stay sharp under camera zoom (Valve's "Improved Alpha-Tested Magnification", SIGGRAPH 2007)
+- [ ] World-anchored text, unlit (damage numbers, "+5 gold", name tags): follows a world point or an entity each frame but draws with the UI text renderer - above the world, unlit, with text styles and effects; optional scale with camera zoom; rise / fade helpers. Needed by Phase 31
+- [ ] Pixel fonts on screen too (UI, dialog box) for pixel-art games
+- [ ] A default pixel font shipped with the engine - candidates Pixel Operator (CC0), monogram (CC0), with Fusion Pixel (OFL) as a Japanese fallback; check each license file before shipping
+- [ ] Decide `FontMode::Bitmap`'s future once the above lands (it may become just "pixel")
+
 ---
 
 ## Phase 21: GUI / UI System ✓
