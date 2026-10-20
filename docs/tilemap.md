@@ -67,18 +67,27 @@ Three layers, stored together in each chunk:
 | Layer | Holds | Sorted at |
 |-------|-------|-----------|
 | `Ground` (0) | terrain, floors, water, paths | `-1000000` - behind everything |
-| `Objects` (1) | trunks, walls, furniture | the tile's bottom edge (world Y), so it sorts with characters; a `Flat` tile at `-999999` |
+| `Objects` (1) | trunks, walls, furniture | half a tile below its bottom edge (world Y), so it sorts with characters; a `Flat` tile at `-999999` |
 | `Overlay` (2) | canopies, rooftops | `1000000` - in front of everything |
 
-Sprites draw in ascending `Layer`. An Objects tile's layer is the world Y of its
-bottom edge, so a character drawn with **its own feet's Y as its layer** sorts
-against them: above a trunk it's covered by it, below it covers it. A tree
-splits across the layers - canopy in Overlay, trunk in Objects, roots in Ground.
+Sprites draw in ascending `Layer`. Entity sprites are **Y-sorted** by default
+(`SpriteRenderer::YSort`, [ecs.md](ecs.md#y-sort)): each draws at its bottom
+edge's world Y, every frame, so characters sort against each other and against
+Objects tiles as they move, with no code.
 
-Entity sprites don't do this by themselves: `SpriteRenderer.Layer` is fixed
-until something sets it. A character that walks among Objects tiles sets its
-layer to its feet's Y as it moves (the World demo's player does each tick:
-`sr->Layer = static_cast<i32>(position.Y + scale.Y * 0.5f)`).
+An Objects tile in row `r` draws at `TileMap::ObjectSortLayer(r)`: its center's
+Y plus a whole tile - half a tile below its bottom edge. For a sprite standing
+on a tile - its bottom edge on the tile's bottom edge (a character drawn down
+to its feet), or centered on the tile and under two tiles tall:
+
+- in the **row below** a trunk, it draws in front of it;
+- in the trunk's **own row or above**, it draws behind it (and behind an
+  Objects canopy tile in its own row).
+
+The half tile of slack breaks the tie a sprite in the trunk's own row would
+otherwise have with it (both bottom edges on the same line), in favor of the
+tile. A tree splits across the layers - canopy in Overlay (or Objects, to walk behind
+it), trunk in Objects, roots in Ground.
 
 ---
 

@@ -223,7 +223,7 @@ define *how* it gets there. Any controller pairs with any style.
 - [ ] **Tile occlusion grid** — pack `light-blocking` flags for the visible map area into a GPU texture; updated incrementally when tiles change; uploaded to the sprite shader as a new descriptor binding. Only needed if shadows move to the GPU: today's are CPU-raycast polar shadow maps (below). Old design notes: `docs/plans/tilemap-future.md`
 - [x] **Shadow casting** — CPU DDA raycaster builds a 1D polar shadow map per light; sampled in the sprite fragment shader with 3-tap PCF; `BlocksLight` tile flag drives occlusion
 - [ ] Soft shadow quality option: configurable penumbra sample count in `project.arcbit` (default: hard shadows; higher counts add a blur fringe for performance/quality tradeoff)
-- [ ] **Entities Y-sort with Objects tiles on their own** - today an entity's `SpriteRenderer.Layer` is fixed, and a character walking among Objects tiles has to set it to its feet's Y each tick (the World demo does); a flag or component (`YSort`) that the sprite system applies would make it automatic for every NPC and scene-file entity
+- [x] **Entities Y-sort with Objects tiles on their own** - today an entity's `SpriteRenderer.Layer` is fixed, and a character walking among Objects tiles has to set it to its feet's Y each tick (the World demo does); a flag or component (`YSort`) that the sprite system applies would make it automatic for every NPC and scene-file entity. Done: `SpriteRenderer::YSort`, on by default (`Defaults.YSortSprites`), `"y_sort": false` for flat things
 
 ---
 

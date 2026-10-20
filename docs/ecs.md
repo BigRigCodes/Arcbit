@@ -211,8 +211,9 @@ struct SpriteRenderer {
     UVRect        UV    = { 0.0f, 0.0f, 1.0f, 1.0f };
     Vec2          Pivot = { 0.5f, 0.5f }; // normalized origin; the Animator writes it from frame data
     Color         Tint  = Color::White();
-    i32           Layer = 0;
+    i32           Layer = 0;    // the draw order when not Y-sorted
     bool          FlipX = false;
+    std::optional<bool> YSort;  // "y_sort"; unset: the project's (on)
 };
 ```
 
@@ -220,6 +221,21 @@ struct SpriteRenderer {
 into `FramePacket.Sprites`. Frustum culling is applied at this point. If the
 entity also has a `Parallax` component the position is adjusted before submission
 (see `Parallax` below).
+
+#### Y-sort
+
+A Y-sorted sprite draws at its **bottom edge's world Y** (after the pivot)
+instead of `Layer`, worked out each frame, so whatever stands further down the
+screen draws in front: characters walk behind and in front of each other, of
+props, and of Objects-layer tiles ([tilemap.md](tilemap.md#layers-and-draw-order)).
+
+It's on by default: `YSort` unset follows the project,
+`ApplicationConfig::Defaults.YSortSprites` (true), which Application copies
+into each scene's `WorldConfig::YSortSprites` (a scene made without an
+Application has it off). Flat things - floors, rugs, decals, markings on the
+ground - set `"y_sort": false` and keep their `Layer`. A sprite with
+`Parallax` isn't Y-sorted unless it sets `YSort` true. Scene files write
+`y_sort` only when it's set.
 
 UV rectangles come from `SpriteSheet`, which loads the Arcbit sprite format
 (`docs/sprite-format.md`): named frames, tile grids and animation clips in one
