@@ -254,6 +254,7 @@ void Application::Run()
                                 .Events    = &_events,
                                 .Saves     = &_saves,
                                 .Registry  = &_sceneRegistry,
+                                .Prefabs   = &_prefabs,
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
@@ -290,6 +291,7 @@ void Application::Run()
     // Give the game a chance to register actions, create GPU resources, etc.
     // Input bindings are loaded from settings AFTER OnStart so that default
     // bindings set up in OnStart are overwritten by any user-saved bindings.
+    (void)_prefabs.AddFolder(_config.PrefabFolder); // before OnStart: the first scene may use them
     OnStart();
     Settings::LoadInputBindings(_input);
 

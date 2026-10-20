@@ -45,6 +45,7 @@ add_executable(arcbit-tests
     save/SaveSealTests.cpp
     save/SaveTests.cpp
     save/SceneStateTests.cpp
+    scene/PrefabTests.cpp
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp

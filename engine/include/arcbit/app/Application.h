@@ -5,6 +5,7 @@
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/dialog/DialogLibrary.h>
+#include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
@@ -131,6 +132,7 @@ struct ApplicationConfig
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
     const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
     const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
+    const char* PrefabFolder = "assets/prefabs"; // the game's .arcprefab files, read at startup (docs/scenes.md#prefabs)
 
     // The engine's behavior defaults - tap to turn, and more as they come
     // (ProjectDefaults.h). Phase 38's project.arcbit will fill them from a file.
@@ -255,6 +257,10 @@ public:
 
     // Every conversation in the dialog folders (ApplicationConfig::DialogFolder).
     [[nodiscard]] DialogLibrary& GetDialogs() { return _dialogs; }
+
+    // Every prefab in the prefab folder (ApplicationConfig::PrefabFolder),
+    // shared by every scene: "prefab" in scene files, Scene::Spawn.
+    [[nodiscard]] const PrefabLibrary& GetPrefabs() const { return _prefabs; }
 
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
@@ -444,6 +450,8 @@ private:
     void ApplyDefaults(Scene& scene) const;
 
     DialogLibrary          _dialogs;
+    PrefabLibrary          _prefabs;
+    void                   RegisterPrefabCommands();
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 
     // Conversations (ApplicationDialog.cpp).

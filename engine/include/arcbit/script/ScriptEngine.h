@@ -16,6 +16,7 @@ namespace Arcbit
 class DebugConsole;
 class EventBus;
 class InputManager;
+class PrefabLibrary;
 class Scene;
 class SceneAssets;
 class SceneManager;
@@ -32,6 +33,7 @@ struct ScriptServices
     EventBus*            Events   = nullptr; // Event.*
     SaveManager*         Saves    = nullptr; // Save.Get / Set
     const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
+    const PrefabLibrary* Prefabs  = nullptr; // Entity.Spawn
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 
