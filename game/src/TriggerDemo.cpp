@@ -61,6 +61,7 @@
 
 #include <array>
 #include <cmath>
+#include <optional>
 #include <format>
 
 using namespace Arcbit;
@@ -160,7 +161,9 @@ protected:
 
 
     // Sprite-only entity; returns it so callers can attach more components.
-    Entity CreateBlock(const char* tag, const Vec2 pos, const Vec2 size, const Color tint, const i32 layer)
+    // Y-sorted, unless given a flat layer (floor markings, under everything).
+    Entity CreateBlock(const char* tag, const Vec2 pos, const Vec2 size, const Color tint,
+                       const std::optional<i32> flatLayer = std::nullopt)
     {
         auto&        world                = GetWorld();
         const Entity e                    = world.CreateEntity();
@@ -172,7 +175,8 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = tint,
-                                               .Layer   = layer,
+                                               .Layer   = flatLayer.value_or(0),
+                                               .YSort   = flatLayer ? std::optional(false) : std::nullopt,
                                            });
         return e;
     }
@@ -185,7 +189,7 @@ protected:
 
     void CreatePlayer()
     {
-        _player     = CreateBlock("Player", TileCenter(0, 0), {TileSize * 0.7f, TileSize * 0.7f}, PlayerColor, 0);
+        _player     = CreateBlock("Player", TileCenter(0, 0), {TileSize * 0.7f, TileSize * 0.7f}, PlayerColor);
         auto& world = GetWorld();
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<EntityEvents>(_player); // announces its spawn (and its destruction, were it destroyed)
@@ -254,8 +258,7 @@ protected:
     void CreateNpc()
     {
         const Vec2   pos = TileCenter(-3, 0);
-        const Entity npc = CreateBlock("Npc", pos, {TileSize * 0.8f, TileSize * 0.8f}, NpcColor,
-                                       static_cast<i32>(pos.Y));
+        const Entity npc = CreateBlock("Npc", pos, {TileSize * 0.8f, TileSize * 0.8f}, NpcColor);
         AttachCollider(npc, Collider2D{
                            .HalfExtents = {TileSize * 0.4f, TileSize * 0.4f},
                            .Kind        = BodyKind::Static,

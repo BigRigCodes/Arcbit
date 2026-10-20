@@ -122,7 +122,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.3f, 0.5f, 1.0f, 1.0f},
-                                               .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
@@ -158,7 +157,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.55f, 0.45f, 0.35f, 1.0f},
-                                               .Layer   = static_cast<i32>(rockPos.Y + rockSize.Y * 0.5f),
                                            });
         const Collider2D rockCol{
             .Shape       = ColliderShape::Box,
@@ -183,7 +181,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.7f, 0.5f, 0.25f, 1.0f},
-                                               .Layer   = 0,
                                            });
         const Collider2D col{
             .Shape       = ColliderShape::Box,

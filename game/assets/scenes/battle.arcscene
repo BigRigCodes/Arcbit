@@ -4,18 +4,18 @@
     "entities": {
         "enemy": {
             "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Enemy" },
-            "SpriteRenderer": { "layer": 28, "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.2, 0.2, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.2, 0.2, 1.0] },
             "Tag": { "value": "Enemy" },
             "Transform2D": { "position": [240.0, 0.0], "scale": [56.0, 56.0] }
         },
         "enemy-2": {
             "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Enemy" },
-            "SpriteRenderer": { "layer": -132, "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.2, 0.2, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.2, 0.2, 1.0] },
             "Tag": { "value": "Enemy" },
             "Transform2D": { "position": [180.0, -160.0], "scale": [56.0, 56.0] }
         },
         "floor": {
-            "SpriteRenderer": { "layer": -100000, "sampler": "nearest", "texture": "builtin:white", "tint": [0.22, 0.12, 0.16, 1.0] },
+            "SpriteRenderer": { "layer": -100000, "sampler": "nearest", "texture": "builtin:white", "tint": [0.22, 0.12, 0.16, 1.0], "y_sort": false },
             "Tag": { "value": "Floor" },
             "Transform2D": { "scale": [960.0, 540.0] }
         },
@@ -24,31 +24,31 @@
             "FreeMovement": { "speed": 280.0 },
             "InputMovement": { "move_down": "Move_Down", "move_left": "Move_Left", "move_right": "Move_Right", "move_up": "Move_Up" },
             "PendingMove": {},
-            "SpriteRenderer": { "layer": 20, "sampler": "nearest", "texture": "builtin:white", "tint": [0.3, 0.5, 1.0, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.3, 0.5, 1.0, 1.0] },
             "Tag": { "value": "Player" },
             "Transform2D": { "position": [-240.0, 0.0], "scale": [40.0, 40.0] }
         },
         "wall-east": {
             "Collider2D": { "half_extents": [16.0, 286.0], "kind": "static", "layer": "Wall" },
-            "SpriteRenderer": { "layer": 286, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
             "Tag": { "value": "Wall" },
             "Transform2D": { "position": [496.0, 0.0], "scale": [32.0, 572.0] }
         },
         "wall-north": {
             "Collider2D": { "half_extents": [512.0, 16.0], "kind": "static", "layer": "Wall" },
-            "SpriteRenderer": { "layer": -270, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
             "Tag": { "value": "Wall" },
             "Transform2D": { "position": [0.0, -286.0], "scale": [1024.0, 32.0] }
         },
         "wall-south": {
             "Collider2D": { "half_extents": [512.0, 16.0], "kind": "static", "layer": "Wall" },
-            "SpriteRenderer": { "layer": 302, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
             "Tag": { "value": "Wall" },
             "Transform2D": { "position": [0.0, 286.0], "scale": [1024.0, 32.0] }
         },
         "wall-west": {
             "Collider2D": { "half_extents": [16.0, 286.0], "kind": "static", "layer": "Wall" },
-            "SpriteRenderer": { "layer": 286, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.35, 0.4, 1.0] },
             "Tag": { "value": "Wall" },
             "Transform2D": { "position": [-496.0, 0.0], "scale": [32.0, 572.0] }
         }

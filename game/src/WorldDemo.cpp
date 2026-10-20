@@ -391,7 +391,7 @@ private:
         t->Scale    = _playerSheet.TileWorldSize(TileSize);
 
         world.AddComponent<SpriteRenderer>(_playerEntity, SpriteRenderer{
-                                               .Texture = _playerSheet.GetTexture(), .Sampler = _sampler, .Layer = 0,
+                                               .Texture = _playerSheet.GetTexture(), .Sampler = _sampler,
                                            });
         world.AddComponent<Animator>(_playerEntity, Animator{
                                          .Clip    = _playerSheet.GetAnimation("idle_down"),
@@ -439,7 +439,6 @@ private:
         world.AddComponent<SpriteRenderer>(e, SpriteRenderer{
                                                .Texture = _shipTex, .Sampler = _sampler,
                                                .UV      = ShipUVRight,
-                                               .Layer   = static_cast<i32>(pos.Y + ShipSize * 0.5f),
                                            });
         world.AddComponent<FreeMovement>(e, FreeMovement{
                                              .Velocity = vel, .Friction = 0.0f, .MaxSpeed = ShipMaxSpeed,
@@ -483,7 +482,6 @@ private:
             t->Scale                          = scale;
             world.AddComponent<SpriteRenderer>(e, SpriteRenderer{
                                                    .Texture = _bridgeTex, .Sampler = _sampler, .UV = uv,
-                                                   .Layer   = static_cast<i32>(pos.Y + scale.Y * 0.5f),
                                                });
         };
 
@@ -507,7 +505,6 @@ private:
         world.AddComponent<SpriteRenderer>(_whirlpoolEntity, SpriteRenderer{
                                                .Texture = _waterTex, .Sampler = _sampler,
                                                .UV      = GetTileMap().GetTileUV(TileWhirlpool0),
-                                               .Layer   = static_cast<i32>(t->Position.Y + t->Scale.Y * 0.5f),
                                            });
     }
 
@@ -561,7 +558,6 @@ private:
                                                          sr->UV = (fm->Velocity.X >= 0.0f) ? ShipUVRight : ShipUVLeft;
                                                      else
                                                          sr->UV = (fm->Velocity.Y >= 0.0f) ? ShipUVDown : ShipUVUp;
-                                                     sr->Layer = static_cast<i32>(t->Position.Y + ShipSize * 0.5f);
                                                  }
                                              });
     }
@@ -634,16 +630,13 @@ private:
         auto& world = GetWorld();
         auto* sr    = world.GetComponent<SpriteRenderer>(_playerEntity);
         auto* anim  = world.GetComponent<Animator>(_playerEntity);
-        auto* t     = world.GetComponent<Transform2D>(_playerEntity);
-        if (!sr || !anim || !t) return;
+        if (!sr || !anim) return;
 
         if (_isAttacking && anim->Finished) _isAttacking = false;
 
         bool        flipX    = false;
         const char* clipName = SelectPlayerClip(moving, flipX);
         sr->FlipX            = flipX;
-        // Y-sort the player with tilemap Objects-layer sprites.
-        sr->Layer = static_cast<i32>(t->Position.Y + t->Scale.Y * 0.5f);
 
         const AnimationClip* newClip = _playerSheet.GetAnimation(clipName);
         if (newClip != anim->Clip) {

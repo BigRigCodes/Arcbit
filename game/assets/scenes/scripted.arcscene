@@ -14,7 +14,7 @@
         "door": {
             "Interactable": { "prompt": "demo.scripted.prompt.enter" },
             "Script": { "properties": { "Scene": "World" }, "script": "demo.door" },
-            "SpriteRenderer": { "layer": -1, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.3, 0.6, 1.0] },
+            "SpriteRenderer": { "layer": -1, "sampler": "nearest", "texture": "builtin:white", "tint": [0.45, 0.3, 0.6, 1.0], "y_sort": false },
             "Tag": { "value": "Door" },
             "Transform2D": { "position": [448.0, 256.0], "scale": [60.0, 60.0] }
         },
@@ -44,7 +44,7 @@
         "lookout": {
             "Collider2D": { "half_extents": [256.0, 32.0], "is_trigger": true, "kind": "static", "layer": "Trigger", "mask": "Player" },
             "Script": { "script": "demo.lookout" },
-            "SpriteRenderer": { "layer": -2, "sampler": "nearest", "texture": "builtin:white", "tint": [0.9, 0.3, 0.3, 0.2] },
+            "SpriteRenderer": { "layer": -2, "sampler": "nearest", "texture": "builtin:white", "tint": [0.9, 0.3, 0.3, 0.2], "y_sort": false },
             "Tag": { "value": "Lookout" },
             "Transform2D": { "position": [-96.0, -256.0], "scale": [512.0, 64.0] }
         },

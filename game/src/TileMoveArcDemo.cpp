@@ -158,7 +158,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.3f, 0.5f, 1.0f, 1.0f},
-                                               .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<SmoothTileMovement>(_player, SmoothTileMovement{.Speed = WalkSpeed});
@@ -205,7 +204,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = color,
-                                               .Layer   = static_cast<i32>(pos.Y + TileSize * 0.5f),
                                            });
     }
 

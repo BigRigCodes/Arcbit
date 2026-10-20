@@ -5,7 +5,7 @@
         "bumper": {
             "Collider2D": { "half_extents": [32.0, 32.0], "kind": "static", "layer": "Prop" },
             "DemoBumper": { "kick": 700.0 },
-            "SpriteRenderer": { "layer": -224, "sampler": "nearest", "texture": "builtin:white", "tint": [0.95, 0.35, 0.75, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.95, 0.35, 0.75, 1.0] },
             "Tag": { "value": "Bumper" },
             "Transform2D": { "position": [320.0, -256.0], "scale": [64.0, 64.0] }
         },
@@ -13,7 +13,7 @@
             "Collider2D": { "half_extents": [25.6, 25.6], "layer": "Prop" },
             "Persistent": { "components": ["Transform2D"] },
             "Pushable": {},
-            "SpriteRenderer": { "layer": 281, "sampler": "nearest", "texture": "builtin:white", "tint": [0.7, 0.5, 0.25, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.7, 0.5, 0.25, 1.0] },
             "Tag": { "value": "Crate" },
             "Transform2D": { "position": [192.0, 256.0], "scale": [51.2, 51.2] }
         },
@@ -30,13 +30,13 @@
         },
         "rock": {
             "Collider2D": { "half_extents": [32.0, 32.0], "kind": "static", "layer": "Prop" },
-            "SpriteRenderer": { "layer": -64, "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
             "Tag": { "value": "Rock" },
             "Transform2D": { "position": [512.0, -96.0], "scale": [64.0, 64.0] }
         },
         "rock-2": {
             "Collider2D": { "half_extents": [24.0, 48.0], "kind": "static", "layer": "Prop" },
-            "SpriteRenderer": { "layer": 208, "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.45, 0.35, 1.0] },
             "Tag": { "value": "Rock" },
             "Transform2D": { "position": [480.0, 160.0], "scale": [48.0, 96.0] }
         }
