@@ -371,12 +371,25 @@ namespace
                 j["speed"]     = c.Speed;
             });
         r.RegisterComponent<SmoothTileMovement>(
-            "SmoothTileMovement", [](SmoothTileMovement& c, const json& j, SceneAssets&) { Read(j, "speed", c.Speed); },
-            [](const SmoothTileMovement& c, json& j, const SceneAssets&) { j["speed"] = c.Speed; });
+            "SmoothTileMovement",
+            [](SmoothTileMovement& c, const json& j, SceneAssets&) {
+                Read(j, "speed", c.Speed);
+                Read(j, "turn_delay", c.TurnDelay);
+            },
+            [](const SmoothTileMovement& c, json& j, const SceneAssets&) {
+                j["speed"]      = c.Speed;
+                j["turn_delay"] = c.TurnDelay;
+            });
         r.RegisterComponent<SnapTileMovement>(
             "SnapTileMovement",
-            [](SnapTileMovement& c, const json& j, SceneAssets&) { Read(j, "step_interval", c.StepInterval); },
-            [](const SnapTileMovement& c, json& j, const SceneAssets&) { j["step_interval"] = c.StepInterval; });
+            [](SnapTileMovement& c, const json& j, SceneAssets&) {
+                Read(j, "step_interval", c.StepInterval);
+                Read(j, "turn_delay", c.TurnDelay);
+            },
+            [](const SnapTileMovement& c, json& j, const SceneAssets&) {
+                j["step_interval"] = c.StepInterval;
+                j["turn_delay"]    = c.TurnDelay;
+            });
         r.RegisterComponent<Pushable>(
             "Pushable", [](Pushable& c, const json& j, SceneAssets&) { Read(j, "resistance", c.Resistance); },
             [](const Pushable& c, json& j, const SceneAssets&) { j["resistance"] = c.Resistance; });

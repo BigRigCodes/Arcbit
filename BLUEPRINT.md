@@ -344,7 +344,7 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
 
-- [ ] **Tap to turn** for tile movers: standing still, a quick tap of a direction other than the one faced turns in place, and only walks if held past `TurnDelay` (~0.1 s); the faced direction walks at once. On by default - per mover (`"turn_delay"`, 0 = off) and per project
+- [x] **Tap to turn** for tile movers: standing still, a quick tap of a direction other than the one faced turns in place, and only walks if held past `TurnDelay` (~0.1 s); the faced direction walks at once. On by default - per mover (`"turn_delay"`, 0 = off) and per project
 
 ### Phase 22I - Physics responses
 *Movement that comes from the world rather than the mover's own intent. Lands before Phase 32 (Live Combat), whose knockback and dash build on it.*

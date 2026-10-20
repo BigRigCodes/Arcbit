@@ -498,6 +498,7 @@ directly.
 ```cpp
 struct SmoothTileMovement {
     f32  Speed     = 4.0f;    // tiles/second (tile size comes from the TileMap)
+    f32  TurnDelay = -1.0f;   // tap to turn (below); < 0 = the project default, 0 = off
     Vec2 OriginWorld;
     Vec2 TargetWorld;
     f32  Progress  = 1.0f;   // 0→1 lerp progress; 1.0 means arrived
@@ -517,8 +518,21 @@ step reports the contact (so `CollisionCallback` fires) and retries next tick.
 struct SnapTileMovement {
     f32 StepInterval = 0.15f; // seconds between steps while a direction is held
     f32 Cooldown     = 0.0f;  // time until the next step may start
+    f32 TurnDelay    = -1.0f; // tap to turn (below); < 0 = the project default, 0 = off
 };
 ```
+
+#### Tap to turn
+
+Both tile styles: a mover standing still, pressed a direction it isn't
+facing, turns at once (`MoveIntent.Facing`, so `FacingAnimation` shows it) and
+only walks if the direction is still held after `TurnDelay` seconds - a quick
+tap just turns, like facing an NPC to talk. The faced direction walks at once,
+and so does any direction while already walking. It's on by default:
+`ApplicationConfig::Defaults.TileTurnDelay` (0.1 s, `ProjectDefaults.h`) is
+copied into every scene's `WorldConfig::TileTurnDelay`; a mover's own
+`TurnDelay` (`"turn_delay"`) overrides it, 0 turning it off. Scenes made
+without an Application (tests, tools) default to 0.
 
 ### Pairing examples
 

@@ -132,14 +132,47 @@ namespace
            });
     }
 
-    void ApplyIntentToSmoothTileMovers(World& ecs)
+    // Float slack so a timer that should land exactly on zero after N ticks
+    // (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
+    constexpr f32 TimerEpsilon = 1e-4f;
+
+    // A mover's own TurnDelay, else the scene's (the project default).
+    f32 TurnDelayOf(const f32 own, Scene& scene) { return own >= 0.0f ? own : scene.GetConfig().TileTurnDelay; }
+
+    // Tap to turn: whether a tile mover may step in `dir` this tick. Standing
+    // (`idle`) and pressed a way it doesn't face, it waits until the
+    // direction has been held `delay` seconds - the turn itself is
+    // MoveIntent.Facing, already set. Pressed the way it faces, or already
+    // walking, it goes at once.
+    bool MayStep(TileTurn& turn, const Vec2 dir, const Vec2 facing, const bool idle, const f32 delay, const f32 dt)
     {
-        ecs.Query<const MoveIntent, SmoothTileMovement>()
-           .Without<Disabled>()
-           .ForEach([](const MoveIntent& intent, SmoothTileMovement& stm) {
-               stm.QueuedDir = CardinalStep(intent.Direction);
-               stm.HasQueued = stm.QueuedDir != Vec2{};
-           });
+        if (dir == Vec2{}) {
+            turn.Held = 0.0f;
+            if (idle) turn.Faced = CardinalStep(facing);
+            return false;
+        }
+        if (!idle || delay <= 0.0f || dir == turn.Faced) {
+            turn.Faced = dir;
+            turn.Held  = 0.0f;
+            return true;
+        }
+        turn.Held += dt;
+        if (turn.Held + TimerEpsilon < delay) return false;
+        turn.Faced = dir;
+        turn.Held  = 0.0f;
+        return true;
+    }
+
+    void ApplyIntentToSmoothTileMovers(Scene& scene, const f32 dt)
+    {
+        scene.GetWorld().Query<const MoveIntent, SmoothTileMovement>()
+            .Without<Disabled>()
+            .ForEach([&](const MoveIntent& intent, SmoothTileMovement& stm) {
+                const Vec2 dir = CardinalStep(intent.Direction);
+                stm.QueuedDir  = dir;
+                stm.HasQueued  = MayStep(stm._turn, dir, intent.Facing, stm.Progress >= 1.0f,
+                                         TurnDelayOf(stm.TurnDelay, scene), dt);
+            });
     }
 
     // An external push slower than this (px/s, squared) has died out.
@@ -595,7 +628,7 @@ namespace
         world.RegisterSystem("SmoothTileMove", [](Scene& scene, const f32 dt) {
             TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
                                  .TileSize = scene.GetTileMap().GetTileSize() };
-            ApplyIntentToSmoothTileMovers(ctx.Ecs);
+            ApplyIntentToSmoothTileMovers(scene, dt);
 
             ctx.Ecs.Query<Transform2D, SmoothTileMovement>()
                .Without<Disabled>()
@@ -652,24 +685,24 @@ namespace
         });
     }
 
-    // Float slack so a cooldown that should land exactly on zero after N
-    // ticks (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
-    constexpr f32 CooldownEpsilon = 1e-4f;
-
-    // One snap mover's tick. A fresh direction steps at once; a held one
-    // repeats every StepInterval, carrying the remainder so the average rate
-    // is exact. A blocked step clears the cooldown and retries next tick.
+    // One snap mover's tick. A fresh direction steps at once (after a turn,
+    // if it's a new one - tap to turn); a held one repeats every
+    // StepInterval, carrying the remainder so the average rate is exact. A
+    // blocked step clears the cooldown and retries next tick.
     void TickSnapMover(TileStepContext& ctx, const Entity e, Transform2D& t, SnapTileMovement& snap,
-                       const MoveIntent& intent, const f32 dt)
+                       const MoveIntent& intent, const f32 delay, const f32 dt)
     {
         const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
         const f32         ts  = ctx.TileSize;
         const Vec2 dir = CardinalStep(intent.Direction);
+        const bool may = MayStep(snap._turn, dir, intent.Facing, !snap._turn.Walking, delay, dt);
         if (dir == Vec2{}) {
-            snap.Cooldown = 0.0f;
+            snap.Cooldown      = 0.0f;
+            snap._turn.Walking = false;
             return;
         }
-        if (snap.Cooldown <= CooldownEpsilon) {
+        if (!may) return;
+        if (snap.Cooldown <= TimerEpsilon) {
             const Vec2 origin = TileCenterUnder(t.Position, ts);
             const Vec2 target = origin + dir * ts;
             if (!TileStepClear(ctx, e, col, origin, target)) { // a pushed crate has already jumped ahead
@@ -679,6 +712,7 @@ namespace
             t.Position = target;
             RefreshCollider(e, col, t.Position, ctx.Physics);
             snap.Cooldown += snap.StepInterval;
+            snap._turn.Walking = true;
         }
         snap.Cooldown -= dt;
     }
@@ -693,7 +727,7 @@ namespace
             ctx.Ecs.Query<Transform2D, SnapTileMovement, const MoveIntent>()
                .Without<Disabled>()
                .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
-                   TickSnapMover(ctx, e, t, snap, intent, dt);
+                   TickSnapMover(ctx, e, t, snap, intent, TurnDelayOf(snap.TurnDelay, scene), dt);
                });
         });
     }
