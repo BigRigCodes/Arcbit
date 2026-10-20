@@ -217,6 +217,44 @@ TEST_CASE("Credits of something that isn't a credits document are empty", "[ui][
     CHECK(height == 0.0f);
 }
 
+TEST_CASE("Credits names can be logos, alone or in a row", "[ui][credits]")
+{
+    const nlohmann::json doc = nlohmann::json::parse(R"({ "sections": [ { "names": [
+        { "image": "arcbit.png", "height": 120, "uv": [0.25, 0.0, 0.75, 1.0] },
+        { "images": ["sdl.png", "vulkan.png"] },
+        "Thanks" ] } ] })");
+    f32        height = 0.0f;
+    const auto lines  = CreditsScreen::Layout(doc, height);
+    REQUIRE(lines.size() == 3);
+    CHECK(lines[0].Style == CreditsScreen::Line::Kind::Images);
+    CHECK(lines[0].Images == std::vector<std::string>{ "arcbit.png" });
+    CHECK(lines[0].ImageHeight == 120.0f);
+    CHECK(lines[0].UV.U0 == 0.25f);
+    CHECK(lines[1].Images == std::vector<std::string>{ "sdl.png", "vulkan.png" });
+    CHECK(lines[1].ImageHeight == 96.0f); // the default
+    CHECK(lines[1].Y - lines[0].Y > 120.0f); // a logo line is as tall as its logo
+    CHECK(lines[2].Text == "Thanks");
+
+    // On screen: each at the line's height and its shown part's aspect; a row
+    // centered, side by side. A logo that doesn't load is left out.
+    const ArcbitTests::TempDir tmp;
+    CreditsScreen screen;
+    screen.Path      = tmp.Write("credits.json", doc.dump());
+    screen.LoadImage = [](const std::string& path) {
+        if (path == "vulkan.png") return CreditsScreen::LoadedImage{};
+        return CreditsScreen::LoadedImage{ TextureHandle::Make(1, 0), { 400.0f, 200.0f } };
+    };
+    screen.OnEnter();
+    const auto* arcbit = screen.FindWidget<Image>("arcbit.png");
+    const auto* sdl    = screen.FindWidget<Image>("sdl.png");
+    REQUIRE(arcbit);
+    REQUIRE(sdl);
+    CHECK(arcbit->Size.X == 120.0f); // half of a 2:1 image is 1:1
+    CHECK(sdl->Size.X == 192.0f);
+    CHECK(sdl->Offset.X == 0.0f);    // alone in its row now: centered
+    CHECK_FALSE(screen.FindWidget<Image>("vulkan.png"));
+}
+
 TEST_CASE("The shipped demo credits lay out", "[ui][credits][shipped]")
 {
     std::ifstream f(ArcbitTests::SourcePath("game/assets/credits.json"));

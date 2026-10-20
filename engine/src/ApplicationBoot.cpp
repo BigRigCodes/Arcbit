@@ -122,6 +122,12 @@ void Application::ShowCredits()
     credits->Path       = _boot.CreditsPath;
     credits->ViewHeight = static_cast<f32>(GetWindowHeight());
     credits->OnClose    = [this, screen = credits.get()] { _ui.Close(screen); };
+    credits->LoadImage  = [this](const std::string& path) {
+        const TextureHandle texture = _textures->Load(path);
+        const TextureInfo   info    = _textures->GetInfo(texture);
+        return CreditsScreen::LoadedImage{ texture, { static_cast<f32>(info.Width), static_cast<f32>(info.Height) } };
+    };
+    credits->ImageSampler = GetStockSampler(StockSampler::Linear);
     _ui.Push(std::move(credits));
 }
 
