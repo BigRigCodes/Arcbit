@@ -33,6 +33,7 @@
   "demo.triggers.coins": "Pièces : {count} / {total}",
   "demo.scripted.name": "Scriptée",
   "demo.scripted.summary": "Lua et dialogues : un coffre, une porte, un panneau, une ancienne à qui parler, un garde en ronde, un HUD et un menu (26, 27)",
+  "demo.audio.footsteps": "Bruits de pas",
   "demo.scripted.keys": "E utiliser, L menu, ` console",
   "demo.scripted.welcome": "Cette scène tourne en Lua. E pour utiliser, L pour ouvrir le menu.",
   "demo.scripted.gold": "Or : {count}",

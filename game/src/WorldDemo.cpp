@@ -417,6 +417,7 @@ private:
         world.AddComponent<AudioSource>(_playerEntity, AudioSource{
                                             .Path = "assets/sfx/footsteps.mp3", .Volume = 0.6f,
                                             .Loop = true, .Playing                      = false,
+                                            .Category = "sfx.footsteps", // the demo's own (main.cpp)
                                         });
 
         world.AddComponent<LightEmitter>(_playerEntity, LightEmitter{
