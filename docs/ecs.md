@@ -233,7 +233,9 @@ It's on by default: `YSort` unset follows the project,
 `ApplicationConfig::Defaults.YSortSprites` (true), which Application copies
 into each scene's `WorldConfig::YSortSprites` (a scene made without an
 Application has it off). Flat things - floors, rugs, decals, markings on the
-ground - set `"y_sort": false` and keep their `Layer`. A sprite with
+ground - set `"y_sort": false` and keep their `Layer`, which must then be below
+any world Y the Y-sorted sprites reach: `-999998` sits above Ground tiles
+(`-1000000`) and Flat Objects tiles (`-999999`) and under everything standing. A sprite with
 `Parallax` isn't Y-sorted unless it sets `YSort` true. Scene files write
 `y_sort` only when it's set.
 
