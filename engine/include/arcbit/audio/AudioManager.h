@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/audio/AudioCategories.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
 
@@ -16,11 +17,12 @@ class MusicPlayer;
 // Static facade over miniaudio. Handles device init/shutdown, background music
 // streaming, fire-and-forget SFX, and spatial point sounds (driven by AudioSystem).
 //
-// Volume hierarchy:
-//   effective SFX volume   = MasterVolume * SfxVolume
-//   effective music volume = MasterVolume * MusicVolume
+// Every sound plays in an audio category (AudioCategories.h): one-shots
+// and spatial sounds in "sfx" unless told otherwise, music in "music". Each
+// category is a miniaudio sound group under its parent's, so a sound is
+// heard at its category's volume times every parent's up to "master".
 //
-// Those settings are perceived loudness, not amplitude (SliderToGain): ears
+// Those volumes are perceived loudness, not amplitude (SliderToGain): ears
 // hear amplitude on a log scale, so a linear 10% slider (-20 dB) still sounds
 // about a quarter as loud. The per-sound `volume` arguments below are plain
 // gain - the author's mix - applied on top.
@@ -42,9 +44,9 @@ public:
     // SFX — fire-and-forget
     // -----------------------------------------------------------------------
 
-    // Play a short sound effect at the given gain [0, 1], under SfxVolume.
-    // Fire-and-forget: the sound is freed after it finishes.
-    static void PlayOneShot(std::string_view path, f32 volume = 1.0f);
+    // Play a short sound at the given gain [0, 1] in a category (an unknown
+    // one plays in sfx, logged). Fire-and-forget: freed once it finishes.
+    static void PlayOneShot(std::string_view path, f32 volume = 1.0f, std::string_view category = AudioCategories::Sfx);
 
     // -----------------------------------------------------------------------
     // Music
@@ -53,8 +55,11 @@ public:
     // Stream a music file, crossfading from the current track over
     // fadeSeconds (0 = cut) and starting startSeconds in. A no-op when `path`
     // is already the current track: it carries on. Scenes don't call this
-    // directly - Scene::SetMusic hands the track to the scene manager.
-    static void PlayMusic(std::string_view path, bool loop = true, f32 fadeSeconds = 0.0f, f32 startSeconds = 0.0f);
+    // directly - Scene::SetMusic hands the track to the scene manager. One
+    // track plays at a time, whatever its category: the category is the
+    // volume it plays at ("music", or a game's "music.combat").
+    static void PlayMusic(std::string_view path, bool loop = true, f32 fadeSeconds = 0.0f, f32 startSeconds = 0.0f,
+                          std::string_view category = AudioCategories::Music);
 
     // Fade the current music out over fadeSeconds (0 = stop at once). No-op
     // if nothing is playing.
@@ -71,14 +76,23 @@ public:
     [[nodiscard]] static MusicPlayer& GetMusicPlayer();
 
     // -----------------------------------------------------------------------
-    // Volume
+    // Categories and volume
     // -----------------------------------------------------------------------
 
-    static void SetMasterVolume(f32 volume); // [0, 1]
-    static void SetMusicVolume(f32 volume);
-    static void SetSfxVolume(f32 volume);
+    // A game's own category, under parent (default master), with its name
+    // on the audio settings screen (a Loc key or text; default the name).
+    // Takes the player's saved volume for it. Any time, before or after Init.
+    static bool DefineCategory(std::string_view name, std::string_view parent = AudioCategories::Master,
+                               std::string_view label = {});
 
-    // Read MasterVolume / MusicVolume / SfxVolume from Settings::Audio and apply.
+    [[nodiscard]] static const AudioCategories& GetCategories();
+
+    // A category's volume (the player's slider, 0..1), applied at once. Not
+    // saved - the audio settings screen saves it in Settings::Audio.
+    static void              SetVolume(std::string_view category, f32 volume);
+    [[nodiscard]] static f32 GetVolume(std::string_view category);
+
+    // Every category's volume from Settings::Audio.
     static void ApplySettings();
 
     // A volume setting (perceived loudness, 0..1) as linear gain. Perceived
@@ -98,7 +112,8 @@ public:
     // Create a looping or one-shot spatial sound at the given world position.
     // Returns an opaque handle; caller must call DestroySpatialSound when done.
     // Returns nullptr if the file cannot be opened.
-    [[nodiscard]] static void* CreateSpatialSound(std::string_view path, bool loop, f32 volume);
+    [[nodiscard]] static void* CreateSpatialSound(std::string_view path, bool loop, f32 volume,
+                                                  std::string_view category = AudioCategories::Sfx);
 
     // Update position and max-hearing radius each tick.
     static void SetSpatialSoundPosition(void* handle, Vec2 position, f32 radius);

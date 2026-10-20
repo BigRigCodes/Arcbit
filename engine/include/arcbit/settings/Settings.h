@@ -7,6 +7,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <map>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -47,14 +48,20 @@ struct GraphicsSettings
 //
 // Volume levels are in [0, 1] and mean perceived loudness: 1 is the mix as
 // the game was authored, 0.5 sounds about half as loud, 0.1 about a tenth
-// (AudioManager::SliderToGain turns them into gain). MasterVolume scales all
-// channels.
+// (AudioManager::SliderToGain turns them into gain). One per audio category
+// (AudioCategories.h), by name - "master", "music", a game's "music.combat";
+// a category not listed is at 1. Saved as "audio": { "volumes": { ... } };
+// an older file's master_volume / music_volume / sfx_volume read into them.
 // ---------------------------------------------------------------------------
 struct AudioSettings
 {
-    f32 MasterVolume = 1.0f;
-    f32 MusicVolume  = 1.0f;
-    f32 SfxVolume    = 1.0f;
+    std::map<std::string, f32, std::less<>> Volumes;
+
+    [[nodiscard]] f32 Volume(const std::string_view category) const
+    {
+        const auto it = Volumes.find(category);
+        return it != Volumes.end() ? it->second : 1.0f;
+    }
 };
 
 // ---------------------------------------------------------------------------

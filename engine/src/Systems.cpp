@@ -1163,7 +1163,7 @@ namespace
                  .Without<Disabled>()
                  .ForEach([](const Transform2D& t, AudioSource& src) {
                      if (!src._handle && src.Playing)
-                         src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume);
+                         src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume, src.Category);
                      if (!src._handle) return;
 
                      AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);

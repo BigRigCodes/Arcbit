@@ -330,9 +330,13 @@ void Settings::ReadFile()
     if (doc.contains("audio") && doc["audio"].is_object())
     {
         const auto& a = doc["audio"];
-        Audio.MasterVolume = a.value("master_volume", Audio.MasterVolume);
-        Audio.MusicVolume  = a.value("music_volume",  Audio.MusicVolume);
-        Audio.SfxVolume    = a.value("sfx_volume",    Audio.SfxVolume);
+        // An older file's three volumes, then the categories (which win).
+        for (const auto& [key, category] : { std::pair{ "master_volume", "master" }, std::pair{ "music_volume", "music" },
+                                             std::pair{ "sfx_volume", "sfx" } })
+            if (const auto it = a.find(key); it != a.end() && it->is_number()) Audio.Volumes[category] = it->get<f32>();
+        if (const auto volumes = a.find("volumes"); volumes != a.end() && volumes->is_object())
+            for (const auto& [category, value] : volumes->items())
+                if (value.is_number()) Audio.Volumes[category] = value.get<f32>();
     }
 
     // --- Input ---
@@ -371,9 +375,8 @@ void Settings::WriteFile()
     doc["graphics"]["show_debug_info"]   = Graphics.ShowDebugInfo;
 
     // --- Audio ---
-    doc["audio"]["master_volume"] = TidyVolume(Audio.MasterVolume);
-    doc["audio"]["music_volume"]  = TidyVolume(Audio.MusicVolume);
-    doc["audio"]["sfx_volume"]    = TidyVolume(Audio.SfxVolume);
+    doc["audio"]["volumes"] = nlohmann::json::object();
+    for (const auto& [category, volume] : Audio.Volumes) doc["audio"]["volumes"][category] = TidyVolume(volume);
 
     // --- Input ---
     if (!s_InputSection.is_null())

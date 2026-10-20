@@ -85,16 +85,18 @@ void ScriptEngine::State::BindInput()
     AddGlobal("Input", input);
 }
 
-// Audio.PlaySound(path, volume), and music through the context scene's
-// SetMusic so it follows the scene like music set from C++.
+// Audio.PlaySound(path, volume, category), and music through the context
+// scene's SetMusic so it follows the scene like music set from C++.
 void ScriptEngine::State::BindAudio()
 {
     sol::table audio = Lua.create_table();
-    audio.set_function("PlaySound", [this](const std::string& path, const sol::optional<f32> volume) {
-        if (Services.PlaySound) Services.PlaySound(path, volume.value_or(1.0f));
+    audio.set_function("PlaySound", [this](const std::string& path, const sol::optional<f32> volume,
+                                           const sol::optional<std::string> category) {
+        if (Services.PlaySound) Services.PlaySound(path, volume.value_or(1.0f), category.value_or("sfx"));
     });
-    audio.set_function("PlayMusic", [this](const std::string& path, const sol::optional<bool> loop) {
-        RequireScene().SetMusic(path, loop.value_or(true));
+    audio.set_function("PlayMusic", [this](const std::string& path, const sol::optional<bool> loop,
+                                           const sol::optional<std::string> category) {
+        RequireScene().SetMusic(path, loop.value_or(true), category.value_or("music"));
     });
     audio.set_function("StopMusic", [this] { RequireScene().SetMusic(""); });
     AddGlobal("Audio", audio);

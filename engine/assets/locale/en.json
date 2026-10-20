@@ -68,6 +68,8 @@
   "ui.audio.master": "Master Volume",
   "ui.audio.music":  "Music Volume",
   "ui.audio.sfx":    "SFX Volume",
+  "ui.audio.voice":  "Voice Volume",
+  "ui.audio.ui":     "Menu Volume",
 
   "ui.graphics.title":       "Graphics Settings",
   "ui.graphics.fullscreen":  "Fullscreen",

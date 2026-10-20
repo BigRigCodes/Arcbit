@@ -137,7 +137,7 @@ protected:
         _sceneLoaded = GetEvents().Subscribe(EngineEvents::SceneLoaded, [this](const Event& e) {
             FollowLoadedScene(e.Payload.Get<std::string>("name", ""));
         });
-        if (_mute) AudioManager::SetMasterVolume(0.0f); // this run only, not saved
+        if (_mute) AudioManager::SetVolume(AudioCategories::Master, 0.0f); // this run only, not saved
         Open(LastOpenedIndex());
     }
 

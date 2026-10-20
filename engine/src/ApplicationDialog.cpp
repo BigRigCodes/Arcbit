@@ -49,7 +49,7 @@ std::unique_ptr<DialogScreen> Application::CreateDialogScreen()
     auto screen          = std::make_unique<DialogScreen>();
     screen->Art          = _dialogArt;
     screen->LoadPortrait = [this](const std::string& path) { return _textures->Load(path); };
-    screen->PlayVoice    = [](const std::string& path) { AudioManager::PlayOneShot(path); };
+    screen->PlayVoice    = [](const std::string& path) { AudioManager::PlayOneShot(path, 1.0f, AudioCategories::Voice); };
     screen->DefaultVoice = "assets/engine/ui/dialog/voice.wav";
     screen->Skin         = &_ui.GetSkin();
     screen->GetRunner().CancelableByDefault = _config.Defaults.DialogCancelable;

@@ -265,6 +265,7 @@ namespace
                 Read(j, "radius", c.Radius);
                 Read(j, "loop", c.Loop);
                 Read(j, "playing", c.Playing);
+                Read(j, "category", c.Category);
             },
             [](const AudioSource& c, json& j, const SceneAssets&) {
                 j["path"]    = c.Path;
@@ -272,6 +273,7 @@ namespace
                 j["radius"]  = c.Radius;
                 j["loop"]    = c.Loop;
                 j["playing"] = c.Playing;
+                if (c.Category != "sfx") j["category"] = c.Category;
             });
     }
 

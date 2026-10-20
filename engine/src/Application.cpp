@@ -257,8 +257,8 @@ void Application::Run()
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
-                                .PlaySound = [](const std::string_view path, const f32 volume) {
-                                    AudioManager::PlayOneShot(path, volume);
+                                .PlaySound = [](const std::string_view path, const f32 volume, const std::string_view category) {
+                                    AudioManager::PlayOneShot(path, volume, category);
                                 },
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },

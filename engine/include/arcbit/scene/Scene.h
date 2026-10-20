@@ -128,7 +128,8 @@ public:
     // leaves the music alone - whatever plays keeps playing - except that
     // leaving a scene that owns music fades it out. Suspended under a pushed
     // scene, the track resumes where it was when the scene is active again.
-    void SetMusic(std::string path, bool loop = true);
+    // It plays at an audio category's volume ("music", or a game's own).
+    void SetMusic(std::string path, bool loop = true, std::string category = "music");
 
     [[nodiscard]] bool               OwnsMusic() const { return _ownsMusic; }
     [[nodiscard]] const std::string& GetMusic() const { return _musicPath; }
@@ -222,6 +223,7 @@ private:
     bool         _ownsMusic = false;
     std::string  _musicPath;
     bool         _musicLoop   = true;
+    std::string  _musicCategory = "music";
     f32          _musicResume = 0.0f; // seconds into the track when suspended
     MusicPlayer* _musicPlayer = nullptr;
     f32          _musicFade   = 0.0f;

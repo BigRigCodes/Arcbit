@@ -31,19 +31,36 @@ static f32 NextStep(const f32 v, const i32 dir)
 }
 
 // ---------------------------------------------------------------------------
-// WireVolumeRow — find named widgets for a volume row and attach callbacks.
+// Rows
 // ---------------------------------------------------------------------------
 
-void AudioSettingsScreen::WireVolumeRow(const std::string_view prefix,
-                                         std::function<f32()> get,
-                                         std::function<void(f32)> set)
+void AudioSettingsScreen::AddVolumeRow(UIWidget& panel, const AudioCategory& category, const f32 y)
 {
-    const std::string p(prefix);
-    auto* slider = FindWidget<Slider>(p + "-slider");
-    auto* pct    = FindWidget<Label> (p + "-pct");
-    auto* dec    = FindWidget<Button>(p + "-dec");
-    auto* inc    = FindWidget<Button>(p + "-inc");
+    UIWidget* row = AddFromTemplate("volume-row", panel);
+    if (!row) return;
+    row->Name     = "volume-" + category.Name;
+    row->Offset.Y = y;
+    if (auto* label = dynamic_cast<Label*>(row->FindDescendant("label"))) {
+        if (Loc::Has(category.Label)) label->SetTextKey(category.Label); // follows the language
+        else label->Text = category.Label;
+        label->Offset.X += GetMetaF32("indent", 24.0f) * static_cast<f32>(category.Depth > 0 ? category.Depth - 1 : 0);
+    }
+    WireVolumeRow(*row, category.Name);
+}
 
+void AudioSettingsScreen::WireVolumeRow(UIWidget& row, std::string category)
+{
+    auto* slider = dynamic_cast<Slider*>(row.FindDescendant("slider"));
+    auto* pct    = dynamic_cast<Label*>(row.FindDescendant("pct"));
+    auto* dec    = dynamic_cast<Button*>(row.FindDescendant("dec"));
+    auto* inc    = dynamic_cast<Button*>(row.FindDescendant("inc"));
+
+    const auto get  = [category] { return Settings::Audio.Volume(category); };
+    const auto set  = [category](const f32 v) {
+        Settings::Audio.Volumes[category] = v;
+        Settings::MarkDirty("audio");
+        AudioManager::SetVolume(category, v);
+    };
     const auto show = [slider, pct](const f32 v) {
         if (slider) slider->Value = v;
         if (pct) pct->Text = PctText(v);
@@ -64,18 +81,14 @@ void AudioSettingsScreen::OnEnter()
     _roots.clear();
     LoadLayout(LayoutPath);
 
-    WireVolumeRow("master",
-        []()      { return Settings::Audio.MasterVolume; },
-        [](f32 v) { Settings::Audio.MasterVolume = v; Settings::MarkDirty("audio"); AudioManager::SetMasterVolume(v); });
-
-    WireVolumeRow("music",
-        []()      { return Settings::Audio.MusicVolume; },
-        [](f32 v) { Settings::Audio.MusicVolume = v; Settings::MarkDirty("audio"); AudioManager::SetMusicVolume(v); });
-
-    WireVolumeRow("sfx",
-        []()      { return Settings::Audio.SfxVolume; },
-        [](f32 v) { Settings::Audio.SfxVolume = v; Settings::MarkDirty("audio"); AudioManager::SetSfxVolume(v); });
-
+    if (auto* panel = FindWidget<UIWidget>("bg")) {
+        f32 y = GetMetaF32("row_start", 72.0f);
+        for (const AudioCategory* category : AudioManager::GetCategories().InOrder()) {
+            AddVolumeRow(*panel, *category, y);
+            y += GetMetaF32("row_gap", 48.0f);
+        }
+        panel->Size.Y = y + GetMetaF32("panel_bottom", 84.0f);
+    }
     if (auto* back = FindWidget<Button>("back-btn"))
         back->OnClick = [this] { if (OnBack) OnBack(); };
 }

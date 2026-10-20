@@ -11,7 +11,7 @@
 #include <regex>
 #include <string>
 
-namespace { void PlaySound(const std::string& key) { if (!key.empty()) Arcbit::AudioManager::PlayOneShot(key); } }
+namespace { void PlaySound(const std::string& key) { if (!key.empty()) Arcbit::AudioManager::PlayOneShot(key, 1.0f, Arcbit::AudioCategories::Ui); } }
 
 namespace Arcbit
 {

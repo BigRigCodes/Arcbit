@@ -135,7 +135,8 @@ void FileScene::OnLoad()
     try {
         _ambient = ReadAmbient(*doc);
         if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
-            SetMusic(music->value("path", std::string{}), music->value("loop", true));
+            SetMusic(music->value("path", std::string{}), music->value("loop", true),
+                     music->value("category", std::string("music")));
         if (const auto script = doc->find("script"); script != doc->end() && script->is_string())
             SetScript(script->get<std::string>());
     }

@@ -473,7 +473,7 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
 
     if (to._ownsMusic) {
         if (to._musicPath.empty()) _host.Music->Stop(MusicFadeTime);
-        else _host.Music->Play(to._musicPath, to._musicLoop, MusicFadeTime, to._musicResume);
+        else _host.Music->Play(to._musicPath, to._musicLoop, MusicFadeTime, to._musicResume, to._musicCategory);
     }
     else if (ownerLeft) {
         _host.Music->Stop(MusicFadeTime);

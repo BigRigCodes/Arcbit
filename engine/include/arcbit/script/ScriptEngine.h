@@ -36,7 +36,7 @@ struct ScriptServices
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 
     std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets; // component reads / writes
-    std::function<void(std::string_view path, f32 volume)> PlaySound;
+    std::function<void(std::string_view path, f32 volume, std::string_view category)> PlaySound;
     std::function<bool(SaveSlot)> SaveTo;
     std::function<bool(SaveSlot)> LoadFrom;
     std::function<bool()>         AutoSave;

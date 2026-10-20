@@ -68,6 +68,8 @@
   "ui.audio.master": "マスター音量",
   "ui.audio.music":  "BGM音量",
   "ui.audio.sfx":    "効果音音量",
+  "ui.audio.voice":  "ボイス音量",
+  "ui.audio.ui":     "メニュー音量",
 
   "ui.graphics.title":       "グラフィック設定",
   "ui.graphics.fullscreen":  "フルスクリーン",

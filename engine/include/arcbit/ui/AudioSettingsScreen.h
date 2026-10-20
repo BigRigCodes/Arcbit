@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/audio/AudioCategories.h>
 #include <arcbit/ui/UIScreen.h>
 
 #include <functional>
@@ -10,11 +11,12 @@ namespace Arcbit
 {
 
 // ---------------------------------------------------------------------------
-// AudioSettingsScreen — sliders for Master, Music, and SFX volume.
-//
-// Visual layout is loaded from LayoutPath (.arcui); callbacks are wired in
-// OnEnter via FindWidget. Adjusts AudioManager volumes and Settings::Audio in
-// real-time as the user clicks the ◄/► buttons. Wire OnBack to pop the screen.
+// AudioSettingsScreen - a volume row for every audio category the game has
+// (AudioManager::GetCategories: master, music, sfx, voice, ui and a game's
+// own), nested ones indented. Each row is the layout's "volume-row"
+// template (label, dec, slider, inc, pct), named volume-<category>; meta
+// row_start / row_gap / panel_bottom / indent place them. Changes apply at
+// once and go to Settings::Audio. Wire OnBack to pop the screen.
 // ---------------------------------------------------------------------------
 class AudioSettingsScreen : public UIScreen
 {
@@ -28,8 +30,8 @@ public:
     void OnBackPressed() override;
 
 private:
-    void WireVolumeRow(std::string_view prefix,
-                       std::function<f32()> get, std::function<void(f32)> set);
+    void AddVolumeRow(UIWidget& panel, const AudioCategory& category, f32 y);
+    void WireVolumeRow(UIWidget& row, std::string category);
 };
 
 } // namespace Arcbit

@@ -209,6 +209,7 @@ struct AudioSource
     f32         Radius  = 500.0f; // max hearing distance in world units
     bool        Loop    = true;
     bool        Playing = true;
+    std::string Category = "sfx"; // the audio category it plays in (AudioCategories.h)
     // Internal handle managed by AudioSystem — do not set from game code.
     void*       _handle = nullptr;
 };

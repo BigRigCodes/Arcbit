@@ -102,15 +102,16 @@ Application& Scene::GetApp()
     return *_app;
 }
 
-void Scene::SetMusic(std::string path, const bool loop)
+void Scene::SetMusic(std::string path, const bool loop, std::string category)
 {
+    _musicCategory = std::move(category);
     if (path != _musicPath) _musicResume = 0.0f; // the saved spot belonged to the old track
     _ownsMusic = true;
     _musicPath = std::move(path);
     _musicLoop = loop;
     if (!_musicPlayer) return; // not active: plays when it is
     if (_musicPath.empty()) _musicPlayer->Stop(_musicFade);
-    else _musicPlayer->Play(_musicPath, _musicLoop, _musicFade, 0.0f);
+    else _musicPlayer->Play(_musicPath, _musicLoop, _musicFade, 0.0f, _musicCategory);
 }
 
 TextureHandle Scene::LoadTexture(const std::string_view path)
