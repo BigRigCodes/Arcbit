@@ -122,6 +122,12 @@ public:
     void SetMetaF32(std::string_view key, f32 value);
     void SetMetaStr(std::string_view key, std::string_view value);
 
+    // A layout's "templates": named widget trees it doesn't place, stamped
+    // out by code as often as needed (a row per audio category). Returns the
+    // new widget, a child of parent; null (logged) for an unknown name.
+    UIWidget* AddFromTemplate(std::string_view name, UIWidget& parent);
+    void      SetTemplate(std::string_view name, std::string json); // UILoader
+
     // Lua handlers a loaded layout names on its widgets ("on_click": "OnBuy",
     // "on_change": "OnVolume"). A ScriptedScreen wires them to its script
     // (the layout's "script"); every other screen ignores them.
@@ -195,6 +201,7 @@ private:
     std::vector<ScriptHandler>                   _scriptHandlers; // LoadLayout
     std::unordered_map<std::string, f32>         _metaF32;
     std::unordered_map<std::string, std::string>  _metaStr;
+    std::unordered_map<std::string, std::string>  _templates; // name -> its JSON
 
     bool            _visible           = true;
     bool            _skipInputThisFrame = false; // true on the frame the screen was pushed

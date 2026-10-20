@@ -25,9 +25,23 @@ bool UIScreen::LoadLayout(const std::string_view path)
     _roots.clear();
     _metaF32.clear();
     _metaStr.clear();
+    _templates.clear();
     _scriptHandlers.clear();
     return UILoader::Load(path, *this);
 }
+
+UIWidget* UIScreen::AddFromTemplate(const std::string_view name, UIWidget& parent)
+{
+    const auto it = _templates.find(std::string(name));
+    if (it == _templates.end()) {
+        LOG_WARN(UI, "No layout template '{}'", name);
+        return nullptr;
+    }
+    auto widget = UILoader::Build(it->second, *this);
+    return widget ? parent.AddChildRaw(std::move(widget)) : nullptr;
+}
+
+void UIScreen::SetTemplate(const std::string_view name, std::string json) { _templates[std::string(name)] = std::move(json); }
 
 void UIScreen::StackButtons(UIWidget* panel, const std::initializer_list<std::string_view> names, const f32 startY,
                             const f32 gap, const f32 bottom)
