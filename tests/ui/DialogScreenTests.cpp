@@ -1,5 +1,5 @@
 // The dialog box without a renderer: lines move on with Confirm, choices
-// take the arrows and Confirm, auto-advance waits while a menu is over it,
+// take the arrows and Confirm, Escape backs out, auto-advance waits while a menu is over it,
 // and the dialog settings read back. Text speed is "instant" here - the
 // typewriter only moves as the text is drawn.
 
@@ -26,7 +26,7 @@ namespace
 const char* Talk = R"({
     "speaker": "elder", "speakers": { "elder": { "name": "Elder" } },
     "nodes": {
-        "a": [ "Hello.", { "choice": [ { "id": "x", "text": "First" }, { "id": "y", "text": "Second", "set": { "picked": 2 } } ] },
+        "a": [ "Hello.", { "choice": [ { "id": "x", "text": "First", "cancel": true }, { "id": "y", "text": "Second", "set": { "picked": 2 } } ] },
                { "say": "Done.", "speaker": null } ] } })";
 
 struct Fixture
@@ -48,6 +48,8 @@ struct Fixture
         input.BindKey(UIManager::ActionConfirm, Key::Enter);
         input.RegisterAction(UIManager::ActionFocusNext, "UI_FocusNext");
         input.BindKey(UIManager::ActionFocusNext, Key::Down);
+        input.RegisterAction(UIManager::ActionTextEscape, "UI_TextEscape");
+        input.BindKey(UIManager::ActionTextEscape, Key::Escape);
 
         std::vector<DialogIssue> issues;
         auto dialog = ParseDialog(nlohmann::ordered_json::parse(Talk), "talk", issues);
@@ -111,6 +113,26 @@ TEST_CASE("Choices take the arrows and Confirm; the end is reported", "[ui][dial
 
     f.Press(SDL_SCANCODE_RETURN);
     CHECK(f.finished == "y");
+}
+
+TEST_CASE("Escape picks a choice's cancel option, and ends the talk on a line", "[ui][dialog]")
+{
+    Fixture f;
+    SECTION("on a choice")
+    {
+        f.Press(SDL_SCANCODE_RETURN);
+        REQUIRE(f.screen->GetRunner().GetState() == DialogRunner::State::Choice);
+        f.Press(SDL_SCANCODE_ESCAPE); // "First" is the cancel option: it runs as if picked
+        CHECK(f.Text() == "Done.");
+        CHECK(f.finished == "-");
+        f.Press(SDL_SCANCODE_ESCAPE);
+        CHECK(f.finished == ""); // backed out of the line: no choice
+    }
+    SECTION("on a line")
+    {
+        f.Press(SDL_SCANCODE_ESCAPE);
+        CHECK(f.finished == "");
+    }
 }
 
 TEST_CASE("Auto-advance moves a shown line on, but not under a menu", "[ui][dialog]")

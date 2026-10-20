@@ -96,7 +96,7 @@ public:
     void OnEnter() override;
     void OnTick(f32 dt, const InputManager& input) override;
     void OnUpdate(f32 dt) override;
-    void OnBackPressed() override {} // a conversation isn't backed out of
+    void OnBackPressed() override; // Esc / gamepad East: DialogRunner::Cancel
 
 protected:
     void OnLocaleChanged() override;

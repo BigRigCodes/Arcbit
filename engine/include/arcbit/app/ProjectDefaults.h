@@ -17,5 +17,10 @@ struct ProjectDefaults
     // Per mover: SmoothTileMovement / SnapTileMovement::TurnDelay
     // ("turn_delay").
     f32 TileTurnDelay = 0.1f;
+
+    // Whether Esc / gamepad East on a dialog's line ends the conversation
+    // (on a choice it picks the option marked "cancel", either way).
+    // Per dialog: "cancelable" in the .arcdialog file.
+    bool DialogCancelable = true;
 };
 } // namespace Arcbit

@@ -268,6 +268,10 @@ public:
 
     [[nodiscard]] bool IsDialogActive() const { return _dialog.has_value(); }
 
+    // Whether Esc / gamepad East would back out of the conversation now
+    // (DialogRunner::CanCancel) - a game's pause key stays out of its way.
+    [[nodiscard]] bool CanCancelDialog() const;
+
     // End the conversation now (its choice reads "") and drop the waiting ones.
     void StopDialog();
 

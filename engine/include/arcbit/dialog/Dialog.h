@@ -87,6 +87,7 @@ struct DialogOption
     std::string     Goto;    // empty: carry on after the choice
     DialogCondition If;      // hidden unless it holds
     DialogActions   Actions;
+    bool            Cancel = false; // "cancel": what backing out (Esc) picks
 };
 
 enum class DialogStepKind : u8 { Say, Choice, Branch, Do };
@@ -130,6 +131,7 @@ struct Dialog
     std::string                Id;    // its path in the dialog folder: "elder", "town/guard"
     std::string                Start; // the first node
     bool                       PauseWorld = false; // "world": "pause"; default "run"
+    std::optional<bool>        Cancelable; // "cancelable": backing out of a line ends it; unset: the project's
     std::vector<DialogSpeaker> Speakers;
     std::vector<DialogNode>    Nodes; // in file order
 
