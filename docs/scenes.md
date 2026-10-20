@@ -304,7 +304,7 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 | `tilemap` | Path of an `.arcmap`. Optional. |
 | `tile_overrides` | TileDefs applied after the map loads, one per tile id, using the `.tileatlas.json` tile keys (`solid`, `blocks_light`, `flat`, `layer`, `blocked_from`, `uv_scroll`). Flip-book `animation` belongs in the atlas file. |
 | `systems` | [Named systems](#named-systems) the scene needs, installed in order at load. |
-| `music` | `path`, `loop` (default true): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
+| `music` | `path`, `loop` (default true), `category` (default `"music"`, the [audio category](audio.md#music) it plays at): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
 | `load` | Measured [load data](#load-data-load) for the loading bar. Optional, written by tools. |
 | `script` | The scene's own Lua script, a module name (`"demo.scene"`). See [scripting.md](scripting.md). |
 | `persist_all` | Make every entity `Persistent` (saved changes), each under its file id; an entity opts out with `"Persistent": { "enabled": false }`. See [saves.md](saves.md). |

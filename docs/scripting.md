@@ -166,7 +166,7 @@ error rather than corrupting the world.
 | `Tilemap.GetTile(x, y, layer)`, `Tilemap.SetTile(x, y, layer, id)`, `Tilemap.IsSolid(x, y)` | layer defaults to 0 for GetTile |
 | `Tilemap.WorldToTile(pos)` -> `x, y`, `Tilemap.TileToWorld(x, y)` -> `Vec2` | |
 | `Input.IsDown(action)`, `Input.IsPressed(action)`, `Input.IsReleased(action)` | by action name; false while a menu is open or the screen fades |
-| `Audio.PlaySound(path, volume)`, `Audio.PlayMusic(path, loop)`, `Audio.StopMusic()` | music follows the scene, as from C++ |
+| `Audio.PlaySound(path, volume, category)`, `Audio.PlayMusic(path, loop, category)`, `Audio.StopMusic()` | music follows the scene, as from C++; categories in [audio.md](audio.md) |
 
 ### Save and Event
 

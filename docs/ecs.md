@@ -356,7 +356,8 @@ struct FacingAnimation {
 
 A looping or one-shot sound at the entity, attenuated by its distance from the
 listener (the camera). `AudioSystem` starts, positions and stops it; setting
-`Playing = false` releases it.
+`Playing = false` releases it. It plays in an audio category, `Category`
+(default `"sfx"`; [audio.md](audio.md)).
 
 ### Collider2D and its callbacks *(optional)*
 
