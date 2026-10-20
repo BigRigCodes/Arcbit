@@ -227,6 +227,7 @@ private:
             return;
         }
         if (ui.HasOpenMenu() && UIManager::IsBackPressed(GetInput())) return;
+        if (CanCancelDialog() && UIManager::IsBackPressed(GetInput())) return; // Escape backs out of the talk
         ShowPauseMenu();
     }
 

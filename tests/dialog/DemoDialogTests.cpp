@@ -97,6 +97,8 @@ TEST_CASE("The demo's elder: a gold check, a gift, a map, remembered next time",
     f.Next();
     f.Next();
     CHECK(f.Choices() == std::vector<std::string>{ "bye" });
+    f.runner.Cancel(); // Esc: "Goodbye", and her farewell
+    CHECK(f.Key() == "dialog.elder.farewell.farewell");
 }
 
 TEST_CASE("The demo's guard knows whether you've met the elder", "[dialog][demo][shipped]")
