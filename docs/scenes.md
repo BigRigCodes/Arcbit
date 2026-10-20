@@ -11,6 +11,7 @@ are all scene files.
     [Music](#music)
 - [Boot flow](#boot-flow)
 - [Scene file format (`.arcscene`)](#scene-file-format-arcscene)
+- [Prefabs](#prefabs)
 - [Component registry](#component-registry)
 - [Named systems](#named-systems)
 - [Assets and resource ownership](#assets-and-resource-ownership)
@@ -364,14 +365,69 @@ were measured with:
 
 ### Not in v1
 
-- **Prefabs (templates and overrides)**: an entity that starts from a shared
-  definition and overrides some fields (see the blueprint). The format
-  reserves `"template"` and `"overrides"` keys on an entity for this.
 - **Entity references between entities**: e.g. a door that names its target
   by id. Ids are in place for it; no component needs it yet.
 - **Callbacks** (`TriggerCallback`, `CollisionCallback`): they hold C++
   functions. A scene file's entities react through their Lua scripts
   (`OnTriggerEnter`, `OnCollisionEnter`...) or a named system instead.
+
+---
+
+## Prefabs
+
+A prefab is an entity's components in their scene-file form, in a file of its
+own, shared by every scene: `assets/prefabs/chest.arcprefab` is the prefab
+`"chest"`, `assets/prefabs/npc/guard.arcprefab` is `"npc/guard"`
+(`ApplicationConfig::PrefabFolder`; read once at startup).
+
+```json
+{
+    "Tag": { "value": "Chest" },
+    "Transform2D": { "scale": [56.0, 56.0] },
+    "SpriteRenderer": { "texture": "builtin:white", "tint": [0.85, 0.6, 0.2, 1.0] },
+    "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Prop" },
+    "Interactable": { "prompt": "demo.scripted.prompt.open" },
+    "Persistent": {},
+    "Script": { "script": "demo.chest", "properties": { "Gold": 10 } }
+}
+```
+
+`"extends": "prop"` builds one prefab on another: its fields go over the
+parent's, field by field, and a component set to `null` drops the parent's.
+
+**Placed in a scene**, an entity names its prefab and gives only what's its
+own:
+
+```json
+"chest-2": {
+    "prefab": "chest",
+    "Transform2D": { "position": [-320.0, 192.0] },
+    "SpriteRenderer": { "tint": [0.7, 0.72, 0.78, 1.0] },
+    "Script": { "properties": { "Gold": 5 } }
+}
+```
+
+The prefab's components load first, then the entity's fields over them, field
+by field (nested objects like `properties` merge too); `"Collider2D": null`
+removes one. The link is live: the copy is rebuilt from the prefab every time
+the scene loads, so editing the prefab changes every copy that didn't
+override that field. `FileScene::Save` writes a copy back the same way - its
+`"prefab"` and only what differs from it (a component it added, in full; one
+it removed, as `null`).
+
+A copy is an ordinary entity once loaded: its file id is its id, it's
+Persistent if the prefab is (with the file id, as any entity), and saves
+track its changes against the prefab plus its overrides
+([saves.md](saves.md)).
+
+**Spawned at run time** - `Scene::Spawn("chest", position)`, Lua
+`Entity.Spawn("chest", Vec2(x, y))`, the console's `spawn chest [x y]` - a
+prefab is a one-time stamp: the new entity has no link back. A Persistent
+prefab gets the id `chest-1`, `chest-2`... (the first one the scene doesn't
+use), so each saves as its own spawned entity.
+
+The textures a copy's prefab uses load as the scene loads; only those named
+in the scene file itself decode ahead ([Loading ahead](#loading-ahead)).
 
 ---
 

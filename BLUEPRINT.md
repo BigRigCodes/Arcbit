@@ -386,12 +386,12 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [x] Scene teardown releases outside resources — `Scene`'s destructor destroys its entities so `OnRemove` hooks run; an `AudioSource` hook stops its sound (a looping sound used to outlive its scene)
 
 **Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
-- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; templates / overrides reserved for prefabs
+- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; prefabs as `"prefab"` with inline fields
 - [x] Component registry — `SceneRegistry` maps component name ↔ C++ type ↔ JSON read / write; the engine registers its 20 built-ins, games add their own
 - [x] `.arcscene` loader and saver — `SceneFile::Load` / `Save` (headless, through a `SceneAssets` interface) and `FileScene` on top; file id → `Entity` table (`FindEntity`); exact load → save round trip tested
 - [x] Named systems — game code registers installers by name; a scene file lists the ones it uses
 - [x] At least one demo converted to an `.arcscene` — "Physics File" (`game/assets/scenes/physics.arcscene` + `maps/physics.arcmap`) runs with no C++ scene class
-- [ ] **Prefabs**: an entity starting from a shared template with field overrides; `.arcscene` reserves `"template"` and `"overrides"` keys for it. Design notes: `docs/plans/entity-templates.md`
+- [x] **Prefabs**: an entity starting from a shared template with field overrides. Done as `.arcprefab` files (`"extends"`), `"prefab"` on a scene entity with its fields inline, a live link at load, `Scene::Spawn` / `Entity.Spawn` / console `spawn` (`docs/scenes.md#prefabs`)
 - [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
