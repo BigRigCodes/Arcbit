@@ -483,7 +483,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
 - [x] Demo: Elder Maren in the Scripted demo - a greeting, choices, a gold check, a gift (`call` into her script), a map to buy, remembered on the next talk - and the guard, who knows whether you've met her; English, French and Japanese
 - [x] Dialog placeholders read an unsaved key as 0, as conditions do ("You have {gold} gold" before any gold)
-- [ ] **Back out of a conversation** with Esc / gamepad East: on a choice, picks the option marked `"cancel": true` (its actions and goto run); on a line, ends the conversation (`OnDialogEnd` with choice `""`). Cancelable by default - `"cancelable": false` per dialog (story scenes) and per project
+- [x] **Back out of a conversation** with Esc / gamepad East: on a choice, picks the option marked `"cancel": true` (its actions and goto run); on a line, ends the conversation (`OnDialogEnd` with choice `""`). Cancelable by default - `"cancelable": false` per dialog (story scenes) and per project
 - [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 
 ---
