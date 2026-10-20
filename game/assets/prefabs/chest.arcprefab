@@ -1,0 +1,9 @@
+{
+    "Tag": { "value": "Chest" },
+    "Transform2D": { "scale": [56.0, 56.0] },
+    "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.85, 0.6, 0.2, 1.0] },
+    "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Prop" },
+    "Interactable": { "prompt": "demo.scripted.prompt.open" },
+    "Persistent": {},
+    "Script": { "script": "demo.chest", "properties": { "Gold": 10 } }
+}
