@@ -38,6 +38,7 @@ TEST_CASE("An update's new action takes the key the update freed", "[input][bind
     REQUIRE(r.Changes.size() == 1);
     CHECK(r.Changes[0].Action == "Melee");
     CHECK(r.Changes[0].What == BindingChange::Kind::New);
+    CHECK(r.Changes[0].IsNotable());
     CHECK(r.Changes[0].Got == List{ K(Key::F) });
     REQUIRE(r.Changes[0].Taken.size() == 1);
     CHECK(r.Changes[0].Taken[0] == std::pair{ K(Key::E), std::string("Interact") });
@@ -53,6 +54,7 @@ TEST_CASE("Kept actions keep their keys; a new action takes a free default", "[i
     CHECK(r.Bindings.at("Dash") == List{ K(Key::LeftShift) });
     REQUIRE(r.Changes.size() == 1);
     CHECK(r.Changes[0].Taken.empty());
+    CHECK_FALSE(r.Changes[0].IsNotable()); // on its own default: not worth a notice by default
 }
 
 TEST_CASE("A new action whose key is taken, with nothing freed, stays unbound", "[input][bindings]")
@@ -73,13 +75,16 @@ TEST_CASE("A new action whose key is taken, with nothing freed, stays unbound", 
         const BindingMergeResult r = MergeBindings(in);
         CHECK(r.Bindings.at("Melee").empty());
     }
-    SECTION("the holder had the key by the player's choice, not an old default")
-    {
-        const BindingMergeResult r = MergeBindings({ .Defaults = { { "Jump", { K(Key::Space) } }, { "Melee", { K(Key::F) } } },
-                                                     .Saved    = { { "Jump", { K(Key::F) } } },
-                                                     .SavedDefaults = ActionBindingMap{ { "Jump", { K(Key::Space) } } } });
-        CHECK(r.Bindings.at("Melee").empty()); // Space is Jump's, though Jump isn't using it
-    }
+}
+
+TEST_CASE("A new action takes the default a rebound action left unused", "[input][bindings]")
+{
+    // The player moved Jump from Space to F; an update adds Melee on F.
+    const BindingMergeResult r = MergeBindings({ .Defaults = { { "Jump", { K(Key::Space) } }, { "Melee", { K(Key::F) } } },
+                                                 .Saved    = { { "Jump", { K(Key::F) } } },
+                                                 .SavedDefaults = ActionBindingMap{ { "Jump", { K(Key::Space) } } } });
+    CHECK(r.Bindings.at("Jump") == List{ K(Key::F) });
+    CHECK(r.Bindings.at("Melee") == List{ K(Key::Space) });
 }
 
 TEST_CASE("Keys and gamepad buttons are placed separately", "[input][bindings]")
@@ -123,9 +128,9 @@ TEST_CASE("A forced reset moves an action to its new default once", "[input][bin
 
     SECTION("with its new key taken, it keeps its old one")
     {
-        in.Defaults.emplace_back("Jump", List{ K(Key::Space) });
+        in.Defaults.emplace_back("Jump", List{ K(Key::F) }); // F is Jump's own default: nothing left over
         in.Saved         = { { "Interact", { K(Key::E) } }, { "Jump", { K(Key::F) } } };
-        in.SavedDefaults = ActionBindingMap{ { "Interact", { K(Key::E) } }, { "Jump", { K(Key::Space) } } };
+        in.SavedDefaults = ActionBindingMap{ { "Interact", { K(Key::E) } }, { "Jump", { K(Key::F) } } };
         r                = MergeBindings(in);
         CHECK(r.Bindings.at("Interact") == List{ K(Key::E) });
         REQUIRE(r.Changes.size() == 1);

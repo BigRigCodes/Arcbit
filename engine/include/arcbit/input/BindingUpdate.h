@@ -21,10 +21,10 @@ class InputManager;
 //   - An action the player had keeps its bindings, rebound or not, whatever
 //     its default is now.
 //   - A new action takes each of its default bindings that's free. One that
-//     another action holds goes to that action's new default instead, if
-//     the update moved that action's default away and it kept the old one,
-//     and the new one is free (Interact moved E -> F and new Melee on E:
-//     Interact keeps E, Melee gets F). Otherwise it stays unbound.
+//     another action holds goes to that action's default instead, if that
+//     action isn't on it (an update moved its default, or the player rebound
+//     it) and it's free: Interact moved E -> F and new Melee on E - Interact
+//     keeps E, Melee gets F. Otherwise it stays unbound.
 //   - An action the game resets (Settings::ResetBindingOnUpdate) whose
 //     default changed since the save is placed like a new one; if none of
 //     its new defaults can go anywhere, it keeps its old bindings.
@@ -44,6 +44,10 @@ struct BindingChange
     Kind                 What = Kind::New;
     std::vector<Binding> Got;                                 // its bindings now; empty: none yet
     std::vector<std::pair<Binding, std::string>> Taken;       // defaults it didn't get, and who has them
+
+    // Worth telling the player about: it didn't land on its defaults, or a
+    // reset moved keys they knew. A new action on its own defaults isn't.
+    [[nodiscard]] bool IsNotable() const { return What == Kind::Reset || !Taken.empty(); }
 };
 
 struct BindingMergeInput

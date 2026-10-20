@@ -44,19 +44,14 @@ bool ResetDue(const BindingMergeInput& in, const std::string& action, const std:
     return was != in.SavedDefaults->end() && !SameSet(was->second, defaults);
 }
 
-// The update moved the holder's default off `taken` and it kept `taken`:
-// its new default, if free and on taken's device, is what the update freed
-// for the newcomer. (An older file doesn't say what the defaults were; then
-// any default the holder doesn't have counts.)
+// The holder has `taken` instead of one of its own defaults - an update
+// moved the default, or the player rebound it: that default, if free and on
+// taken's device, is the one left over for the newcomer.
 std::optional<Binding> FreedFor(const BindingMergeInput& in, const ActionBindingMap& placed, const std::string& holder,
                                 const Binding& taken)
 {
     const std::vector<Binding>& now = DefaultsOf(in, holder);
-    if (Contains(now, taken)) return std::nullopt; // still its default: nothing moved
-    if (in.SavedDefaults) {
-        const auto was = in.SavedDefaults->find(holder);
-        if (was == in.SavedDefaults->end() || !Contains(was->second, taken)) return std::nullopt; // the player's choice
-    }
+    if (Contains(now, taken)) return std::nullopt; // its own default: nothing left over
     const std::vector<Binding>& has = placed.at(holder);
     for (const Binding& b : now)
         if (SameDevice(b, taken) && !Contains(has, b) && !HolderOf(placed, b)) return b;
