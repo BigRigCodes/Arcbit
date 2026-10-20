@@ -236,6 +236,7 @@ void Application::Run()
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
                       .Events          = &_events,
+                      .Configure       = [this](Scene& scene) { scene.GetConfig().TileTurnDelay = _config.Defaults.TileTurnDelay; },
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },

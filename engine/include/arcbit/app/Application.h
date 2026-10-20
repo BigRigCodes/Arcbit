@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/app/DebugConsole.h>
+#include <arcbit/app/ProjectDefaults.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/dialog/DialogLibrary.h>
@@ -130,6 +131,10 @@ struct ApplicationConfig
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
     const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
     const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
+
+    // The engine's behavior defaults - tap to turn, and more as they come
+    // (ProjectDefaults.h). Phase 38's project.arcbit will fill them from a file.
+    ProjectDefaults Defaults;
 };
 
 // ---------------------------------------------------------------------------
