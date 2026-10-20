@@ -401,7 +401,7 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
 - [x] Title screen as the default first stop after the splashes — `BootConfig` (`FirstScene`, `ShowTitle`, `TitleScene`, `CreditsPath`) drives splash → title → game; the engine wires the title's buttons to its own settings / credits screens
 - [x] Credits screen — `CreditsScreen` scrolls a JSON file (title, sections of heading + names, speed), reachable from the title menu; `Application::ShowCredits` can roll it at the end of a game too
-- [ ] Credits logos — image entries in the credits roll
+- [x] Credits logos — image entries in the credits roll: `"image"` / `"images"` (a row), `"height"`, `"uv"` crop
 
 **Docs**
 - [x] `docs/scenes.md` covers the whole phase - lifecycle (hook order and threads), stack, swap rules, loading ahead and progress, boot flow, the `.arcscene` format with its `"load"` block, registry, named systems, asset ownership; `docs/ecs.md`'s Scene, removal-hook, Application-integration and file-layout sections brought up to date

@@ -243,7 +243,19 @@ MyGame() : Application({ ... })
   New Game just closes it; with a `TitleScene`, New Game switches to
   `FirstScene`.
 - **Credits** (`CreditsScreen`) scroll a JSON file: `title`, `sections` of
-  `heading` + `names`, `scroll_speed`.
+  `heading` + `names`, `scroll_speed`. A name can be a logo instead:
+
+  ```json
+  { "heading": "credits.engine", "names": [
+      { "image": "assets/engine/ui/ArcbitA_withbackground.png", "height": 180, "uv": [0.2, 0.04, 0.8, 0.9] },
+      { "images": ["assets/logos/sdl.png", "assets/logos/vulkan.png"], "height": 64 },
+      "BigRigCodes" ] }
+  ```
+
+  `image` is one logo, `images` a row of them side by side; each is drawn
+  `height` pixels tall (default 96) at its own aspect, cropped to `uv` if
+  given. A logo that doesn't load is left out (logged). Application loads
+  them through its texture manager.
 
 The splash is on the `System` UI layer: screens pushed while it's up (a HUD
 the first scene pushes in `OnLoad`) go beneath it, so it keeps ticking and
