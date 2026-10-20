@@ -67,9 +67,9 @@ player's keys always win (`BindingUpdate.h`, `MergeBindings`):
 - **An action the player had keeps its bindings** - rebound or not - whatever
   its default is now. Changing a default only changes it for new players.
 - **A new action takes each default binding that's free.** One that another
-  action holds goes to *that* action's new default instead, when the update
-  moved that action's default away and the player kept the old one, and the
-  new one is free:
+  action holds goes to *that* action's own default instead, when that action
+  isn't on it - the update moved its default, or the player rebound it - and
+  it's free:
 
   | | Interact | Melee |
   |---|---|---|
@@ -77,28 +77,32 @@ player's keys always win (`BindingUpdate.h`, `MergeBindings`):
   | The update's defaults | F | E |
   | The player gets | E (kept) | F (freed by Interact) |
 
-  Otherwise that binding stays unbound. Keys and mouse buttons are placed
-  among themselves, gamepad buttons and axes among themselves.
+  The same if the player had moved Interact to F themselves and the update
+  added Melee on F: Melee gets E, the key Interact left. Otherwise that
+  binding stays unbound. Keys and mouse buttons are placed among themselves,
+  gamepad buttons and axes among themselves.
 - **A forced reset.** An old default that was broken can be put right:
   `Settings::ResetBindingOnUpdate("Interact")` in `OnStart` places the
   action like a new one, through the same rules - once, on the first launch
   whose recorded default differs. If none of its new defaults can go
   anywhere, it keeps its old bindings.
 
-**The notice.** Once the boot is done, the player is told what an update
-placed, once:
+**The notice.** Once the boot is done, the player is told once about the
+actions that didn't get their default keys, and resets. A new action that
+simply landed on its defaults isn't announced (a project can list those too:
+`Defaults.BindingNoticeAllNew`).
 
 ```
 Controls updated
 New: Melee is F (E is your Interact)
-Dash has no key yet - set it in Controls
+Dash has no key yet - set it in Controls (Shift is your Sprint)
 ```
 
 By default it's a card that waits for OK (`NoticeScreen`), over the title
 menu. A project can make it a toast that fades by itself (`NoticeToast`) or
 show nothing, with `ApplicationConfig::Defaults.BindingNotice`
 (`NoticeStyle::Card` / `Toast` / `None`). Either way the engine publishes
-`engine.input.bindings_updated` (`count`, `text`: the lines) for a game that
+`engine.input.bindings_updated` (`count`, `text`: the same lines) for a game that
 tells the player its own way. The lines are localized
 (`ui.bindings_notice.*`); `Settings::GetBindingChanges` has the changes
 themselves.

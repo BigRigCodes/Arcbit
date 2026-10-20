@@ -35,7 +35,11 @@ struct ProjectDefaults
 
     // After an update gave the player new (or reset) actions, the notice of
     // where they landed (Settings::LoadInputBindings), once the boot is
-    // done. engine.input.bindings_updated is published either way.
+    // done: actions that didn't get their default keys, and resets.
+    // engine.input.bindings_updated is published with the same lines.
     NoticeStyle BindingNotice = NoticeStyle::Card;
+
+    // Also list new actions that simply got their default keys.
+    bool BindingNoticeAllNew = false;
 };
 } // namespace Arcbit

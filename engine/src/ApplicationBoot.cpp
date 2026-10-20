@@ -89,20 +89,20 @@ void Application::FinishSplash()
     ShowBindingNotice(); // over the title: the first thing the player reads
 }
 
-// The actions an update placed among the player's bindings: told once, as
-// the project asks (ProjectDefaults::BindingNotice).
+// The actions an update placed among the player's bindings that the player
+// should hear about: told once, as the project asks (ProjectDefaults).
 void Application::ShowBindingNotice()
 {
-    const std::vector<BindingChange>& changes = Settings::GetBindingChanges();
-    if (changes.empty()) return;
     std::vector<std::string> lines;
     std::string              text;
-    for (const BindingChange& change : changes) {
+    for (const BindingChange& change : Settings::GetBindingChanges()) {
+        if (!change.IsNotable() && !_config.Defaults.BindingNoticeAllNew) continue;
         lines.push_back(DescribeBindingChange(change, _input));
         text += (text.empty() ? "" : "\n") + lines.back();
     }
+    if (lines.empty()) return;
     LOG_INFO(Engine, "Bindings updated:\n{}", text);
-    _events.PublishEngine(EngineEvents::BindingsUpdated, { { "count", static_cast<i64>(changes.size()) }, { "text", text } });
+    _events.PublishEngine(EngineEvents::BindingsUpdated, { { "count", static_cast<i64>(lines.size()) }, { "text", text } });
     if (_config.Defaults.BindingNotice == NoticeStyle::Card) {
         auto card   = std::make_unique<NoticeScreen>();
         card->Title = Loc::Get("ui.bindings_notice.title");
