@@ -4,6 +4,10 @@
 
 namespace Arcbit
 {
+// How a one-time notice is shown: a card that waits for OK, a toast that
+// fades by itself, or not at all (the engine event still goes out).
+enum class NoticeStyle : u8 { Card, Toast, None };
+
 // ---------------------------------------------------------------------------
 // ProjectDefaults - the engine behavior a game can change in one place
 // (ApplicationConfig::Defaults), until project.arcbit (Phase 38) reads the
@@ -28,5 +32,10 @@ struct ProjectDefaults
     // of it. Per sprite: SpriteRenderer::YSort ("y_sort"; false for flat
     // things, which keep their Layer).
     bool YSortSprites = true;
+
+    // After an update gave the player new (or reset) actions, the notice of
+    // where they landed (Settings::LoadInputBindings), once the boot is
+    // done. engine.input.bindings_updated is published either way.
+    NoticeStyle BindingNotice = NoticeStyle::Card;
 };
 } // namespace Arcbit

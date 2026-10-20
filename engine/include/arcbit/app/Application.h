@@ -523,6 +523,7 @@ private:
     void StartBoot();
     void PushSplash();
     void FinishSplash();
+    void ShowBindingNotice();
     void ShowTitle();
     std::vector<TextureHandle> _splashTextures; // released once the splash ends
 
