@@ -344,6 +344,8 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
 
+- [ ] **Tap to turn** for tile movers: standing still, a quick tap of a direction other than the one faced turns in place, and only walks if held past `TurnDelay` (~0.1 s); the faced direction walks at once. On by default - per mover (`"turn_delay"`, 0 = off) and per project
+
 ### Phase 22I - Physics responses
 *Movement that comes from the world rather than the mover's own intent. Lands before Phase 32 (Live Combat), whose knockback and dash build on it.*
 - [x] External velocity on `FreeMovement` - an impulse channel added on top of the intent / authored velocity and decayed by `Friction`. Since 22H an intent-driven mover's `Velocity` is rewritten every tick, so an impulse written to `Velocity` would vanish next tick. Knockback, dash bursts, conveyors and bumpers all use it
@@ -481,6 +483,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
 - [x] Demo: Elder Maren in the Scripted demo - a greeting, choices, a gold check, a gift (`call` into her script), a map to buy, remembered on the next talk - and the guard, who knows whether you've met her; English, French and Japanese
 - [x] Dialog placeholders read an unsaved key as 0, as conditions do ("You have {gold} gold" before any gold)
+- [ ] **Back out of a conversation** with Esc / gamepad East: on a choice, picks the option marked `"cancel": true` (its actions and goto run); on a line, ends the conversation (`OnDialogEnd` with choice `""`). Cancelable by default - `"cancelable": false` per dialog (story scenes) and per project
 - [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 
 ---
