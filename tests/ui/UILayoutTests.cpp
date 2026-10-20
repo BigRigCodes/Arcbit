@@ -2,6 +2,7 @@
 
 #include <arcbit/core/Loc.h>
 #include <arcbit/ui/CreditsScreen.h>
+#include <arcbit/ui/PauseMenuScreen.h>
 #include <arcbit/ui/UILoader.h>
 #include <arcbit/ui/UIScreen.h>
 #include <arcbit/ui/Widgets.h>
@@ -235,4 +236,38 @@ TEST_CASE("A credits file that is valid JSON but not an object shows the fallbac
         screen.Path = tmp.Write("credits.json", text);
         CHECK_NOTHROW(screen.OnEnter());
     }
+}
+
+// A menu column's buttons are stacked by StackButtons, which also sets the
+// focus order: the arrows go down the column as drawn, whatever order the
+// layout file lists them in, and hidden ones are skipped.
+TEST_CASE("The pause menu's focus follows its buttons top to bottom", "[ui]")
+{
+    PauseMenuScreen menu;
+    menu.LayoutPath     = ArcbitTests::SourcePath("engine/assets/ui/pause_menu.arcui").string();
+    menu.ShowSaveGame   = true;
+    menu.ShowLoadGame   = true;
+    menu.OnGameSettings = [] {};
+    menu.OnEnter();
+
+    std::vector<std::string> order;
+    f32                      lastY = -1.0f;
+    for (int i = 0; i < 8; ++i) {
+        menu.FocusNext();
+        const UIWidget* focused = menu.GetFocusedWidget();
+        REQUIRE(focused);
+        CHECK(focused->Offset.Y > lastY);
+        lastY = focused->Offset.Y;
+        order.push_back(focused->Name);
+    }
+    CHECK(order == std::vector<std::string>{ "resume-btn", "save-btn", "load-btn", "game-btn", "controls-btn",
+                                             "audio-btn", "graphics-btn", "quit-btn" });
+
+    PauseMenuScreen fewer; // no Save / Load: the column closes up
+    fewer.LayoutPath = menu.LayoutPath;
+    fewer.OnEnter();
+    fewer.FocusNext();
+    fewer.FocusNext();
+    REQUIRE(fewer.GetFocusedWidget());
+    CHECK(fewer.GetFocusedWidget()->Name == "controls-btn");
 }

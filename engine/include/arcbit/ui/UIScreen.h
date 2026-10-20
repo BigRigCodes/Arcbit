@@ -185,7 +185,7 @@ protected:
 
     // Close the gaps hidden buttons leave in a menu column: the visible
     // widgets named in `names`, in order, go from startY every `gap`, and
-    // `panel` ends `bottom` below the last one.
+    // `panel` ends `bottom` below the last one. Focus follows the same order.
     void StackButtons(UIWidget* panel, std::initializer_list<std::string_view> names, f32 startY, f32 gap,
                       f32 bottom);
 

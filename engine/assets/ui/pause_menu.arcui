@@ -66,12 +66,23 @@
         },
         {
           "type":     "Button",
+          "name":     "game-btn",
+          "text_key": "ui.pause.game",
+          "size":     [240, 44],
+          "anchor":   [0.5, 0.0],
+          "pivot":    [0.5, 0.0],
+          "offset":   [0, 240],
+          "focusable": true,
+          "zorder":   2
+        },
+        {
+          "type":     "Button",
           "name":     "controls-btn",
           "text_key": "ui.pause.controls",
           "size":     [240, 44],
           "anchor":   [0.5, 0.0],
           "pivot":    [0.5, 0.0],
-          "offset":   [0, 240],
+          "offset":   [0, 296],
           "focusable": true,
           "zorder":   2
         },
@@ -82,7 +93,7 @@
           "size":     [240, 44],
           "anchor":   [0.5, 0.0],
           "pivot":    [0.5, 0.0],
-          "offset":   [0, 296],
+          "offset":   [0, 352],
           "focusable": true,
           "zorder":   2
         },
@@ -90,17 +101,6 @@
           "type":     "Button",
           "name":     "graphics-btn",
           "text_key": "ui.pause.graphics",
-          "size":     [240, 44],
-          "anchor":   [0.5, 0.0],
-          "pivot":    [0.5, 0.0],
-          "offset":   [0, 352],
-          "focusable": true,
-          "zorder":   2
-        },
-        {
-          "type":     "Button",
-          "name":     "game-btn",
-          "text_key": "ui.pause.game",
           "size":     [240, 44],
           "anchor":   [0.5, 0.0],
           "pivot":    [0.5, 0.0],
@@ -116,7 +116,7 @@
           "size":       [240, 44],
           "anchor":     [0.5, 0.0],
           "pivot":      [0.5, 0.0],
-          "offset":     [0, 408],
+          "offset":     [0, 464],
           "focusable":  true,
           "zorder":     2
         }

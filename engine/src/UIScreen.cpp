@@ -32,12 +32,14 @@ bool UIScreen::LoadLayout(const std::string_view path)
 void UIScreen::StackButtons(UIWidget* panel, const std::initializer_list<std::string_view> names, const f32 startY,
                             const f32 gap, const f32 bottom)
 {
-    f32             y    = startY;
-    const UIWidget* last = nullptr;
+    f32             y     = startY;
+    u32             order = 0;
+    const UIWidget* last  = nullptr;
     for (const std::string_view name : names) {
         UIWidget* w = FindWidget<UIWidget>(name);
         if (!w || !w->Visible) continue;
         w->Offset.Y = y;
+        w->TabOrder = order++; // focus moves down the column as drawn, whatever the file's order
         y += gap;
         last = w;
     }
