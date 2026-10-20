@@ -27,6 +27,7 @@ add_executable(arcbit-tests
     events/EntityEventsTests.cpp
     events/EventBusTests.cpp
     events/EventPayloadTests.cpp
+    input/BindingUpdateTests.cpp
     input/InputManagerTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp

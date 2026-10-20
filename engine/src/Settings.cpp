@@ -1,4 +1,5 @@
 #include <arcbit/settings/Settings.h>
+#include <arcbit/input/BindingUpdate.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/core/Log.h>
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <format>
 #include <fstream>
+#include <set>
 
 namespace Arcbit {
 
@@ -51,6 +53,10 @@ void Settings::MarkDirty(const std::string_view section)
 // ---------------------------------------------------------------------------
 
 static nlohmann::json s_InputSection;   // populated by SaveInputBindings / ReadFile
+
+// Bindings across game updates (LoadInputBindings).
+static std::set<std::string>      s_bindingResets;  // ResetBindingOnUpdate
+static std::vector<BindingChange> s_bindingChanges; // what the last load placed
 
 // ---------------------------------------------------------------------------
 // Enum ↔ string lookup tables
@@ -408,6 +414,51 @@ void Settings::SyncToStore()   {}
 // Input binding persistence
 // ---------------------------------------------------------------------------
 
+namespace
+{
+// Saved and merged: not unnamed actions or the UI's own (UI_*), which
+// always keep their defaults.
+bool Persisted(const std::string_view name) { return !name.empty() && !name.starts_with("UI_"); }
+
+ActionBindingMap ReadBindingMap(const nlohmann::json& section)
+{
+    ActionBindingMap map;
+    if (!section.is_object()) return map;
+    for (const auto& [action, list] : section.items()) {
+        std::vector<Binding>& bindings = map[action];
+        if (!list.is_array()) continue;
+        for (const nlohmann::json& obj : list)
+            if (Binding b; DeserializeBinding(obj, b)) bindings.push_back(b);
+    }
+    return map;
+}
+
+nlohmann::json WriteBindingMap(const std::vector<std::pair<std::string, std::vector<Binding>>>& actions)
+{
+    nlohmann::json section = nlohmann::json::object();
+    for (const auto& [action, bindings] : actions) {
+        nlohmann::json list = nlohmann::json::array();
+        for (const Binding& b : bindings) list.push_back(SerializeBinding(b));
+        section[action] = std::move(list);
+    }
+    return section;
+}
+
+// Through the typed bind methods, so InputManager's own state stays consistent.
+void ApplyBindings(InputManager& input, const ActionID id, const std::vector<Binding>& bindings)
+{
+    input.ClearBindings(id);
+    for (const Binding& b : bindings) {
+        switch (b.BindingType) {
+            case Binding::Type::Key: input.BindKey(id, b.BoundKey); break;
+            case Binding::Type::MouseButton: input.BindMouseButton(id, b.BoundMouse); break;
+            case Binding::Type::GamepadButton: input.BindGamepadButton(id, b.BoundButton); break;
+            case Binding::Type::GamepadAxis: input.BindGamepadAxis(id, b.BoundAxis, b.Half, b.Deadzone); break;
+        }
+    }
+}
+} // namespace
+
 void Settings::SaveInputBindings(const InputManager& input)
 {
     nlohmann::json bindings = nlohmann::json::object();
@@ -415,8 +466,7 @@ void Settings::SaveInputBindings(const InputManager& input)
     for (const ActionID id : input.GetAllActions())
     {
         const std::string_view name = input.GetActionName(id);
-        if (name.empty() || name.starts_with("UI_"))
-            continue; // skip unnamed and internal UI_ actions
+        if (!Persisted(name)) continue;
 
         nlohmann::json bindingArray = nlohmann::json::array();
         for (const Binding& b : input.GetBindings(id))
@@ -430,60 +480,38 @@ void Settings::SaveInputBindings(const InputManager& input)
     s_dirty = true;
 }
 
+// The player's bindings over the game's defaults, through the update rules
+// (BindingUpdate.h). Today's defaults are recorded with them, so the next
+// load can tell what an update changed.
 bool Settings::LoadInputBindings(InputManager& input)
 {
-    if (!s_InputSection.contains("bindings") || !s_InputSection["bindings"].is_object())
-        return false;
-
-    bool anyLoaded = false;
-
+    BindingMergeInput merge;
     for (const ActionID id : input.GetAllActions())
-    {
-        const std::string_view name = input.GetActionName(id);
-        if (name.empty() || name.starts_with("UI_"))
-            continue; // internal UI_ actions always use their default bindings
+        if (const std::string_view name = input.GetActionName(id); Persisted(name))
+            merge.Defaults.emplace_back(std::string(name), input.GetBindings(id));
+    s_bindingChanges.clear();
 
-        const std::string nameStr(name);
-        if (!s_InputSection["bindings"].contains(nameStr))
-            continue;
-
-        const auto& arr = s_InputSection["bindings"][nameStr];
-        if (!arr.is_array())
-            continue;
-
-        // Replace existing bindings with the saved ones.
-        input.ClearBindings(id);
-        for (const auto& obj : arr)
-        {
-            if (Binding b; DeserializeBinding(obj, b))
-            {
-                // Re-add using the appropriate typed bind method so InputManager's
-                // internal state stays consistent.
-                switch (b.BindingType)
-                {
-                    case Binding::Type::Key:
-                        input.BindKey(id, b.BoundKey);
-                        break;
-                    case Binding::Type::MouseButton:
-                        input.BindMouseButton(id, b.BoundMouse);
-                        break;
-                    case Binding::Type::GamepadButton:
-                        input.BindGamepadButton(id, b.BoundButton);
-                        break;
-                    case Binding::Type::GamepadAxis:
-                        input.BindGamepadAxis(id, b.BoundAxis, b.Half, b.Deadzone);
-                        break;
-                }
-                LOG_DEBUG(Engine, "Loaded binding for action '{}': {}", name, obj.dump());
-                anyLoaded = true;
-            }
-        }
+    const bool saved = s_InputSection.contains("bindings") && s_InputSection["bindings"].is_object();
+    if (saved) {
+        merge.Saved = ReadBindingMap(s_InputSection["bindings"]);
+        if (s_InputSection.contains("defaults")) merge.SavedDefaults = ReadBindingMap(s_InputSection["defaults"]);
     }
+    merge.Resets                 = s_bindingResets;
+    s_InputSection["defaults"]   = WriteBindingMap(merge.Defaults);
+    if (!saved) return false; // first run: the defaults stand
 
-    if (anyLoaded)
-        LOG_INFO(Engine, "Loaded {} input bindings", s_InputSection["bindings"].size());
-
-    return anyLoaded;
+    BindingMergeResult result = MergeBindings(merge);
+    for (const ActionID id : input.GetAllActions())
+        if (const auto it = result.Bindings.find(std::string(input.GetActionName(id))); it != result.Bindings.end())
+            ApplyBindings(input, id, it->second);
+    s_bindingChanges = std::move(result.Changes);
+    LOG_INFO(Engine, "Loaded {} input bindings ({} new or reset by an update)", merge.Saved.size(), s_bindingChanges.size());
+    if (!s_bindingChanges.empty()) SaveInputBindings(input); // they're the player's now: told once
+    return !merge.Saved.empty();
 }
+
+void Settings::ResetBindingOnUpdate(const std::string_view action) { s_bindingResets.emplace(action); }
+
+const std::vector<BindingChange>& Settings::GetBindingChanges() { return s_bindingChanges; }
 
 } // namespace Arcbit

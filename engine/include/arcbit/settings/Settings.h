@@ -2,6 +2,7 @@
 
 #include <arcbit/core/NumberCast.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/input/BindingUpdate.h>
 
 #include <cmath>
 #include <functional>
@@ -12,6 +13,7 @@
 #include <unordered_map>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace Arcbit {
 
@@ -174,11 +176,24 @@ public:
     // runtime rebinds made via InputManager (e.g. from a settings screen).
     static void SaveInputBindings(const InputManager& input);
 
-    // Read bindings from the settings document and apply them to the
-    // InputManager. Only actions already registered in the InputManager are
-    // affected; unrecognized action names in the file are silently ignored.
-    // Returns true if at least one binding was loaded.
+    // Read the player's bindings from the settings document and apply them
+    // over the defaults the game registered, keeping what the player is
+    // used to across game updates (BindingUpdate.h, docs/input.md): actions
+    // they had keep their bindings; new ones (and resets) take free keys.
+    // The defaults are recorded with the bindings, so the next load can tell
+    // what changed. Unknown action names in the file are ignored. Returns
+    // true if the file had bindings.
     static bool LoadInputBindings(InputManager& input);
+
+    // Put an action back to its new default in an update that changed it -
+    // an old default that was broken - through the same clash rules and
+    // notice as a new action. Call before LoadInputBindings (in OnStart);
+    // once the player's file records the new default, it no longer applies.
+    static void ResetBindingOnUpdate(std::string_view action);
+
+    // What the last LoadInputBindings placed (new and reset actions), for
+    // the one-time notice; empty when nothing changed.
+    [[nodiscard]] static const std::vector<BindingChange>& GetBindingChanges();
 
 private:
     // The variant covers all types supported by Get<T>/Set<T>.

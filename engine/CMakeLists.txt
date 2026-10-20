@@ -21,6 +21,7 @@ add_library(arcbit-engine STATIC
     src/RenderThread.cpp
     src/Window.cpp
     src/InputManager.cpp
+    src/BindingUpdate.cpp
     src/Settings.cpp
     src/TextureManager.cpp
     src/SpriteSheet.cpp

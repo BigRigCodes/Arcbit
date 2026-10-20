@@ -101,6 +101,11 @@
 
   "ui.saving":           "セーブ中…",
   "ui.save_notice.text": "このゲームは自動でセーブされます。このアイコンが表示されている間はセーブ中です。ゲームを終了したり、電源を切ったりしないでください。",
+  "ui.bindings_notice.title": "操作設定が更新されました",
+  "ui.bindings_notice.new": "新規：{action}は{keys}",
+  "ui.bindings_notice.reset": "{action}は{keys}に変更されました",
+  "ui.bindings_notice.taken": "（{keys}は{action}）",
+  "ui.bindings_notice.unbound": "{action}にはまだキーがありません。操作設定で設定してください",
 
   "ui.hud.hp": "HP",
   "ui.hud.mp": "MP",
