@@ -2,7 +2,9 @@
     "title": "demo.title",
     "scroll_speed": 60,
     "sections": [
-        { "heading": "credits.engine", "names": ["BigRigCodes"] },
+        { "heading": "credits.engine", "names": [
+            { "image": "assets/engine/ui/ArcbitA_withbackground.png", "height": 180, "uv": [0.2, 0.04, 0.8, 0.9] },
+            "BigRigCodes" ] },
         { "heading": "credits.art", "names": ["Cute Fantasy asset pack (author to credit)", "MiniWorldSprites (author to credit)"] },
         { "heading": "credits.sound", "names": ["footsteps, sword slash (source to credit)"] },
         { "heading": "credits.music", "names": ["credits.music_note"] },
