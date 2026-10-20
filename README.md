@@ -3,7 +3,7 @@
 ---
 A specialized 2D tile based RPG game engine.
 
-For a road map and current progress, see the [Blueprint](./BLUEPRINT.md).
+For a road map and current progress, see the [Blueprint](./BLUEPRINT.md). For how it's built, start with [docs/architecture.md](./docs/architecture.md); each system has its own page in [docs/](./docs).
 
 ---
 
@@ -37,12 +37,19 @@ Nothing could be possible without the following.
 ### Libraries
 
 - SDL3
-- Vulkan 1.3
+- Vulkan 1.3, Vulkan Memory Allocator
 - spdlog
 - nlohmann-json
 - stb
 - miniaudio
+- Lua 5.4, sol2
+- libsodium, zstd (sealed saves)
 - Catch2 (tests)
+
+### Fonts
+
+- Roboto (Regular, Bold, Italic, Bold Italic) - Apache 2.0
+- Noto Sans JP - SIL Open Font License
 
 #### Documentation
 - Ahem, thanks to AI for helping write all the comments documenting code...

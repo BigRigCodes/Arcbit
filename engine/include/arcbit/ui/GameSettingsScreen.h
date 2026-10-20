@@ -15,7 +15,11 @@ namespace Arcbit
 // it. Games add their own rows here - difficulty, text speed - with their own
 // layout (LayoutPath) and OnBuilt to wire them (Application::OnGameSettings).
 //
-// Layout: a "language-dd" Dropdown and a "back-btn".
+// The dialog rows - Text speed and Auto-advance (DialogSettings) - save as
+// they change.
+//
+// Layout: a "language-dd" Dropdown, a "text-speed-dd" Dropdown, an
+// "auto-advance" Switch and a "back-btn".
 // ---------------------------------------------------------------------------
 class GameSettingsScreen : public UIScreen
 {
@@ -40,5 +44,6 @@ protected:
 
 private:
     void WireLanguage();
+    void WireDialog();
 };
 } // namespace Arcbit

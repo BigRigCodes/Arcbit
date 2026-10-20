@@ -296,3 +296,21 @@ TEST_CASE("CheckReloads reads changed locale files again", "[core][loc]")
     CHECK(Loc::Get("a") == "after");
     CHECK(Loc::GetGeneration() != generation); // text on screen follows
 }
+
+TEST_CASE("Strings from code sit under a language's files and can be replaced", "[core][loc]")
+{
+    LocScope                                               scope;
+    ArcbitTests::TempDir                                   dir;
+    const std::vector<std::pair<std::string, std::string>> a = { { "k.one", "from code" }, { "k.two", "two" } };
+    Loc::SetStrings(Loc::English, "src", a);
+    CHECK(Loc::Get("k.one") == "from code"); // English with no files at all
+    REQUIRE(Loc::Load(dir.Write("en.json", R"({ "k.one": "from file" })")));
+    CHECK(Loc::Get("k.one") == "from file");
+    CHECK(Loc::Get("k.two") == "two");
+
+    Loc::SetStrings(Loc::English, "src", std::vector<std::pair<std::string, std::string>>{ { "k.three", "3" } });
+    CHECK(Loc::Get("k.two") == "k.two");
+    CHECK(Loc::Get("k.three") == "3");
+    Loc::SetStrings(Loc::English, "src", {});
+    CHECK_FALSE(Loc::Has("k.three"));
+}

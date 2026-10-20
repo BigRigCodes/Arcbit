@@ -12,6 +12,7 @@ find_path(SOL2_INCLUDE_DIRS "sol/abort.hpp" REQUIRED) # sol2: header-only C++ bi
 add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
+    src/ApplicationDialog.cpp
     src/ApplicationLocale.cpp
     src/ApplicationSaves.cpp
     src/DebugConsole.cpp
@@ -30,6 +31,10 @@ add_library(arcbit-engine STATIC
     src/SceneManager.cpp
     src/ScenePreloader.cpp
     src/SceneRegistry.cpp
+    src/Dialog.cpp
+    src/DialogLibrary.cpp
+    src/DialogRunner.cpp
+    src/DialogScreen.cpp
     src/SaveData.cpp
     src/SaveGame.cpp
     src/SaveManager.cpp
@@ -37,6 +42,7 @@ add_library(arcbit-engine STATIC
     src/ScriptEngine.cpp
     src/ScriptLibrary.cpp
     src/ScriptLoc.cpp
+    src/ScriptDialog.cpp
     src/ScriptEntity.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
@@ -60,6 +66,8 @@ add_library(arcbit-engine STATIC
     src/TileAtlas.cpp
     src/TileMap.cpp
     src/Font.cpp
+    src/RichText.cpp
+    src/TextReveal.cpp
     src/FontSdf.cpp
     src/UIWidget.cpp
     src/UIScreen.cpp
@@ -193,9 +201,9 @@ add_custom_target(arcbit-engine-locale-assets ALL
 add_custom_target(arcbit-engine-fonts ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Roboto-Regular.ttf"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
+        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/engine/fonts"
     COMMENT "Copying engine fonts to bin/assets/engine/fonts/"
     VERBATIM
 )

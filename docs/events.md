@@ -3,8 +3,8 @@
 A named publish / subscribe bus, so systems that don't know about each other
 can react to what happens: a HUD counts coins it never sees being picked up,
 UI swaps its button hints when the player picks up a gamepad, a quest moves on
-when a scene loads. Lua scripts (Phase 26) subscribe by name and the editor's
-event monitor (Phase 40) shows the live stream.
+when a scene loads. Lua scripts subscribe by name, and the editor's event
+monitor (Phase 40) will show the live stream.
 
 - [Bus or callback?](#bus-or-callback)
 - [Names and ids](#names-and-ids)
@@ -155,6 +155,10 @@ their names.
 | `engine.game.saved` | `slot` (`"manual_3"`, `"auto_1"`, `"quick"`), `name` | a save was written ([saves.md](saves.md)) |
 | `engine.game.loaded` | `slot` | a save's state is back, as its scenes load |
 | `engine.locale.changed` | `from`, `to` | the player-visible language changed (`Application::SetLanguage`) |
+| `engine.dialog.started` | `id`, `with` (the entity talked to, if any) | a conversation began ([dialog.md](dialog.md)) |
+| `engine.dialog.line` | `id`, `key` (the line's Loc key), `speaker` (an id; `""` for narration) | a line showed |
+| `engine.dialog.choice` | `id`, `choice` (its id) | the player picked a choice |
+| `engine.dialog.ended` | `id`, `with`, `choice` (the last choice's id, or `""`) | the conversation ended |
 
 Scene events are delivered at the flush after the swap; Application's default
 unnamed scene isn't announced. The last-used device counts a key, mouse
@@ -165,7 +169,7 @@ button or a stick or trigger pushed past half way as gamepad
 Lua subscribes and publishes the same events by name (`Event.Subscribe`,
 `Event.Publish` - [scripting.md](scripting.md)).
 
-Events for systems that don't exist yet - dialog, items, combat, weather,
+Events for systems that don't exist yet - items, combat, weather,
 achievements - arrive with those systems' phases.
 
 ---
@@ -209,5 +213,5 @@ world.AddComponent<EntityEvents>(boss, EntityEvents{ .Spawned = false, .Destroye
 - The Triggers demo publishes `game.coin.collected` from five coin triggers;
   a HUD counts them through `Scene::Subscribe`, and the last one publishes
   `game.coin.all_collected`.
-- `SubscribeAll` is how a tool listens to everything - what the Phase 40
-  event monitor will pipe out to the editor.
+- `SubscribeAll` is how a tool listens to everything - what the editor's
+  event monitor (Phase 40) will pipe out.

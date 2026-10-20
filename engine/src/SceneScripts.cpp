@@ -241,6 +241,29 @@ void SceneScripts::Interact(const Entity target, const Entity by)
     s.CallHook(it->second, "OnInteract", it->second.Self, ScriptEntity{ by, s.Serial });
 }
 
+bool SceneScripts::CallMethod(const Entity target, const std::string_view method)
+{
+    Impl&      s  = *_impl;
+    const auto it = s.Instances.find(InstanceKey(target));
+    if (it == s.Instances.end() || it->second.Broken) return false;
+    const std::string name(method);
+    if (it->second.Module[name].get_type() != sol::type::function) return false;
+    (void)s.CallHook(it->second, name.c_str(), it->second.Self);
+    return true;
+}
+
+void SceneScripts::DialogEnded(const Entity with, const std::string_view id, const std::string_view choice)
+{
+    Impl&             s = *_impl;
+    const std::string dialog(id), picked(choice);
+    if (const auto it = s.Instances.find(InstanceKey(with)); with.IsValid() && it != s.Instances.end() && !it->second.Broken)
+        s.CallHook(it->second, "OnDialogEnd", it->second.Self, dialog, picked);
+    if (s.SceneScript) {
+        const sol::object talkedTo = with.IsValid() ? sol::make_object(s.Lua.Lua, ScriptEntity{ with, s.Serial }) : sol::object(sol::lua_nil);
+        s.CallHook(*s.SceneScript, "OnDialogEnd", s.SceneScript->Self, dialog, picked, talkedTo);
+    }
+}
+
 // Only plain values save (LuaToJson): numbers, text, booleans, tables of
 // them; a Vec2 becomes { x, y }.
 void SceneScripts::SyncSaved()

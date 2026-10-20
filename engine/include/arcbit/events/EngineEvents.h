@@ -55,6 +55,16 @@ namespace EngineEvents
     // to: locale codes.
     constexpr std::string_view LocaleChangedName = "engine.locale.changed";
 
+    // A conversation (docs/dialog.md) started / ended. id, with (the entity
+    // talked to, if any); ended also choice (the last choice's id, or "").
+    constexpr std::string_view DialogStartedName = "engine.dialog.started";
+    constexpr std::string_view DialogEndedName   = "engine.dialog.ended";
+    // A line showed. id, key (its text's Loc key), speaker (an id; "" for
+    // narration).
+    constexpr std::string_view DialogLineName = "engine.dialog.line";
+    // The player picked a choice. id, choice (its id).
+    constexpr std::string_view DialogChoiceName = "engine.dialog.choice";
+
     constexpr EventId SceneLoaded        = MakeEvent(SceneLoadedName);
     constexpr EventId SceneUnloaded      = MakeEvent(SceneUnloadedName);
     constexpr EventId SceneSuspended     = MakeEvent(SceneSuspendedName);
@@ -69,6 +79,10 @@ namespace EngineEvents
     constexpr EventId GameSaved          = MakeEvent(GameSavedName);
     constexpr EventId GameLoaded         = MakeEvent(GameLoadedName);
     constexpr EventId LocaleChanged      = MakeEvent(LocaleChangedName);
+    constexpr EventId DialogStarted      = MakeEvent(DialogStartedName);
+    constexpr EventId DialogEnded        = MakeEvent(DialogEndedName);
+    constexpr EventId DialogLine         = MakeEvent(DialogLineName);
+    constexpr EventId DialogChoice       = MakeEvent(DialogChoiceName);
 
     // Every engine event name - each EventBus registers them all, so they're
     // reserved and named in logs from the start.
@@ -76,7 +90,8 @@ namespace EngineEvents
         SceneLoadedName,        SceneUnloadedName,      SceneSuspendedName, SceneResumedName,
         InputDeviceChangedName, WindowFocusChangedName, WindowResizedName,  SettingsChangedName,
         EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
-        EntityInteractedName,   LocaleChangedName,
+        EntityInteractedName,   LocaleChangedName,      DialogStartedName,  DialogEndedName,
+        DialogLineName,         DialogChoiceName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

@@ -1,0 +1,17 @@
+{
+  "speaker": "guard",
+  "speakers": {
+    "guard": { "name": "Village Guard" }
+  },
+  "nodes": {
+    "start": [
+      { "branch": [
+          { "if": { "elder.met": true }, "goto": "friendly" }
+      ] },
+      { "id": "halt", "say": "Halt! Strangers keep to the road.<pause=0.3> Speak to the elder first." }
+    ],
+    "friendly": [
+      { "id": "friendly", "say": "The elder speaks well of you. Pass freely." }
+    ]
+  }
+}

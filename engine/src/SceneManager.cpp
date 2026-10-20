@@ -540,4 +540,8 @@ void SceneManager::UnloadAll()
     }
 }
 
+bool SceneManager::Contains(const Scene* scene) const
+{
+    return scene && std::ranges::any_of(_stack, [scene](const auto& s) { return s.get() == scene; });
+}
 } // namespace Arcbit

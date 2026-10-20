@@ -255,12 +255,19 @@ void Application::Run()
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
                                 .AutoSave = [this] { return AutoSave(); },
-                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); } });
+                                .SetLanguage = [this](const std::string_view code) { return SetLanguage(code); },
+                                .StartDialog  = [this](const DialogRequest& request) { return StartDialog(request); },
+                                .DialogActive = [this] { return IsDialogActive(); },
+                                .StopDialog   = [this] { StopDialog(); } });
     _scenes.SetActive(std::make_unique<Scene>());
 
     // Load the engine's built-in debug font before game code runs so subclasses
     // can use it in OnStart if they need to (e.g. preload additional glyphs).
     _debugFont.Load("assets/engine/fonts/Roboto-Regular.ttf", 24.0f, FontMode::SDF, *_device);
+    // The family's other faces: <b> / <i> text and bold / italic text styles.
+    _debugFont.SetStyleFace(FontStyle::Bold, FontFace::Load("assets/engine/fonts/Roboto-Bold.ttf"));
+    _debugFont.SetStyleFace(FontStyle::Italic, FontFace::Load("assets/engine/fonts/Roboto-Italic.ttf"));
+    _debugFont.SetStyleFace(FontStyle::BoldItalic, FontFace::Load("assets/engine/fonts/Roboto-BoldItalic.ttf"));
 
     // Init UI manager after the render thread is running so white-texture handles are valid.
     // Registers UI navigation actions (UI_Confirm, UI_FocusNext, UI_FocusPrev) before OnStart
@@ -343,15 +350,18 @@ void Application::Run()
             _input.ProcessEdges();
             if (_input.JustPressed(ActionEngineFullscreen)) ToggleFullscreen();
             if (_input.JustPressed(ActionEngineConsole) && IsConsoleAllowed()) ToggleConsole();
+            UpdateDialogs(); // a waiting conversation starts once the last has gone
             if (!_ui.HasGameBlockingScreen()) {
                 OnUpdate(_fixedTimestep);
                 _scenes.Update(_fixedTimestep);
                 if (Scene* scene = _scenes.GetActive()) {
                     // An input-capturing overlay or a scene fade holds the player still.
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
-                    scene->Update(_fixedTimestep * _timeScale);
+                    if (!DialogPausesWorld()) scene->Update(_fixedTimestep * _timeScale);
                 }
-                if (!_ui.HasBlockingScreen() && !_scenes.IsFading()) _playtime += _fixedTimestep;
+                // Play time: not under menus, but a conversation is playing.
+                const bool playing = !_ui.HasBlockingScreen() || (IsDialogActive() && !_ui.HasOpenMenu());
+                if (playing && !_scenes.IsFading()) _playtime += _fixedTimestep;
             }
             // Under a screen that hides the game (the splash on its logo), a
             // queued swap may run - its load stays out of sight - but the
@@ -445,6 +455,7 @@ void Application::Run()
 #ifdef ARCBIT_DEBUG
             _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
             Loc::CheckReloads();          // and edited locale files (text follows the generation)
+            _dialogs.CheckReloads();      // and dialog files (a running one keeps the version it began with)
 #endif
             _hotReloadAccumulator -= 1.0;
         }

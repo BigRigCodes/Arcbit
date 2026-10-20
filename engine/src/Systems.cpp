@@ -112,6 +112,15 @@ namespace
         });
     }
 
+    // Held entities stand still whatever their controller or script wants.
+    void RegisterHoldSystem(World& world)
+    {
+        world.RegisterSystem("Hold", [](Scene& scene, f32 /*dt*/) {
+            scene.GetWorld().Query<const Held, MoveIntent>().ForEach(
+                [](const Held&, MoveIntent& intent) { intent.Direction = {}; });
+        });
+    }
+
     // Intent-driven free movers move at Speed in the intended direction and
     // stop the moment intent goes to zero.
     void ApplyIntentToFreeMovers(World& ecs)
@@ -592,6 +601,53 @@ namespace
                .Without<Disabled>()
                .ForEach([&](const Entity e, Transform2D& t, SmoothTileMovement& stm) {
                    TickSmoothMover(ctx, e, t, stm, dt);
+               });
+        });
+    }
+
+    // Moving: wanting to, or partway through a tile step, or still sliding.
+    bool IsMoving(World& ecs, const Entity e, const MoveIntent& intent)
+    {
+        if (intent.Direction != Vec2{}) return true;
+        if (const auto* tile = ecs.GetComponent<SmoothTileMovement>(e); tile && tile->Progress < 1.0f) return true;
+        const auto* free = ecs.GetComponent<FreeMovement>(e);
+        return free && free->Velocity != Vec2{};
+    }
+
+    std::string_view FacingName(const Vec2 facing)
+    {
+        if (std::abs(facing.X) >= std::abs(facing.Y)) return facing.X < 0.0f ? "left" : "right";
+        return facing.Y < 0.0f ? "up" : "down";
+    }
+
+    // The clip name with "{facing}" filled in.
+    std::string FacingClip(const std::string& pattern, const std::string_view facing)
+    {
+        std::string name = pattern;
+        if (const usize at = name.find("{facing}"); at != std::string::npos) name.replace(at, 8, facing);
+        return name;
+    }
+
+    void RegisterFacingAnimationSystem(World& world)
+    {
+        world.RegisterSystem("FacingAnimation", [](Scene& scene, f32 /*dt*/) {
+            World& ecs = scene.GetWorld();
+            ecs.Query<const FacingAnimation, const MoveIntent, Animator, SpriteRenderer>()
+               .Without<Disabled>()
+               .ForEach([&](const Entity e, const FacingAnimation& fa, const MoveIntent& intent, Animator& anim,
+                            SpriteRenderer& sprite) {
+                   if (!anim.Sheet) return;
+                   const std::string_view facing = FacingName(intent.Facing);
+                   const bool             mirror = fa.MirrorLeft && facing == "left";
+                   const std::string&     clip   = IsMoving(ecs, e, intent) ? fa.Walk : fa.Idle;
+                   const AnimationClip* next = clip.empty() ? nullptr : anim.Sheet->GetAnimation(FacingClip(clip, mirror ? "right" : facing));
+                   if (!next) return;
+                   sprite.FlipX = mirror;
+                   if (next == anim.Clip) return;
+                   anim.Clip       = next;
+                   anim.FrameIndex = 0;
+                   anim.Elapsed    = 0.0f;
+                   anim.Finished   = false;
                });
         });
     }
@@ -1190,6 +1246,7 @@ void RegisterBuiltinSystems(World& world)
     // Update phase — order matches the blueprint execution table.
     RegisterLifetimeSystem(world);
     RegisterInputMovementSystem(world);         // InputMovement → MoveIntent
+    RegisterHoldSystem(world);                  // Held → no MoveIntent direction
     RegisterPushOutSystem(world);               // out of colliders that moved into a free mover
     RegisterFreeMovementSystem(world);          // MoveIntent → Velocity; writes PendingMove
     RegisterSmoothTileMoveSystem(world);        // MoveIntent → QueuedDir; writes Transform directly
@@ -1197,6 +1254,7 @@ void RegisterBuiltinSystems(World& world)
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
     RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
     RegisterCameraFollowSystem(world);
+    RegisterFacingAnimationSystem(world);      // MoveIntent facing + moving -> Animator clip
     RegisterAnimatorStateMachineSystem(world); // evaluates transitions, updates Animator clip
     RegisterAnimatorSystem(world);             // advances frames, fires events, writes UV
     RegisterAudioSystem(world);                // spatial sound lifecycle + listener update

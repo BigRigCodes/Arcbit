@@ -1,4 +1,5 @@
 #include <arcbit/ui/UIManager.h>
+#include <arcbit/render/RichText.h>
 #include <arcbit/ui/UILoader.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/render/RenderThread.h>
@@ -247,6 +248,7 @@ void UIManager::RemoveCompletedFadeOuts()
 
 void UIManager::Update(const f32 dt, const Vec2 windowSize, const InputManager& input)
 {
+    AdvanceTextClock(dt); // <wave>, <shake>, <rainbow>
     _updating = true;
     UpdateScreens(dt, windowSize, input);
     _updating = false;

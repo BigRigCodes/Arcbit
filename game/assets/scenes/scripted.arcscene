@@ -18,12 +18,28 @@
             "Tag": { "value": "Door" },
             "Transform2D": { "position": [448.0, 256.0], "scale": [60.0, 60.0] }
         },
+        "elder": {
+            "Animator": { "clip": "idle_down", "sheet": "assets/spritesheets/player.json" },
+            "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "NPC" },
+            "FacingAnimation": { "mirror_left": true },
+            "Interactable": { "dialog": "elder", "prompt": "demo.scripted.prompt.talk" },
+            "MoveIntent": {},
+            "Script": { "script": "demo.elder" },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "assets/textures/Cute_Fantasy_Free/Player/Player.png", "tint": [0.7, 0.8, 1.0, 1.0] },
+            "Tag": { "value": "Elder" },
+            "Transform2D": { "position": [128.0, 128.0], "scale": [64.0, 64.0] }
+        },
         "guard": {
+            "Animator": { "clip": "idle_down", "sheet": "assets/spritesheets/player.json" },
             "Collider2D": { "half_extents": [24.0, 24.0], "layer": "NPC" },
-            "Script": { "properties": { "Distance": 448, "Pause": 1, "Seconds": 3 }, "script": "demo.guard" },
-            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.8, 0.25, 0.25, 1.0] },
+            "FacingAnimation": { "mirror_left": true },
+            "Interactable": { "dialog": "guard", "prompt": "demo.scripted.prompt.talk" },
+            "MoveIntent": {},
+            "Script": { "properties": { "Pause": 1, "Tiles": 7 }, "script": "demo.guard" },
+            "SmoothTileMovement": { "speed": 2.5 },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "assets/textures/Cute_Fantasy_Free/Player/Player.png", "tint": [1.0, 0.45, 0.4, 1.0] },
             "Tag": { "value": "Guard" },
-            "Transform2D": { "position": [-320.0, -320.0], "scale": [48.0, 48.0] }
+            "Transform2D": { "position": [-320.0, -320.0], "scale": [64.0, 64.0] }
         },
         "lookout": {
             "Collider2D": { "half_extents": [256.0, 32.0], "is_trigger": true, "kind": "static", "layer": "Trigger", "mask": "Player" },
@@ -33,16 +49,18 @@
             "Transform2D": { "position": [-96.0, -256.0], "scale": [512.0, 64.0] }
         },
         "player": {
+            "Animator": { "clip": "idle_down", "sheet": "assets/spritesheets/player.json" },
             "CameraTarget": { "lag": 0.05 },
             "Collider2D": { "half_extents": [25.0, 25.0], "layer": "Player" },
+            "FacingAnimation": { "mirror_left": true },
             "InputMovement": { "move_down": "Move_Down", "move_left": "Move_Left", "move_right": "Move_Right", "move_up": "Move_Up" },
             "Interactor": {},
             "MoveIntent": {},
             "Persistent": { "components": ["Transform2D"] },
             "SmoothTileMovement": { "speed": 5.0 },
-            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.3, 0.5, 1.0, 1.0] },
+            "SpriteRenderer": { "sampler": "nearest", "texture": "assets/textures/Cute_Fantasy_Free/Player/Player.png" },
             "Tag": { "value": "Player" },
-            "Transform2D": { "position": [256.0, 0.0], "scale": [48.0, 48.0] }
+            "Transform2D": { "position": [256.0, 0.0], "scale": [64.0, 64.0] }
         },
         "sign": {
             "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },

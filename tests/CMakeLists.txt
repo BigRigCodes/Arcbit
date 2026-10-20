@@ -14,6 +14,9 @@ add_executable(arcbit-tests
     core/LocTests.cpp
     core/MathTests.cpp
     core/Utf8Tests.cpp
+    dialog/DemoDialogTests.cpp
+    dialog/DialogRunnerTests.cpp
+    dialog/DialogTests.cpp
     ecs/AnimatorStateMachineTests.cpp
     ecs/InteractionTests.cpp
     ecs/MovementTests.cpp
@@ -34,6 +37,8 @@ add_executable(arcbit-tests
     render/Camera2DTests.cpp
     render/FontSdfTests.cpp
     render/FontTests.cpp
+    render/RichTextTests.cpp
+    render/TextRevealTests.cpp
     save/SaveSealTests.cpp
     save/SaveTests.cpp
     save/SceneStateTests.cpp
@@ -43,6 +48,7 @@ add_executable(arcbit-tests
     script/DemoScriptTests.cpp
     script/SceneScriptTests.cpp
     script/ScriptConsoleTests.cpp
+    script/ScriptDialogTests.cpp
     script/ScriptApiTests.cpp
     script/ScriptHookTests.cpp
     script/ScriptLocTests.cpp
@@ -53,11 +59,13 @@ add_executable(arcbit-tests
     tilemap/TileMapTests.cpp
     ui/AudioSettingsTests.cpp
     ui/ConsoleScreenTests.cpp
+    ui/DialogScreenTests.cpp
     ui/UILayoutTests.cpp
     ui/UIManagerTests.cpp
     ui/DropdownTests.cpp
     ui/LocaleUITests.cpp
     ui/TextInputTests.cpp
+    ui/TextStyleTests.cpp
     ui/UISkinTests.cpp
 )
 

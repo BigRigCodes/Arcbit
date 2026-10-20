@@ -1,10 +1,13 @@
 #include <arcbit/core/LocCheck.h>
 #include <arcbit/core/Loc.h>
+#include <arcbit/dialog/DialogLibrary.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <format>
 #include <fstream>
+#include <map>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -127,23 +130,75 @@ std::vector<std::string> EnglishKeys()
     for (auto& [key, text] : Loc::GetStrings(Loc::English)) keys.push_back(std::move(key));
     return keys;
 }
+
+// One dialog's keys count as used (by it), and a speaker without a name in
+// the file needs its key from the locale files; English the locale files
+// give one of its lines replaces the dialog's - worth knowing.
+void ScanDialog(const Dialog& dialog, const std::string& file, const std::map<std::string, std::string>& fileEnglish,
+                Scan& scan, Report& report)
+{
+    for (const auto& [key, text] : dialog.GetStrings()) {
+        scan.Literals.insert(key);
+        if (const auto it = fileEnglish.find(key); it != fileEnglish.end() && it->second != text)
+            report.Dialogs.push_back({ dialog.Id, file, false,
+                                       std::format("'{}': the English locale files replace this line's text", key) });
+    }
+    for (const DialogSpeaker& speaker : dialog.Speakers)
+        if (speaker.English.empty()) scan.Use(speaker.Key, file, 0);
+}
+
+// The dialog files: their English into Loc (under the locale files'), their
+// problems into the report.
+void CheckDialogs(const std::span<const std::filesystem::path> folders, Scan& scan, Report& report)
+{
+    std::map<std::string, std::string> fileEnglish;
+    for (auto& [key, text] : Loc::GetStrings(Loc::English)) fileEnglish.emplace(std::move(key), std::move(text));
+    DialogLibrary library;
+    library.LogIssues = false;
+    for (const auto& folder : folders) (void)library.AddFolder(folder);
+    for (const std::string& id : library.GetAllIds()) {
+        const std::string file = library.GetFile(id).generic_string();
+        for (const DialogIssue& issue : library.GetIssues(id)) report.Dialogs.push_back({ id, file, issue.Error, issue.Message });
+        if (library.Has(id)) ScanDialog(*library.Get(id), file, fileEnglish, scan, report);
+    }
+}
+
+// Translations English doesn't have (a language's own plural forms aside).
+std::vector<StaleKey> FindStale(const std::set<std::string>& english)
+{
+    std::vector<StaleKey> stale;
+    for (const Loc::Locale& locale : Loc::GetLocales()) {
+        if (locale.Code == Loc::English) continue;
+        for (const auto& [key, text] : Loc::GetStrings(locale.Code))
+            if (!english.contains(key) && !english.contains(Parent(key) + ".other")) stale.push_back({ locale.Code, key });
+    }
+    return stale;
+}
 } // namespace
 
+bool Report::HasDialogErrors() const
+{
+    return std::ranges::any_of(Dialogs, &DialogProblem::Error);
+}
+
 Report Check(const std::span<const std::filesystem::path> localeFolders,
-             const std::span<const std::filesystem::path> scanRoots)
+             const std::span<const std::filesystem::path> scanRoots,
+             const std::span<const std::filesystem::path> dialogFolders)
 {
     Loc::Clear();
     for (const auto& folder : localeFolders) Loc::AddFolder(folder);
+    Report report;
+    Scan   scan = ScanRoots(scanRoots, localeFolders);
+    CheckDialogs(dialogFolders, scan, report);
     const std::vector<std::string> english = EnglishKeys();
     const std::set<std::string>    known(english.begin(), english.end());
-    const Scan                     scan = ScanRoots(scanRoots, localeFolders);
 
-    Report report;
     for (const Place& use : scan.Uses)
         if (!known.contains(use.Text) && !known.contains(use.Text + ".other")) report.Missing.push_back(use);
     for (const std::string& key : english)
         if (!scan.Literals.contains(key) && !scan.Literals.contains(Parent(key))) report.Unused.push_back(key);
     report.RawText = scan.RawText;
+    report.Stale   = FindStale(known);
 
     for (const Loc::Locale& locale : Loc::GetLocales())
         report.Languages.push_back({ .Code       = locale.Code,

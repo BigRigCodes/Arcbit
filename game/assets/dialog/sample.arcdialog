@@ -1,0 +1,34 @@
+{
+  "speaker": "sage",
+  "speakers": {
+    "sage": { "name": "Wandering Sage" }
+  },
+  "nodes": {
+    "start": [
+      { "say": "The wind carries a <i>strange</i> song tonight...", "speaker": null },
+      { "branch": [ { "if": { "sample.met": true }, "goto": "again" } ] },
+      { "say": "Ah, a traveler!<pause=0.4> Come, sit by the fire.", "set": { "sample.met": true }, "goto": "ask" }
+    ],
+    "again": [
+      { "say": "Back again? The fire is still <color=orange>warm</color>.", "goto": "ask" }
+    ],
+    "ask": [
+      { "say": "They say the old tower <shake>trembles</shake> at night, and the river <wave>sings</wave> when the moon is full. What would you hear about?" },
+      { "choice": [
+          { "id": "tower",  "text": "The tower.", "goto": "tower" },
+          { "id": "river",  "text": "The river.", "goto": "river" },
+          { "id": "secret", "text": "<rainbow>The secret.</rainbow>", "if": { "sample.heard": [">=", 2] }, "goto": "secret" },
+          { "id": "bye",    "text": "Nothing. Goodbye.", "goto": "end" }
+      ] }
+    ],
+    "tower": [
+      { "say": "Its stones remember a war <speed=0.4>no one else does</speed>.", "add": { "sample.heard": 1 }, "goto": "ask" }
+    ],
+    "river": [
+      { "say": "It runs uphill, <b>once</b> a year. Only once.", "add": { "sample.heard": 1 }, "goto": "ask" }
+    ],
+    "secret": [
+      { "say": "<rainbow>There is no secret.</rainbow><pause=0.6> Only stories.", "set": { "sample.heard": 0 } }
+    ]
+  }
+}

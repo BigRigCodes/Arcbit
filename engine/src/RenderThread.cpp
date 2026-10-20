@@ -41,6 +41,14 @@ struct SpriteInstance
     f32 RotCos, RotSin, _pad0, _pad1; // sprite rotation cos/sin          (location 3)
 }; // 64 bytes
 
+// The UI pipeline's instance: a sprite's, plus the text look (ui.vert / ui.frag).
+struct UIInstance
+{
+    SpriteInstance Sprite;                  // locations 0-3 (Sprite._pad0: SDF mode)
+    f32 Weight, Outline, Softness, Shear;   // location 4
+    f32 OutR, OutG, OutB, OutA;             // location 5: outline color
+}; // 96 bytes
+
 // Push constants for the sprite pipeline.
 // Same block declared in both sprite.vert and sprite.frag; each stage
 // only reads the fields relevant to it.
@@ -289,9 +297,11 @@ void RenderThread::CreateUIPipeline(const Format swapchainFormat)
         { 1, 0, Format::RGBA32_Float, 16 },
         { 2, 0, Format::RGBA32_Float, 32 },
         { 3, 0, Format::RGBA32_Float, 48 },
+        { 4, 0, Format::RGBA32_Float, 64 }, // text look: weight, outline, softness, shear
+        { 5, 0, Format::RGBA32_Float, 80 }, // outline color
     };
     const VertexBinding bindings[] = {
-        { 0, static_cast<u32>(sizeof(SpriteInstance)), true },
+        { 0, static_cast<u32>(sizeof(UIInstance)), true },
     };
 
     PipelineDesc desc{};
@@ -345,7 +355,7 @@ void RenderThread::CreateUIResources()
     _uiInstanceBufferCapacity            = InitialCapacity;
 
     BufferDesc bufDesc{};
-    bufDesc.Size        = InitialCapacity * sizeof(SpriteInstance);
+    bufDesc.Size        = InitialCapacity * sizeof(UIInstance);
     bufDesc.Usage       = BufferUsage::Vertex;
     bufDesc.HostVisible = true;
     bufDesc.DebugName   = "ui_instances";
@@ -886,7 +896,7 @@ void RenderThread::UploadUIInstances(const std::vector<const Sprite*>& sorted, c
         _uiInstanceBufferCapacity = cap;
 
         BufferDesc desc{};
-        desc.Size        = cap * sizeof(SpriteInstance);
+        desc.Size        = cap * sizeof(UIInstance);
         desc.Usage       = BufferUsage::Vertex;
         desc.HostVisible = true;
         desc.DebugName   = "ui_instances";
@@ -894,10 +904,11 @@ void RenderThread::UploadUIInstances(const std::vector<const Sprite*>& sorted, c
         LOG_INFO(Render, "UI instance buffer resized to {} quads", cap);
     }
 
-    std::vector<SpriteInstance> instances;
+    std::vector<UIInstance> instances;
     instances.reserve(count);
     for (const Sprite* s : sorted) {
-        SpriteInstance& inst = instances.emplace_back();
+        UIInstance&     ui   = instances.emplace_back();
+        SpriteInstance& inst = ui.Sprite;
         inst.PosX  = s->Position.X; inst.PosY  = s->Position.Y;
         inst.HalfW = s->Size.X * 0.5f; inst.HalfH = s->Size.Y * 0.5f;
         inst.U0    = s->UV.U0; inst.V0 = s->UV.V0; inst.U1 = s->UV.U1; inst.V1 = s->UV.V1;
@@ -906,8 +917,10 @@ void RenderThread::UploadUIInstances(const std::vector<const Sprite*>& sorted, c
         inst.RotCos = std::cos(s->Rotation); inst.RotSin = std::sin(s->Rotation);
         inst._pad0  = s->SDFMode ? 1.0f : 0.0f; // mode flag read by ui.vert / ui.frag
         inst._pad1  = 0.0f;
+        ui.Weight   = s->Weight; ui.Outline = s->Outline; ui.Softness = s->Softness; ui.Shear = s->Shear;
+        ui.OutR     = s->OutlineColor.R; ui.OutG = s->OutlineColor.G; ui.OutB = s->OutlineColor.B; ui.OutA = s->OutlineColor.A;
     }
-    _device->UpdateBuffer(_uiInstanceBuffers[frameSlot], instances.data(), count * sizeof(SpriteInstance));
+    _device->UpdateBuffer(_uiInstanceBuffers[frameSlot], instances.data(), count * sizeof(UIInstance));
 }
 
 void RenderThread::DrawSDFBatches(const CommandListHandle cmd, const std::vector<const Sprite*>& sorted,
@@ -983,7 +996,7 @@ void RenderThread::DrawUIBatches(const CommandListHandle cmd, const std::vector<
 
         _device->BindTexture(cmd, first->Texture, first->Sampler, 0);
         _device->BindVertexBuffer(cmd, _uiInstanceBuffers[frameSlot], 0,
-                                  static_cast<u64>(groupStart) * sizeof(SpriteInstance));
+                                  static_cast<u64>(groupStart) * sizeof(UIInstance));
         _device->Draw(cmd, 6, 0, groupEnd - groupStart, 0);
         groupStart = groupEnd;
     }

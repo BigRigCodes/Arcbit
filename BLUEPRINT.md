@@ -74,7 +74,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 ## Phase 8: Render Thread & Window
 - [x] Dedicated render thread with double-buffered frame state
 - [x] Window resize → swapchain recreation (out-of-date handling)
-- [x] Raw SDL events forwarded from SDL thread to game thread via a lock-free queue
+- [x] SDL events polled on the main thread and held until a fixed tick consumes them (`InputManager::ProcessEdges`), so no press is lost between ticks
 - [x] `Window` class — RAII SDL_Window wrapper; hides SDL from game/engine headers
 
 ---
@@ -96,7 +96,13 @@ Checkbox list of every major milestone. Check off items as they are completed.
 - [x] Audio settings: master volume, music volume, SFX volume
 - [x] Input settings: persist action→binding map from Phase 9; apply on load
 - [x] `Settings::Get<T>` / `Set<T>` typed accessors with dirty-flag auto-save
-- [ ] Persist only rebound actions — `SaveInputBindings` writes every action's bindings on shutdown, and `LoadInputBindings` replaces the code's defaults with them. So a default changed in code never reaches an existing settings file (hit in 22H: WorldDemo's broken stick bindings had to be deleted from `settings.json` by hand), and demos sharing one file inherit each other's bindings (TileMoveDemo picks up WorldDemo's arrow keys and stick). Snapshot the defaults at startup, save only actions that differ, and give actions with no saved entry their code defaults. A per-game settings path would also keep the demos apart
+- [ ] **Bindings across game updates** - today `SaveInputBindings` writes every action's bindings and `LoadInputBindings` replaces the code's defaults with them, with no record of what the player chose. The rules, keeping what the player is used to:
+  - Existing actions keep their current binding - rebound or not - even if the game's default for them changed
+  - A new action gets its default if the key is free. If an action that kept its old key holds it, and that action's new default is free, the new action takes that one: an update moving Interact E -> F and giving Melee E leaves Interact on E and puts Melee on F. Otherwise the new action stays unbound
+  - A one-time notice after the update lists what's new and where it landed ("New: Melee is F (E is your Interact)", "Melee has no key yet - set it in Controls")
+  - The developer can reset a chosen action to its new default in an update (an old default that was broken), through the same clash rules and notice
+  - The settings file records each action's bindings with the defaults they were based on, so a load can tell new, changed and kept actions apart
+  - A per-game settings path, so the demos stop sharing (and inheriting) each other's bindings
 
 ---
 
@@ -214,9 +220,10 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Camera / viewport culling (only submit visible chunks)
 - [x] Multiple layers (ground, objects, overlay; each layer rendered in order with Y-sort and flat-object support)
 - [ ] **Two point light layers** — add `LightLayer` enum to `PointLight`: `World` (affected by tile occlusion) and `Overhead` (bypasses occlusion entirely); overhead lights are used for sunlight, moonlight, magical sky effects, and UI indicators
-- [ ] **Tile occlusion grid** — pack `light-blocking` flags for the visible map area into a GPU texture; updated incrementally when tiles change; uploaded to the sprite shader as a new descriptor binding
+- [ ] **Tile occlusion grid** — pack `light-blocking` flags for the visible map area into a GPU texture; updated incrementally when tiles change; uploaded to the sprite shader as a new descriptor binding. Only needed if shadows move to the GPU: today's are CPU-raycast polar shadow maps (below). Old design notes: `docs/plans/tilemap-future.md`
 - [x] **Shadow casting** — CPU DDA raycaster builds a 1D polar shadow map per light; sampled in the sprite fragment shader with 3-tap PCF; `BlocksLight` tile flag drives occlusion
 - [ ] Soft shadow quality option: configurable penumbra sample count in `project.arcbit` (default: hard shadows; higher counts add a blur fringe for performance/quality tradeoff)
+- [ ] **Entities Y-sort with Objects tiles on their own** - today an entity's `SpriteRenderer.Layer` is fixed, and a character walking among Objects tiles has to set it to its feet's Y each tick (the World demo does); a flag or component (`YSort`) that the sprite system applies would make it automatic for every NPC and scene-file entity
 
 ---
 
@@ -226,6 +233,14 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] `DrawText` helper — lays out a string into sprite-batch quads with correct UVs; supports `\n`, `\t`, and `TextAlign` (Left / Center / Right)
 - [x] SDF font variant — dedicated screen-space pipeline; engine ships Roboto-Regular for the built-in debug overlay
 - [x] Debug overlay — FPS, sprite/batch counts, draw calls, lights, chunk culling stats; toggled via `Settings::Graphics.ShowDebugInfo`
+
+**Revisit: text paths** - today `FontMode` ties how text is rasterized to where it's drawn: `Bitmap` always goes through the lit world sprite pipeline, `SDF` always through the screen-space UI one. Split the two: the font decides rasterization, the caller decides the destination.
+- [ ] Font kind decides rasterization: **pixel** fonts bake as bitmaps at their design size - hard edges (no antialiasing), nearest sampling, whole-number scales, outline / shadow as one-pixel offset copies; **smooth** fonts are SDF (any scale, 21F's effects)
+- [ ] World text, lit (signs, banners in the scene): both kinds; smooth fonts need an SDF mode in the sprite shader so they stay sharp under camera zoom (Valve's "Improved Alpha-Tested Magnification", SIGGRAPH 2007)
+- [ ] World-anchored text, unlit (damage numbers, "+5 gold", name tags): follows a world point or an entity each frame but draws with the UI text renderer - above the world, unlit, with text styles and effects; optional scale with camera zoom; rise / fade helpers. Needed by Phase 31
+- [ ] Pixel fonts on screen too (UI, dialog box) for pixel-art games
+- [ ] A default pixel font shipped with the engine - candidates Pixel Operator (CC0), monogram (CC0), with Fusion Pixel (OFL) as a Japanese fallback; check each license file before shipping
+- [ ] Decide `FontMode::Bitmap`'s future once the above lands (it may become just "pixel")
 
 ---
 
@@ -249,17 +264,19 @@ define *how* it gets there. Any controller pairs with any style.
 - [x] Localization: `Loc::Get(key)`, `en.json` engine strings, `text_key` in `.arcui`
 - [x] Engine asset pipeline: `.arcui`, fonts, skins, locale deployed under `assets/engine/` via CMake
 - [ ] Editor integration: GUI layouts designed and previewed in the AvaloniaUI editor (Phase 40)
-- [ ] Dialog screen (Phase 27), Inventory screen (Phase 29)
+- [x] Dialog screen (Phase 27)
+- [ ] Inventory screen (Phase 29)
 - [x] Save / load slot screens, a yes / no confirm screen, the saving indicator (Phase 25)
 
 ### Phase 21F - Text styling & animation
 *Built together with Phase 27 (dialog), after Phase 28 (localization), so the dialog box gets styled, animated text from the start. Fonts, skins and `Label` grow beyond one plain face. The SDF font path does most of the work: outlines, glows and faux bold are distance thresholds in the shader.*
 
-- [ ] Font styles: bold, italic, bold italic, and weights (thin to black) - a font family maps each style / weight to its own `.ttf`, falling back to faux bold (SDF threshold) and faux italic (shear) when a face is missing
-- [ ] Text decorations: outline / stroke (color, width), drop shadow (offset, color, softness), glow, underline and strikethrough
-- [ ] Styles in `UISkin` and per widget (`SkinOverride`, `.arcui`), so a skin sets the look of every label at once
-- [ ] Inline rich text markup for mixed styles in one string (`<b>`, `<i>`, `<color=#f00>`, `<outline>`), shared with localized strings
-- [ ] Animated text: typewriter reveal (characters per second, a sound per character, skip to the end on confirm - the dialog box's reveal in Phase 27 uses it), and per-character effects - wave, wobble / shake, rainbow, fade-in - on a whole label or a marked span
+- [x] Font styles: bold, italic and bold italic from a font's style faces (`FontAtlas::SetStyleFace`; Roboto's three ship with the engine), faux bold (an SDF threshold) and faux italic (a shear) for fonts without them
+- [ ] Weights from thin to black, each its own face or an SDF threshold, chosen per text style
+- [x] Text decorations: outline (color, width), drop shadow (offset, color, softness - with no offset, a glow), underline and strikethrough
+- [x] Text styles in `UISkin` and per widget (`SkinOverride`, `"text_style"` in `.arcui`), so a skin sets the look of every label at once
+- [x] Inline rich text markup (`<b>`, `<i>`, `<u>`, `<s>`, `<color=#f00>`, `<size>`, `<outline>`, `<shadow>`, `<wave>`, `<shake>`, `<rainbow>`, `<pause>`, `<speed>`), in localized strings too; labels opt in with `"markup": true`; laid out into a styled glyph list that wraps across runs
+- [x] Animated text: `TextReveal` typewriter (characters per second, `<pause>` and `<speed>`, a voice sound per character, skip, done callback; `Label::StartReveal`) and per-character effects - wave, shake, rainbow - plus a fade-in for the character being revealed
 - [ ] Editor: font, style and effect pickers with a live preview (Phase 40)
 
 ---
@@ -268,8 +285,8 @@ define *how* it gets there. Any controller pairs with any style.
 *Custom kinematic-first collision system — no rigid-body dynamics. Full design
 in `docs/physics.md`. Covers tile collision, sub-tile entity colliders,
 directional arc gating, optional rotation, triggers, and per-style movement
-integration. Box2D was reconsidered and rejected — see `docs/physics.md`
-"Library Choice" for rationale.*
+integration. Arcbit uses its own collision rather than Box2D - why is in
+`docs/physics.md`.*
 
 ### Phase 22A — Core types & static collision ✓
 - [x] `BodyKind`, `Collider2D` (Box / Circle, `Rotation` for OBB later, `Layer` / `Mask`, `IsTrigger`) headers + ECS registration
@@ -372,6 +389,7 @@ integration. Box2D was reconsidered and rejected — see `docs/physics.md`
 - [x] `.arcscene` loader and saver — `SceneFile::Load` / `Save` (headless, through a `SceneAssets` interface) and `FileScene` on top; file id → `Entity` table (`FindEntity`); exact load → save round trip tested
 - [x] Named systems — game code registers installers by name; a scene file lists the ones it uses
 - [x] At least one demo converted to an `.arcscene` — "Physics File" (`game/assets/scenes/physics.arcscene` + `maps/physics.arcmap`) runs with no C++ scene class
+- [ ] **Prefabs**: an entity starting from a shared template with field overrides; `.arcscene` reserves `"template"` and `"overrides"` keys for it. Design notes: `docs/plans/entity-templates.md`
 - [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
@@ -446,22 +464,24 @@ The rest of the original event list moved to the phases that build those systems
 
 ---
 
-## Phase 27: Dialog / Conversation System
-*Default implementation — can be replaced by a Lua script if the game dev prefers a custom system. Built after Phase 28 (localization) and together with Phase 21F (text styling and animation).*
+## Phase 27: Dialog / Conversation System ✓
+*Built together with Phase 21F (text styling and animation), after Phase 28. See [docs/dialog.md](docs/dialog.md). The default implementation - a game can run conversations its own way (`DialogRunner`, its own screen) or in Lua.*
 
-- [ ] Default look is game art, not the flat UI skin: a nine-slice frame texture that stretches to any size (Pokemon-style text box), shipped as the engine's stock art and replaceable per game
-
-- [ ] `DialogGraph` — node-based conversation tree (speak, choice, condition, branch, action)
-- [ ] Node types: `SpeakNode` (portrait, speaker name, text), `ChoiceNode` (up to N options), `ConditionNode` (check quest flag / inventory / stat), `ActionNode` (run Lua callback)
-- [ ] `DialogManager` — queue and advance dialogs; integrates with GUI system (Phase 21) for the dialog box UI
-- [ ] Interactable tile and NPC trigger: `OnInteract` starts a named dialog graph
-- [ ] All displayed text referenced by localization key (Phase 28); raw strings are never embedded
-- [ ] Variable substitution in text (`{player_name}`, `{gold_count}`, etc.) resolved via Localization interpolation
-- [ ] Typewriter reveal effect with configurable speed; skip on confirm input (the reusable reveal comes from Phase 21F)
-- [ ] Portraits / speaker icons per node (optional; falls back to name-only if absent)
-- [ ] JSON authoring format; importable from editor (Phase 40)
-- [ ] Lua hook: `OnDialogEnd(graphId, lastChoice)` for scripted reactions
-- [ ] Publishes `engine.dialog.started` and `engine.dialog.ended` (graph id, last choice) via the Event Bus (Phase 24)
+- [x] `.arcdialog` files: speakers (name, portrait, voice) and named nodes of steps - lines (`say`, or a bare string), choices, branches, actions - each with an optional `if` and `goto` (a node or `"end"`); `"world": "run"` / `"pause"`
+- [x] Checked as they load: gotos to missing nodes, unknown speakers, duplicate text keys, bad comparisons, empty steps; misspelled fields and unreachable nodes warned
+- [x] English lives in the dialog file; each line, option and speaker name gets a Loc key from its place (or an `id` / `key`), and the English goes into Loc (`Loc::SetStrings`) so translations go in the locale files
+- [x] Conditions on `SaveData` (equality, comparisons, `any`, `not`) and Lua expressions; actions `set`, `add`, `event`, `lua` and `call` (a method on the NPC's script); `{placeholders}` from save data
+- [x] `DialogRunner` - the headless conversation (lines, choices, branches, actions), `DialogLibrary` - every dialog in a folder, with hot reload
+- [x] `DialogScreen`: nine-slice text box, name plate, portrait, typewriter in the speaker's voice, bobbing next arrow, choice box (keys, mouse, gamepad); stock placeholder art; layout and art replaceable per game
+- [x] Game settings: Text speed (slow / normal / fast / instant) and Auto-advance
+- [x] Starting one: `Interactable` `"dialog"` (no script needed), Lua `Dialog.Start / IsActive / Stop`, `Application::StartDialog`, console `dialog`; one started during another waits in a queue
+- [x] While it runs: the player and the NPC are held (`Held`; tile movers finish their step), the NPC turns to the player, autosaves wait; `entity:Move` / `entity:IsHeld` for scripts
+- [x] Lua hook `OnDialogEnd(id, choice)` on the NPC's script and the scene script; events `engine.dialog.started`, `.line`, `.choice`, `.ended`
+- [x] `FacingAnimation` component: four-way idle / walk clips from facing and movement (so a held NPC visibly turns)
+- [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
+- [x] Demo: Elder Maren in the Scripted demo - a greeting, choices, a gold check, a gift (`call` into her script), a map to buy, remembered on the next talk - and the guard, who knows whether you've met her; English, French and Japanese
+- [x] Dialog placeholders read an unsaved key as 0, as conditions do ("You have {gold} gold" before any gold)
+- [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 
 ---
 
@@ -514,6 +534,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Turn-based AI: action selection (attack / use item / move) driven by heuristics or Lua script
 - [ ] Real-time AI: target acquisition, attack range check, cooldown management (used in Phase 32)
 - [ ] Debug overlay: draw paths, awareness radius, LOS rays
+- [ ] Dialog respects: AI leaves entities held in a dialog (Phase 27) alone - hostile AI doesn't target or attack the player mid-conversation - unless the game opts in
 
 ---
 
@@ -659,6 +680,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Separate solution / CMake-independent project
 - [ ] Tilemap canvas (render tiles, layer management)
 - [ ] Tile palette + placement / erase tools
+- [ ] Tile Objects: multi-cell, multi-layer stamps (a tree, a house) defined in the atlas and written out as plain tiles; per-cell property overrides. Design notes: `docs/plans/tilemap-future.md`
 - [ ] Tile property editor panel (solid, light-blocking, interactable, custom properties)
 - [ ] NPC placement + script file assignment
 - [ ] Dialog graph editor (node canvas for Phase 27 conversation trees)

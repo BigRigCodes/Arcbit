@@ -94,6 +94,17 @@ struct Sprite
     // False = regular texture × tint; true = SDF distance-field decode.
     bool SDFMode = false;
 
+    // UI pipeline, SDF text only - in distance-field units (the atlas's
+    // FontAtlas::SdfUnitsPerPixel per baked pixel): Weight moves the glyph's
+    // edge out (faux bold); Outline draws a band that wide outside it in
+    // OutlineColor; Softness widens the edge's blur (a glow, a soft shadow).
+    // Shear slants the quad, x per unit of y (faux italic; any UI quad).
+    f32   Weight       = 0.0f;
+    f32   Outline      = 0.0f;
+    f32   Softness     = 0.0f;
+    f32   Shear        = 0.0f;
+    Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+
     // UI pipeline only: 0 = full-viewport scissor (no clipping).
     // N > 0 = index into FramePacket::UIClipRects (1-based). Set by ScrollPanel
     // on all quads it emits so the render thread applies the correct scissor rect.

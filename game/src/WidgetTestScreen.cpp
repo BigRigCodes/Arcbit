@@ -28,6 +28,8 @@ void WidgetTestScreen::WireWidgets()
 {
     if (auto* btn = FindWidget<Button>("close-btn"))
         btn->OnClick = [this] { if (OnClose) OnClose(); };
+    if (auto* btn = FindWidget<Button>("dialog-btn"))
+        btn->OnClick = [this] { if (OnDialog) OnDialog(); };
 
     if (auto* ti = FindWidget<TextInput>("text-input"))
         ti->OnChanged = [this](const std::string& v) { _textVal = v; UpdateOutput(); };
@@ -59,6 +61,12 @@ void WidgetTestScreen::WireWidgets()
     if (auto* rg = FindWidget<RadioGroup>("difficulty-radio")) {
         _radioIdx = rg->SelectedIndex;
         rg->OnChanged = [this](const i32 idx) { _radioIdx = idx; UpdateOutput(); };
+    }
+
+    // The typewriter: a line with effects, a pause and a slow span; Replay starts it over.
+    if (auto* reveal = FindWidget<Label>("reveal-sample")) {
+        reveal->StartReveal(30.0f);
+        if (auto* replay = FindWidget<Button>("replay-btn")) replay->OnClick = [reveal] { reveal->StartReveal(30.0f); };
     }
 
     if (auto* sw = FindWidget<Switch>("autosave-switch")) {

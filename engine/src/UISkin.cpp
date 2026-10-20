@@ -42,6 +42,7 @@ UISkin UISkin::LoadFromFile(const std::string_view path)
 
     UISkin skin;
     skin.FontScale = j.value("fontScale", 1.0f);
+    if (const auto it = j.find("text_style"); it != j.end()) skin.Text = ReadTextStyle(*it, skin.Text);
 
     if (j.contains("panel")) {
         const auto& p    = j["panel"];
@@ -119,6 +120,7 @@ bool UISkin::SaveToFile(const std::string_view path) const
 {
     nlohmann::json j;
     j["fontScale"] = FontScale;
+    if (!(Text == TextStyle{})) j["text_style"] = TextStyleToJson(Text);
     j["panel"]     = {{"background", ColorToJson(PanelBg)}, {"border", ColorToJson(PanelBorder)}};
     j["button"]    = {
         {"normal", ColorToJson(ButtonNormal)}, {"hovered", ColorToJson(ButtonHovered)},
@@ -164,4 +166,36 @@ bool UISkin::SaveToFile(const std::string_view path) const
     file << j.dump(2);
     return true;
 }
+TextStyle ReadTextStyle(const nlohmann::json& j, TextStyle style)
+{
+    if (!j.is_object()) return style;
+    style.Bold   = j.value("bold", style.Bold);
+    style.Italic = j.value("italic", style.Italic);
+    if (const auto it = j.find("outline"); it != j.end()) {
+        if (it->is_boolean()) style.Outline = it->get<bool>();
+        else if (it->is_number()) style.OutlineWidth = it->get<f32>(), style.Outline = style.OutlineWidth > 0.0f;
+    }
+    style.OutlineWidth = j.value("outline_width", style.OutlineWidth);
+    style.OutlineColor = GetColor(j, "outline_color", style.OutlineColor);
+    style.Shadow       = j.value("shadow", style.Shadow);
+    if (const auto it = j.find("shadow_offset"); it != j.end() && it->is_array() && it->size() == 2)
+        style.ShadowOffset = { (*it)[0].get<f32>(), (*it)[1].get<f32>() };
+    style.ShadowColor    = GetColor(j, "shadow_color", style.ShadowColor);
+    style.ShadowSoftness = j.value("shadow_softness", style.ShadowSoftness);
+    return style;
+}
+
+nlohmann::json TextStyleToJson(const TextStyle& style)
+{
+    return { { "bold", style.Bold },
+             { "italic", style.Italic },
+             { "outline", style.Outline },
+             { "outline_width", style.OutlineWidth },
+             { "outline_color", ColorToJson(style.OutlineColor) },
+             { "shadow", style.Shadow },
+             { "shadow_offset", { style.ShadowOffset.X, style.ShadowOffset.Y } },
+             { "shadow_color", ColorToJson(style.ShadowColor) },
+             { "shadow_softness", style.ShadowSoftness } };
+}
+
 } // namespace Arcbit

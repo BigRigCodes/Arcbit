@@ -50,8 +50,7 @@ struct TileDef
     //
     // BlockedFrom: directional arcs that gate which approach directions are
     // treated as blocking. Empty list = "block from all directions" (the
-    // common case; matches the Collider2D convention). Phase 22D wires the
-    // arc check; until then any non-empty list is carried but inert.
+    // common case; matches the Collider2D convention).
     //
     // Layer: collision layer this tile contributes to (see CollisionLayers.h).
     // Defaults to Wall, which is what tile-synthesized geometry usually is.

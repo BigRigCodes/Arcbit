@@ -152,4 +152,22 @@ struct PendingMove
     Vec2 DesiredDelta = {};
 };
 
+// ---------------------------------------------------------------------------
+// Held - standing still because something has the entity's attention: a
+// conversation holds the player and whoever they talk to. Each tick the
+// hold system clears a held entity's MoveIntent direction after every
+// controller and script has written it, so nothing walks it off (Facing is
+// kept: it may still turn). Scripts that move things themselves can check
+// entity:IsHeld(). Holds nest: each Hold needs its Release.
+// ---------------------------------------------------------------------------
+struct Held
+{
+    u32 Count = 0;
+};
+
+class World;
+void               Hold(World& world, Entity entity);
+void               Release(World& world, Entity entity); // the last release removes Held
+[[nodiscard]] bool IsHeld(World& world, Entity entity);
+
 } // namespace Arcbit

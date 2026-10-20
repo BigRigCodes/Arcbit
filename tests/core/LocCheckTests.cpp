@@ -10,6 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -96,6 +97,44 @@ TEST_CASE("Check finds missing and unused keys, raw layout text and coverage", "
     CHECK(file.size() == 5);
 }
 
+TEST_CASE("Check reads dialog files: their English, their problems, stale translations", "[core][loc][tools]")
+{
+    LocScope             scope;
+    ArcbitTests::TempDir dir;
+    Write(dir.File("locale/en.json"), R"({ "dialog.elder.a.2": "Changed in en.json", "npc.guard": "Guard" })");
+    Write(dir.File("locale/fr.json"),
+          R"({ "dialog.elder.a.1": "Bonjour.", "dialog.elder.old.1": "Ancien.", "npc.guard": "Garde" })");
+    Write(dir.File("dialog/elder.arcdialog"), R"({ "speakers": { "g": { "key": "npc.guard" }, "m": { "key": "npc.missing" } },
+        "nodes": { "a": [ "Hello.", "Bye.", { "goto": "nowhere" } ] } })");
+
+    const std::filesystem::path locales[] = { dir.File("locale") };
+    const std::filesystem::path dialogs[] = { dir.File("dialog") };
+    const LocCheck::Report      report    = LocCheck::Check(locales, {}, dialogs);
+
+    CHECK(report.HasDialogErrors()); // goto 'nowhere'
+    const auto mentions = [&](const char* text, const bool error) {
+        return std::ranges::any_of(report.Dialogs, [&](const LocCheck::DialogProblem& p) {
+            return p.Dialog == "elder" && p.Error == error && p.Message.find(text) != std::string::npos;
+        });
+    };
+    CHECK(mentions("nowhere", true));
+    CHECK(mentions("dialog.elder.a.2", false)); // en.json replaces a line's English
+    REQUIRE(report.Missing.size() == 1);       // a nameless speaker's key nobody defines
+    CHECK(report.Missing[0].Text == "npc.missing");
+    CHECK(report.Unused.empty());               // dialog keys are used by their dialog
+
+    REQUIRE(report.Stale.size() == 1);
+    CHECK(report.Stale[0].Code == "fr");
+    CHECK(report.Stale[0].Key == "dialog.elder.old.1");
+    REQUIRE(report.Languages.size() == 2);
+    CHECK(report.Languages[1].Total == 3); // the two lines and the guard
+    CHECK(report.Languages[1].Translated == 2);
+
+    const auto file = nlohmann::ordered_json::parse(LocCheck::Template());
+    CHECK(file["dialog.elder.a.1"] == "Hello.");
+    CHECK(file["dialog.elder.a.2"] == "Changed in en.json");
+}
+
 TEST_CASE("The engine and the demos use only keys English has, and translate them all", "[core][loc][tools][shipped]")
 {
     LocScope                    scope;
@@ -103,8 +142,11 @@ TEST_CASE("The engine and the demos use only keys English has, and translate the
                                               ArcbitTests::SourcePath("game/assets/locale") };
     const std::filesystem::path content[] = { ArcbitTests::SourcePath("engine/src"), ArcbitTests::SourcePath("engine/assets"),
                                               ArcbitTests::SourcePath("game/src"), ArcbitTests::SourcePath("game/assets") };
-    const LocCheck::Report      report    = LocCheck::Check(locales, content);
+    const std::filesystem::path dialogs[] = { ArcbitTests::SourcePath("game/assets/dialog") };
+    const LocCheck::Report      report    = LocCheck::Check(locales, content, dialogs);
     for (const auto& use : report.Missing) FAIL_CHECK(use.Text << " (" << use.File << ":" << use.Line << ") isn't in English");
     for (const auto& raw : report.RawText) FAIL_CHECK("raw text \"" << raw.Text << "\" in " << raw.File << ":" << raw.Line);
+    for (const auto& problem : report.Dialogs) FAIL_CHECK("dialog " << problem.Dialog << ": " << problem.Message);
+    for (const auto& stale : report.Stale) FAIL_CHECK(stale.Code << " translates " << stale.Key << ", which English lacks");
     for (const auto& language : report.Languages) CHECK(language.Translated == language.Total);
 }

@@ -1,10 +1,11 @@
-# Arcbit — Phase 21: GUI / UI System
+# GUI
 
 ## Overview
 
 The GUI system is a retained-mode, screen-space widget framework built on top of
 the existing SDF text pipeline and sprite batcher. It handles all in-game UI:
-HUD elements, menus, dialog boxes, inventory screens, and pause menus.
+HUD elements, menus, settings screens, the dialog box ([dialog.md](dialog.md))
+and anything a game builds.
 
 Guiding principles:
 - **Screen-space only** — widgets render in pixel coordinates with no camera
@@ -106,10 +107,15 @@ Single- or multi-line SDF text. Color comes from `skin.TextLabel`; override via
 
 ```cpp
 std::string Text;
+std::string TextKey;              // shows Loc::Get(TextKey), again when the language changes
 TextAlign   Align      = TextAlign::Left;
 bool        WordWrap   = false;
 bool        AutoCenter = false;
+bool        Markup     = false;   // read rich text tags (below)
 ```
+
+`StartReveal(charsPerSecond)` types the text out ([Typewriter and
+effects](#typewriter-and-effects)).
 
 ### `Button`
 
@@ -119,8 +125,14 @@ Disabled, all resolved from the effective skin (`ButtonNormal` etc.).
 
 ```cpp
 std::string            Text;
+std::string            TextKey;
 std::function<void()>  OnClick;
 ```
+
+`NineSliceButton` and `NineSliceProgressBar` are the textured versions of
+`Button` and `ProgressBar`; the input widgets (`TextInput`, `Slider`,
+`Dropdown`, `Checkbox`, `RadioGroup`, `Switch`) are in `InputWidgets.h`. Their
+`.arcui` fields are below.
 
 ### `Image`
 
@@ -609,6 +621,65 @@ Chinese / Japanese characters, never before closing punctuation (`。`,
 Right-to-left text and complex shaping (Arabic, Hebrew, Thai, Hindi) aren't
 supported yet.
 
+## Rich text
+
+A Label with `"markup": true` (`Label::Markup`) reads tags in its text -
+localized strings included - and lays the styled runs out together, wrapping
+across them:
+
+```json
+{ "type": "Label", "markup": true, "text": "Take the <color=gold>golden</color> key, <b>quickly</b>." }
+```
+
+| Tag | |
+|---|---|
+| `<b>` `<i>` `<u>` `<s>` | bold, italic, underline, strikethrough |
+| `<color=#e33>` `<color=gold>` | color: `#rgb`, `#rrggbb`, `#rrggbbaa`, or white, black, gray, red, green, blue, yellow, gold, orange, purple, cyan |
+| `<size=1.5>` | scale, times the label's |
+| `<outline>` `<outline=#000>`, `<shadow>` | an outline, a drop shadow |
+| `<wave>` `<shake>` `<rainbow>` | animated effects |
+| `<speed=0.5>`, `<pause=0.4>` | a typewriter's pace, and a wait (seconds) |
+
+Each closes with `</name>` (`<pause>` has none). Only these names are tags,
+so `a < b` and `<3` stay text; `<<` writes a literal `<`; a tag with a bad
+value (`<color=nonsense>`) stays as written, so the mistake shows.
+
+### Text styles
+
+A skin's `"text_style"` (`UISkin::Text`) is how every label and button draws
+its text, and any widget can carry its own `"text_style"` (replacing the
+skin's whole). Tags build on it - `<i>` in bold text is bold italic.
+
+```json
+"text_style": { "bold": false, "italic": false,
+                "outline": true, "outline_width": 2, "outline_color": [0, 0, 0, 1],
+                "shadow": true, "shadow_offset": [2, 2], "shadow_color": [0, 0, 0, 0.6], "shadow_softness": 1 }
+```
+
+Bold and italic come from a font's style faces when it has them
+(`FontAtlas::SetStyleFace` - the engine font has Roboto Bold, Italic and Bold
+Italic) and are faked otherwise: a thicker edge for bold, a slant for italic
+(Japanese, for one). Outlines, glows and faux bold are distance-field
+thresholds in `ui.frag`; shadows, underlines and strikethroughs are extra
+quads.
+
+In code: `ParseMarkup` / `StripMarkup`, and `LayoutRichText` (a glyph list:
+each character's place, style and index - what a typewriter reveals and
+effects move) with `DrawRichText`.
+
+### Typewriter and effects
+
+`Label::StartReveal(charsPerSecond)` shows a label's text a character at a
+time, each one fading in; `SkipReveal` shows the rest (a confirm press
+mid-line). It honors `<pause>` and `<speed>`. `GetReveal()` is the
+`TextReveal` behind it: `OnBlip(codepoint)` for a voice sound per character
+(never for spaces, at most every `BlipGap` seconds) and `OnDone`.
+
+`TextReveal` works on any `TextLayout`: call `Update(dt, layout)` each frame
+and draw with `TextDrawOptions::Visible = GetVisible()`. `<wave>`, `<shake>`
+and `<rainbow>` run on a clock `UIManager::Update` advances
+(`GetTextClock`, passed as `TextDrawOptions::Time`).
+
 ## Theming (UISkin)
 
 `UISkin` is a plain data struct loaded from JSON (`LoadFromFile` / `SaveToFile`).
@@ -695,6 +766,9 @@ engine/
     MainMenuScreen.h
     CreditsScreen.h
     ConfirmScreen.h         — yes / no question (Application::Confirm)
+    GameSettingsScreen.h    — language, text speed, auto-advance
+    DialogScreen.h          — the dialog box (docs/dialog.md)
+    LoadingScreen.h         — the loading screen (docs/scenes.md)
     SaveSlotScreen.h        — save / load slot list (docs/saves.md)
     SavingIndicator.h       — the "Saving..." spinner
     ScriptedScreen.h        — a screen driven by Lua (docs/scripting.md)
@@ -716,6 +790,8 @@ engine/
     MainMenuScreen.cpp
     CreditsScreen.cpp
     ConfirmScreen.cpp
+    GameSettingsScreen.cpp
+    DialogScreen.cpp
     SaveSlotScreen.cpp
     SavingIndicator.cpp
   assets/ui/                — engine-provided .arcui defaults
@@ -725,88 +801,22 @@ engine/
     input_rebind.arcui
     main_menu.arcui
     save_slots.arcui
+    game_settings.arcui
+    dialog.arcui            — the dialog box
+    dialog/                 — its stock art and voice blip
     saving.png              — the default saving icon
   assets/fonts/             — engine fonts (deployed to assets/engine/fonts/)
-    Roboto-Regular.ttf
+    Roboto-Regular.ttf, -Bold, -Italic, -BoldItalic
   assets/skins/             — engine default skin (deployed to assets/engine/skins/)
     default.skin.json
   assets/locale/            — engine locale strings
-    en.json
+    en.json, fr.json, ja.json
 ```
 
 Engine assets are copied under `assets/engine/` in the runtime output directory:
 - `assets/engine/ui/` — arcui layouts
-- `assets/engine/fonts/` — Roboto-Regular.ttf
+- `assets/engine/fonts/` — Roboto
 - `assets/engine/skins/` — default.skin.json
 - `assets/engine/locale/` — locale strings
 
 Game assets go in `game/assets/`.
-
----
-
-## Implementation Phases
-
-### Phase 21A — Foundation ✓
-- [x] `UIWidget` base class: anchor/pivot/offset/size layout, opacity, visibility, Z-order, `Name`
-- [x] `UIScreen`: widget tree, `Update`, `Collect`, `LoadLayout`, `FindWidget<T>`, meta accessors
-- [x] `UIManager`: screen stack, `Push`/`Pop`, render collection, `HasBlockingScreen()`
-- [x] `Panel`, `Overlay`, `Label`, `Button`, `Image`, `ProgressBar` widgets
-- [x] Mouse input routing (hover + click)
-- [x] Wire `UIManager` into `Application`
-- [x] `UISkin` JSON loader
-
-### Phase 21B — Polish ✓
-- [x] `NineSlice` widget
-- [x] Keyboard/gamepad focus navigation (tab order, confirm input)
-- [x] Word wrap in `Label`, `AutoCenter`
-- [x] Animated transitions: fade in/out per screen
-- [x] `UIScreen::BlocksInput` + screen layer isolation (`ScreenLayerBase`)
-- [x] `ScrollPanel` with scissor-rect clip + mouse wheel scroll
-- [x] Engine-provided `HudScreen`, `PauseMenuScreen`, `InputRebindScreen`
-- [x] Chip-based `InputRebindScreen`: multiple bindings per action, key/mouse/gamepad columns
-
-### Phase 21C — Data-driven UI ✓ (in progress)
-- [x] `.arcui` JSON format for widget tree serialization
-- [x] `UILoader`: type registry, full property deserialization for all built-in types
-- [x] `UIWidget::Name` + `FindDescendant` for post-load callback wiring
-- [x] `UIScreen::LoadLayout`, `FindWidget<T>`, meta accessors
-- [x] `PauseMenuScreen` migrated to `.arcui` with C++ fallback
-- [x] `AudioSettingsScreen`, `GraphicsSettingsScreen` migrated to `.arcui` with `WireVolumeRow`/`FindWidget` callbacks
-- [x] Engine asset deployment: `engine/assets/ui/` → `assets/engine/ui/` via CMake
-- [x] Localization foundation: `Loc::Get(key)`, `text_key` field in UILoader, `en.json` engine locale
-- [x] Migrate `AudioSettingsScreen`, `GraphicsSettingsScreen`, `InputRebindScreen` chrome to `.arcui`
-- [ ] Editor integration: load/save `.arcui` from AvaloniaUI editor
-
-### Phase 21D — Engine Screens ✓
-- [x] `SplashScreen`: ordered image sequence; per-entry fade-in/hold/fade-out; skip on confirm; `BlocksGame` suppresses game scene and UI below while active
-- [x] `MainMenuScreen`: data-driven via `main_menu.arcui`; `ShowContinue` / `ShowControls` / `ShowAudioSettings` / `ShowGraphicsSettings` / `ShowCredits` flags; C++ fallback
-- [x] `CreditsScreen`: scrolling credits from a JSON file (`title`, `sections` of `heading` + `names`, `scroll_speed`); closes when the roll ends or on back
-- [x] Screen layers (`Hud` / `Menu` / `Overlay` / `System`) replace `StaysOnTop`: a screen is pushed on top of its layer; `TakesInput = false` lets input through to the menu beneath; `OpenMenu` swaps menus out, `Close(screen)` closes by pointer and `Pop()` only touches menus; a screen removing itself during `UIManager::Update` is deferred until the update returns
-- [ ] `DialogScreen`: portrait + speaker name + scrolling text + choice buttons (deferred to Phase 27 dialog system)
-- [ ] `InventoryScreen` stub (deferred to Phase 29 item system)
-- [x] `GraphicsSettingsScreen` extended: VSync, Show FPS, and Show Debug Info all use `Switch` widgets; `Settings::Graphics.ShowFps` and `ShowDebugInfo` drive live HUD and debug overlay
-- [x] `UIScreen::BlocksGame` flag + `UIManager::HasGameBlockingScreen()` — suppresses `OnUpdate`, `OnRender`, scene render, and debug overlay; `CollectRenderData` skips screens below the lowest active blocking screen
-
-### Phase 25 — Save screens ✓
-- [x] `SaveSlotScreen`: save into a manual slot or load any save; rows with thumbnail, name, scene, playtime and date; frame from `save_slots.arcui`
-- [x] `ConfirmScreen`: yes / no over the current menu, No focused first; `Application::Confirm`
-- [x] `SavingIndicator`: spinning icon and "Saving..." in the bottom-right corner on every save (Overlay layer)
-- [x] `SplashEntry` text cards: centered white text on black with an optional spinning icon - the saving notice
-- [x] `PauseMenuScreen` Save Game / Load Game and `MainMenuScreen` Load Game buttons; `UIScreen::StackButtons` closes the gaps hidden buttons leave
-- [x] `Image::Rotation`; UI sprites honor `Sprite::Rotation` (the gamepad cursor's diamond)
-
-### Phase 26 — Lua UI and the console ✓
-- [x] `ScriptedScreen`: `.arcui` `"script"`, `"on_click"` / `"on_change"`; Screen / Widget handles from Lua
-- [x] `ConsoleScreen` (the debug console) and `ErrorToasts` (debug builds' script errors)
-- [x] `TextInput::SetText` (cursor to the end) and `Suggestion` (dimmed predicted text); the cursor stays in range when `Text` changes under it
-- [x] UI draws over screen-space SDF text (the debug overlay); typing into a field rests the game's keys (`InputManager::SetTyping`)
-
-### Phase 21E — Skin Sounds ✓
-- [x] Sound key fields added to `UISkin`: `SoundFocusMove`, `SoundActivate`, `SoundBack`, `SoundSliderTick`, `SoundToggle`
-- [x] Matching `std::optional<std::string>` in `UISkinOverride`; merge in `GetEffectiveSkin`, deserialize in `ApplySkinBlock`
-- [x] `UISkin::LoadFromFile` / `SaveToFile` handle `"sounds"` JSON block
-- [x] `default.skin.json` ships with all sound keys empty (no sound by default)
-- [x] Sound key cached per widget in `UIWidget::_interactSound` (set in `OnCollect` from effective skin); played in `OnActivate` and mouse-click paths — no skin access needed at interaction time
-- [x] Button / NineSliceButton → `SoundActivate`; Switch / Checkbox → `SoundToggle`; Slider → `SoundSliderTick` on value step
-- [x] `UIManager` plays `SoundFocusMove` when the focused widget changes (keyboard/gamepad nav); plays `SoundBack` before `OnBackPressed`
-- [ ] Engine SFX pack: optional `engine-sounds.skin.json` overlay with default sound keys for engine screens (deferred — requires audio assets)

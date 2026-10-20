@@ -6,6 +6,7 @@
 
 #include <arcbit/core/Log.h>
 #include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -85,6 +86,11 @@ void ScriptEngine::State::BindEntity()
     sol::usertype<ScriptEntity> type = Lua.new_usertype<ScriptEntity>(
         "Entity", sol::no_constructor,
         "IsValid", [this](const ScriptEntity& e) { return Resolve(e) != nullptr; },
+        // Held in a conversation (or by anything else): stand still.
+        "IsHeld", [this](const ScriptEntity& e) {
+            Scene* scene = Resolve(e);
+            return scene && IsHeld(scene->GetWorld(), e.Id);
+        },
         sol::meta_function::equal_to,
         [](const ScriptEntity& a, const ScriptEntity& b) { return a.Id == b.Id && a.SceneSerial == b.SceneSerial; },
         sol::meta_function::to_string, [this](const ScriptEntity& e) {
@@ -236,6 +242,21 @@ void ScriptEngine::State::BindEntityComponents(sol::usertype<ScriptEntity>& type
             scene->GetWorld().GetTransform(e.Id)->Position = position;
             SyncCollider(*scene, e.Id);
         });
+    // Steer: the entity's MoveIntent, which every movement style follows (a
+    // tile mover finishes the step it's on). Vec2(0, 0) stops; longer than 1
+    // is shortened. Ignored while the entity is held - a conversation keeps it
+    // still, and facing the one it talks to.
+    type["Move"] = [this](const ScriptEntity& e, Vec2 direction) {
+        Scene* scene = Resolve(e);
+        if (!scene || IsHeld(scene->GetWorld(), e.Id)) return;
+        World& world = scene->GetWorld();
+        if (const f32 length = Length(direction); length > 1.0f) direction = direction * (1.0f / length);
+        if (!world.GetComponent<MoveIntent>(e.Id)) {
+            RequireReshapable(world);
+            world.AddComponent<MoveIntent>(e.Id);
+        }
+        world.GetComponent<MoveIntent>(e.Id)->Set(direction);
+    };
     type["Tag"] = sol::property(
         [this](const ScriptEntity& e) -> std::optional<std::string> {
             Scene* scene = Resolve(e);

@@ -5,6 +5,8 @@
 
 #include "TestSupport.h"
 
+#include <arcbit/assets/SpriteSheet.h>
+
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/input/InputManager.h>
@@ -15,6 +17,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <fstream>
 
 using namespace Arcbit;
 using Catch::Matchers::WithinAbs;
@@ -329,4 +335,71 @@ TEST_CASE("A snap mover blocked by an entity raises a collision contact", "[ecs]
     Step(scene, 20);
     CHECK(PositionOf(scene, mover) == Vec2{});
     CHECK(enters == 1);
+}
+
+TEST_CASE("A held entity stands still, keeps its facing, and moves once released", "[ecs][movement]")
+{
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity e     = AddMover(scene, {});
+    world.AddComponent<FreeMovement>(e, FreeMovement{ .Speed = 120.0f });
+    world.AddComponent<PendingMove>(e);
+
+    Hold(world, e);
+    Hold(world, e); // two holders: a dialog and a cutscene, say
+    for (int i = 0; i < 30; ++i) {
+        SetIntent(scene, e, { 1.0f, 0.0f }); // a controller or script keeps asking
+        Step(scene);
+    }
+    CHECK(PositionOf(scene, e).X == 0.0f);
+    CHECK(world.GetComponent<MoveIntent>(e)->Facing == Vec2{ 1.0f, 0.0f });
+
+    Release(world, e);
+    CHECK(IsHeld(world, e)); // one hold left
+    SetIntent(scene, e, { 1.0f, 0.0f });
+    Step(scene);
+    CHECK(PositionOf(scene, e).X == 0.0f);
+
+    Release(world, e);
+    CHECK_FALSE(IsHeld(world, e));
+    SetIntent(scene, e, { 1.0f, 0.0f });
+    Step(scene, 30);
+    CHECK(PositionOf(scene, e).X > 0.0f);
+    Release(world, e); // releasing what isn't held does nothing
+}
+
+TEST_CASE("FacingAnimation plays the clip for the facing and walking, mirroring left", "[ecs][movement]")
+{
+    std::ifstream     file(ArcbitTests::SourcePath("game/assets/spritesheets/player.json"));
+    const SpriteSheet sheet = SpriteSheet::FromJson(nlohmann::json::parse(file), TextureHandle::Make(1, 0), 192, 320);
+    REQUIRE(sheet.GetAnimation("walk_right"));
+
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity e     = world.CreateEntity();
+    world.AddComponent<MoveIntent>(e);
+    world.AddComponent<SmoothTileMovement>(e);
+    world.AddComponent<SpriteRenderer>(e);
+    world.AddComponent<Animator>(e, Animator{ .Clip = sheet.GetAnimation("idle_up"), .Sheet = &sheet });
+    world.AddComponent<FacingAnimation>(e, FacingAnimation{ .MirrorLeft = true });
+    const auto clip = [&] { return world.GetComponent<Animator>(e)->Clip->Name; };
+    const auto flip = [&] { return world.GetComponent<SpriteRenderer>(e)->FlipX; };
+
+    Step(scene);
+    CHECK(clip() == "idle_down"); // MoveIntent starts facing down
+
+    SetIntent(scene, e, { -1.0f, 0.0f });
+    Step(scene);
+    CHECK(clip() == "walk_right");
+    CHECK(flip());
+
+    SetIntent(scene, e, {});
+    Step(scene, 60); // the step lands
+    CHECK(clip() == "idle_right");
+    CHECK(flip());
+
+    world.GetComponent<MoveIntent>(e)->Facing = { 0.0f, -1.0f }; // turned (a conversation), not moving
+    Step(scene);
+    CHECK(clip() == "idle_up");
+    CHECK_FALSE(flip());
 }

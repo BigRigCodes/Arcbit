@@ -116,6 +116,7 @@ Each is optional - a module defines the ones it needs.
 | `OnTriggerEnter(other)` / `OnTriggerStay(other)` / `OnTriggerExit(other)` | trigger overlaps with this entity |
 | `OnCollisionEnter(other, normal)` / `OnCollisionExit(other)` | blocking contacts |
 | `OnEvent(name, payload)` | events subscribed with `Event.Subscribe(name)` and no function |
+| `OnDialogEnd(id, choice)` | a conversation with this entity ended; `choice` is the last choice's id (or `""`). The scene script hears it too, as `OnDialogEnd(id, choice, with)` ([dialog.md](dialog.md)) |
 
 Trigger and collision hooks run alongside the entity's C++ `TriggerCallback` /
 `CollisionCallback`: both fire.
@@ -143,6 +144,8 @@ handle to an entity that's gone (destroyed, or its scene unloaded) is stale:
 | `e:Set(name, fields)` | change only the given fields |
 | `e:Add(name, fields)`, `e:Remove(name)`, `e:Has(name)` | |
 | `e.Position` | a `Vec2`, read and write (the collider follows) |
+| `e:Move(direction)` | steer it: sets its `MoveIntent`, which every movement style follows (a tile mover finishes its step); `Vec2(0, 0)` stops. Ignored while it's held |
+| `e:IsHeld()` | whether something - a conversation - is holding it still; a script that moves it by `Position` should wait |
 | `e.Tag` (read / write), `e.Name` (read) | |
 
 Components work by name through the scene registry, so a game's own
@@ -175,6 +178,13 @@ error rather than corrupting the world.
 | `Event.Publish(name, { field = value })` | fields: booleans, numbers, text, `Vec2`, entities. `engine.` events can't be published |
 
 Subscriptions end with the script that made them.
+
+### Dialog
+
+| | |
+|---|---|
+| `Dialog.Start(id)`, `Dialog.Start(id, { Node = "greet", With = npc, By = player })` | start a conversation ([dialog.md](dialog.md)); from an entity's hook, `With` defaults to that entity. False if there's no such dialog; one started while another runs waits its turn |
+| `Dialog.IsActive()`, `Dialog.Stop()` | whether one is running; end it now (and drop any waiting) |
 
 ### Loc
 
@@ -242,7 +252,7 @@ for C++ to react to as well.
 | Component | Fields (scene file) |
 |---|---|
 | `Interactor` | `action` (default `"Interact"`), `reach` (pixels; 0 = 1.25 tiles) |
-| `Interactable` | `prompt` ("Open", "Talk" - for a prompt UI) |
+| `Interactable` | `prompt` ("Open", "Talk" - for a prompt UI), `dialog` (a dialog to start - talking needs no script), `dialog_node` |
 
 Which target: a **tile mover** uses exactly the tile it faces; a **free mover**
 uses the nearest interactable in reach within 60 degrees of where it faces,
@@ -311,6 +321,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `lang [code]` | list the languages (current marked), or switch to one |
 | `loc.missing [code]` | the English keys a language has no string for |
 | `screenshot` | save the screen (closing the console first) as a PNG in the user folder's `screenshots/` - also `Application::Screenshot()` |
+| `dialog [id] [node]` | list the dialogs, or start one - cheat |
 | `quit` | |
 
 Games add their own - from C++ `GetConsole().Register({ .Name, .Help, .Cheat,

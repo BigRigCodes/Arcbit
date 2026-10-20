@@ -124,6 +124,7 @@ struct ScriptEngine::State
     sol::object                         SelfRun;   // self:Run, put on every instance
 
     sol::environment                      Console;   // Run's globals, created on first use
+    sol::environment                      Dialog;    // Test / Execute's, likewise
     sol::reference                        Traceback; // error handler for Call: adds the stack traceback
     std::function<void(std::string_view)> Output;
     std::function<void(std::string_view)> OnError;
@@ -235,6 +236,7 @@ private:
     void BindUI();
     void BindConsole();
     void BindLoc();
+    void BindDialog();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with

@@ -172,6 +172,21 @@ struct Animator
 };
 
 // ---------------------------------------------------------------------------
+// FacingAnimation - a four-way character's clip, picked each tick from where
+// it faces and whether it's moving (its MoveIntent, a tile step or velocity
+// under way). Idle and Walk name clips with "{facing}" standing for down, up,
+// left or right: "walk_{facing}" plays walk_left. With MirrorLeft, left plays
+// the right clip flipped - for sheets drawn facing right only. Needs an
+// Animator (with its Sheet), a SpriteRenderer and a MoveIntent.
+// ---------------------------------------------------------------------------
+struct FacingAnimation
+{
+    std::string Idle       = "idle_{facing}";
+    std::string Walk       = "walk_{facing}";
+    bool        MirrorLeft = false;
+};
+
+// ---------------------------------------------------------------------------
 // Audio component
 // ---------------------------------------------------------------------------
 

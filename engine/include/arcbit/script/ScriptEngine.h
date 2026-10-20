@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/core/Types.h>
+#include <arcbit/dialog/DialogRequest.h>
 #include <arcbit/save/SaveManager.h>
 
 #include <filesystem>
@@ -40,6 +41,11 @@ struct ScriptServices
     std::function<bool(SaveSlot)> LoadFrom;
     std::function<bool()>         AutoSave;
     std::function<bool(std::string_view code)> SetLanguage; // Loc.SetLanguage: Application::SetLanguage
+
+    // Dialog.Start / IsActive / Stop: Application's conversations.
+    std::function<bool(const DialogRequest&)> StartDialog;
+    std::function<bool()>                     DialogActive;
+    std::function<void()>                     StopDialog;
 };
 
 // Limits on what one call into Lua may use - a runaway script becomes a
@@ -95,6 +101,14 @@ public:
     // comes back in Values ("1 + 2" gives "3"), and globals persist between
     // calls. Errors are logged and returned, never thrown.
     ScriptResult Run(std::string_view code, std::string_view chunkName = "console");
+
+    // Dialogs' Lua ("lua" in an .arcdialog): an expression tested for truth
+    // (nil and false are false), and a statement run. They share an
+    // environment of their own - the engine API, with globals that last
+    // between dialogs. An error is reported (logged, SetErrorHandler) and
+    // makes a test false.
+    [[nodiscard]] bool Test(std::string_view expression, std::string_view chunkName = "dialog");
+    bool               Execute(std::string_view code, std::string_view chunkName = "dialog");
 
     // Load a module as require would (cached after the first time).
     ScriptResult Require(std::string_view module);

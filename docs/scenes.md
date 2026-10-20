@@ -130,6 +130,17 @@ Either way the splash and fades never freeze. `FileScene` prepares itself: it
 parses the `.arcscene` and decodes the tilemap's atlases and every `texture` /
 `sheet` component field.
 
+`Preload(name)` starts that work early, with the current scene still running
+(e.g. as the player nears a door), and the later `Switch` / `Push` to that
+name finds it done. One scene is prepared at a time; preloading or switching
+to another name discards it.
+
+The demo app shows all three: PgUp / PgDn switch with `WaitForLoad`, the F1
+menu fades first (with the loading screen on a long load), and the battle is
+preloaded while a demo runs, so B is instant. `arcbit-game --load-delay
+<seconds>` (`SceneManager::PrepareDelay`) slows every prepare down so the
+difference is visible.
+
 ### Load progress
 
 `SceneManager::GetLoadProgress()` (0..1) is how far the queued scene's load
@@ -195,17 +206,6 @@ At each swap the music follows the new active scene, crossfading over
 
 In the demo app the World demo and "Physics File" share a theme and the
 battle has its own: B crossfades to the battle music and back.
-
-`Preload(name)` starts that work early, with the current scene still running
-(e.g. as the player nears a door), and the later `Switch` / `Push` to that
-name finds it done. One scene is prepared at a time; preloading or switching
-to another name discards it.
-
-The demo app shows all three: PgUp / PgDn switch with `WaitForLoad`, the F1
-menu fades first (with the loading screen on a long load), and the battle is
-preloaded while a demo runs, so B is instant. `arcbit-game --load-delay
-<seconds>` (`SceneManager::PrepareDelay`) slows every prepare down so the
-difference is visible.
 
 ---
 
@@ -300,8 +300,8 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 
 ### Entities
 
-- **Ids** are strings unique within the file. The editor generates UUIDs;
-  hand-written files can use readable names. The runtime uses fast
+- **Ids** are strings unique within the file - readable names by hand (the
+  editor, Phase 40, will generate them). The runtime uses fast
   generational `Entity` handles; ids exist only in the file and in the
   `FileScene`'s id table (`FindEntity("player")`), which scripts and entry
   points use.
@@ -314,7 +314,7 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
   component with all defaults.
 - **Runtime state isn't stored**: tile-step progress, input tie-break state,
   sound handles, external velocity, callbacks. A scene file is a starting
-  state, not a save game (Phase 25).
+  state, not a save game ([saves.md](saves.md)).
 - Entities with a `Collider2D` are registered with the scene's physics world
   after all their components are in place.
 - **Unknown component names are skipped** with a warning and the rest of the
@@ -353,13 +353,13 @@ were measured with:
 ### Not in v1
 
 - **Prefabs (templates and overrides)**: an entity that starts from a shared
-  definition and overrides some fields - the Entity Templates design in
-  [ecs.md](ecs.md#entity-templates). The format reserves `"template"` and
-  `"overrides"` keys on an entity for this.
+  definition and overrides some fields (see the blueprint). The format
+  reserves `"template"` and `"overrides"` keys on an entity for this.
 - **Entity references between entities**: e.g. a door that names its target
   by id. Ids are in place for it; no component needs it yet.
-- **Callbacks** (`TriggerCallback`, `CollisionCallback`): behavior comes from
-  named systems now and Lua scripts in Phase 26.
+- **Callbacks** (`TriggerCallback`, `CollisionCallback`): they hold C++
+  functions. A scene file's entities react through their Lua scripts
+  (`OnTriggerEnter`, `OnCollisionEnter`...) or a named system instead.
 
 ---
 
@@ -380,11 +380,11 @@ matches a default-constructed component, so writers stay simple.
 
 Built-in components: `Tag`, `Name`, `Transform2D`, `SpriteRenderer`,
 `LightEmitter`, `Parallax`, `CameraTarget`, `Disabled`, `Lifetime`,
-`AudioSource`, `Animator`, `Collider2D`, `MoveIntent`, `InputMovement`,
+`AudioSource`, `Animator`, `FacingAnimation`, `Collider2D`, `MoveIntent`, `InputMovement`,
 `AIMovement`, `FreeMovement`, `SmoothTileMovement`, `SnapTileMovement`,
 `Pushable`, `PendingMove`, `EntityEvents`, `Persistent`, `Script`, `Interactor`, `Interactable`.
 `AnimatorStateMachine` and the callback components
-aren't serializable yet.
+aren't serializable yet; `Held` is never saved (a conversation's, while it runs).
 
 Collision layers are written by name (`"layer": "Prop"`,
 `"mask": ["Player", "Wall"]`, `"mask": "all"`); game-defined bits are written
@@ -405,7 +405,8 @@ registry.RegisterSystem("DemoBumpers", [](Scene& scene) {
 
 The installer runs once when the scene loads, before its entities are created,
 and may register update or render systems on the scene's world. An unknown
-name is a load error. Phase 26 adds Lua scripts alongside named systems.
+name is a load error. Lua scripts ([scripting.md](scripting.md)) are the
+other way to give a scene file behavior - no C++ build needed.
 
 **Example**: `game/assets/scenes/physics.arcscene` is the Physics demo as a
 scene file. Its bumper is a game component (`DemoBumper`) plus a named system

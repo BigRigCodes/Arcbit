@@ -3,6 +3,7 @@
 #include <arcbit/app/DebugConsole.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
+#include <arcbit/dialog/DialogLibrary.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
@@ -15,9 +16,11 @@
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/script/ScriptEngine.h>
 #include <arcbit/scene/SceneRegistry.h>
+#include <arcbit/ui/DialogScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
 
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -126,6 +129,7 @@ struct ApplicationConfig
     i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
     const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
+    const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +247,29 @@ public:
 
     // The debug console: register a game's own commands (help shows them).
     [[nodiscard]] DebugConsole& GetConsole() { return _debugConsole; }
+
+    // Every conversation in the dialog folders (ApplicationConfig::DialogFolder).
+    [[nodiscard]] DialogLibrary& GetDialogs() { return _dialogs; }
+
+    // Start a conversation (docs/dialog.md): its box opens over the game, the
+    // player's input goes to it, and request.With and .By are held (Held)
+    // until it ends; autosaves wait. A dialog with "world": "pause" stops
+    // the scene too. One started while another runs waits its turn. False
+    // (logged) if there's no such dialog. Publishes engine.dialog.started,
+    // .line, .choice and .ended; With's script and the scene script hear
+    // OnDialogEnd(id, choice).
+    bool StartDialog(DialogRequest request);
+    bool StartDialog(const std::string_view id) { return StartDialog(DialogRequest{ .Id = std::string(id) }); }
+
+    [[nodiscard]] bool IsDialogActive() const { return _dialog.has_value(); }
+
+    // End the conversation now (its choice reads "") and drop the waiting ones.
+    void StopDialog();
+
+    // A dialog box with the engine's stock art, portraits from the texture
+    // manager and voices through the audio manager - for a game running a
+    // dialog its own way (StartDialog makes its own).
+    [[nodiscard]] std::unique_ptr<DialogScreen> CreateDialogScreen();
 
     // The per-user data folder: settings, saves (see ApplicationConfig).
     [[nodiscard]] const std::filesystem::path& GetUserFolder() const { return _userFolder; }
@@ -403,6 +430,28 @@ private:
     void WireThumbnails(SaveSlotScreen& screen); // ApplicationBoot.cpp
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
+
+    DialogLibrary          _dialogs;
+    DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
+
+    // Conversations (ApplicationDialog.cpp).
+    struct ActiveDialog
+    {
+        DialogRequest Request;
+        DialogScreen* Screen     = nullptr; // on the UI stack until it ends
+        bool          PauseWorld = false;
+    };
+    std::optional<ActiveDialog> _dialog;
+    std::deque<DialogRequest>   _dialogQueue;
+
+    void       BeginNextDialog();
+    void       EndDialog(const std::string& choice);
+    void       HoldDialogParties(const DialogRequest& request, bool hold);
+    DialogHost MakeDialogHost(const DialogRequest& request);
+    void       WatchDialog(DialogScreen& screen, const DialogRequest& request);
+    void       RegisterDialogCommands();
+    void       UpdateDialogs(); // each tick: start the next waiting one
+    [[nodiscard]] bool DialogPausesWorld() const { return _dialog && _dialog->PauseWorld; }
 
     SavingIndicator*       _savingIndicator = nullptr; // on the UI stack from StartBoot
     TextureHandle          _savingIcon;

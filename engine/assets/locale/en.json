@@ -55,8 +55,14 @@
   "ui.pause.graphics": "Graphics",
   "ui.pause.quit":     "Quit",
 
-  "ui.game.title":    "Game Settings",
-  "ui.game.language": "Language",
+  "ui.game.title":         "Game Settings",
+  "ui.game.language":      "Language",
+  "ui.game.text_speed":    "Text speed",
+  "ui.game.speed.slow":    "Slow",
+  "ui.game.speed.normal":  "Normal",
+  "ui.game.speed.fast":    "Fast",
+  "ui.game.speed.instant": "Instant",
+  "ui.game.auto_advance":  "Auto-advance",
 
   "ui.audio.title":  "Audio Settings",
   "ui.audio.master": "Master Volume",

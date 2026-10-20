@@ -90,6 +90,7 @@ static void ApplySkinBlock(UISkinOverride& o, const json& j)
             o.Font = f;
     }
     if (auto it = j.find("FontScale"); it != j.end()) o.FontScale = it->get<f32>();
+    if (auto it = j.find("TextStyle"); it != j.end()) o.Text = ReadTextStyle(*it, o.Text.value_or(TextStyle{}));
     if (auto it = j.find("PanelBg"); it != j.end()) o.PanelBg = ReadColor(*it);
     if (auto it = j.find("PanelBorder"); it != j.end()) o.PanelBorder = ReadColor(*it);
     if (auto it = j.find("ButtonNormal"); it != j.end()) o.ButtonNormal = ReadColor(*it);
@@ -140,6 +141,7 @@ static void ApplyBase(UIWidget& w, const json& j)
     if (auto it = j.find("enabled"); it != j.end()) w.Enabled = it->get<bool>();
     if (auto it = j.find("focusable"); it != j.end()) w.Focusable = it->get<bool>();
     if (auto it = j.find("tab_order"); it != j.end()) w.TabOrder = it->get<u32>();
+    if (auto it = j.find("text_style"); it != j.end()) w.SkinOverride.Text = ReadTextStyle(*it, w.SkinOverride.Text.value_or(TextStyle{}));
     if (auto it = j.find("skin"); it != j.end()) ApplySkinBlock(w.SkinOverride, *it);
 }
 
@@ -166,6 +168,7 @@ static void ApplyLabel(UIWidget& w, const json& j)
     if (const auto it = j.find("text_key"); it != j.end()) l.SetTextKey(it->get<std::string>());
     if (const auto it = j.find("word_wrap"); it != j.end()) l.WordWrap = it->get<bool>();
     if (const auto it = j.find("auto_center"); it != j.end()) l.AutoCenter = it->get<bool>();
+    if (const auto it = j.find("markup"); it != j.end()) l.Markup = it->get<bool>();
     if (const auto it = j.find("text_color"); it != j.end()) l.SkinOverride.TextLabel = ReadColor(*it);
     if (const auto it = j.find("align"); it != j.end()) {
         if (const std::string s = it->get<std::string>(); s == "center")

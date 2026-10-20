@@ -16,13 +16,14 @@ namespace
 constexpr const char* LanguageKey = "engine.language"; // the player's choice, once made
 } // namespace
 
-// The engine's locale files, then the game's, and the language to start in:
+// The engine's locale files, then the game's (and its dialogs'), and the language to start in:
 // ApplicationConfig::Language, else the player's last choice, else the
 // first of the OS's preferred languages the game has, else English.
 void Application::StartLanguage()
 {
     Loc::AddFolder("assets/engine/locale");
     Loc::AddFolder(_config.LocaleFolder);
+    _dialogs.AddFolder(_config.DialogFolder); // their English is strings too: in before the fonts bake them
 #ifdef ARCBIT_DEBUG
     Loc::AddPseudoLocale(); // "qps": find unlocalized text and tight layouts
 #endif

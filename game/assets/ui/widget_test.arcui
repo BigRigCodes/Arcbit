@@ -9,7 +9,7 @@
       "name": "panel",
       "anchor": [0.5, 0.5],
       "pivot": [0.5, 0.5],
-      "size": [580, 646],
+      "size": [580, 736],
       "draw_border": true,
       "children": [
         {
@@ -31,6 +31,16 @@
           "size": [64, 26],
           "focusable": true,
           "tab_order": 2
+        },
+        {
+          "type": "Button",
+          "name": "dialog-btn",
+          "text_key": "demo.widgets.dialog",
+          "anchor": [1.0, 0.0],
+          "pivot": [1.0, 0.0],
+          "offset": [-80, 10],
+          "size": [90, 26],
+          "tab_order": 10
         },
 
         {
@@ -166,9 +176,35 @@
           "type": "Label",
           "name": "unicode-sample",
           "text_key": "demo.widgets.sample",
+          "markup": true,
           "offset": [14, 588],
           "size": [552, 56],
           "word_wrap": true
+        },
+        {
+          "type": "Label",
+          "name": "styles-sample",
+          "text_key": "demo.widgets.styles",
+          "markup": true,
+          "word_wrap": true,
+          "offset": [14, 646],
+          "size": [552, 34]
+        },
+        {
+          "type": "Label",
+          "name": "reveal-sample",
+          "text_key": "demo.widgets.reveal",
+          "markup": true,
+          "offset": [14, 692],
+          "size": [460, 34]
+        },
+        {
+          "type": "Button",
+          "name": "replay-btn",
+          "text_key": "demo.widgets.replay",
+          "offset": [480, 690],
+          "size": [86, 32],
+          "tab_order": 9
         }
       ]
     }

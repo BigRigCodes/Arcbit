@@ -2,6 +2,9 @@
 
 #include <arcbit/core/Math.h>
 #include <arcbit/render/Font.h>
+#include <arcbit/render/RichText.h>
+
+#include <nlohmann/json_fwd.hpp>
 
 #include <optional>
 #include <string>
@@ -15,6 +18,7 @@ struct UISkin
 {
     const FontAtlas* Font      = nullptr; // must be set after loading; not serialized
     f32              FontScale = 1.0f;
+    TextStyle        Text;                // how labels and buttons draw their text: bold, outline, shadow
 
     // Panel
     Color PanelBg     = {0.10f, 0.10f, 0.12f, 0.90f};
@@ -107,6 +111,7 @@ struct UISkinOverride
 {
     std::optional<const FontAtlas*> Font;
     std::optional<f32>              FontScale;
+    std::optional<TextStyle>        Text;
 
     std::optional<Color> PanelBg;
     std::optional<Color> PanelBorder;
@@ -153,4 +158,12 @@ struct UISkinOverride
     std::optional<std::string> SoundSliderTick;
     std::optional<std::string> SoundToggle;
 };
+// A text style from JSON - "text_style" in a skin file or on an .arcui
+// widget - on top of style:
+//   { "bold": true, "italic": false, "outline": true, "outline_width": 2, "outline_color": [0,0,0,1],
+//     "shadow": true, "shadow_offset": [2, 2], "shadow_color": [0,0,0,0.6], "shadow_softness": 1 }
+// "outline" may also be a width in pixels (0 = none).
+[[nodiscard]] TextStyle      ReadTextStyle(const nlohmann::json& j, TextStyle style);
+[[nodiscard]] nlohmann::json TextStyleToJson(const TextStyle& style);
+
 } // namespace Arcbit
