@@ -22,5 +22,11 @@ struct ProjectDefaults
     // (on a choice it picks the option marked "cancel", either way).
     // Per dialog: "cancelable" in the .arcdialog file.
     bool DialogCancelable = true;
+
+    // Sprites draw in order of their bottom edge's Y, sorting with each other
+    // and Objects-layer tiles: a character walks behind a tree and in front
+    // of it. Per sprite: SpriteRenderer::YSort ("y_sort"; false for flat
+    // things, which keep their Layer).
+    bool YSortSprites = true;
 };
 } // namespace Arcbit

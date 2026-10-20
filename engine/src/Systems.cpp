@@ -35,6 +35,13 @@ namespace
                : Vec2{static_cast<f32>(packet.Width), static_cast<f32>(packet.Height)};
     }
 
+    // A Y-sorted sprite's layer: its bottom edge's world Y (center is the
+    // quad's, after the pivot), the same scale as Objects-layer tile keys.
+    i32 YSortLayer(const Vec2 center, const Vec2 size)
+    {
+        return static_cast<i32>(std::floor(center.Y + std::abs(size.Y) * 0.5f));
+    }
+
     // ---------------------------------------------------------------------------
     // Built-in system implementations
     // ---------------------------------------------------------------------------
@@ -989,8 +996,7 @@ namespace
                                                    i32 sortLayer = -1000000;
                                                    if (layer == 1) {
                                                        const bool flat = def && def->Flat;
-                                                       sortLayer = flat ? -999999
-                                                                       : static_cast<i32>(worldPos.Y + ts);
+                                                       sortLayer = flat ? -999999 : tileMap.ObjectSortLayer(tileY);
                                                    } else if (layer == 2)
                                                        sortLayer = 1000000;
 
@@ -1016,22 +1022,26 @@ namespace
             const Vec2      camPos = cam.GetEffectivePosition();
             const Vec2      ref    = GetRefSize(packet);
 
+        const bool ySortByDefault = scene.GetConfig().YSortSprites;
         scene.GetWorld()
                 .Query<const Transform2D, const SpriteRenderer>()
                 .Without<Disabled>()
                 .ForEach(
                     [&](const Entity e, const Transform2D& t, const SpriteRenderer& sr) {
-                        Vec2 pos = t.Position;
-                        if (const auto* p = scene.GetWorld().GetComponent<Parallax>(e))
-                        {
-                            pos.X += camPos.X * (1.0f - p->ScrollFactor.X);
-                            pos.Y += camPos.Y * (1.0f - p->ScrollFactor.Y);
-                        }
                         // Pivot offset: shifts the rendered quad so the sprite's
                         // logical anchor aligns with Transform2D.Position.
                         // Pivot {0.5,0.5} = centre (no offset); {0.5,1.0} = bottom-centre.
+                        Vec2 pos = t.Position;
                         pos.X += (0.5f - sr.Pivot.X) * t.Scale.X;
                         pos.Y += (0.5f - sr.Pivot.Y) * t.Scale.Y;
+                        const auto* parallax = scene.GetWorld().GetComponent<Parallax>(e);
+                        const bool  ySort    = sr.YSort.value_or(ySortByDefault && !parallax);
+                        const i32   layer    = ySort ? YSortLayer(pos, t.Scale) : sr.Layer;
+                        if (parallax)
+                        {
+                            pos.X += camPos.X * (1.0f - parallax->ScrollFactor.X);
+                            pos.Y += camPos.Y * (1.0f - parallax->ScrollFactor.Y);
+                        }
                         if (!cam.IsVisible(pos, t.Scale, ref))
                             return;
 
@@ -1045,7 +1055,7 @@ namespace
                                           : sr.UV;
                         s.Tint      = sr.Tint;
                         s.Rotation  = t.Rotation;
-                        s.Layer     = sr.Layer;
+                        s.Layer     = layer;
                         packet.Sprites.push_back(s);
                     });
         });

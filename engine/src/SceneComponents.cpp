@@ -188,6 +188,7 @@ namespace
         Read(j, "tint", c.Tint);
         Read(j, "layer", c.Layer);
         Read(j, "flip_x", c.FlipX);
+        if (const auto it = j.find("y_sort"); it != j.end() && it->is_boolean()) c.YSort = it->get<bool>();
     }
 
     void WriteSprite(const SpriteRenderer& c, json& j, const SceneAssets& assets)
@@ -199,6 +200,7 @@ namespace
         j["tint"]    = ToJson(c.Tint);
         j["layer"]   = c.Layer;
         j["flip_x"]  = c.FlipX;
+        if (c.YSort) j["y_sort"] = *c.YSort; // unset stays unset: the project decides
     }
 
     void ReadAnimator(Animator& c, const json& j, SceneAssets& assets)

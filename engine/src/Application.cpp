@@ -199,6 +199,13 @@ Format Application::GetSwapchainFormat() const { return _device->GetSwapchainCol
 // Run — the main loop.
 // ---------------------------------------------------------------------------
 
+void Application::ApplyDefaults(Scene& scene) const
+{
+    WorldConfig& config  = scene.GetConfig();
+    config.TileTurnDelay = _config.Defaults.TileTurnDelay;
+    config.YSortSprites  = _config.Defaults.YSortSprites;
+}
+
 void Application::Run()
 {
     // Register engine system actions with defaults before OnStart so that:
@@ -236,7 +243,7 @@ void Application::Run()
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
                       .Events          = &_events,
-                      .Configure       = [this](Scene& scene) { scene.GetConfig().TileTurnDelay = _config.Defaults.TileTurnDelay; },
+                      .Configure       = [this](Scene& scene) { ApplyDefaults(scene); },
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },

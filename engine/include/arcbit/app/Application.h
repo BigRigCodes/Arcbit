@@ -440,6 +440,9 @@ private:
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
 
+    // The project's defaults a scene carries (WorldConfig), on every scene made.
+    void ApplyDefaults(Scene& scene) const;
+
     DialogLibrary          _dialogs;
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 

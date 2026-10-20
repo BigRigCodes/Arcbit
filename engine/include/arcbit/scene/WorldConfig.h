@@ -16,6 +16,10 @@ struct WorldConfig
     // off). Application sets it on every scene from ProjectDefaults; scene
     // files don't store it.
     f32 TileTurnDelay = 0.0f;
+
+    // Y-sort for sprites that don't say (SpriteRenderer::YSort). Set from
+    // ProjectDefaults likewise; off for a scene made without an Application.
+    bool YSortSprites = false;
 };
 
 } // namespace Arcbit
