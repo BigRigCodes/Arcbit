@@ -31,6 +31,7 @@ add_library(arcbit-engine STATIC
     src/Scene.cpp
     src/PrefabLibrary.cpp
     src/Inventory.cpp
+    src/InventoryGrid.cpp
     src/ItemLibrary.cpp
     src/SceneManager.cpp
     src/ScenePreloader.cpp

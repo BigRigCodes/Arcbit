@@ -23,19 +23,35 @@ struct ItemDef;
 //            shows a list per category.
 //   weight   Skyrim: one entry per item, any count; a carry weight limit;
 //            category tabs filter the list.
-//   grid / survival (slots, and slots plus weight) - see InventoryRules.
+//   grid     Minecraft: a W x H grid of cells; an item takes the cells of
+//            its size (rotated to fit, unless it can't turn), one stack each;
+//            optional sections beside it (a hotbar, a quiver).
+//   survival a grid with a carry weight limit too.
 //
 // The rules mix freely; the presets are starting points. Every kind sorts
 // and filters. Items come from an ItemLibrary, which the inventory reads for
 // stack sizes, weights, names and categories.
 // ---------------------------------------------------------------------------
 
-// One entry: an item and how many.
+// One entry: an item and how many - and, in a grid, where it lies.
 struct ItemStack
 {
     std::string Item;
     u32         Count    = 0;
     u64         Acquired = 0; // when it last grew - the "recent" sort
+
+    std::string Section;         // grid: "" the main grid, else a section's name
+    u32         X = 0, Y = 0;    // grid: its top-left cell
+    bool        Rotated = false; // grid: turned a quarter (its width and height swap)
+};
+
+// A small grid beside a grid inventory's main one - a hotbar, a quiver.
+struct InventorySection
+{
+    std::string Name;
+    u32         Width  = 1;
+    u32         Height = 1;
+    std::string Category; // only items of this category; empty: any
 };
 
 enum class OverWeightRule : u8
@@ -61,10 +77,21 @@ struct InventoryRules
 
     u32 QuickSlots = 0; // item references bound to keys (any kind)
 
+    // A grid: Width x Height cells (both above 0); Slots is unused.
+    u32                           Width  = 0;
+    u32                           Height = 0;
+    std::vector<InventorySection> Sections;
+
+    [[nodiscard]] bool IsGrid() const { return Width > 0 && Height > 0; }
+
     // Pokemon: a list per category, one entry per item, up to its stack size.
     [[nodiscard]] static InventoryRules Pockets();
     // Skyrim: one entry per item, any count, a carry weight limit.
     [[nodiscard]] static InventoryRules Weight(f32 maxWeight);
+    // Minecraft: a grid of cells (add a hotbar with Sections).
+    [[nodiscard]] static InventoryRules Grid(u32 width, u32 height);
+    // A grid with a carry weight limit too.
+    [[nodiscard]] static InventoryRules Survival(u32 width, u32 height, f32 maxWeight);
 };
 
 // What a sort orders by. Junk always sorts last; ties go by name.
@@ -114,9 +141,35 @@ public:
     // --- Arranging ----------------------------------------------------------
 
     bool Move(u32 from, u32 to);            // an entry to another place in the list
-    bool Split(u32 index, u32 count);       // `count` of an entry into a new one after it
+    bool Split(u32 index, u32 count);       // `count` of an entry into a new one (a grid: the first space it fits)
     u32  Merge(u32 from, u32 to);           // as much of `from` into `to` (the same item) as fits; returns how many
-    void Sort(InventorySort by, bool descending = false);
+
+    // Lists reorder. A grid repacks its main grid in that order (sections
+    // keep the player's arrangement), trying largest-first if the order
+    // doesn't pack; false, unchanged, if neither does.
+    bool Sort(InventorySort by, bool descending = false);
+
+    // --- Grids --------------------------------------------------------------
+
+    // Put an entry at a cell of the main grid ("") or a section, turned or
+    // not; false if it doesn't fit there (it, or the section, refuses).
+    bool MoveTo(u32 index, std::string_view section, u32 x, u32 y, bool rotated);
+    bool Rotate(u32 index);             // turn it where it lies, if it fits turned
+    bool Swap(u32 a, u32 b);            // trade places, if each fits in the other's
+    [[nodiscard]] std::optional<u32> StackAt(std::string_view section, u32 x, u32 y) const; // what covers a cell
+    void Footprint(u32 index, u32& width, u32& height) const; // the cells an entry takes, as it lies
+
+    // --- Changing bags ------------------------------------------------------
+
+    // What wouldn't fit in a bag with other rules (a smaller grid, a weight
+    // limit where there was none) - empty when everything does. Junk is
+    // what's left out first: it's what the player is offered to discard.
+    [[nodiscard]] std::vector<ItemStack> ConvertOverflow(const InventoryRules& to) const;
+
+    // Become a bag with other rules, everything kept (in a grid, where it
+    // was when it still fits there). False, unchanged, while anything would
+    // be left out - discard ConvertOverflow first.
+    bool Convert(const InventoryRules& to);
 
     // The indices of the entries a filter keeps, in order.
     [[nodiscard]] std::vector<u32> Filter(const InventoryFilter& filter) const;
@@ -140,6 +193,34 @@ public:
     void FromJson(const nlohmann::json& json);
 
 private:
+    // A grid or section's cells, each the index of the stack covering it, or -1.
+    struct Area
+    {
+        const InventorySection* Section = nullptr; // null: the main grid
+        u32                     Width = 0, Height = 0;
+        std::vector<i32>        Cells;
+    };
+    struct Place
+    {
+        std::string Section;
+        u32         X = 0, Y = 0;
+        bool        Rotated = false;
+    };
+
+    [[nodiscard]] std::vector<Area>    BuildAreas(i32 skip = -1) const;
+    [[nodiscard]] Area*                FindArea(std::vector<Area>& areas, std::string_view section) const;
+    [[nodiscard]] bool                 Accepts(const Area& area, const ItemDef& def) const;
+    [[nodiscard]] std::optional<Place> FindPlace(std::vector<Area>& areas, const ItemDef& def, bool mainOnly = false) const;
+    [[nodiscard]] u32                  NewStackRoom(const ItemDef& def, u32 count) const;
+    [[nodiscard]] bool                 FitsAt(std::vector<Area>& areas, const ItemDef& def, const Place& place) const;
+    [[nodiscard]] bool                 Repack(const std::vector<ItemStack>& order);
+    void                               PlaceNew(ItemStack& stack);
+    void                               CheckPlaces();
+    [[nodiscard]] Inventory            ConvertedTo(const InventoryRules& to, std::vector<ItemStack>& overflow) const;
+    [[nodiscard]] Inventory            Fill(const InventoryRules& to, const std::vector<const ItemStack*>& order, bool keepPlaces,
+                                            std::vector<ItemStack>& overflow) const;
+    u32                                Take(const ItemStack& stack, bool keepPlace);
+    void                               SortList(InventorySort by, bool descending);
     [[nodiscard]] const ItemDef* Def(std::string_view item) const;
     [[nodiscard]] u32            StackLimit(const ItemDef& def) const;
     [[nodiscard]] u32            WeightRoom(const ItemDef& def, u32 count) const;

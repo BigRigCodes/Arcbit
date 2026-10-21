@@ -25,6 +25,14 @@ std::string Lower(std::string text)
     return text;
 }
 
+json SectionsToJson(const std::vector<InventorySection>& sections)
+{
+    json out = json::array();
+    for (const InventorySection& s : sections)
+        out.push_back({ { "name", s.Name }, { "width", s.Width }, { "height", s.Height }, { "category", s.Category } });
+    return out;
+}
+
 template<typename T>
 int Compare(const T& a, const T& b)
 {
@@ -71,6 +79,7 @@ u32 Inventory::Room(const std::string_view item, const u32 count) const
         held = true;
         room = SaturatingAdd(room, limit - std::min(limit, stack.Count));
     }
+    if (_rules.IsGrid()) return WeightRoom(*def, std::min(SaturatingAdd(room, NewStackRoom(*def, count - std::min(room, count))), count));
     const u64 freeEntries = _rules.Slots == 0 ? NoLimit : _rules.Slots - std::min<u64>(_rules.Slots, _stacks.size());
     if (_rules.OneEntryPerItem) {
         if (!held && freeEntries > 0) room = SaturatingAdd(room, limit);
@@ -98,9 +107,10 @@ u32 Inventory::Add(const std::string_view item, const u32 count)
         left -= take;
     }
     while (left > 0) {
-        const u32 take = std::min(left, limit);
-        _stacks.push_back({ .Item = def->Id, .Count = take, .Acquired = ++_clock });
-        left -= take;
+        ItemStack stack{ .Item = def->Id, .Count = std::min(left, limit), .Acquired = ++_clock };
+        if (_rules.IsGrid()) PlaceNew(stack);
+        left -= stack.Count;
+        _stacks.push_back(std::move(stack));
     }
     if (added) Changed(def->Id, added);
     return added;
@@ -161,9 +171,16 @@ bool Inventory::Split(const u32 index, const u32 count)
 {
     if (_rules.OneEntryPerItem || index >= _stacks.size()) return false;
     if (count == 0 || count >= _stacks[index].Count) return false;
-    if (_rules.Slots != 0 && _stacks.size() >= _rules.Slots) return false;
-    _stacks[index].Count -= count;
+    if (!_rules.IsGrid() && _rules.Slots != 0 && _stacks.size() >= _rules.Slots) return false;
     ItemStack part = { .Item = _stacks[index].Item, .Count = count, .Acquired = _stacks[index].Acquired };
+    if (_rules.IsGrid()) {
+        std::vector<Area>          areas = BuildAreas();
+        const ItemDef*             def   = Def(part.Item);
+        const std::optional<Place> place = def ? FindPlace(areas, *def) : std::nullopt;
+        if (!place) return false;
+        part.Section = place->Section, part.X = place->X, part.Y = place->Y, part.Rotated = place->Rotated;
+    }
+    _stacks[index].Count -= count;
     _stacks.insert(_stacks.begin() + index + 1, std::move(part));
     return true;
 }
@@ -180,7 +197,7 @@ u32 Inventory::Merge(const u32 from, const u32 to)
     return move;
 }
 
-void Inventory::Sort(const InventorySort by, const bool descending)
+void Inventory::SortList(const InventorySort by, const bool descending)
 {
     const auto order = [&](const ItemStack& a, const ItemStack& b) {
         const ItemDef* x = Def(a.Item);
@@ -262,7 +279,10 @@ json RulesToJson(const InventoryRules& rules)
              { "unlimited_stacks", rules.UnlimitedStacks },
              { "max_weight", rules.MaxWeight },
              { "over_weight", rules.OverWeight == OverWeightRule::Allow ? "allow" : "refuse" },
-             { "quick_slots", rules.QuickSlots } };
+             { "quick_slots", rules.QuickSlots },
+             { "width", rules.Width },
+             { "height", rules.Height },
+             { "sections", SectionsToJson(rules.Sections) } };
 }
 
 InventoryRules RulesFromJson(const json& j)
@@ -275,14 +295,24 @@ InventoryRules RulesFromJson(const json& j)
     rules.MaxWeight       = j.value("max_weight", rules.MaxWeight);
     rules.OverWeight      = j.value("over_weight", std::string("refuse")) == "allow" ? OverWeightRule::Allow : OverWeightRule::Refuse;
     rules.QuickSlots      = j.value("quick_slots", rules.QuickSlots);
+    rules.Width           = j.value("width", rules.Width);
+    rules.Height          = j.value("height", rules.Height);
+    for (const json& s : j.value("sections", json::array()))
+        rules.Sections.push_back({ .Name     = s.value("name", std::string{}),
+                                   .Width    = s.value("width", 1u),
+                                   .Height   = s.value("height", 1u),
+                                   .Category = s.value("category", std::string{}) });
     return rules;
 }
 
 json Inventory::ToJson() const
 {
     json stacks = json::array();
-    for (const ItemStack& stack : _stacks)
-        stacks.push_back({ { "item", stack.Item }, { "count", stack.Count }, { "acquired", stack.Acquired } });
+    for (const ItemStack& stack : _stacks) {
+        json s = { { "item", stack.Item }, { "count", stack.Count }, { "acquired", stack.Acquired } };
+        if (_rules.IsGrid()) s.update({ { "section", stack.Section }, { "x", stack.X }, { "y", stack.Y }, { "rotated", stack.Rotated } });
+        stacks.push_back(std::move(s));
+    }
     return { { "rules", RulesToJson(_rules) }, { "stacks", std::move(stacks) }, { "quick_slots", _quickSlots } };
 }
 
@@ -293,7 +323,13 @@ void Inventory::FromJson(const json& j)
     _stacks.clear();
     _clock = 0;
     for (const json& s : j.value("stacks", json::array())) {
-        ItemStack stack{ .Item = s.value("item", std::string{}), .Count = s.value("count", 0u), .Acquired = s.value("acquired", u64{ 0 }) };
+        ItemStack stack{ .Item     = s.value("item", std::string{}),
+                         .Count    = s.value("count", 0u),
+                         .Acquired = s.value("acquired", u64{ 0 }),
+                         .Section  = s.value("section", std::string{}),
+                         .X        = s.value("x", 0u),
+                         .Y        = s.value("y", 0u),
+                         .Rotated  = s.value("rotated", false) };
         if (!Def(stack.Item)) {
             LOG_WARN(Engine, "Inventory: a saved stack of '{}', which is no longer an item - dropped", stack.Item);
             continue;
@@ -304,5 +340,30 @@ void Inventory::FromJson(const json& j)
     }
     _quickSlots = j.value("quick_slots", std::vector<std::string>{});
     _quickSlots.resize(_rules.QuickSlots);
+    if (_rules.IsGrid()) CheckPlaces();
+}
+
+// A saved grid whose stacks no longer fit where they were (an item's size
+// changed in an update): those move to the first space they fit; with none
+// left, they're dropped (logged).
+void Inventory::CheckPlaces()
+{
+    std::vector<ItemStack> saved = std::move(_stacks), misplaced;
+    _stacks.clear();
+    for (ItemStack& stack : saved) { // in order: the first to claim a cell keeps it
+        std::vector<Area> areas = BuildAreas();
+        const ItemDef*    def   = Def(stack.Item);
+        if (def && FitsAt(areas, *def, { stack.Section, stack.X, stack.Y, stack.Rotated })) _stacks.push_back(std::move(stack));
+        else misplaced.push_back(std::move(stack));
+    }
+    for (ItemStack& stack : misplaced) {
+        std::vector<Area> areas = BuildAreas();
+        const ItemDef*    def   = Def(stack.Item);
+        if (const auto place = def ? FindPlace(areas, *def) : std::nullopt) {
+            stack.Section = place->Section, stack.X = place->X, stack.Y = place->Y, stack.Rotated = place->Rotated;
+            _stacks.push_back(std::move(stack));
+        }
+        else LOG_WARN(Engine, "Inventory: a saved stack of '{}' no longer fits the grid - dropped", stack.Item);
+    }
 }
 } // namespace Arcbit
