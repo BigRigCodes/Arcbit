@@ -713,6 +713,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] **Save settings**: per-project slot counts, the saving indicator icon / tint / duration, the saving notice (never / first launch / every launch) and autosave on scene changes (`SavingConfig`, Phase 25)
 - [ ] **Save editing in mod mode**: open, edit and reseal a player's `.arcsave` with the mod key (Phase 25, Phase 36)
 - [ ] **Persistence in the scene editor**: `Persistent` and `persist_all` as checkboxes, with the component list picker (Phase 25)
+- [ ] **Art studio - pixel art for non-artists** (`docs/plans/40-editor.md`, 40I): a project palette with hue-shifted shading ramps everything draws in; a pixel editor (layers, tile-wrap preview, animation, export to the sprite format) and Aseprite import; tileable pattern generators (wood, stone, brick, grass, water...) quantized to the palette; photo to texture (seamless, downscaled, reduced to the palette); autotile transition sets from one texture; item / icon kits (parts + material recolor + auto outline and shading); paper-doll characters from recolorable layers, with equipment overlays (Phase 29); a starter part library; an optional AI generation plugin
 - [ ] **Editor mode detection**: on open, inspect the loaded `project.arcbit` to determine mode — full dev mode (dev key present) or restricted mod mode (mod key only, `mod_support = true`); mod mode disables save-over-original and shows a clear "Mod Editor" banner so end users know what they are working with
 
 ---
