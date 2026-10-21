@@ -12,7 +12,7 @@ namespace Arcbit {
 class TextureManager;
 
 // Wraps a single grid-based texture atlas.
-// Loads the texture and converts (col, row) tile coordinates to normalised UV rects.
+// Loads the texture and converts (col, row) tile coordinates to normalized UV rects.
 class TileAtlas
 {
 public:

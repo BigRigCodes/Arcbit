@@ -37,7 +37,7 @@ std::optional<nlohmann::json> ParseJsonFile(std::string_view path)
     }
 }
 
-// The spec (docs/sprite-format.md) requires rejecting unrecognised versions:
+// The spec (docs/sprite-format.md) requires rejecting unrecognized versions:
 // any "1" / "1.x" string is accepted, everything else — missing, non-string,
 // or another major — is refused rather than silently misread.
 bool HasSupportedVersion(const nlohmann::json& json, const std::string_view source)

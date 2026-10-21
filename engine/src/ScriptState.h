@@ -28,7 +28,7 @@ class ScriptedScreen;
 
 // A script's handle to an entity: the entity plus the scene it lives in (by
 // serial, not pointer), so a handle kept past its entity or its scene is
-// recognised as stale instead of reaching freed memory.
+// recognized as stale instead of reaching freed memory.
 struct ScriptEntity
 {
     Entity Id;

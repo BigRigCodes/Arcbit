@@ -310,7 +310,7 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 
 | Field         | Type                              | Description                                      |
 |---------------|-----------------------------------|--------------------------------------------------|
-| `placeholder` | string                            | Greyed text shown when the field is empty        |
+| `placeholder` | string                            | Grayed text shown when the field is empty        |
 | `placeholder_key` | string                        | Localization key — overrides `placeholder`       |
 | `max_length`  | unsigned int                      | Maximum character count (0 = unlimited)          |
 | `mode`        | `"text"` / `"numeric"` / `"regex"` | Input filter (`regex` uses `pattern`)            |

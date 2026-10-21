@@ -25,7 +25,7 @@ struct TileAnimFrame
     u32 DurationMs = 150;
 };
 
-// Per-tile behaviour overrides.  Register with TileMap::RegisterTile().
+// Per-tile behavior overrides.  Register with TileMap::RegisterTile().
 // Tiles without a registered def render at their default atlas UV.
 struct TileDef
 {

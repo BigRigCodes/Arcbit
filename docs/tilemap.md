@@ -131,12 +131,12 @@ are created as tiles are set; cells outside every chunk are empty.
 TileMap& map = scene.GetTileMap();
 map.SetTile(x, y, 1, treeTrunkId);           // layer 0 Ground, 1 Objects, 2 Overlay
 const u32  id    = map.GetTile(x, y, 0);
-const Vec2 world = map.TileToWorld(x, y);    // the tile's centre
+const Vec2 world = map.TileToWorld(x, y);    // the tile's center
 map.WorldToTile(world, x, y);
 ```
 
 Tile coordinates map to chunks with floor division, so negative tiles land in
-negative chunks. Tile `t`'s centre is at `t * tileSize`, and it spans half a
+negative chunks. Tile `t`'s center is at `t * tileSize`, and it spans half a
 tile either side.
 
 Setting a tile rebuilds that chunk's collision rectangles. Once a scene has

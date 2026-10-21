@@ -21,11 +21,11 @@ class TextureManager;
 // SpriteFrame
 //
 // A single named frame from the sprite sheet: UV coordinates into the atlas
-// and a normalised pivot point used to position the sprite in world space.
+// and a normalized pivot point used to position the sprite in world space.
 //
 // Common pivot values:
-//   { 0.5, 0.5 } — centre (default)
-//   { 0.5, 1.0 } — bottom-centre (standing characters)
+//   { 0.5, 0.5 } — center (default)
+//   { 0.5, 1.0 } — bottom-center (standing characters)
 //   { 0.0, 0.0 } — top-left
 // ---------------------------------------------------------------------------
 struct SpriteFrame
@@ -70,7 +70,7 @@ struct AnimationClip
 // non-Arcbit files (e.g. Carrot format) are caught at load time rather than
 // silently misread. Use the explicit Carrot import path for those files.
 //
-// Pixel coordinates are converted to normalised (0-1) UVs using the loaded
+// Pixel coordinates are converted to normalized (0-1) UVs using the loaded
 // texture's dimensions — callers never need raw pixel math.
 // ---------------------------------------------------------------------------
 class SpriteSheet

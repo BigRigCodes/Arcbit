@@ -1030,7 +1030,7 @@ namespace
                     [&](const Entity e, const Transform2D& t, const SpriteRenderer& sr) {
                         // Pivot offset: shifts the rendered quad so the sprite's
                         // logical anchor aligns with Transform2D.Position.
-                        // Pivot {0.5,0.5} = centre (no offset); {0.5,1.0} = bottom-centre.
+                        // Pivot {0.5,0.5} = center (no offset); {0.5,1.0} = bottom-center.
                         Vec2 pos = t.Position;
                         pos.X += (0.5f - sr.Pivot.X) * t.Scale.X;
                         pos.Y += (0.5f - sr.Pivot.Y) * t.Scale.Y;

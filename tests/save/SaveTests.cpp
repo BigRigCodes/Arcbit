@@ -180,7 +180,7 @@ TEST_CASE("A thumbnail is scaled down beside its save, listed, and deleted with 
     saves.ThumbnailWidth = 32;
     REQUIRE(saves.Write(SaveSlot::Manual(2), saves.Capture(Meta("a", 100))));
 
-    const std::vector<u8> frame(128 * 72 * 4, 200); // a 16:9 grey frame
+    const std::vector<u8> frame(128 * 72 * 4, 200); // a 16:9 gray frame
     REQUIRE(saves.WriteThumbnail(SaveSlot::Manual(2), 128, 72, frame));
     const std::filesystem::path png = saves.ThumbnailOf(SaveSlot::Manual(2));
     CHECK(png.filename() == "slot_02.png");

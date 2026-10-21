@@ -75,7 +75,7 @@ protected:
         ARCBIT_VERIFY(Demo::LoadGrassAndWaterAtlases(tm, GetApp().GetTextures(), _sampler),
                       "ArcDemo: failed to load tile atlases");
 
-        // Plain grass everywhere — directional behaviour is on the entities,
+        // Plain grass everywhere — directional behavior is on the entities,
         // not the tilemap, for this demo.
         for (i32 ty = -GrassExtent; ty <= GrassExtent; ++ty)
             for (i32 tx = -GrassExtent; tx <= GrassExtent; ++tx)

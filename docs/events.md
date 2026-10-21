@@ -209,7 +209,7 @@ world.AddComponent<EntityEvents>(boss, EntityEvents{ .Spawned = false, .Destroye
 - Every delivered event goes to the log on the `EventBus` channel (debug
   level): `engine.scene.loaded name="World" entry=""`.
 - In the demo app, **F3** toggles an overlay of the latest 16 events, from
-  startup - engine events in blue-grey, game events in gold. It doesn't take
+  startup - engine events in blue-gray, game events in gold. It doesn't take
   input, so menus under it still work.
 - The Triggers demo publishes `game.coin.collected` from five coin triggers;
   a HUD counts them through `Scene::Subscribe`, and the last one publishes

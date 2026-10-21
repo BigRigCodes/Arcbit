@@ -124,7 +124,7 @@ world.AddComponent<Collider2D>(rock, col);
 
 A free mover stops at the rock's edge. A tile mover can't step onto that tile
 at all: tile steps are **plan-then-commit** - the mover's collider is swept from
-its tile centre to the target's before the step starts, and any blocking contact
+its tile center to the target's before the step starts, and any blocking contact
 on the way cancels the step, so it stays put (Pokemon-style: cheap, predictable,
 always on the grid). There's no partial step that stops mid-tile.
 
@@ -250,7 +250,7 @@ keeps its tangent motion. A corner stops it cleanly.
 ### Tile movers
 
 Before a step, the mover asks `PhysicsWorld::QueryTileBlocked` - tile solids
-and their arcs, then a sweep of its collider from this tile centre to the
+and their arcs, then a sweep of its collider from this tile center to the
 next. Blocked, the step is dropped. Clear, it commits: `SmoothTileMovement`
 lerps there (with no collision tests in transit - the path was clear) and
 chains straight into a queued step on arrival; `SnapTileMovement` jumps there,

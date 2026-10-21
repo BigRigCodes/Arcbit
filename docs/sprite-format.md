@@ -59,7 +59,7 @@ shipped builds.
 "version": "1.0"
 ```
 
-Format version string. The loader rejects files with an unrecognised version
+Format version string. The loader rejects files with an unrecognized version
 rather than silently misreading them. Always `"1.0"` for files created now;
 the minor component may be bumped for additive changes, the major component for
 breaking changes.
@@ -121,17 +121,17 @@ name that animations and game code use to look it up.
 | `name` | yes | Unique identifier for this frame within the file |
 | `rect.x`, `rect.y` | yes | Top-left corner of the frame in texture pixels |
 | `rect.w`, `rect.h` | yes | Width and height in texture pixels |
-| `pivot.x`, `pivot.y` | no | Normalised origin point (0–1). Default `{ "x": 0.5, "y": 0.5 }` (centre) |
+| `pivot.x`, `pivot.y` | no | Normalized origin point (0–1). Default `{ "x": 0.5, "y": 0.5 }` (center) |
 
 Common pivot values:
-- `{ 0.5, 0.5 }` — centre (default)
-- `{ 0.5, 1.0 }` — bottom-centre (standing characters)
+- `{ 0.5, 0.5 }` — center (default)
+- `{ 0.5, 1.0 }` — bottom-center (standing characters)
 - `{ 0.0, 0.0 }` — top-left
 
 The engine uses the pivot to offset the sprite so its logical position matches
 `Transform2D.Position`. A character with pivot `{ 0.5, 1.0 }` whose
-Transform2D.Position is at tile centre will stand with its feet on the tile
-rather than its centre floating above it.
+Transform2D.Position is at tile center will stand with its feet on the tile
+rather than its center floating above it.
 
 ---
 

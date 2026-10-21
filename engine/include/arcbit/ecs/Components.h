@@ -69,7 +69,7 @@ struct SpriteRenderer
     TextureHandle Texture;
     SamplerHandle Sampler;
     UVRect        UV    = { 0.0f, 0.0f, 1.0f, 1.0f };
-    Vec2          Pivot = { 0.5f, 0.5f }; // normalised origin; AnimatorSystem writes this from frame data
+    Vec2          Pivot = { 0.5f, 0.5f }; // normalized origin; AnimatorSystem writes this from frame data
     Color         Tint  = Color::White();
     i32           Layer = 0; // the draw order when not Y-sorted
     bool          FlipX = false;
