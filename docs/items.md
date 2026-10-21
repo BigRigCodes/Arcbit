@@ -12,6 +12,7 @@ the inventory screen build on these (Phase 29, in progress).
 - [Checks and reloading](#checks-and-reloading)
 - [From C++](#from-c)
 - [Inventories](#inventories)
+  - [Grids](#grids), [Changing bags](#changing-bags)
 
 ---
 
@@ -139,9 +140,9 @@ the presets are starting points, and the rules mix freely:
 |--------|------|-------|
 | `InventoryRules::Pockets()` | Pokemon | one entry per item, up to its stack size; the screen shows a list per category |
 | `InventoryRules::Weight(max)` | Skyrim | one entry per item, any count (stack sizes ignored), a carry weight limit; category tabs filter it |
+| `InventoryRules::Grid(w, h)` | Minecraft | a grid of cells, one stack each; an item takes the cells of its `size`; optional sections (a hotbar) - see [Grids](#grids) |
+| `InventoryRules::Survival(w, h, max)` | survival games | a grid, and a carry weight limit |
 | `{ .Slots = 20 }` | an old-school list | up to 20 entries; a full stack starts another |
-
-(Grid kinds - Minecraft's slots, and slots plus weight - come next.)
 
 | Rule | Meaning |
 |------|---------|
@@ -151,6 +152,7 @@ the presets are starting points, and the rules mix freely:
 | `MaxWeight` | carry weight; 0 = no limit |
 | `OverWeight` | `Refuse` (default): what would go over isn't taken; `Allow`: it is, and `IsOverWeight()` says so (encumbered) |
 | `QuickSlots` | how many quick slots (below) |
+| `Width`, `Height`, `Sections` | a grid (both above 0; `Slots` is then unused) and its sections |
 
 ```cpp
 Inventory bag(app.GetItems(), InventoryRules::Pockets());
@@ -167,13 +169,67 @@ if (bag.Has("cellar_key")) ...
   another of the same item, `RemoveAt` from one entry.
 - **Sorting** (`Sort`) by name (in the player's language), type, category,
   value, weight, count or recent, either way; `junk` items always sort last,
-  and ties go by name.
+  and ties go by name. A grid repacks (below).
 - **Filtering** (`Filter`) keeps entries by category, type, tag or text in
   the name (any case), returning their indices in order.
 - **Quick slots** are references to items, not the items: a slot keeps its
   item while the bag has none and shows 0 (`SetQuickSlot`, `GetQuickSlots`).
 - **Changes** reach `OnChange(item, delta)`.
-- **Saving**: `ToJson` / `FromJson` write the stacks, quick slots and the
-  bag's own rules (a bag the player upgraded stays upgraded); a saved stack
-  of an item that no longer exists is dropped, logged.
+- **Saving**: `ToJson` / `FromJson` write the stacks (in a grid, where each
+  lies), quick slots and the bag's own rules (a bag the player upgraded stays
+  upgraded); a saved stack of an item that no longer exists is dropped,
+  logged.
+
+### Grids
+
+A grid bag has `Width` x `Height` cells. Each stack lies at a cell (`X`,
+`Y`, its top-left) and covers the cells of its item's `size`, upright or
+turned a quarter (`Rotated`: width and height swap) - one stack per space,
+up to the item's stack size.
+
+- **Placing**: a new stack goes in the first space it fits, row by row,
+  upright first, then turned (unless the item has `"rotatable": false`).
+- **Sections** are small grids beside the main one - a hotbar, a quiver -
+  each with a name, a size and optionally the one category it takes. New
+  stacks try the main grid first, then each section in order:
+
+  ```cpp
+  InventoryRules rules = InventoryRules::Grid(9, 3);
+  rules.Sections = { { .Name = "hotbar", .Width = 9, .Height = 1 },
+                     { .Name = "quiver", .Width = 1, .Height = 1, .Category = "ammo" } };
+  ```
+
+- **Moving**: `MoveTo(index, section, x, y, rotated)` puts an entry at a cell
+  if it fits there (false otherwise); `Rotate` turns it in place; `Swap`
+  trades two entries' places if each fits in the other's; `StackAt` says what
+  covers a cell; `Footprint` gives the cells an entry takes as it lies.
+  `Split` puts the new part in the first space it fits.
+- **Sorting** repacks the main grid in the sorted order (sections keep the
+  player's arrangement). If that order leaves a big item no space, it packs
+  largest-first instead; if that fails too, nothing moves and `Sort` returns
+  false.
+- **Loading** a saved grid whose stacks no longer fit where they were (an
+  item grew in an update): the first to claim a cell keeps it, the rest move
+  to the first space they fit - dropped, logged, only if there is none.
+
+### Changing bags
+
+A bigger grid, more carry weight, a different kind altogether:
+`Convert(rules)` moves everything across - in a grid, each stack where it was
+if it still fits there - keeping the bag's order. When the new bag holds less
+(a smaller grid, a weight limit where there was none), it refuses until
+enough is gone:
+
+```cpp
+const std::vector<ItemStack> mustGo = bag.ConvertOverflow(bigger);
+if (mustGo.empty()) bag.Convert(bigger);
+else ShowDiscardPrompt(mustGo);           // junk is what it lists first
+```
+
+`ConvertOverflow` lists what wouldn't fit, filling the new bag with junk
+last, so junk is what's left out first - the player is offered that to
+discard (and may pick other things). If keeping stacks where they were
+leaves something out, a fresh largest-first packing is tried too, and the one
+that leaves out less that isn't junk wins.
+
 
