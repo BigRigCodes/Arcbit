@@ -1,21 +1,21 @@
 // arcbit-loc - a game's localization against its content.
 //
-//   arcbit-loc check    --locales <dir>... --scan <path>... [--dialogs <dir>...]
-//       keys the content uses that English lacks and errors in dialog files
-//       (exit code 1 if any), dialog warnings, raw text in layouts,
+//   arcbit-loc check    --locales <dir>... --scan <path>... [--dialogs <dir>...] [--items <dir>...]
+//       keys the content uses that English lacks and errors in dialog and
+//       item files (exit code 1 if any), their warnings, raw text in layouts,
 //       translations English no longer has, English keys nothing uses, and
 //       each language's coverage
-//   arcbit-loc coverage --locales <dir>... [--dialogs <dir>...]
+//   arcbit-loc coverage --locales <dir>... [--dialogs <dir>...] [--items <dir>...]
 //       how much of English each language translates
-//   arcbit-loc template --locales <dir>... [--dialogs <dir>...] --out <file>
+//   arcbit-loc template --locales <dir>... [--dialogs <dir>...] [--items <dir>...] --out <file>
 //       a new language's starting file: every English key and its text
 //
-// Dialog files (--dialogs) bring their own English, so their lines count
-// everywhere a locale file's would.
+// Dialog files (--dialogs) and item files (--items) bring their own English,
+// so their lines and names count everywhere a locale file's would.
 //
 // The demo: arcbit-loc check --locales engine/assets/locale game/assets/locale
 //                            --scan engine/src engine/assets game/src game/assets
-//                            --dialogs game/assets/dialog
+//                            --dialogs game/assets/dialog --items game/assets/items
 
 #include <arcbit/core/Loc.h>
 #include <arcbit/core/LocCheck.h>
@@ -78,6 +78,10 @@ void PrintFindings(const LocCheck::Report& report)
     for (const auto& problem : report.Dialogs)
         std::printf("  %s %s: %s  (%s)\n", problem.Error ? "error  " : "warning", problem.Dialog.c_str(), problem.Message.c_str(),
                     problem.File.c_str());
+    std::printf("\nItem files (%zu)\n", report.Items.size());
+    for (const auto& issue : report.Items)
+        std::printf("  %s %s: %s  (%s)\n", issue.Error ? "error  " : "warning", issue.Item.c_str(), issue.Message.c_str(),
+                    issue.File.c_str());
     std::printf("\nRaw text in layouts (%zu)\n", report.RawText.size());
     for (const auto& raw : report.RawText) std::printf("  \"%s\"  (%s:%u)\n", raw.Text.c_str(), raw.File.c_str(), raw.Line);
     std::printf("\nTranslated, but English has no such key - moved or removed? (%zu)\n", report.Stale.size());
@@ -88,11 +92,12 @@ void PrintFindings(const LocCheck::Report& report)
 
 int RunCheck(const Options& options)
 {
-    const auto report = LocCheck::Check(List(options, "--locales"), List(options, "--scan"), List(options, "--dialogs"));
+    const auto report = LocCheck::Check(List(options, "--locales"), List(options, "--scan"), List(options, "--dialogs"),
+                                        List(options, "--items"));
     const bool check  = options.Command == "check";
     if (check) PrintFindings(report);
     PrintCoverage(report);
-    return check && (!report.Missing.empty() || report.HasDialogErrors()) ? 1 : 0;
+    return check && (!report.Missing.empty() || report.HasDialogErrors() || report.HasItemErrors()) ? 1 : 0;
 }
 
 int RunTemplate(const Options& options)
@@ -106,7 +111,7 @@ int RunTemplate(const Options& options)
         std::fprintf(stderr, "%s exists - not overwriting a translation\n", out[0].string().c_str());
         return 2;
     }
-    (void)LocCheck::Check(List(options, "--locales"), {}, List(options, "--dialogs"));
+    (void)LocCheck::Check(List(options, "--locales"), {}, List(options, "--dialogs"), List(options, "--items"));
     std::ofstream(out[0], std::ios::binary) << LocCheck::Template();
     std::printf("wrote %s\n", out[0].string().c_str());
     return 0;

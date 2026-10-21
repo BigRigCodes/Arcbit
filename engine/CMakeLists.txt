@@ -30,6 +30,7 @@ add_library(arcbit-engine STATIC
     src/Movement.cpp
     src/Scene.cpp
     src/PrefabLibrary.cpp
+    src/ItemLibrary.cpp
     src/SceneManager.cpp
     src/ScenePreloader.cpp
     src/SceneRegistry.cpp

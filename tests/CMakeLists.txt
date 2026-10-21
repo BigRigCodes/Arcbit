@@ -30,6 +30,7 @@ add_executable(arcbit-tests
     events/EventPayloadTests.cpp
     input/BindingUpdateTests.cpp
     input/InputManagerTests.cpp
+    items/ItemLibraryTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp
     physics/GeometryTests.cpp

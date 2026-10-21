@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arcbit/core/Types.h>
+#include <arcbit/items/Item.h>
 
 #include <filesystem>
 #include <span>
@@ -12,11 +13,11 @@
 // keys nothing uses, raw text in layouts, translations English no longer
 // has, each language's coverage, and the dialog files' problems.
 //
-// Dialog files (docs/dialog.md) carry their own English: it's loaded into
-// Loc like a locale file's, so dialog lines count in coverage and templates
-// and are used by their dialog.
+// Dialog files (docs/dialog.md) and item files (docs/items.md) carry their
+// own English: it's loaded into Loc like a locale file's, so dialog lines and
+// item names count in coverage and templates and are used by their file.
 //
-// Content is scanned as text: .arcui / .arcscene ("..._key" fields and
+// Content is scanned as text: .arcui / .arcscene / .arcprefab ("..._key" fields and
 // "..._keys" arrays, raw "text" / "label" / "placeholder"), .lua (Loc.Get /
 // Format / Has, TextKey =), .cpp / .h (Loc::Get / Format, SetTextKey /
 // SetLabelKey), and other .json (credits) for keys it mentions. A key counts
@@ -65,16 +66,19 @@ struct Report
     std::vector<Place>         RawText; // player text written into a layout instead of a key
     std::vector<StaleKey>      Stale;
     std::vector<DialogProblem> Dialogs;
+    std::vector<ItemIssue>     Items;
     std::vector<Coverage>      Languages;
 
     [[nodiscard]] bool HasDialogErrors() const;
+    [[nodiscard]] bool HasItemErrors() const;
 };
 
-// Load the locale folders and dialog folders (into Loc, replacing what it
+// Load the locale, dialog and item folders (into Loc, replacing what it
 // held) and check the content under the scan roots against them.
 [[nodiscard]] Report Check(std::span<const std::filesystem::path> localeFolders,
                            std::span<const std::filesystem::path> scanRoots,
-                           std::span<const std::filesystem::path> dialogFolders = {});
+                           std::span<const std::filesystem::path> dialogFolders = {},
+                           std::span<const std::filesystem::path> itemFolders   = {});
 
 // A starting file for translating into a new language: "$locale" with an
 // empty name, then every English key with its English text to replace.

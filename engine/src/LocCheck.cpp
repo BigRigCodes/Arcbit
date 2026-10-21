@@ -1,6 +1,7 @@
 #include <arcbit/core/LocCheck.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/dialog/DialogLibrary.h>
+#include <arcbit/items/ItemLibrary.h>
 
 #include <nlohmann/json.hpp>
 
@@ -16,6 +17,12 @@ namespace Arcbit::LocCheck
 {
 namespace
 {
+// Layouts, scenes and prefabs: JSON whose "..._key" fields name keys.
+bool IsContentJson(const std::string& extension)
+{
+    return extension == ".arcui" || extension == ".arcscene" || extension == ".arcprefab";
+}
+
 // The patterns that use a key, by file type; the key is the first group.
 const std::vector<std::regex>& UsePatterns(const std::string& extension)
 {
@@ -25,7 +32,7 @@ const std::vector<std::regex>& UsePatterns(const std::string& extension)
     static const std::vector<std::regex> cpp  = { std::regex(R"re(Loc::(?:Get|Format|Has)\(\s*"([^"]+)")re"),
                                                   std::regex(R"re(Set(?:Text|Label)Key\(\s*"([^"]+)")re") };
     static const std::vector<std::regex> none;
-    if (extension == ".arcui" || extension == ".arcscene") return json;
+    if (IsContentJson(extension)) return json;
     if (extension == ".lua") return lua;
     if (extension == ".cpp" || extension == ".h") return cpp;
     return none;
@@ -73,7 +80,7 @@ void ScanLine(const std::string& line, const std::string& file, const u32 number
     for (const std::regex& pattern : UsePatterns(extension))
         for (std::sregex_iterator it(line.begin(), line.end(), pattern), end; it != end; ++it) scan.Use((*it)[1].str(), file, number);
     for (std::sregex_iterator it(line.begin(), line.end(), DottedLiteral()), end; it != end; ++it) scan.Literals.insert((*it)[1].str());
-    if (extension != ".arcui" && extension != ".arcscene") return;
+    if (!IsContentJson(extension)) return;
     for (std::sregex_iterator it(line.begin(), line.end(), KeyArray()), end; it != end; ++it) {
         const std::string keys = (*it)[1].str();
         for (std::sregex_iterator key(keys.begin(), keys.end(), quoted), last; key != last; ++key) scan.Use((*key)[1].str(), file, number);
@@ -163,6 +170,27 @@ void CheckDialogs(const std::span<const std::filesystem::path> folders, Scan& sc
     }
 }
 
+// The item files: their English into Loc, their keys used (by them), their
+// problems into the report - and English a locale file replaces, noted.
+void CheckItems(const std::span<const std::filesystem::path> folders, Scan& scan, Report& report)
+{
+    std::map<std::string, std::string> fileEnglish;
+    for (auto& [key, text] : Loc::GetStrings(Loc::English)) fileEnglish.emplace(std::move(key), std::move(text));
+    ItemLibrary library;
+    library.LogIssues = false;
+    for (const auto& folder : folders) (void)library.AddFolder(folder);
+    report.Items = library.GetIssues();
+    for (const std::string& id : library.GetIds()) {
+        const ItemDef& item = *library.Find(id);
+        for (const auto& [key, text] : { std::pair{ item.NameKey, item.Name }, std::pair{ item.DescriptionKey, item.Description } }) {
+            scan.Literals.insert(key);
+            if (const auto it = fileEnglish.find(key); it != fileEnglish.end() && it->second != text && !text.empty())
+                report.Items.push_back({ id, library.GetFile(id).generic_string(), false,
+                                         std::format("'{}': the English locale files replace this text", key) });
+        }
+    }
+}
+
 // Translations English doesn't have (a language's own plural forms aside).
 std::vector<StaleKey> FindStale(const std::set<std::string>& english)
 {
@@ -181,15 +209,19 @@ bool Report::HasDialogErrors() const
     return std::ranges::any_of(Dialogs, &DialogProblem::Error);
 }
 
+bool Report::HasItemErrors() const { return std::ranges::any_of(Items, &ItemIssue::Error); }
+
 Report Check(const std::span<const std::filesystem::path> localeFolders,
              const std::span<const std::filesystem::path> scanRoots,
-             const std::span<const std::filesystem::path> dialogFolders)
+             const std::span<const std::filesystem::path> dialogFolders,
+             const std::span<const std::filesystem::path> itemFolders)
 {
     Loc::Clear();
     for (const auto& folder : localeFolders) Loc::AddFolder(folder);
     Report report;
     Scan   scan = ScanRoots(scanRoots, localeFolders);
     CheckDialogs(dialogFolders, scan, report);
+    CheckItems(itemFolders, scan, report);
     const std::vector<std::string> english = EnglishKeys();
     const std::set<std::string>    known(english.begin(), english.end());
 

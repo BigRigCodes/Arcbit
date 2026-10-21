@@ -466,6 +466,7 @@ void Application::Run()
             _scriptEngine.CheckReloads(); // edited scripts take effect without a restart
             Loc::CheckReloads();          // and edited locale files (text follows the generation)
             _dialogs.CheckReloads();      // and dialog files (a running one keeps the version it began with)
+            _items.CheckReloads();        // and item files
 #endif
             _hotReloadAccumulator -= 1.0;
         }

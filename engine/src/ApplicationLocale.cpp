@@ -9,6 +9,9 @@
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/GameSettingsScreen.h>
 
+#include <algorithm>
+#include <filesystem>
+
 namespace Arcbit
 {
 namespace
@@ -24,6 +27,7 @@ void Application::StartLanguage()
     Loc::AddFolder("assets/engine/locale");
     Loc::AddFolder(_config.LocaleFolder);
     _dialogs.AddFolder(_config.DialogFolder); // their English is strings too: in before the fonts bake them
+    LoadItems();                              // likewise
 #ifdef ARCBIT_DEBUG
     Loc::AddPseudoLocale(); // "qps": find unlocalized text and tight layouts
 #endif
@@ -35,6 +39,18 @@ void Application::StartLanguage()
 
     if (!Loc::SetLanguage(code)) LOG_WARN(Engine, "No locale strings for '{}'", code);
     ApplyLanguageFonts();
+}
+
+// The items, checked against the project's stack sizes and equipment slots.
+void Application::LoadItems()
+{
+    ItemLibrary::Rules& rules = _items.ItemRules;
+    rules.StackByType         = _config.Defaults.ItemStack;
+    rules.Stack               = _config.Defaults.ItemStackOther;
+    rules.AssetRoot           = std::filesystem::current_path();
+    for (const EquipmentSlot& slot : _config.Defaults.EquipmentSlots)
+        if (std::ranges::find(rules.SlotKinds, slot.Kind) == rules.SlotKinds.end()) rules.SlotKinds.push_back(slot.Kind);
+    (void)_items.AddFolder(_config.ItemFolder);
 }
 
 bool Application::SetLanguage(const std::string_view code)
