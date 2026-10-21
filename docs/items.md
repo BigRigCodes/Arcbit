@@ -11,6 +11,7 @@ the inventory screen build on these (Phase 29, in progress).
 - [Text and translation](#text-and-translation)
 - [Checks and reloading](#checks-and-reloading)
 - [From C++](#from-c)
+- [Inventories](#inventories)
 
 ---
 
@@ -125,3 +126,54 @@ Loc::Get(sword->NameKey); // its name in the player's language
 `ItemLibrary` reads the folders (`AddFolder`), checks them against its
 `ItemRules` (stack sizes, slot kinds, where icons are), and keeps every
 item's issues (`GetIssues`) for tools.
+
+---
+
+## Inventories
+
+An `Inventory` holds stacks of items (`ItemStack`: an item id and a count)
+and the rules of the kind of bag it is. A game picks a kind per inventory;
+the presets are starting points, and the rules mix freely:
+
+| Preset | Like | Rules |
+|--------|------|-------|
+| `InventoryRules::Pockets()` | Pokemon | one entry per item, up to its stack size; the screen shows a list per category |
+| `InventoryRules::Weight(max)` | Skyrim | one entry per item, any count (stack sizes ignored), a carry weight limit; category tabs filter it |
+| `{ .Slots = 20 }` | an old-school list | up to 20 entries; a full stack starts another |
+
+(Grid kinds - Minecraft's slots, and slots plus weight - come next.)
+
+| Rule | Meaning |
+|------|---------|
+| `Slots` | the most entries; 0 = no limit |
+| `OneEntryPerItem` | more of an item joins its entry instead of starting another |
+| `UnlimitedStacks` | counts ignore items' `stack` |
+| `MaxWeight` | carry weight; 0 = no limit |
+| `OverWeight` | `Refuse` (default): what would go over isn't taken; `Allow`: it is, and `IsOverWeight()` says so (encumbered) |
+| `QuickSlots` | how many quick slots (below) |
+
+```cpp
+Inventory bag(app.GetItems(), InventoryRules::Pockets());
+const u32 added = bag.Add("potion", 5);   // as many as fit: its stacks first, then a new entry
+bag.Remove("potion", 2);                  // newest stacks first
+if (bag.Has("cellar_key")) ...
+```
+
+- **Adding** takes as many as fit and says how many (`Room` asks without
+  adding): slots, stack sizes and carry weight can each stop it partway.
+  An id that isn't an item is refused, logged.
+- **Arranging**: `Move` an entry to another place, `Split` some off into a
+  new entry after it (not with one entry per item), `Merge` one entry into
+  another of the same item, `RemoveAt` from one entry.
+- **Sorting** (`Sort`) by name (in the player's language), type, category,
+  value, weight, count or recent, either way; `junk` items always sort last,
+  and ties go by name.
+- **Filtering** (`Filter`) keeps entries by category, type, tag or text in
+  the name (any case), returning their indices in order.
+- **Quick slots** are references to items, not the items: a slot keeps its
+  item while the bag has none and shows 0 (`SetQuickSlot`, `GetQuickSlots`).
+- **Changes** reach `OnChange(item, delta)`.
+- **Saving**: `ToJson` / `FromJson` write the stacks, quick slots and the
+  bag's own rules (a bag the player upgraded stays upgraded); a saved stack
+  of an item that no longer exists is dropped, logged.
+
