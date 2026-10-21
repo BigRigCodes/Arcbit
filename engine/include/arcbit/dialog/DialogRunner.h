@@ -4,6 +4,7 @@
 #include <arcbit/dialog/Dialog.h>
 
 #include <functional>
+#include <optional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,10 +17,15 @@ class EventBus;
 class SaveData;
 
 // What a running dialog reads and changes: the game's SaveData (conditions,
-// set / add, {placeholders}), the event bus ("event"), and Lua ("lua" in an
-// "if" is Test, as an action Run; "call" is Call). Any can be left unset:
-// without Data every key reads as missing; a "lua" condition without Test
-// fails and an action without its hook is skipped (both logged).
+// set / add, {placeholders}), the event bus ("event"), Lua ("lua" in an "if"
+// is Test, as an action Run; "call" is Call) and the party's items ("has",
+// "give", "take"). Any can be left unset: without Data every key reads as
+// missing; a "lua" condition or "has" without its hook fails and an action
+// without its hook is skipped (all logged).
+//
+// Read and AddTo come first for the keys the game keeps elsewhere - a
+// currency carried as an item, `count.potion` - and fall back to SaveData
+// (nullopt / false) for the rest.
 struct DialogHost
 {
     SaveData*                               Data   = nullptr;
@@ -28,6 +34,11 @@ struct DialogHost
     std::function<void(std::string_view)>   Run;
     std::function<void(std::string_view)>   Call;
     std::vector<LocArg>                     Args; // more placeholders, ahead of SaveData's: {player}
+
+    std::function<u32(std::string_view item)>             CountItem;  // "has"
+    std::function<u32(std::string_view item, i64 change)> ChangeItem; // "give" (+) / "take" (-): how many moved
+    std::function<std::optional<SaveValue>(std::string_view key)>           Read;
+    std::function<bool(std::string_view key, const SaveValue& delta)>       AddTo;
 };
 
 // ---------------------------------------------------------------------------
@@ -112,6 +123,7 @@ private:
     void Walk();
     void Follow(const std::string& go);
     void Act(const DialogActions& actions);
+    void ActItems(const DialogActions& actions);
     void ShowLine(const DialogStep& step);
     void FillLine(const DialogStep& step);
     bool OfferChoice(const DialogStep& step);

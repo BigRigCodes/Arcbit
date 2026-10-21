@@ -17,10 +17,10 @@ using Json = nlohmann::ordered_json;
 namespace
 {
 // The fields a step may have, beyond the ones its kind adds.
-constexpr std::array StepFields   = { "if", "goto", "set", "add", "event", "lua", "call", "id", "key" };
+constexpr std::array StepFields   = { "if", "goto", "set", "add", "event", "lua", "call", "give", "take", "id", "key" };
 constexpr std::array SayFields    = { "say", "speaker", "portrait" };
-constexpr std::array OptionFields = { "id", "key", "text", "if", "goto", "set", "add", "event", "lua", "call", "cancel" };
-constexpr std::array ArmFields    = { "if", "goto", "set", "add", "event", "lua", "call" };
+constexpr std::array OptionFields = { "id", "key", "text", "if", "goto", "set", "add", "event", "lua", "call", "give", "take", "cancel" };
+constexpr std::array ArmFields    = { "if", "goto", "set", "add", "event", "lua", "call", "give", "take" };
 constexpr std::array TopFields    = { "speaker", "speakers", "start", "world", "cancelable", "nodes" };
 
 template<size_t N>
@@ -64,6 +64,7 @@ struct Parser
     DialogCondition          ReadCondition(const Json& j, const std::string& where);
     void                     ReadTest(const std::string& key, const Json& j, DialogCondition& out, const std::string& where);
     void                     ReadActions(const Json& j, DialogActions& out, const std::string& where);
+    void                     ReadItems(const Json& j, DialogItems& out, const std::string& where);
     void                     ReadPairs(const Json& j, std::vector<std::pair<std::string, SaveValue>>& out, bool numbers,
                                        const std::string& where);
     std::string              MakeKey(const Json& j, const std::string& node, u32& counter, const std::string& where);
@@ -130,6 +131,7 @@ DialogCondition Parser::ReadCondition(const Json& j, const std::string& where)
             else Error("{}: \"lua\" must be a string", where);
         }
         else if (key == "not") out.Not.push_back(ReadCondition(value, where + " not"));
+        else if (key == "has") ReadItems(value, out.Has, where + " has");
         else if (key == "any") {
             if (!value.is_array()) Error("{}: \"any\" must be a list of conditions", where);
             else for (const Json& c : value) out.Any.push_back(ReadCondition(c, where + " any"));
@@ -165,11 +167,29 @@ void Parser::ReadActions(const Json& j, DialogActions& out, const std::string& w
         }
         else Error("{}: \"event\" must be a name or {{ \"name\", \"payload\" }}", where);
     }
+    if (const auto it = j.find("give"); it != j.end()) ReadItems(*it, out.Give, where + " give");
+    if (const auto it = j.find("take"); it != j.end()) ReadItems(*it, out.Take, where + " take");
     for (const auto& [field, target] : { std::pair{ "lua", &out.Lua }, std::pair{ "call", &out.Call } })
         if (const auto it = j.find(field); it != j.end()) {
             if (it->is_string()) *target = it->get<std::string>();
             else Error("{}: \"{}\" must be a string", where, field);
         }
+}
+
+// { "potion": 2, "cellar_key": 1 }, or a list of items, one of each.
+void Parser::ReadItems(const Json& j, DialogItems& out, const std::string& where)
+{
+    if (j.is_array()) {
+        for (const Json& item : j)
+            if (item.is_string()) out.emplace_back(item.get<std::string>(), 1);
+            else Error("{}: a list of items must hold their ids", where);
+        return;
+    }
+    if (!j.is_object()) return Error("{} must be {{ item: count }} or a list of items", where);
+    for (const auto& [item, count] : j.items()) {
+        if (count.is_number_unsigned() && count.get<u32>() > 0) out.emplace_back(item, count.get<u32>());
+        else Error("{}: '{}' needs a count of 1 or more", where, item);
+    }
 }
 
 // An explicit "key"; else dialog.<id>.<node>.<id>; else the node's next number.

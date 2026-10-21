@@ -50,16 +50,21 @@ struct DialogTest
     SaveValue     Value;
 };
 
-// An "if": every test holds, at least one of Any (when there are any), none
-// of Not, and the Lua expression is true (when there is one).
+// Items and how many, for "has", "give" and "take".
+using DialogItems = std::vector<std::pair<std::string, u32>>;
+
+// An "if": every test holds, the party has every item in Has, at least one
+// of Any (when there are any), none of Not, and the Lua expression is true
+// (when there is one).
 struct DialogCondition
 {
     std::vector<DialogTest>      All;
+    DialogItems                  Has;
     std::vector<DialogCondition> Any;
     std::vector<DialogCondition> Not;
     std::string                  Lua;
 
-    [[nodiscard]] bool IsEmpty() const { return All.empty() && Any.empty() && Not.empty() && Lua.empty(); }
+    [[nodiscard]] bool IsEmpty() const { return All.empty() && Has.empty() && Any.empty() && Not.empty() && Lua.empty(); }
 };
 
 // What a step or an option does when it runs, in this order.
@@ -71,10 +76,12 @@ struct DialogActions
     std::vector<std::pair<std::string, SaveValue>> Payload;
     std::string                                    Lua;   // a statement
     std::string                                    Call;  // a method on the speaker entity's script
+    DialogItems                                    Give;  // into the party's bag
+    DialogItems                                    Take;  // out of it
 
     [[nodiscard]] bool IsEmpty() const
     {
-        return Set.empty() && Add.empty() && Event.empty() && Lua.empty() && Call.empty();
+        return Set.empty() && Add.empty() && Event.empty() && Lua.empty() && Call.empty() && Give.empty() && Take.empty();
     }
 };
 

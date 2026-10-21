@@ -96,14 +96,34 @@ std::vector<std::string_view> PlaceholderNames(const std::string_view text)
     }
     return names;
 }
+
+// A key's value: the host's own first (Read), else SaveData's.
+std::optional<SaveValue> ValueOf(const DialogHost& host, const std::string_view key)
+{
+    if (host.Read)
+        if (std::optional<SaveValue> value = host.Read(key)) return value;
+    const SaveValue* saved = host.Data ? host.Data->Find(std::string(key)) : nullptr;
+    return saved ? std::optional<SaveValue>(*saved) : std::nullopt;
+}
+
+bool HasItems(const DialogItems& items, const DialogHost& host)
+{
+    if (items.empty()) return true;
+    if (!host.CountItem) {
+        LOG_WARN(Engine, "Dialog: nothing to count items with - \"has\" fails");
+        return false;
+    }
+    return std::ranges::all_of(items, [&host](const auto& item) { return host.CountItem(item.first) >= item.second; });
+}
 } // namespace
 
 bool DialogRunner::Holds(const DialogCondition& condition, const DialogHost& host)
 {
     for (const DialogTest& test : condition.All) {
-        const SaveValue* value = host.Data ? host.Data->Find(test.Key) : nullptr;
+        const std::optional<SaveValue> value = ValueOf(host, test.Key);
         if (!Compare(value ? *value : Zero(test.Value), test.Op, test.Value)) return false;
     }
+    if (!HasItems(condition.Has, host)) return false;
     const auto holds = [&host](const DialogCondition& c) { return Holds(c, host); };
     if (!condition.Any.empty() && std::ranges::none_of(condition.Any, holds)) return false;
     if (std::ranges::any_of(condition.Not, holds)) return false;
@@ -243,9 +263,11 @@ void DialogRunner::Act(const DialogActions& actions)
     if (actions.IsEmpty()) return;
     if (_host.Data) {
         for (const auto& [key, value] : actions.Set) _host.Data->Set(key, value);
-        for (const auto& [key, delta] : actions.Add) Add(*_host.Data, key, delta);
+        for (const auto& [key, delta] : actions.Add)
+            if (!_host.AddTo || !_host.AddTo(key, delta)) Add(*_host.Data, key, delta);
     }
     else if (!actions.Set.empty() || !actions.Add.empty()) LOG_WARN(Engine, "Dialog '{}': no SaveData to set", _dialog->Id);
+    ActItems(actions);
     if (!actions.Event.empty()) {
         EventPayload payload;
         for (const auto& [name, value] : actions.Payload)
@@ -261,6 +283,17 @@ void DialogRunner::Act(const DialogActions& actions)
         if (_host.Call) _host.Call(actions.Call);
         else LOG_WARN(Engine, "Dialog '{}': nothing to call '{}' on", _dialog->Id, actions.Call);
     }
+}
+
+void DialogRunner::ActItems(const DialogActions& actions)
+{
+    if (actions.Give.empty() && actions.Take.empty()) return;
+    if (!_host.ChangeItem) {
+        LOG_WARN(Engine, "Dialog '{}': no bag to give or take items", _dialog->Id);
+        return;
+    }
+    for (const auto& [item, count] : actions.Give) (void)_host.ChangeItem(item, count);
+    for (const auto& [item, count] : actions.Take) (void)_host.ChangeItem(item, -static_cast<i64>(count));
 }
 
 void DialogRunner::ShowLine(const DialogStep& step)
@@ -310,7 +343,7 @@ std::string DialogRunner::Text(const std::string& key) const
     std::vector<LocArg> args = _host.Args;
     for (const std::string_view name : PlaceholderNames(Loc::Get(key))) {
         if (std::ranges::find(args, name, &LocArg::Name) != args.end()) continue;
-        const SaveValue* value = _host.Data ? _host.Data->Find(name) : nullptr;
+        const std::optional<SaveValue> value = ValueOf(_host, name);
         args.push_back(value ? ToArg(name, *value) : LocArg(name, i64{ 0 }));
     }
     return Loc::Format(key, args);
