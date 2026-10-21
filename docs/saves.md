@@ -52,13 +52,14 @@ One JSON document - sealed in release builds, plain while developing:
     "sections": {
         "world":     { "scenes": { "Village": { ... } } }, // every visited scene's changes
         "scenes":    { "stack": [ { "name": "Village", "entry": "north_gate" } ] },
-        "inventory": { ... }                               // a game participant
+        "inventories": { "party": { ... } },               // the game's bags (docs/items.md)
+        "quests": { ... }                                  // a game participant
     }
 }
 ```
 
-`world` and `scenes` are the engine's own sections; don't register
-participants under those names.
+`world`, `scenes` and `inventories` are the engine's own sections; don't
+register participants under those names.
 
 ---
 
@@ -142,15 +143,15 @@ Scripts read and write the same store (`Save.Get` / `Save.Set`,
 [scripting.md](scripting.md)), and dialog conditions and actions test and
 change it ([dialog.md](dialog.md)).
 
-**Participants** are systems with structured state of their own (an
-inventory, a quest log). Each registers write / read callbacks and gets its
-own section:
+**Participants** are systems with structured state of their own (a quest
+log; the engine's bags are one too). Each registers write / read callbacks
+and gets its own section:
 
 ```cpp
 GetSaves().RegisterParticipant(
-    "inventory",
-    [this](nlohmann::json& section) { section = _inventory.ToJson(); },
-    [this](const nlohmann::json& section) { _inventory.FromJson(section); });
+    "quests",
+    [this](nlohmann::json& section) { section = _quests.ToJson(); },
+    [this](const nlohmann::json& section) { _quests.FromJson(section); });
 ```
 
 A participant added after a save was made reads an empty object from it.

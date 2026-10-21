@@ -187,6 +187,14 @@ Subscriptions end with the script that made them.
 | `Dialog.Start(id)`, `Dialog.Start(id, { Node = "greet", With = npc, By = player })` | start a conversation ([dialog.md](dialog.md)); from an entity's hook, `With` defaults to that entity. False if there's no such dialog; one started while another runs waits its turn |
 | `Dialog.IsActive()`, `Dialog.Stop()` | whether one is running; end it now (and drop any waiting) |
 
+### Items, Inventory, Currency
+
+| | |
+|---|---|
+| `Items.Get(id)` | an item's definition and its name in the player's language ([items.md](items.md#in-dialogs-scripts-and-the-console)) |
+| `Inventory.Add / Remove / Count / Has / Get` | the game's bags, the party's unless named |
+| `Currency.Get / Add / Spend` | the game's currencies, counters or items |
+
 ### Loc
 
 Player-visible text belongs in the locale files as keys, so it's shown in the
@@ -323,6 +331,8 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `loc.missing [code]` | the English keys a language has no string for |
 | `screenshot` | save the screen (closing the console first) as a PNG in the user folder's `screenshots/` - also `Application::Screenshot()` |
 | `dialog [id] [node]` | list the dialogs, or start one - cheat |
+| `give <item> [count] [bag]`, `take ...` | items or currencies into / out of a bag - cheat |
+| `items [bag]` | what a bag holds, and the currencies |
 | `spawn [prefab] [x y]` | list the prefabs, or place one (at the camera, or x y) - cheat |
 | `quit` | |
 

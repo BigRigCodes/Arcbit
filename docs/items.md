@@ -13,6 +13,10 @@ the inventory screen build on these (Phase 29, in progress).
 - [From C++](#from-c)
 - [Inventories](#inventories)
   - [Grids](#grids), [Changing bags](#changing-bags)
+- [The game's bags](#the-games-bags)
+- [Containers](#containers)
+- [Currencies](#currencies)
+- [In dialogs, scripts and the console](#in-dialogs-scripts-and-the-console)
 
 ---
 
@@ -232,4 +236,89 @@ discard (and may pick other things). If keeping stacks where they were
 leaves something out, a fresh largest-first packing is tried too, and the one
 that leaves out less that isn't junk wins.
 
+---
+
+## The game's bags
+
+The party's things are game state, like `SaveData` - not part of any scene
+(every scene builds its own player entity). `Application::GetInventories()`
+holds the game's bags by name: **`party`**, the party's shared bag, exists from
+the start with the project's kind (`ApplicationConfig::Defaults.PartyBag`,
+pockets by default); a game adds its own (`Create("stash", rules)`, or
+`AddStarting` for one every new game begins with).
+
+They're saved as the save's `inventories` section - every bag, its rules and
+its stacks ([saves.md](saves.md)). A new game starts them over: empty, with
+the rules they began with. Every change to a bag publishes
+`engine.item.added` / `engine.item.removed` (`bag`, `item`, `count`).
+
+---
+
+## Containers
+
+A scene entity that holds items - a chest, a crate - has a `Container`: its own
+bag, saved with the scene's state like any component (make it `Persistent`).
+
+```json
+"chest": {
+    "Container": { "items": { "potion": 2, "cellar_key": 1 },
+                   "rules": { "kind": "list", "slots": 8 }, "open": "take_all" }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `items` | its contents, `{ id: count }`, in that order |
+| `rules` | the kind of bag (an `InventoryRules` as JSON: `kind`, `slots`, `one_entry_per_item`, `max_weight`, `width` / `height`...); default a plain list |
+| `open` | `transfer` (the transfer screen, the bag beside it) or `take_all` (everything into the party's bag at once); default the project's `Defaults.ContainerOpen` (transfer) |
+| `loot` | a loot table it rolls the first time it's opened (later) |
+
+Saves write a container as `stacks` (what it holds now) rather than `items`.
+
+---
+
+## Currencies
+
+The project lists the game's currencies (`Defaults.Currencies`; `gold` by
+default). Each is either:
+
+- **a counter** in the save data (the default) - `"gold"`, as dialogs and
+  `Save.Get` have always seen it; or
+- **an item** (`{ .Id = "coin", .Item = true }`) - stacks of the item with
+  that id in a bag (the party's, or `Bag`), carried, dropped and lost like any
+  item.
+
+`Application::GetCurrencies()` reads and pays them the same way whichever
+kind: `Get`, `Add` (as much as can be - a counter never goes below 0, an item
+only what fits) and `Spend` (all or nothing). Changes made through it publish
+`engine.currency.changed` (`currency`, `amount`, `change`).
+
+---
+
+## In dialogs, scripts and the console
+
+**Dialogs** ([dialog.md](dialog.md)) check and change the party's bag:
+
+```json
+{ "id": "buy", "text": "A potion. (5 gold)", "if": { "gold": [">=", 5], "has": ["cellar_key"] },
+  "add": { "gold": -5 }, "give": { "potion": 2 } }
+```
+
+`"has"` in an `"if"` (`{ "potion": 2 }` or a list of ids, one each), and the
+actions `"give"` and `"take"`. Currencies work in conditions, `"add"` and
+`{gold}` placeholders whichever kind they are; `{count.potion}` is how many
+the party carries.
+
+**Lua** ([scripting.md](scripting.md)):
+
+| | |
+|---|---|
+| `Items.Get("potion")` | the item: `Id`, `Name` and `Description` (in the player's language), `Type`, `Category`, `Tags`, `Stack`, `Weight`, `Value`, `Slot`; nil if there's none |
+| `Inventory.Add(item, count, bag)` | adds as many as fit, returns how many (bag optional: the party's) |
+| `Inventory.Remove(item, count, bag)`, `Inventory.Count(item, bag)`, `Inventory.Has(item, count, bag)` | |
+| `Inventory.Get(bag)` | `{ { Item = "potion", Count = 2 }, ... }` |
+| `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
+
+**Console** (cheats): `give <item | currency> [count] [bag]`, `take <item |
+currency> [count] [bag]`; `items [bag]` lists a bag and the currencies.
 

@@ -114,6 +114,11 @@ game and visible to scripts (`Save.Get`).
   or `""` - so flags need no setup.
 - `any` holds if one of its conditions does; `not` if none of its do; `lua`
   if the Lua expression is true.
+- `has` holds if the party carries the items: `"has": { "potion": 2 }`, or
+  a list of ids (one of each) - [items.md](items.md).
+- A currency ([items.md](items.md#currencies)) is tested by its id whether
+  it's a counter or carried as an item; `count.potion` is how many potions
+  the party carries (in tests and `{placeholders}` alike).
 
 **Actions** run when a line shows, a choice is offered, or an option is
 picked:
@@ -125,6 +130,10 @@ picked:
 | `"event": "quest.map_bought"` or `{ "name": ..., "payload": { ... } }` | publishes a game event ([events.md](events.md)) |
 | `"lua": "Save.Set('trust', Save.Get('trust', 0) + 1)"` | runs a Lua statement |
 | `"call": "Wave"` | calls `self:Wave()` on the script of the entity being talked to |
+| `"give": { "potion": 2 }` / `"take": ["cellar_key"]` | puts items in the party's bag / takes them out ([items.md](items.md)) |
+
+`"add"` on a currency goes through the game's currencies, so it works the
+same when the currency is carried as an item.
 
 Dialog Lua runs in an environment of its own, with the full engine API
 ([scripting.md](scripting.md)); globals it sets last between conversations. An

@@ -146,6 +146,8 @@ their names.
 | `engine.scene.suspended` | `name` | a scene was pushed over (it's paused) |
 | `engine.scene.resumed` | `name` | the scene above was popped and this one is active again |
 | `engine.input.device_changed` | `device`: `"keyboard_mouse"` / `"gamepad"` | the player used a different kind of device - swap button hints |
+| `engine.item.added`, `engine.item.removed` | `bag`, `item`, `count` | a game bag gained / lost items ([items.md](items.md#the-games-bags)) |
+| `engine.currency.changed` | `currency`, `amount` (now), `change` | a currency changed through the game's currencies ([items.md](items.md#currencies)) |
 | `engine.input.bindings_updated` | `count`, `text` (the notice's lines) | an update placed new or reset actions among the player's bindings, once the boot is done ([input.md](input.md#across-game-updates)) |
 | `engine.window.focus_changed` | `focused` | the window gained or lost focus (pause on alt-tab) |
 | `engine.window.resized` | `size` (`Vec2`) | the window's size changed |
