@@ -143,5 +143,20 @@
   "dialog.elder.farewell.farewell": "Bon voyage, voyageur.",
   "dialog.guard.speaker.guard": "Garde du village",
   "dialog.guard.start.halt": "Halte ! Les étrangers restent sur la route.<pause=0.3> Parle d'abord à l'ancienne.",
-  "dialog.guard.friendly.friendly": "L'ancienne dit du bien de toi. Passe librement."
+  "dialog.guard.friendly.friendly": "L'ancienne dit du bien de toi. Passe librement.",
+
+  "items.potion.name": "Potion",
+  "items.potion.description": "Rend 50 PV.",
+  "items.hi_potion.name": "Super Potion",
+  "items.hi_potion.description": "Rend 150 PV.",
+  "items.iron_sword.name": "Épée en fer",
+  "items.iron_sword.description": "Simple, lourde et fiable.",
+  "items.leather_cap.name": "Bonnet de cuir",
+  "items.leather_cap.description": "Mieux que rien.",
+  "items.cellar_key.name": "Clé de la cave",
+  "items.cellar_key.description": "Ouvre la porte près de la route.",
+  "items.coast_map.name": "Carte de la côte",
+  "items.coast_map.description": "Annotée de la main de l'ancienne : prenez garde aux falaises à l'est.",
+  "items.old_boot.name": "Vieille botte",
+  "items.old_boot.description": "Une seule botte. L'autre a disparu depuis longtemps."
 }

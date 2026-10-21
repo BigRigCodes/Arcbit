@@ -143,10 +143,12 @@ TEST_CASE("The engine and the demos use only keys English has, and translate the
     const std::filesystem::path content[] = { ArcbitTests::SourcePath("engine/src"), ArcbitTests::SourcePath("engine/assets"),
                                               ArcbitTests::SourcePath("game/src"), ArcbitTests::SourcePath("game/assets") };
     const std::filesystem::path dialogs[] = { ArcbitTests::SourcePath("game/assets/dialog") };
-    const LocCheck::Report      report    = LocCheck::Check(locales, content, dialogs);
+    const std::filesystem::path items[]   = { ArcbitTests::SourcePath("game/assets/items") };
+    const LocCheck::Report      report    = LocCheck::Check(locales, content, dialogs, items);
     for (const auto& use : report.Missing) FAIL_CHECK(use.Text << " (" << use.File << ":" << use.Line << ") isn't in English");
     for (const auto& raw : report.RawText) FAIL_CHECK("raw text \"" << raw.Text << "\" in " << raw.File << ":" << raw.Line);
     for (const auto& problem : report.Dialogs) FAIL_CHECK("dialog " << problem.Dialog << ": " << problem.Message);
+    for (const auto& issue : report.Items) FAIL_CHECK("item " << issue.Item << ": " << issue.Message);
     for (const auto& stale : report.Stale) FAIL_CHECK(stale.Code << " translates " << stale.Key << ", which English lacks");
     for (const auto& language : report.Languages) CHECK(language.Translated == language.Total);
 }

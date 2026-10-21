@@ -1,0 +1,35 @@
+{
+    // The demo's items (docs/items.md). Icons come with the inventory art.
+    "potion": {
+        "name": "Potion", "description": "Restores 50 HP.",
+        "type": "consumable", "category": "medicine", "weight": 0.5, "value": 25,
+        "use": { "stats": { "HP": 50 } }
+    },
+    "hi_potion": {
+        "extends": "potion",
+        "name": "Hi-Potion", "description": "Restores 150 HP.", "value": 80,
+        "use": { "stats": { "HP": 150 } }
+    },
+    "iron_sword": {
+        "name": "Iron Sword", "description": "Plain, heavy and dependable.",
+        "type": "equipment", "slot": "weapon", "category": "weapons",
+        "size": [1, 2], "weight": 6, "value": 120, "stats": { "ATK": 5 }
+    },
+    "leather_cap": {
+        "name": "Leather Cap", "description": "Better than nothing.",
+        "type": "equipment", "slot": "head", "category": "armor",
+        "weight": 1, "value": 40, "stats": { "DEF": 2 }
+    },
+    "cellar_key": {
+        "name": "Cellar Key", "description": "Opens the door by the road.",
+        "type": "key"
+    },
+    "coast_map": {
+        "name": "Map of the Coast", "description": "Marked in the elder's hand: mind the cliffs to the east.",
+        "type": "key"
+    },
+    "old_boot": {
+        "name": "Old Boot", "description": "One boot. The other one is long gone.",
+        "category": "junk", "tags": ["junk"], "weight": 1.5, "value": 1
+    }
+}

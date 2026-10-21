@@ -148,5 +148,20 @@
   "dialog.elder.farewell.farewell": "気をつけて行くのじゃよ、旅の人。",
   "dialog.guard.speaker.guard": "村の衛兵",
   "dialog.guard.start.halt": "止まれ！よそ者は道から外れるな。<pause=0.3>まずは長老と話せ。",
-  "dialog.guard.friendly.friendly": "長老がおまえを褒めていたぞ。通ってよし。"
+  "dialog.guard.friendly.friendly": "長老がおまえを褒めていたぞ。通ってよし。",
+
+  "items.potion.name": "ポーション",
+  "items.potion.description": "HPを50回復する。",
+  "items.hi_potion.name": "ハイポーション",
+  "items.hi_potion.description": "HPを150回復する。",
+  "items.iron_sword.name": "鉄の剣",
+  "items.iron_sword.description": "飾り気はないが、重く頼もしい。",
+  "items.leather_cap.name": "革の帽子",
+  "items.leather_cap.description": "ないよりはまし。",
+  "items.cellar_key.name": "地下室の鍵",
+  "items.cellar_key.description": "道のそばの扉を開ける。",
+  "items.coast_map.name": "海岸の地図",
+  "items.coast_map.description": "長老の手で書き込みがある。東の崖に注意。",
+  "items.old_boot.name": "古いブーツ",
+  "items.old_boot.description": "片方だけのブーツ。もう片方はとうになくした。"
 }
