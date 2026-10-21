@@ -30,7 +30,7 @@
             "if": { "elder.map": false, "gold": ["<", 5] }, "goto": "poor" },
           { "id": "blessing", "text": "Your blessing, Elder.",
             "if": { "elder.blessed": false }, "goto": "blessing" },
-          { "id": "bye", "text": "Nothing. Goodbye.", "goto": "farewell" }
+          { "id": "bye", "text": "Nothing. Goodbye.", "cancel": true, "goto": "farewell" }
       ] }
     ],
     "map": [

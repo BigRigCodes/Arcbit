@@ -535,7 +535,7 @@ public:
     std::string              Current;
     f32                      Position = 0.0f;
 
-    void Play(const std::string_view path, bool, f32, const f32 startSeconds) override
+    void Play(const std::string_view path, bool, f32, const f32 startSeconds, std::string_view) override
     {
         if (path == Current) return;
         Current = std::string(path);

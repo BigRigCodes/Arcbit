@@ -64,7 +64,7 @@ TEST_CASE("Well-known sections round-trip through the file", "[settings]")
     Settings::Graphics.ResolutionWidth = 2560;
     Settings::Graphics.FpsLimit        = 144;
     Settings::Graphics.ShowDebugInfo   = true;
-    Settings::Audio.MusicVolume        = 0.25f;
+    Settings::Audio.Volumes["music"]   = 0.25f;
     Settings::MarkDirty();
     Settings::Flush();
     CHECK_FALSE(Settings::IsDirty());
@@ -76,7 +76,18 @@ TEST_CASE("Well-known sections round-trip through the file", "[settings]")
     CHECK(Settings::Graphics.ResolutionWidth == 2560);
     CHECK(Settings::Graphics.FpsLimit == 144);
     CHECK(Settings::Graphics.ShowDebugInfo);
-    CHECK(Settings::Audio.MusicVolume == 0.25f);
+    CHECK(Settings::Audio.Volume("music") == 0.25f);
+    CHECK(Settings::Audio.Volume("voice") == 1.0f); // not set: full
+}
+
+TEST_CASE("An older settings file's three volumes read into the categories", "[settings]")
+{
+    SettingsScope scope;
+    Settings::Audio = AudioSettings{};
+    Settings::Init(scope.Dir().Write("settings.json", R"({ "audio": { "master_volume": 0.8, "music_volume": 0.5, "sfx_volume": 0.4 } })"));
+    CHECK(Settings::Audio.Volume("master") == 0.8f);
+    CHECK(Settings::Audio.Volume("music") == 0.5f);
+    CHECK(Settings::Audio.Volume("sfx") == 0.4f);
 }
 
 TEST_CASE("Custom values round-trip with their types", "[settings]")
@@ -254,8 +265,8 @@ TEST_CASE("Floats are written as the number they show, volumes to four decimals"
     Settings::Init(scope.Path());
     f32 drifted = 1.0f;
     for (int i = 0; i < 8; ++i) drifted -= 0.1f; // 0.19999993f, not 0.2f
-    Settings::Audio.MusicVolume = drifted;
-    Settings::Audio.SfxVolume   = 0.3f;
+    Settings::Audio.Volumes["music"] = drifted;
+    Settings::Audio.Volumes["sfx"]   = 0.3f;
     Settings::Set<f32>("game.speed", 0.1f);
     Settings::MarkDirty();
     Settings::Flush();
@@ -263,12 +274,12 @@ TEST_CASE("Floats are written as the number they show, volumes to four decimals"
     std::ifstream     in(scope.Path());
     std::stringstream text;
     text << in.rdbuf();
-    CHECK(text.str().find("\"music_volume\": 0.2,") != std::string::npos);
-    CHECK(text.str().find("\"sfx_volume\": 0.3") != std::string::npos);
+    CHECK(text.str().find("\"music\": 0.2,") != std::string::npos);
+    CHECK(text.str().find("\"sfx\": 0.3") != std::string::npos);
     CHECK(text.str().find("\"game.speed\": 0.1") != std::string::npos);
     CHECK(text.str().find("0000") == std::string::npos); // no 0.30000001192092896
 
     Settings::Init(scope.Path());
-    CHECK(Settings::Audio.SfxVolume == 0.3f);
+    CHECK(Settings::Audio.Volume("sfx") == 0.3f);
     CHECK(Settings::Get<f32>("game.speed") == 0.1f);
 }

@@ -96,7 +96,7 @@ Checkbox list of every major milestone. Check off items as they are completed.
 - [x] Audio settings: master volume, music volume, SFX volume
 - [x] Input settings: persist action→binding map from Phase 9; apply on load
 - [x] `Settings::Get<T>` / `Set<T>` typed accessors with dirty-flag auto-save
-- [ ] **Bindings across game updates** - today `SaveInputBindings` writes every action's bindings and `LoadInputBindings` replaces the code's defaults with them, with no record of what the player chose. The rules, keeping what the player is used to:
+- [x] **Bindings across game updates** - today `SaveInputBindings` writes every action's bindings and `LoadInputBindings` replaces the code's defaults with them, with no record of what the player chose. Done - `MergeBindings`, the notice (`Defaults.BindingNotice`), `Settings::ResetBindingOnUpdate`; see `docs/input.md`. The rules, keeping what the player is used to:
   - Existing actions keep their current binding - rebound or not - even if the game's default for them changed
   - A new action gets its default if the key is free. If an action that kept its old key holds it, and that action's new default is free, the new action takes that one: an update moving Interact E -> F and giving Melee E leaves Interact on E and puts Melee on F. Otherwise the new action stays unbound
   - A one-time notice after the update lists what's new and where it landed ("New: Melee is F (E is your Interact)", "Melee has no key yet - set it in Controls")
@@ -205,9 +205,9 @@ define *how* it gets there. Any controller pairs with any style.
 - [ ] Loudness guidance for game assets (e.g. music around -24 to -26 LUFS, SFX peaks below -3 dBFS), checked by `arcbit-pack` at import (Phase 36)
 
 **Revisit: audio categories** - beyond the fixed master / music / SFX
-- [ ] Game-defined audio categories (buses): a game declares its own - menu music, game music, combat music, ambience, voice, UI - each with its own player-facing volume slider, persisted in settings like the built-in three. Lets a player keep menu music at 70 but in-game music at 40
-- [ ] Categories nest under a parent (combat music under music under master), so one slider can still turn a whole group down; the settings screen lists whatever categories the game defines
-- [ ] Every sound names its category: `PlayOneShot`, `AudioSource`, `Scene::SetMusic` / the `.arcscene` `"music"` key, UI skin sounds; music crossfades stay per category
+- [x] Game-defined audio categories (buses): a game declares its own - menu music, game music, combat music, ambience, voice, UI - each with its own player-facing volume slider, persisted in settings like the built-in three. Lets a player keep menu music at 70 but in-game music at 40
+- [x] Categories nest under a parent (combat music under music under master), so one slider can still turn a whole group down; the settings screen lists whatever categories the game defines
+- [x] Every sound names its category: `PlayOneShot`, `AudioSource`, `Scene::SetMusic` / the `.arcscene` `"music"` key, UI skin sounds; a crossfade between tracks in different categories fades each at its own volume (one track plays at a time; see `docs/audio.md`)
 - [ ] Optional per-asset gain (or measured loudness stored with the asset at pack time, Phase 36) so tracks mastered at different levels play at a consistent level without editing the files
 
 ---
@@ -223,7 +223,7 @@ define *how* it gets there. Any controller pairs with any style.
 - [ ] **Tile occlusion grid** — pack `light-blocking` flags for the visible map area into a GPU texture; updated incrementally when tiles change; uploaded to the sprite shader as a new descriptor binding. Only needed if shadows move to the GPU: today's are CPU-raycast polar shadow maps (below). Old design notes: `docs/plans/tilemap-future.md`
 - [x] **Shadow casting** — CPU DDA raycaster builds a 1D polar shadow map per light; sampled in the sprite fragment shader with 3-tap PCF; `BlocksLight` tile flag drives occlusion
 - [ ] Soft shadow quality option: configurable penumbra sample count in `project.arcbit` (default: hard shadows; higher counts add a blur fringe for performance/quality tradeoff)
-- [ ] **Entities Y-sort with Objects tiles on their own** - today an entity's `SpriteRenderer.Layer` is fixed, and a character walking among Objects tiles has to set it to its feet's Y each tick (the World demo does); a flag or component (`YSort`) that the sprite system applies would make it automatic for every NPC and scene-file entity
+- [x] **Entities Y-sort with Objects tiles on their own** - today an entity's `SpriteRenderer.Layer` is fixed, and a character walking among Objects tiles has to set it to its feet's Y each tick (the World demo does); a flag or component (`YSort`) that the sprite system applies would make it automatic for every NPC and scene-file entity. Done: `SpriteRenderer::YSort`, on by default (`Defaults.YSortSprites`), `"y_sort": false` for flat things
 
 ---
 
@@ -344,6 +344,8 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [x] Half-axis gamepad bindings — an axis bound to both `Move_Left` and `Move_Right` (as `WorldDemo` did with `LeftX`) pressed both whenever the stick moved, so they cancelled. `Binding::Half` (`AxisHalf::Full / Positive / Negative`) lets each action take one half; saved to settings as `"half"`
 
 
+- [x] **Tap to turn** for tile movers: standing still, a quick tap of a direction other than the one faced turns in place, and only walks if held past `TurnDelay` (~0.1 s); the faced direction walks at once. On by default - per mover (`"turn_delay"`, 0 = off) and per project
+
 ### Phase 22I - Physics responses
 *Movement that comes from the world rather than the mover's own intent. Lands before Phase 32 (Live Combat), whose knockback and dash build on it.*
 - [x] External velocity on `FreeMovement` - an impulse channel added on top of the intent / authored velocity and decayed by `Friction`. Since 22H an intent-driven mover's `Velocity` is rewritten every tick, so an impulse written to `Velocity` would vanish next tick. Knockback, dash bursts, conveyors and bumpers all use it
@@ -384,12 +386,12 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [x] Scene teardown releases outside resources — `Scene`'s destructor destroys its entities so `OnRemove` hooks run; an `AudioSource` hook stops its sound (a looping sound used to outlive its scene)
 
 **Scene files** — the data-driven path the editor (Phase 40) and runtime host (Phase 38) build on
-- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; templates / overrides reserved for prefabs
+- [x] One `.arcscene` format — reconciled into `docs/scenes.md`: id-keyed entities with inline components (sorted on save for merge safety), a referenced `.arcmap`, only non-default fields written; prefabs as `"prefab"` with inline fields
 - [x] Component registry — `SceneRegistry` maps component name ↔ C++ type ↔ JSON read / write; the engine registers its 20 built-ins, games add their own
 - [x] `.arcscene` loader and saver — `SceneFile::Load` / `Save` (headless, through a `SceneAssets` interface) and `FileScene` on top; file id → `Entity` table (`FindEntity`); exact load → save round trip tested
 - [x] Named systems — game code registers installers by name; a scene file lists the ones it uses
 - [x] At least one demo converted to an `.arcscene` — "Physics File" (`game/assets/scenes/physics.arcscene` + `maps/physics.arcmap`) runs with no C++ scene class
-- [ ] **Prefabs**: an entity starting from a shared template with field overrides; `.arcscene` reserves `"template"` and `"overrides"` keys for it. Design notes: `docs/plans/entity-templates.md`
+- [x] **Prefabs**: an entity starting from a shared template with field overrides. Done as `.arcprefab` files (`"extends"`), `"prefab"` on a scene entity with its fields inline, a live link at load, `Scene::Spawn` / `Entity.Spawn` / console `spawn` (`docs/scenes.md#prefabs`)
 - [x] Texture drawn with two samplers in one frame — the Vulkan backend kept one descriptor set per texture and rewrote it when the sampler changed, which invalidated the frame's command buffer; now one set per (texture, sampler) pair, written once (found by the scene-file demo sharing the engine's white texture with the UI)
 
 **Boot flow** — engine splash → game splash(es) → title screen → gameplay
@@ -399,7 +401,7 @@ integration. Arcbit uses its own collision rather than Box2D - why is in
 - [ ] Engine splash entry can be a video once Phase 35 video playback lands (animated intro)
 - [x] Title screen as the default first stop after the splashes — `BootConfig` (`FirstScene`, `ShowTitle`, `TitleScene`, `CreditsPath`) drives splash → title → game; the engine wires the title's buttons to its own settings / credits screens
 - [x] Credits screen — `CreditsScreen` scrolls a JSON file (title, sections of heading + names, speed), reachable from the title menu; `Application::ShowCredits` can roll it at the end of a game too
-- [ ] Credits logos — image entries in the credits roll
+- [x] Credits logos — image entries in the credits roll: `"image"` / `"images"` (a row), `"height"`, `"uv"` crop
 
 **Docs**
 - [x] `docs/scenes.md` covers the whole phase - lifecycle (hook order and threads), stack, swap rules, loading ahead and progress, boot flow, the `.arcscene` format with its `"load"` block, registry, named systems, asset ownership; `docs/ecs.md`'s Scene, removal-hook, Application-integration and file-layout sections brought up to date
@@ -481,6 +483,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] `arcbit-loc` reads dialog files (`--dialogs`): their English in coverage and templates, their problems reported (errors fail `check`), and translations English no longer has flagged - for any key, not just dialogs
 - [x] Demo: Elder Maren in the Scripted demo - a greeting, choices, a gold check, a gift (`call` into her script), a map to buy, remembered on the next talk - and the guard, who knows whether you've met her; English, French and Japanese
 - [x] Dialog placeholders read an unsaved key as 0, as conditions do ("You have {gold} gold" before any gold)
+- [x] **Back out of a conversation** with Esc / gamepad East: on a choice, picks the option marked `"cancel": true` (its actions and goto run); on a line, ends the conversation (`OnDialogEnd` with choice `""`). Cancelable by default - `"cancelable": false` per dialog (story scenes) and per project
 - [ ] Real dialog art from an artist (replacing the placeholder frame, plate, arrow, cursor and blip)
 
 ---

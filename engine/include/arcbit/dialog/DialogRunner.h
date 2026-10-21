@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -75,11 +76,22 @@ public:
     std::function<void(const Line&)>               OnLine;
     std::function<void(const std::string& choice)> OnChoose;
 
+    // Whether backing out of a line ends a dialog that doesn't say
+    // ("cancelable") - Application sets the project default.
+    bool CancelableByDefault = true;
+
     // From node (default: the dialog's start). A null dialog ends at once.
     void Start(std::shared_ptr<const Dialog> dialog, DialogHost host, std::string_view node = {});
     void Next();             // past the line shown
     void Choose(u32 choice); // an index in GetChoices()
-    void Stop();             // end now
+    void Stop();             // end now; GetLastChoice reads ""
+
+    // Backing out (Esc): on a choice, picks the option marked "cancel" (the
+    // first shown; none, nothing happens); on a line, ends the dialog with
+    // no last choice - if it's cancelable. CanCancel: whether Cancel would.
+    void                             Cancel();
+    [[nodiscard]] bool               CanCancel() const;
+    [[nodiscard]] std::optional<u32> CancelChoice() const; // an index in GetChoices()
 
     [[nodiscard]] State GetState() const { return _state; }
     [[nodiscard]] bool  IsRunning() const { return _state == State::Line || _state == State::Choice; }

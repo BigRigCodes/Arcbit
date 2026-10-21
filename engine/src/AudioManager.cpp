@@ -9,16 +9,60 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
+#include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace Arcbit {
 namespace {
 
-ma_engine      g_engine;
-ma_sound_group g_sfxGroup;
-ma_sound_group g_musicGroup;
-bool           g_initialized = false;
+ma_engine g_engine;
+bool      g_initialized = false;
+
+// The categories, and a sound group for each, nested as they are: a sound's
+// gain is its group's times every parent's. Children are freed first.
+AudioCategories                                                    g_categories;
+std::map<std::string, std::unique_ptr<ma_sound_group>, std::less<>> g_groups;
+
+void ApplyVolume(const AudioCategory& category)
+{
+    if (const auto it = g_groups.find(category.Name); it != g_groups.end())
+        ma_sound_group_set_volume(it->second.get(), AudioManager::SliderToGain(category.Volume));
+}
+
+void CreateGroup(const AudioCategory& category)
+{
+    ma_sound_group* parent = nullptr; // master: straight into the engine's endpoint
+    if (const auto it = g_groups.find(category.Parent); it != g_groups.end()) parent = it->second.get();
+    auto group = std::make_unique<ma_sound_group>();
+    if (ma_sound_group_init(&g_engine, 0, parent, group.get()) != MA_SUCCESS) {
+        LOG_ERROR(Engine, "AudioManager: couldn't create category '{}'", category.Name);
+        return;
+    }
+    g_groups[category.Name] = std::move(group);
+    ApplyVolume(category);
+}
+
+void DestroyGroups()
+{
+    const auto order = g_categories.InOrder();
+    for (auto it = order.rbegin(); it != order.rend(); ++it)
+        if (const auto group = g_groups.find((*it)->Name); group != g_groups.end()) ma_sound_group_uninit(group->second.get());
+    g_groups.clear();
+}
+
+// A category's group; an unknown name plays in `fallback`, logged once.
+ma_sound_group* GroupFor(const std::string_view category, const std::string_view fallback)
+{
+    if (const auto it = g_groups.find(category); it != g_groups.end()) return it->second.get();
+    static std::set<std::string, std::less<>> warned;
+    if (warned.emplace(category).second)
+        LOG_WARN(Engine, "AudioManager: no audio category '{}' - playing in '{}'", category, fallback);
+    const auto it = g_groups.find(fallback);
+    return it != g_groups.end() ? it->second.get() : nullptr;
+}
 
 // Two music slots, so one track can fade out while the next fades in.
 // g_current is the playing one; the other is the outgoing track (or empty),
@@ -55,24 +99,15 @@ void FadeOutSlot(MusicSlot& slot, const f32 fadeSeconds)
 class DeviceMusicPlayer final : public MusicPlayer
 {
 public:
-    void Play(const std::string_view path, const bool loop, const f32 fadeSeconds, const f32 startSeconds) override
+    void Play(const std::string_view path, const bool loop, const f32 fadeSeconds, const f32 startSeconds,
+              const std::string_view category) override
     {
-        AudioManager::PlayMusic(path, loop, fadeSeconds, startSeconds);
+        AudioManager::PlayMusic(path, loop, fadeSeconds, startSeconds, category);
     }
     void        Stop(const f32 fadeSeconds) override { AudioManager::StopMusic(fadeSeconds); }
     std::string GetPath() const override { return AudioManager::GetMusicPath(); }
     f32         GetPosition() const override { return AudioManager::GetMusicPosition(); }
 };
-
-f32 g_masterVolume = 1.0f;
-f32 g_musicVolume  = 1.0f;
-f32 g_sfxVolume    = 1.0f;
-
-void ApplyGroupVolumes()
-{
-    ma_sound_group_set_volume(&g_sfxGroup, AudioManager::SliderToGain(g_masterVolume * g_sfxVolume));
-    ma_sound_group_set_volume(&g_musicGroup, AudioManager::SliderToGain(g_masterVolume * g_musicVolume));
-}
 
 // One-shot sounds still playing; finished ones are freed on the next
 // PlayOneShot (and all at shutdown).
@@ -104,15 +139,13 @@ void AudioManager::Init()
         return;
     }
 
-    ma_sound_group_init(&g_engine, 0, nullptr, &g_sfxGroup);
-    ma_sound_group_init(&g_engine, 0, nullptr, &g_musicGroup);
     g_initialized = true;
+    ApplySettings();
+    for (const AudioCategory* category : g_categories.InOrder()) CreateGroup(*category); // parents first
 
     // Listener direction and world-up for 2D (X right, Z forward = world Y).
     ma_engine_listener_set_direction(&g_engine, 0, 0.0f, 0.0f, -1.0f);
     ma_engine_listener_set_world_up(&g_engine, 0, 0.0f, 1.0f, 0.0f);
-
-    ApplySettings();
     LOG_INFO(Engine, "AudioManager initialized");
 }
 
@@ -124,15 +157,14 @@ void AudioManager::Shutdown()
     for (ma_sound* sound : g_oneShots) FreeOneShot(sound);
     g_oneShots.clear();
 
-    ma_sound_group_uninit(&g_sfxGroup);
-    ma_sound_group_uninit(&g_musicGroup);
+    DestroyGroups();
     ma_engine_uninit(&g_engine);
     g_initialized = false;
 
     LOG_INFO(Engine, "AudioManager shut down");
 }
 
-void AudioManager::PlayOneShot(std::string_view path, f32 volume)
+void AudioManager::PlayOneShot(const std::string_view path, const f32 volume, const std::string_view category)
 {
     if (!g_initialized) return;
 
@@ -141,7 +173,7 @@ void AudioManager::PlayOneShot(std::string_view path, f32 volume)
     ReapOneShots();
     auto* sound = new ma_sound{};
     if (ma_sound_init_from_file(&g_engine, std::string(path).c_str(), MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION,
-                                &g_sfxGroup, nullptr, sound) != MA_SUCCESS) {
+                                GroupFor(category, AudioCategories::Sfx), nullptr, sound) != MA_SUCCESS) {
         LOG_WARN(Engine, "AudioManager: PlayOneShot failed for '{}'", path);
         delete sound;
         return;
@@ -152,7 +184,7 @@ void AudioManager::PlayOneShot(std::string_view path, f32 volume)
 }
 
 void AudioManager::PlayMusic(const std::string_view path, const bool loop, const f32 fadeSeconds,
-                             const f32 startSeconds)
+                             const f32 startSeconds, const std::string_view category)
 {
     if (!g_initialized) return;
     // The same track carries on - unless it played to its end (not looping),
@@ -170,7 +202,8 @@ void AudioManager::PlayMusic(const std::string_view path, const bool loop, const
     // Stream the file and disable spatialization - music plays at flat volume.
     constexpr ma_uint32 flags = MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION;
     const std::string   file(path);
-    if (ma_sound_init_from_file(&g_engine, file.c_str(), flags, &g_musicGroup, nullptr, &next.Sound) != MA_SUCCESS) {
+    if (ma_sound_init_from_file(&g_engine, file.c_str(), flags, GroupFor(category, AudioCategories::Music), nullptr,
+                                &next.Sound) != MA_SUCCESS) {
         LOG_WARN(Engine, "AudioManager: PlayMusic failed for '{}'", path);
         return;
     }
@@ -226,32 +259,27 @@ MusicPlayer& AudioManager::GetMusicPlayer()
     return player;
 }
 
-void AudioManager::SetMasterVolume(f32 volume)
+bool AudioManager::DefineCategory(const std::string_view name, const std::string_view parent, const std::string_view label)
 {
-    g_masterVolume = volume;
-    if (g_initialized) ApplyGroupVolumes();
+    if (!g_categories.Define(name, parent, label)) return false;
+    g_categories.SetVolume(name, Settings::Audio.Volume(name));
+    if (g_initialized) CreateGroup(*g_categories.Find(name));
+    return true;
 }
 
-void AudioManager::SetMusicVolume(f32 volume)
+const AudioCategories& AudioManager::GetCategories() { return g_categories; }
+
+void AudioManager::SetVolume(const std::string_view category, const f32 volume)
 {
-    g_musicVolume = volume;
-    if (g_initialized) ApplyGroupVolumes();
+    g_categories.SetVolume(category, volume);
+    if (const AudioCategory* c = g_categories.Find(category); c && g_initialized) ApplyVolume(*c);
 }
 
-void AudioManager::SetSfxVolume(f32 volume)
-{
-    g_sfxVolume = volume;
-    if (g_initialized) ApplyGroupVolumes();
-}
+f32 AudioManager::GetVolume(const std::string_view category) { return g_categories.GetVolume(category); }
 
 void AudioManager::ApplySettings()
 {
-    g_masterVolume = Settings::Audio.MasterVolume;
-    g_musicVolume  = Settings::Audio.MusicVolume;
-    g_sfxVolume    = Settings::Audio.SfxVolume;
-    LOG_INFO(Engine, "AudioManager: Applying settings with master={}, music={}, sfx={}",
-             g_masterVolume, g_musicVolume, g_sfxVolume);
-    if (g_initialized) ApplyGroupVolumes();
+    for (const AudioCategory& category : g_categories.All()) SetVolume(category.Name, Settings::Audio.Volume(category.Name));
 }
 
 void AudioManager::SetListenerPosition(Vec2 position)
@@ -262,7 +290,8 @@ void AudioManager::SetListenerPosition(Vec2 position)
     ma_engine_listener_set_position(&g_engine, 0, position.X, 0.0f, position.Y);
 }
 
-void* AudioManager::CreateSpatialSound(std::string_view path, bool loop, f32 volume)
+void* AudioManager::CreateSpatialSound(const std::string_view path, const bool loop, const f32 volume,
+                                       const std::string_view category)
 {
     if (!g_initialized) return nullptr;
 
@@ -271,7 +300,7 @@ void* AudioManager::CreateSpatialSound(std::string_view path, bool loop, f32 vol
     // Fully decode for minimal latency on position updates.
     constexpr ma_uint32 flags = MA_SOUND_FLAG_DECODE;
     const ma_result result = ma_sound_init_from_file(
-        &g_engine, std::string(path).c_str(), flags, &g_sfxGroup, nullptr, sound);
+        &g_engine, std::string(path).c_str(), flags, GroupFor(category, AudioCategories::Sfx), nullptr, sound);
 
     if (result != MA_SUCCESS)
     {

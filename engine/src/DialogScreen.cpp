@@ -135,6 +135,18 @@ void DialogScreen::UpdateAuto(const f32 dt)
     if (_autoWait <= 0.0f) Advance();
 }
 
+// A cancel option is chosen like a click on its row, on the next update.
+void DialogScreen::OnBackPressed()
+{
+    if (const auto choice = _runner.CancelChoice()) {
+        _pendingChoice = static_cast<i32>(*choice);
+        return;
+    }
+    if (!_runner.CanCancel()) return;
+    _runner.Cancel();
+    ShowState();
+}
+
 void DialogScreen::OnLocaleChanged()
 {
     _runner.RefreshText();

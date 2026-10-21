@@ -41,6 +41,8 @@
 #include <arcbit/scene/WorldConfig.h>
 #include <arcbit/tilemap/TileMap.h>
 
+#include <cmath>
+
 using namespace Arcbit;
 
 namespace
@@ -169,7 +171,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = desc.Tint,
-                                               .Layer   = static_cast<i32>(desc.Position.Y),
                                            });
         const Collider2D col{
             .Shape       = ColliderShape::Box,
@@ -199,7 +200,9 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = { 1.0f, 0.55f, 0.1f, 1.0f },
-                                               .Layer   = static_cast<i32>(gate.Position.Y) + 1,
+                                               // Just over the gate (Y-sorted at its bottom edge).
+                                               .Layer   = static_cast<i32>(std::floor(gate.Position.Y + gate.Size.Y * 0.5f)) + 1,
+                                               .YSort   = false,
                                            });
         PlaceGateStrip();
     }

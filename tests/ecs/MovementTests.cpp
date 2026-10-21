@@ -403,3 +403,59 @@ TEST_CASE("FacingAnimation plays the clip for the facing and walking, mirroring 
     CHECK(clip() == "idle_up");
     CHECK_FALSE(flip());
 }
+
+TEST_CASE("Tap to turn: a quick tap turns a standing tile mover, holding walks", "[ecs][movement]")
+{
+    Scene scene;
+    scene.GetConfig().TileTurnDelay = 0.1f; // the project default, as Application sets it
+    World&       world = scene.GetWorld();
+    const Entity e     = AddMover(scene, {});
+    world.AddComponent<SmoothTileMovement>(e, SmoothTileMovement{ .Speed = 8.0f });
+    Step(scene); // standing, facing down
+
+    SetIntent(scene, e, { 1.0f, 0.0f }); // a tap right: 3 ticks, under the delay
+    Step(scene, 3);
+    SetIntent(scene, e, {});
+    Step(scene, 2);
+    CHECK(PositionOf(scene, e) == Vec2{});
+    CHECK(world.GetComponent<MoveIntent>(e)->Facing == Vec2{ 1.0f, 0.0f }); // turned
+
+    SetIntent(scene, e, { 1.0f, 0.0f }); // now facing right: walks at once
+    Step(scene);
+    CHECK(PositionOf(scene, e).X > 0.0f);
+    SetIntent(scene, e, {});
+    Step(scene, 30);
+
+    const Vec2 standing = PositionOf(scene, e);
+    SetIntent(scene, e, { 0.0f, 1.0f }); // a new direction held: turns, then walks after the delay
+    Step(scene, 4);
+    CHECK(PositionOf(scene, e) == standing); // still turning
+    Step(scene, 10);
+    CHECK(PositionOf(scene, e).Y > standing.Y);
+}
+
+TEST_CASE("Tap to turn: per-mover delays, off at 0, and snap movers", "[ecs][movement]")
+{
+    Scene scene;
+    scene.GetConfig().TileTurnDelay = 0.1f;
+    World& world = scene.GetWorld();
+
+    const Entity eager = AddMover(scene, {});
+    world.AddComponent<SmoothTileMovement>(eager, SmoothTileMovement{ .Speed = 8.0f, .TurnDelay = 0.0f });
+    Step(scene);
+    SetIntent(scene, eager, { -1.0f, 0.0f });
+    Step(scene);
+    CHECK(PositionOf(scene, eager).X < 0.0f); // its own 0: no turn first
+
+    const Entity snap = AddMover(scene, { 0.0f, 320.0f });
+    world.AddComponent<SnapTileMovement>(snap);
+    Step(scene);
+    SetIntent(scene, snap, { 1.0f, 0.0f });
+    Step(scene, 3); // a tap
+    SetIntent(scene, snap, {});
+    Step(scene);
+    CHECK(PositionOf(scene, snap) == Vec2{ 0.0f, 320.0f });
+    SetIntent(scene, snap, { 1.0f, 0.0f }); // faced: steps at once
+    Step(scene);
+    CHECK(PositionOf(scene, snap).X == TileSize);
+}

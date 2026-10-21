@@ -133,6 +133,7 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
     _stack.clear();
     if (!scene) return;
     scene->SetInput(_host.Input);
+    if (_host.Configure) _host.Configure(*scene);
     scene->_events      = _host.Events;
     scene->_musicPlayer = _host.Music;
     scene->_musicFade   = MusicFadeTime;
@@ -226,6 +227,7 @@ std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
     scene->_events               = _host.Events;
     scene->_scriptEngine         = _host.Scripts;
     scene->SetInput(_host.Input);
+    if (_host.Configure) _host.Configure(*scene);
     return scene;
 }
 
@@ -471,7 +473,7 @@ void SceneManager::HandOverMusic(Scene* from, Scene& to, const bool ownerLeft)
 
     if (to._ownsMusic) {
         if (to._musicPath.empty()) _host.Music->Stop(MusicFadeTime);
-        else _host.Music->Play(to._musicPath, to._musicLoop, MusicFadeTime, to._musicResume);
+        else _host.Music->Play(to._musicPath, to._musicLoop, MusicFadeTime, to._musicResume, to._musicCategory);
     }
     else if (ownerLeft) {
         _host.Music->Stop(MusicFadeTime);

@@ -211,8 +211,9 @@ struct SpriteRenderer {
     UVRect        UV    = { 0.0f, 0.0f, 1.0f, 1.0f };
     Vec2          Pivot = { 0.5f, 0.5f }; // normalized origin; the Animator writes it from frame data
     Color         Tint  = Color::White();
-    i32           Layer = 0;
+    i32           Layer = 0;    // the draw order when not Y-sorted
     bool          FlipX = false;
+    std::optional<bool> YSort;  // "y_sort"; unset: the project's (on)
 };
 ```
 
@@ -220,6 +221,23 @@ struct SpriteRenderer {
 into `FramePacket.Sprites`. Frustum culling is applied at this point. If the
 entity also has a `Parallax` component the position is adjusted before submission
 (see `Parallax` below).
+
+#### Y-sort
+
+A Y-sorted sprite draws at its **bottom edge's world Y** (after the pivot)
+instead of `Layer`, worked out each frame, so whatever stands further down the
+screen draws in front: characters walk behind and in front of each other, of
+props, and of Objects-layer tiles ([tilemap.md](tilemap.md#layers-and-draw-order)).
+
+It's on by default: `YSort` unset follows the project,
+`ApplicationConfig::Defaults.YSortSprites` (true), which Application copies
+into each scene's `WorldConfig::YSortSprites` (a scene made without an
+Application has it off). Flat things - floors, rugs, decals, markings on the
+ground - set `"y_sort": false` and keep their `Layer`, which must then be below
+any world Y the Y-sorted sprites reach: `-999998` sits above Ground tiles
+(`-1000000`) and Flat Objects tiles (`-999999`) and under everything standing. A sprite with
+`Parallax` isn't Y-sorted unless it sets `YSort` true. Scene files write
+`y_sort` only when it's set.
 
 UV rectangles come from `SpriteSheet`, which loads the Arcbit sprite format
 (`docs/sprite-format.md`): named frames, tile grids and animation clips in one
@@ -338,7 +356,8 @@ struct FacingAnimation {
 
 A looping or one-shot sound at the entity, attenuated by its distance from the
 listener (the camera). `AudioSystem` starts, positions and stops it; setting
-`Playing = false` releases it.
+`Playing = false` releases it. It plays in an audio category, `Category`
+(default `"sfx"`; [audio.md](audio.md)).
 
 ### Collider2D and its callbacks *(optional)*
 
@@ -498,6 +517,7 @@ directly.
 ```cpp
 struct SmoothTileMovement {
     f32  Speed     = 4.0f;    // tiles/second (tile size comes from the TileMap)
+    f32  TurnDelay = -1.0f;   // tap to turn (below); < 0 = the project default, 0 = off
     Vec2 OriginWorld;
     Vec2 TargetWorld;
     f32  Progress  = 1.0f;   // 0→1 lerp progress; 1.0 means arrived
@@ -517,8 +537,21 @@ step reports the contact (so `CollisionCallback` fires) and retries next tick.
 struct SnapTileMovement {
     f32 StepInterval = 0.15f; // seconds between steps while a direction is held
     f32 Cooldown     = 0.0f;  // time until the next step may start
+    f32 TurnDelay    = -1.0f; // tap to turn (below); < 0 = the project default, 0 = off
 };
 ```
+
+#### Tap to turn
+
+Both tile styles: a mover standing still, pressed a direction it isn't
+facing, turns at once (`MoveIntent.Facing`, so `FacingAnimation` shows it) and
+only walks if the direction is still held after `TurnDelay` seconds - a quick
+tap just turns, like facing an NPC to talk. The faced direction walks at once,
+and so does any direction while already walking. It's on by default:
+`ApplicationConfig::Defaults.TileTurnDelay` (0.1 s, `ProjectDefaults.h`) is
+copied into every scene's `WorldConfig::TileTurnDelay`; a mover's own
+`TurnDelay` (`"turn_delay"`) overrides it, 0 turning it off. Scenes made
+without an Application (tests, tools) default to 0.
 
 ### Pairing examples
 

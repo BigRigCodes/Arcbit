@@ -160,7 +160,31 @@ void DialogRunner::Choose(const u32 choice)
 
 void DialogRunner::Stop()
 {
-    if (IsRunning()) End();
+    if (!IsRunning()) return;
+    _lastChoice.clear(); // ended early: no choice made
+    End();
+}
+
+void DialogRunner::Cancel()
+{
+    if (!CanCancel()) return;
+    if (_state == State::Choice) return Choose(*CancelChoice());
+    Stop();
+}
+
+bool DialogRunner::CanCancel() const
+{
+    if (_state == State::Choice) return CancelChoice().has_value();
+    return _state == State::Line && _dialog->Cancelable.value_or(CancelableByDefault);
+}
+
+std::optional<u32> DialogRunner::CancelChoice() const
+{
+    if (_state != State::Choice) return std::nullopt;
+    const DialogStep& step = _node->Steps[_step];
+    for (u32 i = 0; i < _choices.size(); ++i)
+        if (step.Options[_choices[i].Option].Cancel) return i;
+    return std::nullopt;
 }
 
 void DialogRunner::RefreshText()

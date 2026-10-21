@@ -139,6 +139,7 @@ handle to an entity that's gone (destroyed, or its scene unloaded) is stale:
 | `Entity.FindAll(tag)` | every entity with the tag, as a list |
 | `Entity.With("Chest", "Collider2D")` | every entity with all the named components |
 | `Entity.Create({ Transform2D = { position = { 0, 0 } }, Tag = { value = "Drop" } })` | a new entity from component tables |
+| `Entity.Spawn("chest", Vec2(x, y))` | a new entity from a prefab ([scenes.md](scenes.md#prefabs)) |
 | `e:IsValid()`, `e:Destroy()` | |
 | `e:Get(name)` | the component as a table (its scene-file form), or `nil` |
 | `e:Set(name, fields)` | change only the given fields |
@@ -166,7 +167,7 @@ error rather than corrupting the world.
 | `Tilemap.GetTile(x, y, layer)`, `Tilemap.SetTile(x, y, layer, id)`, `Tilemap.IsSolid(x, y)` | layer defaults to 0 for GetTile |
 | `Tilemap.WorldToTile(pos)` -> `x, y`, `Tilemap.TileToWorld(x, y)` -> `Vec2` | |
 | `Input.IsDown(action)`, `Input.IsPressed(action)`, `Input.IsReleased(action)` | by action name; false while a menu is open or the screen fades |
-| `Audio.PlaySound(path, volume)`, `Audio.PlayMusic(path, loop)`, `Audio.StopMusic()` | music follows the scene, as from C++ |
+| `Audio.PlaySound(path, volume, category)`, `Audio.PlayMusic(path, loop, category)`, `Audio.StopMusic()` | music follows the scene, as from C++; categories in [audio.md](audio.md) |
 
 ### Save and Event
 
@@ -322,6 +323,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `loc.missing [code]` | the English keys a language has no string for |
 | `screenshot` | save the screen (closing the console first) as a PNG in the user folder's `screenshots/` - also `Application::Screenshot()` |
 | `dialog [id] [node]` | list the dialogs, or start one - cheat |
+| `spawn [prefab] [x y]` | list the prefabs, or place one (at the camera, or x y) - cheat |
 | `quit` | |
 
 Games add their own - from C++ `GetConsole().Register({ .Name, .Help, .Cheat,

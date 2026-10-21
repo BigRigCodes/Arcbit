@@ -103,9 +103,23 @@ struct FreeMovement
 
 // Lerps from tile center to tile center. With a MoveIntent, QueuedDir /
 // HasQueued are rewritten from it every tick; without one, queue directly.
+// Tap-to-turn bookkeeping a tile mover keeps (its system manages it).
+struct TileTurn
+{
+    Vec2 Faced   = { 0.0f, 1.0f }; // the way it faced standing with nothing pressed
+    f32  Held    = 0.0f;           // how long a turn's new direction has been held
+    bool Walking = false;          // snap movers: stepping while a direction stays held
+};
+
+// Tap to turn (both tile styles): standing still, a direction other than the
+// one faced turns the mover at once (MoveIntent.Facing) and only walks once
+// held for TurnDelay seconds - a quick tap just turns. The faced direction,
+// or any direction while already walking, goes at once. TurnDelay < 0 uses
+// the scene's WorldConfig::TileTurnDelay (the project default); 0 is off.
 struct SmoothTileMovement
 {
     f32  Speed      = 4.0f;   // tiles/second; tile size comes from the TileMap
+    f32  TurnDelay  = -1.0f;  // seconds; < 0 = the project default, 0 = off
     Vec2 OriginWorld;
     Vec2 TargetWorld;
     f32  Progress   = 1.0f;   // 0→1 lerp progress; 1.0 = arrived
@@ -113,16 +127,20 @@ struct SmoothTileMovement
     bool HasQueued  = false;
 
     // Internal (managed by SmoothTileMoveSystem): the Pushable this step is
-    // shoving, carried one tile ahead of the mover until the step ends.
-    Entity _pushing = Entity::Invalid();
+    // shoving, carried one tile ahead of the mover until the step ends; and
+    // tap-to-turn state.
+    Entity   _pushing = Entity::Invalid();
+    TileTurn _turn;
 };
 
 // Moves instantly to the adjacent tile. A fresh press steps at once; a held
 // direction repeats every StepInterval. Driven only by MoveIntent.
 struct SnapTileMovement
 {
-    f32 StepInterval = 0.15f; // seconds between steps while a direction is held
-    f32 Cooldown     = 0.0f;  // time until the next step may start
+    f32      StepInterval = 0.15f; // seconds between steps while a direction is held
+    f32      Cooldown     = 0.0f;  // time until the next step may start
+    f32      TurnDelay    = -1.0f; // tap to turn (above); < 0 = the project default, 0 = off
+    TileTurn _turn;                // internal
 };
 
 // A mover walking into this entity shoves it instead of stopping (crates,

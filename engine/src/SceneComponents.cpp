@@ -188,6 +188,7 @@ namespace
         Read(j, "tint", c.Tint);
         Read(j, "layer", c.Layer);
         Read(j, "flip_x", c.FlipX);
+        if (const auto it = j.find("y_sort"); it != j.end() && it->is_boolean()) c.YSort = it->get<bool>();
     }
 
     void WriteSprite(const SpriteRenderer& c, json& j, const SceneAssets& assets)
@@ -199,6 +200,7 @@ namespace
         j["tint"]    = ToJson(c.Tint);
         j["layer"]   = c.Layer;
         j["flip_x"]  = c.FlipX;
+        if (c.YSort) j["y_sort"] = *c.YSort; // unset stays unset: the project decides
     }
 
     void ReadAnimator(Animator& c, const json& j, SceneAssets& assets)
@@ -263,6 +265,7 @@ namespace
                 Read(j, "radius", c.Radius);
                 Read(j, "loop", c.Loop);
                 Read(j, "playing", c.Playing);
+                Read(j, "category", c.Category);
             },
             [](const AudioSource& c, json& j, const SceneAssets&) {
                 j["path"]    = c.Path;
@@ -270,6 +273,7 @@ namespace
                 j["radius"]  = c.Radius;
                 j["loop"]    = c.Loop;
                 j["playing"] = c.Playing;
+                if (c.Category != "sfx") j["category"] = c.Category;
             });
     }
 
@@ -371,12 +375,25 @@ namespace
                 j["speed"]     = c.Speed;
             });
         r.RegisterComponent<SmoothTileMovement>(
-            "SmoothTileMovement", [](SmoothTileMovement& c, const json& j, SceneAssets&) { Read(j, "speed", c.Speed); },
-            [](const SmoothTileMovement& c, json& j, const SceneAssets&) { j["speed"] = c.Speed; });
+            "SmoothTileMovement",
+            [](SmoothTileMovement& c, const json& j, SceneAssets&) {
+                Read(j, "speed", c.Speed);
+                Read(j, "turn_delay", c.TurnDelay);
+            },
+            [](const SmoothTileMovement& c, json& j, const SceneAssets&) {
+                j["speed"]      = c.Speed;
+                j["turn_delay"] = c.TurnDelay;
+            });
         r.RegisterComponent<SnapTileMovement>(
             "SnapTileMovement",
-            [](SnapTileMovement& c, const json& j, SceneAssets&) { Read(j, "step_interval", c.StepInterval); },
-            [](const SnapTileMovement& c, json& j, const SceneAssets&) { j["step_interval"] = c.StepInterval; });
+            [](SnapTileMovement& c, const json& j, SceneAssets&) {
+                Read(j, "step_interval", c.StepInterval);
+                Read(j, "turn_delay", c.TurnDelay);
+            },
+            [](const SnapTileMovement& c, json& j, const SceneAssets&) {
+                j["step_interval"] = c.StepInterval;
+                j["turn_delay"]    = c.TurnDelay;
+            });
         r.RegisterComponent<Pushable>(
             "Pushable", [](Pushable& c, const json& j, SceneAssets&) { Read(j, "resistance", c.Resistance); },
             [](const Pushable& c, json& j, const SceneAssets&) { j["resistance"] = c.Resistance; });

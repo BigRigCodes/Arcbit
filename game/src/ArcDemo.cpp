@@ -109,7 +109,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.3f, 0.5f, 1.0f, 1.0f},
-                                               .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<FreeMovement>(_player, FreeMovement{.Speed = PlayerSpeed});
@@ -151,7 +150,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.2f, 0.6f, 0.25f, 1.0f}, // green
-                                               .Layer   = static_cast<i32>(canopyBottom),
                                            });
 
         // ---- Stump entity: small brown sprite + matching collider -------
@@ -169,7 +167,8 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.45f, 0.3f, 0.15f, 1.0f}, // brown
-                                               .Layer   = static_cast<i32>(canopyBottom) + 1,
+                                               .Layer   = static_cast<i32>(canopyBottom) + 1, // over the canopy,
+                                               .YSort   = false,                              // whose bottom it shares
                                            });
         const Collider2D stumpCol{
             .Shape       = ColliderShape::Box,
@@ -198,7 +197,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.4f, 0.7f, 0.4f, 1.0f}, // light green
-                                               .Layer   = static_cast<i32>(pos.Y + size.Y * 0.5f),
                                            });
         const Collider2D col{
             .Shape       = ColliderShape::Box,
@@ -231,7 +229,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.7f, 0.6f, 0.3f, 1.0f},
-                                               .Layer   = static_cast<i32>(pos.Y + size.Y * 0.5f),
                                            });
         const Collider2D col{
             .Shape       = ColliderShape::Box,

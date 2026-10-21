@@ -356,7 +356,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     // per-widget overrides apply.
     if (UIWidget* const nowFocused = active->GetFocusedWidget(); nowFocused != prevFocused) {
         const UISkin src = nowFocused ? nowFocused->GetEffectiveSkin(_skin) : _skin;
-        if (!src.SoundFocusMove.empty()) AudioManager::PlayOneShot(src.SoundFocusMove);
+        if (!src.SoundFocusMove.empty()) AudioManager::PlayOneShot(src.SoundFocusMove, 1.0f, AudioCategories::Ui);
     }
 
     // Enter activates the focused widget (fires OnClick for buttons, OnConfirm
@@ -374,7 +374,7 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
         }
         else if (prevConsumesNav) active->ClearFocus();
         else {
-            if (!_skin.SoundBack.empty()) AudioManager::PlayOneShot(_skin.SoundBack);
+            if (!_skin.SoundBack.empty()) AudioManager::PlayOneShot(_skin.SoundBack, 1.0f, AudioCategories::Ui);
             active->OnBackPressed();
         }
     }

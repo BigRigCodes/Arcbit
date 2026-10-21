@@ -2,16 +2,19 @@
 
 #include <arcbit/core/NumberCast.h>
 #include <arcbit/core/Types.h>
+#include <arcbit/input/BindingUpdate.h>
 
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <map>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace Arcbit {
 
@@ -45,14 +48,20 @@ struct GraphicsSettings
 //
 // Volume levels are in [0, 1] and mean perceived loudness: 1 is the mix as
 // the game was authored, 0.5 sounds about half as loud, 0.1 about a tenth
-// (AudioManager::SliderToGain turns them into gain). MasterVolume scales all
-// channels.
+// (AudioManager::SliderToGain turns them into gain). One per audio category
+// (AudioCategories.h), by name - "master", "music", a game's "music.combat";
+// a category not listed is at 1. Saved as "audio": { "volumes": { ... } };
+// an older file's master_volume / music_volume / sfx_volume read into them.
 // ---------------------------------------------------------------------------
 struct AudioSettings
 {
-    f32 MasterVolume = 1.0f;
-    f32 MusicVolume  = 1.0f;
-    f32 SfxVolume    = 1.0f;
+    std::map<std::string, f32, std::less<>> Volumes;
+
+    [[nodiscard]] f32 Volume(const std::string_view category) const
+    {
+        const auto it = Volumes.find(category);
+        return it != Volumes.end() ? it->second : 1.0f;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -174,11 +183,24 @@ public:
     // runtime rebinds made via InputManager (e.g. from a settings screen).
     static void SaveInputBindings(const InputManager& input);
 
-    // Read bindings from the settings document and apply them to the
-    // InputManager. Only actions already registered in the InputManager are
-    // affected; unrecognized action names in the file are silently ignored.
-    // Returns true if at least one binding was loaded.
+    // Read the player's bindings from the settings document and apply them
+    // over the defaults the game registered, keeping what the player is
+    // used to across game updates (BindingUpdate.h, docs/input.md): actions
+    // they had keep their bindings; new ones (and resets) take free keys.
+    // The defaults are recorded with the bindings, so the next load can tell
+    // what changed. Unknown action names in the file are ignored. Returns
+    // true if the file had bindings.
     static bool LoadInputBindings(InputManager& input);
+
+    // Put an action back to its new default in an update that changed it -
+    // an old default that was broken - through the same clash rules and
+    // notice as a new action. Call before LoadInputBindings (in OnStart);
+    // once the player's file records the new default, it no longer applies.
+    static void ResetBindingOnUpdate(std::string_view action);
+
+    // What the last LoadInputBindings placed (new and reset actions), for
+    // the one-time notice; empty when nothing changed.
+    [[nodiscard]] static const std::vector<BindingChange>& GetBindingChanges();
 
 private:
     // The variant covers all types supported by Get<T>/Set<T>.

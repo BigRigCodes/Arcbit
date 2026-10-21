@@ -49,9 +49,10 @@ std::unique_ptr<DialogScreen> Application::CreateDialogScreen()
     auto screen          = std::make_unique<DialogScreen>();
     screen->Art          = _dialogArt;
     screen->LoadPortrait = [this](const std::string& path) { return _textures->Load(path); };
-    screen->PlayVoice    = [](const std::string& path) { AudioManager::PlayOneShot(path); };
+    screen->PlayVoice    = [](const std::string& path) { AudioManager::PlayOneShot(path, 1.0f, AudioCategories::Voice); };
     screen->DefaultVoice = "assets/engine/ui/dialog/voice.wav";
     screen->Skin         = &_ui.GetSkin();
+    screen->GetRunner().CancelableByDefault = _config.Defaults.DialogCancelable;
     return screen;
 }
 
@@ -75,6 +76,8 @@ void Application::StopDialog()
     runner.Stop();
     EndDialog(runner.GetLastChoice());
 }
+
+bool Application::CanCancelDialog() const { return _dialog && _dialog->Screen->GetRunner().CanCancel(); }
 
 // The next waiting conversation, if nothing runs. One whose scene has gone
 // meanwhile still runs, with no one in it.

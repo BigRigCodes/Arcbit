@@ -74,6 +74,11 @@ u32 TileMap::GetTile(const i32 tileX, const i32 tileY, const u32 layerIndex) con
     return chunk ? chunk->Tiles[layerIndex][cellIndex] : 0u;
 }
 
+i32 TileMap::ObjectSortLayer(const i32 tileY) const
+{
+    return static_cast<i32>(std::floor(TileToWorld(0, tileY).Y + _tileSize));
+}
+
 Vec2 TileMap::TileToWorld(const i32 tileX, const i32 tileY) const
 {
     return {static_cast<f32>(tileX) * _tileSize, static_cast<f32>(tileY) * _tileSize};

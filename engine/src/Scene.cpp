@@ -11,6 +11,8 @@
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/save/SceneState.h>
+#include <arcbit/scene/PrefabLibrary.h>
+#include <arcbit/scene/SceneAssets.h>
 #include <arcbit/script/Script.h>
 
 #include "SceneScripts.h"
@@ -102,15 +104,23 @@ Application& Scene::GetApp()
     return *_app;
 }
 
-void Scene::SetMusic(std::string path, const bool loop)
+void Scene::SetMusic(std::string path, const bool loop, std::string category)
 {
+    _musicCategory = std::move(category);
     if (path != _musicPath) _musicResume = 0.0f; // the saved spot belonged to the old track
     _ownsMusic = true;
     _musicPath = std::move(path);
     _musicLoop = loop;
     if (!_musicPlayer) return; // not active: plays when it is
     if (_musicPath.empty()) _musicPlayer->Stop(_musicFade);
-    else _musicPlayer->Play(_musicPath, _musicLoop, _musicFade, 0.0f);
+    else _musicPlayer->Play(_musicPath, _musicLoop, _musicFade, 0.0f, _musicCategory);
+}
+
+Entity Scene::Spawn(const std::string_view prefab, const Vec2 position)
+{
+    Application&                       app    = GetApp();
+    const std::unique_ptr<SceneAssets> assets = MakeAppSceneAssets(*this);
+    return SpawnPrefab(*this, app.GetPrefabs(), prefab, position, app.GetSceneRegistry(), *assets);
 }
 
 TextureHandle Scene::LoadTexture(const std::string_view path)

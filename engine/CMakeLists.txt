@@ -21,6 +21,7 @@ add_library(arcbit-engine STATIC
     src/RenderThread.cpp
     src/Window.cpp
     src/InputManager.cpp
+    src/BindingUpdate.cpp
     src/Settings.cpp
     src/TextureManager.cpp
     src/SpriteSheet.cpp
@@ -28,6 +29,7 @@ add_library(arcbit-engine STATIC
     src/Systems.cpp
     src/Movement.cpp
     src/Scene.cpp
+    src/PrefabLibrary.cpp
     src/SceneManager.cpp
     src/ScenePreloader.cpp
     src/SceneRegistry.cpp
@@ -62,6 +64,7 @@ add_library(arcbit-engine STATIC
     src/SceneFile.cpp
     src/FileScene.cpp
     src/AnimatorStateMachine.cpp
+    src/AudioCategories.cpp
     src/AudioManager.cpp
     src/TileAtlas.cpp
     src/TileMap.cpp
@@ -83,6 +86,7 @@ add_library(arcbit-engine STATIC
     src/CreditsScreen.cpp
     src/LoadingScreen.cpp
     src/MainMenuScreen.cpp
+    src/NoticeScreen.cpp
     src/ConfirmScreen.cpp
     src/GameSettingsScreen.cpp
     src/SaveSlotScreen.cpp

@@ -33,6 +33,7 @@
   "demo.triggers.coins": "Coins: {count} / {total}",
   "demo.scripted.name": "Scripted",
   "demo.scripted.summary": "Lua and dialog: a chest, door, sign, an elder to talk to, a patrolling guard, HUD and menu (26, 27)",
+  "demo.audio.footsteps": "Footsteps",
   "demo.scripted.keys": "E use, L menu, ` console",
   "demo.scripted.welcome": "This scene runs on Lua. E uses things, L opens the menu.",
   "demo.scripted.gold": "Gold: {count}",

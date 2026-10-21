@@ -7,6 +7,7 @@
 #include <arcbit/render/RenderHandle.h>
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -56,6 +57,13 @@ struct Name
 // and pushes a Sprite into FramePacket. Transform2D.Scale is the world-space size.
 // FlipX mirrors the UV horizontally — used for left-facing sprites that share a
 // right-facing animation row.
+//
+// Y-sort: a Y-sorted sprite draws at its bottom edge's world Y instead of
+// Layer, so whatever stands further down the screen is in front - other
+// Y-sorted sprites and Objects-layer tiles alike (docs/tilemap.md). Unset,
+// it follows the project (ProjectDefaults::YSortSprites, on); flat things -
+// floors, rugs, decals - set it false and keep their Layer. A sprite with
+// Parallax isn't Y-sorted unless it says so.
 struct SpriteRenderer
 {
     TextureHandle Texture;
@@ -63,8 +71,9 @@ struct SpriteRenderer
     UVRect        UV    = { 0.0f, 0.0f, 1.0f, 1.0f };
     Vec2          Pivot = { 0.5f, 0.5f }; // normalised origin; AnimatorSystem writes this from frame data
     Color         Tint  = Color::White();
-    i32           Layer = 0;
+    i32           Layer = 0; // the draw order when not Y-sorted
     bool          FlipX = false;
+    std::optional<bool> YSort; // "y_sort"; unset: the project's
 };
 
 // Light properties. LightRenderSystem reads (Transform2D, LightEmitter)
@@ -200,6 +209,7 @@ struct AudioSource
     f32         Radius  = 500.0f; // max hearing distance in world units
     bool        Loop    = true;
     bool        Playing = true;
+    std::string Category = "sfx"; // the audio category it plays in (AudioCategories.h)
     // Internal handle managed by AudioSystem — do not set from game code.
     void*       _handle = nullptr;
 };

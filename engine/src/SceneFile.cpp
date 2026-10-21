@@ -3,6 +3,7 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/ecs/Components.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/SceneRegistry.h>
@@ -77,19 +78,52 @@ namespace
         return true;
     }
 
-    void LoadEntity(Scene& scene, const std::string& id, const json& components, const SceneRegistry& registry,
-                    SceneAssets& assets, IdMap& ids)
+    // Fields onto the entity's components (adding them); null removes one.
+    void ReadComponents(World& world, const Entity e, const std::string& id, const json& components,
+                        const SceneRegistry& registry, SceneAssets& assets)
     {
-        const Entity e = scene.GetWorld().CreateEntity();
-        ids[id]        = e;
         for (const auto& [name, fields] : components.items()) {
             const SceneRegistry::ComponentEntry* entry = registry.FindComponent(name);
             if (!entry) {
                 LOG_WARN(Engine, "SceneFile: entity '{}' has unknown component '{}' - skipped", id, name);
                 continue;
             }
-            entry->Read(scene.GetWorld(), e, fields, assets);
+            if (fields.is_null()) entry->Remove(world, e);
+            else entry->Read(world, e, fields, assets);
         }
+    }
+
+    // Every component the entity has, every field (what a prefab copy diffs against).
+    json WriteAllComponents(World& world, const Entity e, const SceneRegistry& registry, const SceneAssets& assets)
+    {
+        json all = json::object();
+        for (const SceneRegistry::ComponentEntry& entry : registry.Components())
+            if (entry.Has(world, e)) all[entry.Name] = entry.WriteAll(world, e, assets);
+        return all;
+    }
+
+    // A prefab copy: the prefab first, remembered, then the entity's own fields.
+    void LoadEntity(Scene& scene, const std::string& id, const json& components, const SceneRegistry& registry,
+                    SceneAssets& assets, IdMap& ids, const PrefabLibrary* prefabs, PrefabLinks* links)
+    {
+        World&       world = scene.GetWorld();
+        const Entity e     = world.CreateEntity();
+        ids[id]            = e;
+        json own           = components;
+        if (const auto prefab = components.find("prefab"); prefab != components.end()) {
+            own.erase("prefab");
+            const std::string name = prefab->get<std::string>();
+            const auto        base = prefabs ? prefabs->Resolve(name) : std::nullopt;
+            if (!prefabs) LOG_WARN(Engine, "SceneFile: entity '{}' uses prefab '{}', but there are no prefabs", id, name);
+            if (base) {
+                ReadComponents(world, e, id, *base, registry, assets);
+                if (links) (*links)[id] = { name, WriteAllComponents(world, e, registry, assets) };
+                for (auto& [component, fields] : own.items()) // nested fields merge as a prefab's do ("properties")
+                    if (fields.is_object() && base->contains(component))
+                        fields = PrefabLibrary::Merge({ { component, (*base)[component] } }, { { component, fields } })[component];
+            }
+        }
+        ReadComponents(world, e, id, own, registry, assets);
     }
 
     // persist_all: every entity without a Persistent gets one; a Persistent
@@ -198,9 +232,35 @@ namespace
         }
         return components;
     }
+
+    // A prefab copy as written: its prefab, and only the fields that differ
+    // from it (a component it added: its non-default fields; one it removed: null).
+    json SavePrefabCopy(World& world, const Entity e, const SceneRegistry& registry, const SceneAssets& assets,
+                        const PrefabLink& link)
+    {
+        json out = { { "prefab", link.Prefab } };
+        for (const SceneRegistry::ComponentEntry& entry : registry.Components()) {
+            const bool has  = entry.Has(world, e);
+            const auto base = link.Base.find(entry.Name);
+            if (!has) {
+                if (base != link.Base.end()) out[entry.Name] = nullptr;
+                continue;
+            }
+            if (base == link.Base.end()) {
+                out[entry.Name] = entry.Write(world, e, assets);
+                continue;
+            }
+            json changed = json::object();
+            for (const auto& [field, value] : entry.WriteAll(world, e, assets).items())
+                if (!base->contains(field) || (*base)[field] != value) changed[field] = value;
+            if (!changed.empty()) out[entry.Name] = std::move(changed);
+        }
+        return out;
+    }
 } // namespace
 
-bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAssets& assets, IdMap& ids)
+bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAssets& assets, IdMap& ids,
+          const PrefabLibrary* prefabs, PrefabLinks* links)
 {
     try {
         if (!doc.is_object()) {
@@ -214,7 +274,7 @@ bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAss
         }
         if (!LoadWorld(scene, doc, assets) || !InstallSystems(scene, doc, registry)) return false;
         for (const auto& [id, components] : doc.value("entities", json::object()).items())
-            LoadEntity(scene, id, components, registry, assets, ids);
+            LoadEntity(scene, id, components, registry, assets, ids, prefabs, links);
     }
     catch (const std::exception& e) {
         LOG_ERROR(Engine, "SceneFile: malformed scene - {}", e.what());
@@ -225,7 +285,8 @@ bool Load(Scene& scene, const json& doc, const SceneRegistry& registry, SceneAss
     return true;
 }
 
-json Save(Scene& scene, const SceneRegistry& registry, const SceneAssets& assets, const json& base, const IdMap& ids)
+json Save(Scene& scene, const SceneRegistry& registry, const SceneAssets& assets, const json& base, const IdMap& ids,
+          const PrefabLinks* links)
 {
     json doc = base.is_object() ? base : json::object();
     doc["version"]             = Version;
@@ -237,8 +298,13 @@ json Save(Scene& scene, const SceneRegistry& registry, const SceneAssets& assets
     json   entities = json::object();
     const bool persistAll = doc.value("persist_all", false);
     for (const auto& [e, id] : AssignIds(world, ids)) {
-        json components = SaveEntity(world, e, registry, assets);
+        const PrefabLink* link = nullptr;
+        if (links)
+            if (const auto it = links->find(id); it != links->end()) link = &it->second;
+        json components = link ? SavePrefabCopy(world, e, registry, assets, *link) : SaveEntity(world, e, registry, assets);
         DropImpliedPersistence(components, id, persistAll);
+        if (link && components.contains("Persistent") && components["Persistent"].empty() && link->Base.contains("Persistent"))
+            components.erase("Persistent"); // only its implied id differed from the prefab's
         entities[id] = std::move(components);
     }
     doc["entities"] = std::move(entities);

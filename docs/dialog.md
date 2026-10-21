@@ -46,7 +46,7 @@ is `"town/guard"`. Every file is read when the game starts.
             { "choice": [
                 { "id": "map", "text": "A map, please. (5 gold)", "if": { "gold": [">=", 5] },
                   "add": { "gold": -5 }, "goto": "map" },
-                { "id": "bye", "text": "Nothing. Goodbye.", "goto": "end" }
+                { "id": "bye", "text": "Nothing. Goodbye.", "cancel": true, "goto": "end" }
             ] }
         ],
         "map": [
@@ -61,6 +61,7 @@ is `"town/guard"`. Every file is read when the game starts.
 | `speakers` | Who talks: an id each, with `name` (shown on the name plate), `portrait` (a texture path) and `voice` (a sound played as their text appears). A speaker's `key` names its Loc key instead of the default. |
 | `speaker` | The speaker of lines that don't name one. |
 | `world` | `"run"` (default): the world keeps moving while the conversation runs; `"pause"`: the scene stops too. |
+| `cancelable` | Whether backing out (Esc) of a line ends the conversation - see [Backing out](#backing-out). Default: the project's (`ProjectDefaults::DialogCancelable`, true); `false` for a story scene that must be heard. |
 | `start` | The node it starts at; default, the first. |
 | `nodes` | Named lists of steps. |
 
@@ -73,7 +74,7 @@ A **node** runs its steps in order. Each step is one of:
 - **A choice** - `"choice"`: a list of options, each with `text`, an optional
   `id` (what the end of the conversation reports), and its own `if`, actions
   and `goto`. An option whose `if` fails is hidden; if none shows, the step is
-  skipped.
+  skipped. `"cancel": true` marks the option backing out picks.
 - **A branch** - `"branch"`: a list of arms with `if` and `goto`; the first arm
   that holds is taken, none - carry on.
 - **Just actions** - a step with only actions and / or a `goto`.
@@ -238,6 +239,25 @@ doesn't parse keeps the last good one.
 
 ---
 
+## Backing out
+
+Esc (or gamepad East, the UI's back) backs out of a conversation:
+
+- **On a choice** it picks the option marked `"cancel": true` - the first one
+  shown - exactly as if the player had: its actions and goto run, so the
+  dialog decides what backing out means (a goodbye line, or straight to
+  `"end"`). With no cancel option shown, nothing happens.
+- **On a line** it ends the conversation at once, with no choice (`""`), if
+  the dialog is cancelable: its own `"cancelable"`, else the project's
+  `ApplicationConfig::Defaults.DialogCancelable` (true).
+
+While a conversation would take the back key, a game's pause key that is also
+Escape should leave it be: `Application::CanCancelDialog()` says so (the demo
+app's pause key checks it; gamepad Start still pauses). From C++,
+`DialogRunner::Cancel`, `CanCancel` and `CancelChoice` do the same.
+
+---
+
 ## The dialog box
 
 `DialogScreen`: a framed text box along the bottom, a name plate, the
@@ -249,6 +269,7 @@ longest one.
   line, then the next. The key that started the conversation (the
   Interactor's action) does too.
 - **Choices:** the arrows / D-pad / mouse move between them, Confirm picks.
+- **Backing out:** Esc / gamepad East - see below.
 - **Typewriter:** each line types out at the player's **Text speed** (Game
   settings: slow, normal, fast, instant), honoring `<pause>` and `<speed>`,
   with a soft blip per character in the speaker's voice (a stock blip for

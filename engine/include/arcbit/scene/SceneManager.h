@@ -135,6 +135,10 @@ public:
         MusicPlayer*          Music = nullptr; // scene music (Scene::SetMusic); null = no music
         EventBus*             Events = nullptr; // Scene::Subscribe; null = scenes can't subscribe
 
+        // Run on every new scene before its OnPrepare - the project's
+        // defaults into its WorldConfig (Application).
+        std::function<void(Scene&)> Configure;
+
         // Saved scene state (docs/saves.md): every named scene's changes kept
         // in World across unloads. All three set, or scene state is off.
         WorldState*                                         World    = nullptr;

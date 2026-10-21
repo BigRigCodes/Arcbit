@@ -199,6 +199,13 @@ Format Application::GetSwapchainFormat() const { return _device->GetSwapchainCol
 // Run — the main loop.
 // ---------------------------------------------------------------------------
 
+void Application::ApplyDefaults(Scene& scene) const
+{
+    WorldConfig& config  = scene.GetConfig();
+    config.TileTurnDelay = _config.Defaults.TileTurnDelay;
+    config.YSortSprites  = _config.Defaults.YSortSprites;
+}
+
 void Application::Run()
 {
     // Register engine system actions with defaults before OnStart so that:
@@ -236,6 +243,7 @@ void Application::Run()
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
                       .Events          = &_events,
+                      .Configure       = [this](Scene& scene) { ApplyDefaults(scene); },
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },
@@ -246,11 +254,12 @@ void Application::Run()
                                 .Events    = &_events,
                                 .Saves     = &_saves,
                                 .Registry  = &_sceneRegistry,
+                                .Prefabs   = &_prefabs,
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },
-                                .PlaySound = [](const std::string_view path, const f32 volume) {
-                                    AudioManager::PlayOneShot(path, volume);
+                                .PlaySound = [](const std::string_view path, const f32 volume, const std::string_view category) {
+                                    AudioManager::PlayOneShot(path, volume, category);
                                 },
                                 .SaveTo   = [this](const SaveSlot slot) { return SaveTo(slot); },
                                 .LoadFrom = [this](const SaveSlot slot) { return LoadFrom(slot); },
@@ -282,6 +291,7 @@ void Application::Run()
     // Give the game a chance to register actions, create GPU resources, etc.
     // Input bindings are loaded from settings AFTER OnStart so that default
     // bindings set up in OnStart are overwritten by any user-saved bindings.
+    (void)_prefabs.AddFolder(_config.PrefabFolder); // before OnStart: the first scene may use them
     OnStart();
     Settings::LoadInputBindings(_input);
 

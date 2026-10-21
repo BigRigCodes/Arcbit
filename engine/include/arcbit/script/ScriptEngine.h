@@ -16,6 +16,7 @@ namespace Arcbit
 class DebugConsole;
 class EventBus;
 class InputManager;
+class PrefabLibrary;
 class Scene;
 class SceneAssets;
 class SceneManager;
@@ -32,11 +33,12 @@ struct ScriptServices
     EventBus*            Events   = nullptr; // Event.*
     SaveManager*         Saves    = nullptr; // Save.Get / Set
     const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
+    const PrefabLibrary* Prefabs  = nullptr; // Entity.Spawn
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 
     std::function<std::unique_ptr<SceneAssets>(Scene&)> Assets; // component reads / writes
-    std::function<void(std::string_view path, f32 volume)> PlaySound;
+    std::function<void(std::string_view path, f32 volume, std::string_view category)> PlaySound;
     std::function<bool(SaveSlot)> SaveTo;
     std::function<bool(SaveSlot)> LoadFrom;
     std::function<bool()>         AutoSave;

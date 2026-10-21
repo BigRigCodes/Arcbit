@@ -87,6 +87,12 @@ public:
     // World-space center of a tile.
     [[nodiscard]] Vec2 TileToWorld(i32 tileX, i32 tileY) const;
 
+    // The draw layer of a (non-flat) Objects-layer tile in row tileY: half a
+    // tile below its bottom edge, on the scale Y-sorted sprites use (their
+    // bottom edge). A sprite standing in the row below draws in front of
+    // the tile, one in its row or above, behind (docs/tilemap.md).
+    [[nodiscard]] i32 ObjectSortLayer(i32 tileY) const;
+
     // Tile coordinate containing a world-space point. Tiles are centered on
     // TileToWorld, so tile t spans [(t - 0.5), (t + 0.5)) tile sizes.
     void WorldToTile(Vec2 worldPos, i32& outX, i32& outY) const;

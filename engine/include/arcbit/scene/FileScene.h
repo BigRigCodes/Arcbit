@@ -56,6 +56,7 @@ private:
     std::optional<nlohmann::json> _parsed; // read by OnPrepare, consumed by OnLoad
     nlohmann::json                _document;
     SceneFile::IdMap              _ids;
+    SceneFile::PrefabLinks        _prefabLinks; // its prefab copies, for Save
     std::optional<Color>          _ambient;
     bool                          _loaded = false;
 };

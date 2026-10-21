@@ -38,6 +38,7 @@
   "demo.triggers.coins": "コイン：{count} / {total}",
   "demo.scripted.name": "スクリプト",
   "demo.scripted.summary": "Lua と会話：宝箱、扉、看板、話せる長老、見回りの衛兵、HUD、メニュー（26、27）",
+  "demo.audio.footsteps": "足音",
   "demo.scripted.keys": "E 使う、L メニュー、` コンソール",
   "demo.scripted.welcome": "このシーンは Lua で動いています。E で調べる、L でメニューを開く。",
   "demo.scripted.gold": "ゴールド：{count}",

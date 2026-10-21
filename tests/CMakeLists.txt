@@ -8,6 +8,7 @@ add_executable(arcbit-tests
     main.cpp
     app/DebugConsoleTests.cpp
     assets/SpriteSheetTests.cpp
+    audio/AudioCategoriesTests.cpp
     audio/VolumeTests.cpp
     core/LocCheckTests.cpp
     core/LocFormatTests.cpp
@@ -23,9 +24,11 @@ add_executable(arcbit-tests
     ecs/PhysicsResponseTests.cpp
     ecs/SystemsTests.cpp
     ecs/WorldTests.cpp
+    ecs/YSortTests.cpp
     events/EntityEventsTests.cpp
     events/EventBusTests.cpp
     events/EventPayloadTests.cpp
+    input/BindingUpdateTests.cpp
     input/InputManagerTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp
@@ -42,6 +45,7 @@ add_executable(arcbit-tests
     save/SaveSealTests.cpp
     save/SaveTests.cpp
     save/SceneStateTests.cpp
+    scene/PrefabTests.cpp
     scene/SceneFileTests.cpp
     scene/SceneManagerTests.cpp
     scene/ScenePreloaderTests.cpp

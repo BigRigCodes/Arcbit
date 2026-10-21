@@ -19,9 +19,9 @@ namespace
 // The fields a step may have, beyond the ones its kind adds.
 constexpr std::array StepFields   = { "if", "goto", "set", "add", "event", "lua", "call", "id", "key" };
 constexpr std::array SayFields    = { "say", "speaker", "portrait" };
-constexpr std::array OptionFields = { "id", "key", "text", "if", "goto", "set", "add", "event", "lua", "call" };
+constexpr std::array OptionFields = { "id", "key", "text", "if", "goto", "set", "add", "event", "lua", "call", "cancel" };
 constexpr std::array ArmFields    = { "if", "goto", "set", "add", "event", "lua", "call" };
-constexpr std::array TopFields    = { "speaker", "speakers", "start", "world", "nodes" };
+constexpr std::array TopFields    = { "speaker", "speakers", "start", "world", "cancelable", "nodes" };
 
 template<size_t N>
 bool Has(const std::array<const char*, N>& fields, const std::string_view name)
@@ -59,6 +59,7 @@ struct Parser
     }
 
     std::string              ReadString(const Json& j, const char* field, const std::string& where);
+    std::optional<bool>      ReadBool(const Json& j, const char* field, const std::string& where);
     std::optional<SaveValue> ReadValue(const Json& j, const std::string& where);
     DialogCondition          ReadCondition(const Json& j, const std::string& where);
     void                     ReadTest(const std::string& key, const Json& j, DialogCondition& out, const std::string& where);
@@ -192,6 +193,15 @@ std::string Parser::ReadString(const Json& j, const char* field, const std::stri
     return {};
 }
 
+std::optional<bool> Parser::ReadBool(const Json& j, const char* field, const std::string& where)
+{
+    const auto it = j.find(field);
+    if (it == j.end() || it->is_null()) return std::nullopt;
+    if (it->is_boolean()) return it->get<bool>();
+    Error("{}: \"{}\" must be true or false", where, field);
+    return std::nullopt;
+}
+
 // What steps and options share: "if", actions, "goto".
 void Parser::ReadCommon(const Json& j, DialogCondition& cond, DialogActions& actions, std::string& go,
                         const std::string& where)
@@ -217,7 +227,8 @@ DialogOption Parser::ReadOption(const Json& j, const std::string& node, u32& cou
     option.English = ReadString(j, "text", where);
     if (option.English.empty()) Error("{}: an option needs \"text\"", where);
     option.Id  = ReadString(j, "id", where);
-    option.Key = MakeKey(j, node, counter, where);
+    option.Key    = MakeKey(j, node, counter, where);
+    option.Cancel = ReadBool(j, "cancel", where).value_or(false);
     CheckFields(j, where, OptionFields);
     return option;
 }
@@ -370,6 +381,7 @@ std::optional<Dialog> ParseDialog(const Json& json, const std::string_view id, s
     const std::string world = p.ReadString(json, "world", "dialog");
     if (world != "" && world != "run" && world != "pause") p.Error("\"world\" must be \"run\" or \"pause\"");
     dialog.PauseWorld = world == "pause";
+    dialog.Cancelable = p.ReadBool(json, "cancelable", "dialog");
     if (const auto it = json.find("nodes"); it != json.end()) p.ReadNodes(*it, dialog);
     if (dialog.Nodes.empty()) {
         p.Error("a dialog needs \"nodes\"");

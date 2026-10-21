@@ -1,9 +1,11 @@
 #pragma once
 
 #include <arcbit/app/DebugConsole.h>
+#include <arcbit/app/ProjectDefaults.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/dialog/DialogLibrary.h>
+#include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/render/Font.h>
@@ -130,6 +132,11 @@ struct ApplicationConfig
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English
     const char* LocaleFolder = "assets/locale";  // the game's locale files (docs/localization.md); a debug build can use the source folder
     const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
+    const char* PrefabFolder = "assets/prefabs"; // the game's .arcprefab files, read at startup (docs/scenes.md#prefabs)
+
+    // The engine's behavior defaults - tap to turn, and more as they come
+    // (ProjectDefaults.h). Phase 38's project.arcbit will fill them from a file.
+    ProjectDefaults Defaults;
 };
 
 // ---------------------------------------------------------------------------
@@ -251,6 +258,10 @@ public:
     // Every conversation in the dialog folders (ApplicationConfig::DialogFolder).
     [[nodiscard]] DialogLibrary& GetDialogs() { return _dialogs; }
 
+    // Every prefab in the prefab folder (ApplicationConfig::PrefabFolder),
+    // shared by every scene: "prefab" in scene files, Scene::Spawn.
+    [[nodiscard]] const PrefabLibrary& GetPrefabs() const { return _prefabs; }
+
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
     // until it ends; autosaves wait. A dialog with "world": "pause" stops
@@ -262,6 +273,10 @@ public:
     bool StartDialog(const std::string_view id) { return StartDialog(DialogRequest{ .Id = std::string(id) }); }
 
     [[nodiscard]] bool IsDialogActive() const { return _dialog.has_value(); }
+
+    // Whether Esc / gamepad East would back out of the conversation now
+    // (DialogRunner::CanCancel) - a game's pause key stays out of its way.
+    [[nodiscard]] bool CanCancelDialog() const;
 
     // End the conversation now (its choice reads "") and drop the waiting ones.
     void StopDialog();
@@ -431,7 +446,12 @@ private:
     [[nodiscard]] bool        NeedsSaveNotice() const;
     [[nodiscard]] SplashEntry SaveNoticeCard();
 
+    // The project's defaults a scene carries (WorldConfig), on every scene made.
+    void ApplyDefaults(Scene& scene) const;
+
     DialogLibrary          _dialogs;
+    PrefabLibrary          _prefabs;
+    void                   RegisterPrefabCommands();
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 
     // Conversations (ApplicationDialog.cpp).
@@ -511,6 +531,7 @@ private:
     void StartBoot();
     void PushSplash();
     void FinishSplash();
+    void ShowBindingNotice();
     void ShowTitle();
     std::vector<TextureHandle> _splashTextures; // released once the splash ends
 

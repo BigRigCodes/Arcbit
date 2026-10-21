@@ -167,6 +167,7 @@ void Application::RegisterConsoleCommands()
     } });
     RegisterSaveCommands();
     RegisterDialogCommands();
+    RegisterPrefabCommands();
     _debugConsole.Register({ .Name = "fps", .Help = "fps - show / hide the FPS counter", .Run = [](const Args&) {
         Settings::Graphics.ShowFps = !Settings::Graphics.ShowFps;
         Settings::MarkDirty("graphics");
@@ -192,6 +193,23 @@ void Application::RegisterConsoleCommands()
                              .Run = [this](const Args&) {
                                  if (_consoleScreen) ToggleConsole(); // out of the picture
                                  Screenshot();
+                             } });
+}
+
+// spawn: a prefab at the camera's center (or x y) in the active scene.
+void Application::RegisterPrefabCommands()
+{
+    _debugConsole.Register({ .Name = "spawn", .Help = "spawn [prefab] [x y] - list the prefabs, or place one", .Cheat = true,
+                             .Run = [this](const DebugConsole::Args& a) {
+                                 if (a.empty()) {
+                                     for (const std::string& id : _prefabs.GetIds()) _debugConsole.Print("  " + id);
+                                     return;
+                                 }
+                                 Scene* scene = _scenes.GetActive();
+                                 if (!scene) throw std::runtime_error("no scene");
+                                 const Vec2 at = a.size() >= 3 ? Vec2{ std::stof(a[1]), std::stof(a[2]) }
+                                                               : scene->GetCamera().GetEffectivePosition();
+                                 if (!scene->Spawn(a[0], at).IsValid()) throw std::runtime_error(std::format("can't spawn '{}'", a[0]));
                              } });
 }
 

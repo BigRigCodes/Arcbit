@@ -6,12 +6,16 @@
 
 #include <arcbit/core/Log.h>
 #include <arcbit/core/Loc.h>
+#include <arcbit/events/EngineEvents.h>
+#include <arcbit/input/BindingUpdate.h>
+#include <arcbit/settings/Settings.h>
 #include <arcbit/ui/AudioSettingsScreen.h>
 #include <arcbit/ui/ConfirmScreen.h>
 #include <arcbit/ui/CreditsScreen.h>
 #include <arcbit/ui/GraphicsSettingsScreen.h>
 #include <arcbit/ui/InputRebindScreen.h>
 #include <arcbit/ui/MainMenuScreen.h>
+#include <arcbit/ui/NoticeScreen.h>
 #include <arcbit/ui/SaveSlotScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 
@@ -82,6 +86,37 @@ void Application::FinishSplash()
         _splashTextures.clear();
     }
     if (_boot.ShowTitle) ShowTitle();
+    ShowBindingNotice(); // over the title: the first thing the player reads
+}
+
+// The actions an update placed among the player's bindings that the player
+// should hear about: told once, as the project asks (ProjectDefaults).
+void Application::ShowBindingNotice()
+{
+    std::vector<std::string> lines;
+    std::string              text;
+    for (const BindingChange& change : Settings::GetBindingChanges()) {
+        if (!change.IsNotable() && !_config.Defaults.BindingNoticeAllNew) continue;
+        lines.push_back(DescribeBindingChange(change, _input));
+        text += (text.empty() ? "" : "\n") + lines.back();
+    }
+    if (lines.empty()) return;
+    LOG_INFO(Engine, "Bindings updated:\n{}", text);
+    _events.PublishEngine(EngineEvents::BindingsUpdated, { { "count", static_cast<i64>(lines.size()) }, { "text", text } });
+    if (_config.Defaults.BindingNotice == NoticeStyle::Card) {
+        auto card   = std::make_unique<NoticeScreen>();
+        card->Title = Loc::Get("ui.bindings_notice.title");
+        card->Lines = std::move(lines);
+        card->OnOk  = [this, screen = card.get()] { _ui.Close(screen); };
+        _ui.Push(std::move(card));
+    }
+    else if (_config.Defaults.BindingNotice == NoticeStyle::Toast) {
+        auto toast    = std::make_unique<NoticeToast>();
+        toast->Title  = Loc::Get("ui.bindings_notice.title");
+        toast->Lines  = std::move(lines);
+        toast->OnDone = [this, screen = toast.get()] { _ui.Remove(screen); };
+        _ui.Push(std::move(toast));
+    }
 }
 
 // The title menu over the running scene. With a separate TitleScene
@@ -122,6 +157,12 @@ void Application::ShowCredits()
     credits->Path       = _boot.CreditsPath;
     credits->ViewHeight = static_cast<f32>(GetWindowHeight());
     credits->OnClose    = [this, screen = credits.get()] { _ui.Close(screen); };
+    credits->LoadImage  = [this](const std::string& path) {
+        const TextureHandle texture = _textures->Load(path);
+        const TextureInfo   info    = _textures->GetInfo(texture);
+        return CreditsScreen::LoadedImage{ texture, { static_cast<f32>(info.Width), static_cast<f32>(info.Height) } };
+    };
+    credits->ImageSampler = GetStockSampler(StockSampler::Linear);
     _ui.Push(std::move(credits));
 }
 

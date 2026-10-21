@@ -27,6 +27,11 @@ namespace EngineEvents
     // hints. device: "keyboard_mouse" or "gamepad".
     constexpr std::string_view InputDeviceChangedName = "engine.input.device_changed";
 
+    // An update placed new (or reset) actions among the player's bindings
+    // (Settings::LoadInputBindings), published once the boot is done. count,
+    // text (the notice's lines, one per action, localized).
+    constexpr std::string_view BindingsUpdatedName = "engine.input.bindings_updated";
+
     // The window gained or lost focus (pause on alt-tab). focused.
     constexpr std::string_view WindowFocusChangedName = "engine.window.focus_changed";
     // The window's size changed. size (Vec2, pixels).
@@ -70,6 +75,7 @@ namespace EngineEvents
     constexpr EventId SceneSuspended     = MakeEvent(SceneSuspendedName);
     constexpr EventId SceneResumed       = MakeEvent(SceneResumedName);
     constexpr EventId InputDeviceChanged = MakeEvent(InputDeviceChangedName);
+    constexpr EventId BindingsUpdated    = MakeEvent(BindingsUpdatedName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
     constexpr EventId WindowResized      = MakeEvent(WindowResizedName);
     constexpr EventId SettingsChanged    = MakeEvent(SettingsChangedName);
@@ -91,7 +97,7 @@ namespace EngineEvents
         InputDeviceChangedName, WindowFocusChangedName, WindowResizedName,  SettingsChangedName,
         EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
         EntityInteractedName,   LocaleChangedName,      DialogStartedName,  DialogEndedName,
-        DialogLineName,         DialogChoiceName,
+        DialogLineName,         DialogChoiceName,       BindingsUpdatedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

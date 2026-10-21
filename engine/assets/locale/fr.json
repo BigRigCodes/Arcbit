@@ -68,6 +68,8 @@
   "ui.audio.master": "Volume général",
   "ui.audio.music":  "Volume de la musique",
   "ui.audio.sfx":    "Volume des effets",
+  "ui.audio.voice":  "Volume des voix",
+  "ui.audio.ui":     "Volume des menus",
 
   "ui.graphics.title":       "Paramètres graphiques",
   "ui.graphics.fullscreen":  "Plein écran",
@@ -101,6 +103,11 @@
 
   "ui.saving":           "Sauvegarde…",
   "ui.save_notice.text": "Ce jeu sauvegarde automatiquement. Lorsque cette icône s'affiche, le jeu est en train de sauvegarder : merci de ne pas fermer le jeu ni d'éteindre votre système.",
+  "ui.bindings_notice.title": "Commandes mises à jour",
+  "ui.bindings_notice.new": "Nouveau : {action} est sur {keys}",
+  "ui.bindings_notice.reset": "{action} est maintenant sur {keys}",
+  "ui.bindings_notice.taken": "({keys} sert à {action})",
+  "ui.bindings_notice.unbound": "{action} n'a pas encore de touche : choisissez-en une dans Commandes",
 
   "ui.hud.hp": "PV",
   "ui.hud.mp": "PM",

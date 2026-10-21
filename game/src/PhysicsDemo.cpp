@@ -120,7 +120,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = {0.3f, 0.5f, 1.0f, 1.0f},
-                                               .Layer   = 0,
                                            });
         world.AddComponent<CameraTarget>(_player, CameraTarget{.Lag = 0.05f});
         world.AddComponent<FreeMovement>(_player, FreeMovement{.Speed = PlayerSpeed});
@@ -154,7 +153,6 @@ protected:
                                                .Texture = _whiteTex,
                                                .Sampler = _sampler,
                                                .Tint    = tint,
-                                               .Layer   = static_cast<i32>(pos.Y + size.Y * 0.5f),
                                            });
         const Collider2D col{
             .Shape       = ColliderShape::Box,

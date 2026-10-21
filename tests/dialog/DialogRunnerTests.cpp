@@ -91,6 +91,39 @@ TEST_CASE("A runner walks lines and choices, setting and testing SaveData", "[di
     CHECK(runner.GetLastChoice() == "map");
 }
 
+TEST_CASE("Backing out picks the cancel option, or ends a cancelable line", "[dialog]")
+{
+    LocScope     scope;
+    DialogRunner runner;
+    const auto   talk = Make(R"({ "nodes": { "a": [ "Hi.",
+        { "choice": [ { "id": "stay", "text": "Stay." },
+                      { "id": "go", "text": "Go.", "cancel": true, "set": { "left": true } } ] },
+        "Bye." ] } })");
+    SaveData data;
+    runner.Start(talk, { .Data = &data });
+    runner.Next();
+    REQUIRE(runner.CancelChoice() == 1u);
+    runner.Cancel(); // as if "Go." was picked: its actions run
+    CHECK(data.Get("left", false));
+    CHECK(runner.GetLastChoice() == "go");
+    CHECK(runner.GetLine().Text == "Bye.");
+    runner.Cancel();
+    CHECK(runner.GetState() == DialogRunner::State::Ended);
+    CHECK(runner.GetLastChoice().empty()); // backed out of a line: no choice
+
+    runner.CancelableByDefault = false; // the project's default ...
+    runner.Start(talk, {});
+    CHECK_FALSE(runner.CanCancel());
+    runner.Cancel();
+    CHECK(runner.GetState() == DialogRunner::State::Line);
+    runner.Start(Make(R"({ "cancelable": true, "nodes": { "a": [ "Hi." ] } })", "other"), {});
+    CHECK(runner.CanCancel()); // ... unless the dialog says
+
+    runner.Start(Make(R"({ "nodes": { "a": [ { "choice": [ { "id": "x", "text": "X" } ] } ] } })", "plain"), {});
+    CHECK_FALSE(runner.CancelChoice()); // no cancel option: Esc does nothing
+    CHECK_FALSE(runner.CanCancel());
+}
+
 TEST_CASE("Options that don't hold are hidden, and a second talk is remembered", "[dialog]")
 {
     LocScope scope;

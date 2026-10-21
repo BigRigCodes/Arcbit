@@ -35,6 +35,13 @@ namespace
                : Vec2{static_cast<f32>(packet.Width), static_cast<f32>(packet.Height)};
     }
 
+    // A Y-sorted sprite's layer: its bottom edge's world Y (center is the
+    // quad's, after the pivot), the same scale as Objects-layer tile keys.
+    i32 YSortLayer(const Vec2 center, const Vec2 size)
+    {
+        return static_cast<i32>(std::floor(center.Y + std::abs(size.Y) * 0.5f));
+    }
+
     // ---------------------------------------------------------------------------
     // Built-in system implementations
     // ---------------------------------------------------------------------------
@@ -132,14 +139,47 @@ namespace
            });
     }
 
-    void ApplyIntentToSmoothTileMovers(World& ecs)
+    // Float slack so a timer that should land exactly on zero after N ticks
+    // (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
+    constexpr f32 TimerEpsilon = 1e-4f;
+
+    // A mover's own TurnDelay, else the scene's (the project default).
+    f32 TurnDelayOf(const f32 own, Scene& scene) { return own >= 0.0f ? own : scene.GetConfig().TileTurnDelay; }
+
+    // Tap to turn: whether a tile mover may step in `dir` this tick. Standing
+    // (`idle`) and pressed a way it doesn't face, it waits until the
+    // direction has been held `delay` seconds - the turn itself is
+    // MoveIntent.Facing, already set. Pressed the way it faces, or already
+    // walking, it goes at once.
+    bool MayStep(TileTurn& turn, const Vec2 dir, const Vec2 facing, const bool idle, const f32 delay, const f32 dt)
     {
-        ecs.Query<const MoveIntent, SmoothTileMovement>()
-           .Without<Disabled>()
-           .ForEach([](const MoveIntent& intent, SmoothTileMovement& stm) {
-               stm.QueuedDir = CardinalStep(intent.Direction);
-               stm.HasQueued = stm.QueuedDir != Vec2{};
-           });
+        if (dir == Vec2{}) {
+            turn.Held = 0.0f;
+            if (idle) turn.Faced = CardinalStep(facing);
+            return false;
+        }
+        if (!idle || delay <= 0.0f || dir == turn.Faced) {
+            turn.Faced = dir;
+            turn.Held  = 0.0f;
+            return true;
+        }
+        turn.Held += dt;
+        if (turn.Held + TimerEpsilon < delay) return false;
+        turn.Faced = dir;
+        turn.Held  = 0.0f;
+        return true;
+    }
+
+    void ApplyIntentToSmoothTileMovers(Scene& scene, const f32 dt)
+    {
+        scene.GetWorld().Query<const MoveIntent, SmoothTileMovement>()
+            .Without<Disabled>()
+            .ForEach([&](const MoveIntent& intent, SmoothTileMovement& stm) {
+                const Vec2 dir = CardinalStep(intent.Direction);
+                stm.QueuedDir  = dir;
+                stm.HasQueued  = MayStep(stm._turn, dir, intent.Facing, stm.Progress >= 1.0f,
+                                         TurnDelayOf(stm.TurnDelay, scene), dt);
+            });
     }
 
     // An external push slower than this (px/s, squared) has died out.
@@ -595,7 +635,7 @@ namespace
         world.RegisterSystem("SmoothTileMove", [](Scene& scene, const f32 dt) {
             TileStepContext ctx{ .Ecs = scene.GetWorld(), .Physics = scene.GetPhysics(),
                                  .TileSize = scene.GetTileMap().GetTileSize() };
-            ApplyIntentToSmoothTileMovers(ctx.Ecs);
+            ApplyIntentToSmoothTileMovers(scene, dt);
 
             ctx.Ecs.Query<Transform2D, SmoothTileMovement>()
                .Without<Disabled>()
@@ -652,24 +692,24 @@ namespace
         });
     }
 
-    // Float slack so a cooldown that should land exactly on zero after N
-    // ticks (0.15 s = 9 ticks at 60 Hz) doesn't wait an extra tick.
-    constexpr f32 CooldownEpsilon = 1e-4f;
-
-    // One snap mover's tick. A fresh direction steps at once; a held one
-    // repeats every StepInterval, carrying the remainder so the average rate
-    // is exact. A blocked step clears the cooldown and retries next tick.
+    // One snap mover's tick. A fresh direction steps at once (after a turn,
+    // if it's a new one - tap to turn); a held one repeats every
+    // StepInterval, carrying the remainder so the average rate is exact. A
+    // blocked step clears the cooldown and retries next tick.
     void TickSnapMover(TileStepContext& ctx, const Entity e, Transform2D& t, SnapTileMovement& snap,
-                       const MoveIntent& intent, const f32 dt)
+                       const MoveIntent& intent, const f32 delay, const f32 dt)
     {
         const Collider2D* col = ctx.Ecs.GetComponent<Collider2D>(e);
         const f32         ts  = ctx.TileSize;
         const Vec2 dir = CardinalStep(intent.Direction);
+        const bool may = MayStep(snap._turn, dir, intent.Facing, !snap._turn.Walking, delay, dt);
         if (dir == Vec2{}) {
-            snap.Cooldown = 0.0f;
+            snap.Cooldown      = 0.0f;
+            snap._turn.Walking = false;
             return;
         }
-        if (snap.Cooldown <= CooldownEpsilon) {
+        if (!may) return;
+        if (snap.Cooldown <= TimerEpsilon) {
             const Vec2 origin = TileCenterUnder(t.Position, ts);
             const Vec2 target = origin + dir * ts;
             if (!TileStepClear(ctx, e, col, origin, target)) { // a pushed crate has already jumped ahead
@@ -679,6 +719,7 @@ namespace
             t.Position = target;
             RefreshCollider(e, col, t.Position, ctx.Physics);
             snap.Cooldown += snap.StepInterval;
+            snap._turn.Walking = true;
         }
         snap.Cooldown -= dt;
     }
@@ -693,7 +734,7 @@ namespace
             ctx.Ecs.Query<Transform2D, SnapTileMovement, const MoveIntent>()
                .Without<Disabled>()
                .ForEach([&](const Entity e, Transform2D& t, SnapTileMovement& snap, const MoveIntent& intent) {
-                   TickSnapMover(ctx, e, t, snap, intent, dt);
+                   TickSnapMover(ctx, e, t, snap, intent, TurnDelayOf(snap.TurnDelay, scene), dt);
                });
         });
     }
@@ -955,8 +996,7 @@ namespace
                                                    i32 sortLayer = -1000000;
                                                    if (layer == 1) {
                                                        const bool flat = def && def->Flat;
-                                                       sortLayer = flat ? -999999
-                                                                       : static_cast<i32>(worldPos.Y + ts);
+                                                       sortLayer = flat ? -999999 : tileMap.ObjectSortLayer(tileY);
                                                    } else if (layer == 2)
                                                        sortLayer = 1000000;
 
@@ -982,22 +1022,26 @@ namespace
             const Vec2      camPos = cam.GetEffectivePosition();
             const Vec2      ref    = GetRefSize(packet);
 
+        const bool ySortByDefault = scene.GetConfig().YSortSprites;
         scene.GetWorld()
                 .Query<const Transform2D, const SpriteRenderer>()
                 .Without<Disabled>()
                 .ForEach(
                     [&](const Entity e, const Transform2D& t, const SpriteRenderer& sr) {
-                        Vec2 pos = t.Position;
-                        if (const auto* p = scene.GetWorld().GetComponent<Parallax>(e))
-                        {
-                            pos.X += camPos.X * (1.0f - p->ScrollFactor.X);
-                            pos.Y += camPos.Y * (1.0f - p->ScrollFactor.Y);
-                        }
                         // Pivot offset: shifts the rendered quad so the sprite's
                         // logical anchor aligns with Transform2D.Position.
                         // Pivot {0.5,0.5} = centre (no offset); {0.5,1.0} = bottom-centre.
+                        Vec2 pos = t.Position;
                         pos.X += (0.5f - sr.Pivot.X) * t.Scale.X;
                         pos.Y += (0.5f - sr.Pivot.Y) * t.Scale.Y;
+                        const auto* parallax = scene.GetWorld().GetComponent<Parallax>(e);
+                        const bool  ySort    = sr.YSort.value_or(ySortByDefault && !parallax);
+                        const i32   layer    = ySort ? YSortLayer(pos, t.Scale) : sr.Layer;
+                        if (parallax)
+                        {
+                            pos.X += camPos.X * (1.0f - parallax->ScrollFactor.X);
+                            pos.Y += camPos.Y * (1.0f - parallax->ScrollFactor.Y);
+                        }
                         if (!cam.IsVisible(pos, t.Scale, ref))
                             return;
 
@@ -1011,7 +1055,7 @@ namespace
                                           : sr.UV;
                         s.Tint      = sr.Tint;
                         s.Rotation  = t.Rotation;
-                        s.Layer     = sr.Layer;
+                        s.Layer     = layer;
                         packet.Sprites.push_back(s);
                     });
         });
@@ -1119,7 +1163,7 @@ namespace
                  .Without<Disabled>()
                  .ForEach([](const Transform2D& t, AudioSource& src) {
                      if (!src._handle && src.Playing)
-                         src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume);
+                         src._handle = AudioManager::CreateSpatialSound(src.Path, src.Loop, src.Volume, src.Category);
                      if (!src._handle) return;
 
                      AudioManager::SetSpatialSoundPosition(src._handle, t.Position, src.Radius);

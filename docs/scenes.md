@@ -11,6 +11,7 @@ are all scene files.
     [Music](#music)
 - [Boot flow](#boot-flow)
 - [Scene file format (`.arcscene`)](#scene-file-format-arcscene)
+- [Prefabs](#prefabs)
 - [Component registry](#component-registry)
 - [Named systems](#named-systems)
 - [Assets and resource ownership](#assets-and-resource-ownership)
@@ -243,7 +244,19 @@ MyGame() : Application({ ... })
   New Game just closes it; with a `TitleScene`, New Game switches to
   `FirstScene`.
 - **Credits** (`CreditsScreen`) scroll a JSON file: `title`, `sections` of
-  `heading` + `names`, `scroll_speed`.
+  `heading` + `names`, `scroll_speed`. A name can be a logo instead:
+
+  ```json
+  { "heading": "credits.engine", "names": [
+      { "image": "assets/engine/ui/ArcbitA_withbackground.png", "height": 180, "uv": [0.2, 0.04, 0.8, 0.9] },
+      { "images": ["assets/logos/sdl.png", "assets/logos/vulkan.png"], "height": 64 },
+      "BigRigCodes" ] }
+  ```
+
+  `image` is one logo, `images` a row of them side by side; each is drawn
+  `height` pixels tall (default 96) at its own aspect, cropped to `uv` if
+  given. A logo that doesn't load is left out (logged). Application loads
+  them through its texture manager.
 
 The splash is on the `System` UI layer: screens pushed while it's up (a HUD
 the first scene pushes in `OnLoad`) go beneath it, so it keeps ticking and
@@ -292,7 +305,7 @@ One JSON document per scene. It references the tilemap (an `.arcmap`, see
 | `tilemap` | Path of an `.arcmap`. Optional. |
 | `tile_overrides` | TileDefs applied after the map loads, one per tile id, using the `.tileatlas.json` tile keys (`solid`, `blocks_light`, `flat`, `layer`, `blocked_from`, `uv_scroll`). Flip-book `animation` belongs in the atlas file. |
 | `systems` | [Named systems](#named-systems) the scene needs, installed in order at load. |
-| `music` | `path`, `loop` (default true): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
+| `music` | `path`, `loop` (default true), `category` (default `"music"`, the [audio category](audio.md#music) it plays at): the scene's [music](#music). An empty `path` is silence; no key leaves the music alone. |
 | `load` | Measured [load data](#load-data-load) for the loading bar. Optional, written by tools. |
 | `script` | The scene's own Lua script, a module name (`"demo.scene"`). See [scripting.md](scripting.md). |
 | `persist_all` | Make every entity `Persistent` (saved changes), each under its file id; an entity opts out with `"Persistent": { "enabled": false }`. See [saves.md](saves.md). |
@@ -352,14 +365,69 @@ were measured with:
 
 ### Not in v1
 
-- **Prefabs (templates and overrides)**: an entity that starts from a shared
-  definition and overrides some fields (see the blueprint). The format
-  reserves `"template"` and `"overrides"` keys on an entity for this.
 - **Entity references between entities**: e.g. a door that names its target
   by id. Ids are in place for it; no component needs it yet.
 - **Callbacks** (`TriggerCallback`, `CollisionCallback`): they hold C++
   functions. A scene file's entities react through their Lua scripts
   (`OnTriggerEnter`, `OnCollisionEnter`...) or a named system instead.
+
+---
+
+## Prefabs
+
+A prefab is an entity's components in their scene-file form, in a file of its
+own, shared by every scene: `assets/prefabs/chest.arcprefab` is the prefab
+`"chest"`, `assets/prefabs/npc/guard.arcprefab` is `"npc/guard"`
+(`ApplicationConfig::PrefabFolder`; read once at startup).
+
+```json
+{
+    "Tag": { "value": "Chest" },
+    "Transform2D": { "scale": [56.0, 56.0] },
+    "SpriteRenderer": { "texture": "builtin:white", "tint": [0.85, 0.6, 0.2, 1.0] },
+    "Collider2D": { "half_extents": [28.0, 28.0], "kind": "static", "layer": "Prop" },
+    "Interactable": { "prompt": "demo.scripted.prompt.open" },
+    "Persistent": {},
+    "Script": { "script": "demo.chest", "properties": { "Gold": 10 } }
+}
+```
+
+`"extends": "prop"` builds one prefab on another: its fields go over the
+parent's, field by field, and a component set to `null` drops the parent's.
+
+**Placed in a scene**, an entity names its prefab and gives only what's its
+own:
+
+```json
+"chest-2": {
+    "prefab": "chest",
+    "Transform2D": { "position": [-320.0, 192.0] },
+    "SpriteRenderer": { "tint": [0.7, 0.72, 0.78, 1.0] },
+    "Script": { "properties": { "Gold": 5 } }
+}
+```
+
+The prefab's components load first, then the entity's fields over them, field
+by field (nested objects like `properties` merge too); `"Collider2D": null`
+removes one. The link is live: the copy is rebuilt from the prefab every time
+the scene loads, so editing the prefab changes every copy that didn't
+override that field. `FileScene::Save` writes a copy back the same way - its
+`"prefab"` and only what differs from it (a component it added, in full; one
+it removed, as `null`).
+
+A copy is an ordinary entity once loaded: its file id is its id, it's
+Persistent if the prefab is (with the file id, as any entity), and saves
+track its changes against the prefab plus its overrides
+([saves.md](saves.md)).
+
+**Spawned at run time** - `Scene::Spawn("chest", position)`, Lua
+`Entity.Spawn("chest", Vec2(x, y))`, the console's `spawn chest [x y]` - a
+prefab is a one-time stamp: the new entity has no link back. A Persistent
+prefab gets the id `chest-1`, `chest-2`... (the first one the scene doesn't
+use), so each saves as its own spawned entity.
+
+The textures a copy's prefab uses load as the scene loads; only those named
+in the scene file itself decode ahead ([Loading ahead](#loading-ahead)).
 
 ---
 

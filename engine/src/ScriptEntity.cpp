@@ -9,6 +9,7 @@
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/scene/FileScene.h>
+#include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/scene/SceneRegistry.h>
@@ -143,6 +144,16 @@ void ScriptEngine::State::BindEntityStatics(sol::usertype<ScriptEntity>& type)
             if (std::ranges::all_of(entries, [&](const auto* entry) { return entry->Has(scene.GetWorld(), e); }))
                 found.push_back(Handle(scene, e));
         return sol::as_table(found);
+    };
+    // Entity.Spawn("chest", { 64, 32 }): a prefab's copy, an ordinary entity from then on.
+    type["Spawn"] = [this](const std::string& prefab, const Vec2 position) {
+        Scene& scene = RequireScene();
+        RequireReshapable(scene.GetWorld());
+        if (!Services.Registry || !Services.Assets || !Services.Prefabs) throw std::runtime_error("Entity.Spawn: no prefabs");
+        const std::unique_ptr<SceneAssets> assets = Services.Assets(scene);
+        const Entity e = SpawnPrefab(scene, *Services.Prefabs, prefab, position, *Services.Registry, *assets);
+        if (!e.IsValid()) throw std::runtime_error(std::format("Entity.Spawn: no prefab '{}'", prefab));
+        return Handle(scene, e);
     };
     // Entity.Create({ Transform2D = { position = { 0, 0 } }, Tag = { value = "Drop" } }).
     type["Create"] = [this](const sol::optional<sol::table> components) {

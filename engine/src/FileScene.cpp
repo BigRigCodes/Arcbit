@@ -62,20 +62,25 @@ namespace
     };
 
     // The texture and sprite sheet paths entity components name.
+    void PreloadComponents(const nlohmann::json& components, ScenePreloader& preload)
+    {
+        for (const nlohmann::json& component : components) {
+            if (!component.is_object()) continue;
+            if (const auto it = component.find("texture"); it != component.end() && it->is_string())
+                preload.AddTexture(it->get<std::string>());
+            if (const auto it = component.find("sheet"); it != component.end() && it->is_string())
+                preload.AddSpriteSheet(it->get<std::string>());
+        }
+    }
+
+    // Every entity's own textures and sheets. A prefab copy's prefab's load
+    // in OnLoad: the prefabs are the app's, out of reach on the loader thread.
     void PreloadComponentAssets(const nlohmann::json& doc, ScenePreloader& preload)
     {
         const auto entities = doc.find("entities");
         if (entities == doc.end() || !entities->is_object()) return;
-        for (const nlohmann::json& entity : *entities) {
-            if (!entity.is_object()) continue;
-            for (const nlohmann::json& component : entity) {
-                if (!component.is_object()) continue;
-                if (const auto it = component.find("texture"); it != component.end() && it->is_string())
-                    preload.AddTexture(it->get<std::string>());
-                if (const auto it = component.find("sheet"); it != component.end() && it->is_string())
-                    preload.AddSpriteSheet(it->get<std::string>());
-            }
-        }
+        for (const nlohmann::json& entity : *entities)
+            if (entity.is_object()) PreloadComponents(entity, preload);
     }
 
     // The optional "load" block: measured stage shares for the progress bar,
@@ -127,7 +132,7 @@ void FileScene::OnLoad()
     if (!doc) return;
 
     AppSceneAssets assets(*this);
-    _loaded = SceneFile::Load(*this, *doc, GetApp().GetSceneRegistry(), assets, _ids);
+    _loaded = SceneFile::Load(*this, *doc, GetApp().GetSceneRegistry(), assets, _ids, &GetApp().GetPrefabs(), &_prefabLinks);
     if (!_loaded) {
         LOG_ERROR(Engine, "FileScene: '{}' failed to load", _path);
         return;
@@ -135,7 +140,8 @@ void FileScene::OnLoad()
     try {
         _ambient = ReadAmbient(*doc);
         if (const auto music = doc->find("music"); music != doc->end() && music->is_object())
-            SetMusic(music->value("path", std::string{}), music->value("loop", true));
+            SetMusic(music->value("path", std::string{}), music->value("loop", true),
+                     music->value("category", std::string("music")));
         if (const auto script = doc->find("script"); script != doc->end() && script->is_string())
             SetScript(script->get<std::string>());
     }
@@ -165,7 +171,7 @@ Entity FileScene::FindEntity(const std::string_view id) const
 bool FileScene::Save(const std::string_view path)
 {
     AppSceneAssets       assets(*this);
-    const nlohmann::json doc = SceneFile::Save(*this, GetApp().GetSceneRegistry(), assets, _document, _ids);
+    const nlohmann::json doc = SceneFile::Save(*this, GetApp().GetSceneRegistry(), assets, _document, _ids, &_prefabLinks);
     return SceneFile::WriteFile(path.empty() ? std::string_view(_path) : path, doc);
 }
 } // namespace Arcbit

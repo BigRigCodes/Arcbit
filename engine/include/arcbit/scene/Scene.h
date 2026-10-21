@@ -97,6 +97,12 @@ public:
     // and destroyed once no scene (or app-wide TextureManager::Load) uses it.
     [[nodiscard]] TextureHandle LoadTexture(std::string_view path);
 
+    // A new entity from a prefab (Application::GetPrefabs) at `position` -
+    // a one-time stamp, an ordinary entity from then on (SpawnPrefab). An
+    // invalid Entity (logged) for an unknown prefab. Not from inside a
+    // query over this scene's world.
+    Entity Spawn(std::string_view prefab, Vec2 position);
+
     // Load a sprite sheet for this scene's lifetime (cached by path within
     // the scene; its texture through LoadTexture). Null if it fails. The
     // pointer stays valid until the scene unloads - what Animator::Sheet
@@ -128,7 +134,8 @@ public:
     // leaves the music alone - whatever plays keeps playing - except that
     // leaving a scene that owns music fades it out. Suspended under a pushed
     // scene, the track resumes where it was when the scene is active again.
-    void SetMusic(std::string path, bool loop = true);
+    // It plays at an audio category's volume ("music", or a game's own).
+    void SetMusic(std::string path, bool loop = true, std::string category = "music");
 
     [[nodiscard]] bool               OwnsMusic() const { return _ownsMusic; }
     [[nodiscard]] const std::string& GetMusic() const { return _musicPath; }
@@ -222,6 +229,7 @@ private:
     bool         _ownsMusic = false;
     std::string  _musicPath;
     bool         _musicLoop   = true;
+    std::string  _musicCategory = "music";
     f32          _musicResume = 0.0f; // seconds into the track when suspended
     MusicPlayer* _musicPlayer = nullptr;
     f32          _musicFade   = 0.0f;

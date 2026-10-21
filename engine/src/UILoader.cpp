@@ -399,6 +399,18 @@ static std::unique_ptr<UIWidget> BuildWidget(const json& j, UIScreen& screen)
     return widget;
 }
 
+std::unique_ptr<UIWidget> UILoader::Build(const std::string_view text, UIScreen& screen)
+{
+    EnsureBuiltins();
+    try {
+        return BuildWidget(json::parse(text), screen);
+    }
+    catch (const json::exception& e) {
+        LOG_ERROR(UI, "arcui: bad template - {}", e.what());
+        return nullptr;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Load
 // ---------------------------------------------------------------------------
@@ -425,6 +437,9 @@ bool UILoader::Load(const std::string_view path, UIScreen& screen)
         for (const auto& wJson : *widgetsIt)
             if (auto w = BuildWidget(wJson, screen))
                 screen.AddRaw(std::move(w));
+
+    if (const auto templatesIt = root.find("templates"); templatesIt != root.end() && templatesIt->is_object())
+        for (const auto& [name, widget] : templatesIt->items()) screen.SetTemplate(name, widget.dump());
 
     // The Lua script behind a ScriptedScreen (a module name).
     if (const auto scriptIt = root.find("script"); scriptIt != root.end() && scriptIt->is_string())
