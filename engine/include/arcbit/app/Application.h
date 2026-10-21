@@ -5,6 +5,8 @@
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/dialog/DialogLibrary.h>
+#include <arcbit/items/Currencies.h>
+#include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
 #include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/input/InputTypes.h>
@@ -267,6 +269,11 @@ public:
     // Every item in the item folder (ApplicationConfig::ItemFolder).
     [[nodiscard]] const ItemLibrary& GetItems() const { return _items; }
 
+    // The game's bags ("party" from the project's PartyBag) and currencies
+    // (docs/items.md) - game state, saved as the "inventories" section.
+    [[nodiscard]] Inventories& GetInventories() { return *_inventories; }
+    [[nodiscard]] Currencies&  GetCurrencies() { return *_currencies; }
+
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
     // until it ends; autosaves wait. A dialog with "world": "pause" stops
@@ -456,8 +463,12 @@ private:
 
     DialogLibrary          _dialogs;
     PrefabLibrary          _prefabs;
-    ItemLibrary            _items;
-    void                   LoadItems();
+    ItemLibrary                  _items;
+    std::unique_ptr<Inventories> _inventories; // made once the items are read
+    std::unique_ptr<Currencies>  _currencies;
+    void                         LoadItems();
+    void                         StartInventories();
+    void                         RegisterItemCommands();
     void                   RegisterPrefabCommands();
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 
@@ -475,6 +486,7 @@ private:
     void       EndDialog(const std::string& choice);
     void       HoldDialogParties(const DialogRequest& request, bool hold);
     DialogHost MakeDialogHost(const DialogRequest& request);
+    void       AddItemHooks(DialogHost& host);
     void       WatchDialog(DialogScreen& screen, const DialogRequest& request);
     void       RegisterDialogCommands();
     void       UpdateDialogs(); // each tick: start the next waiting one

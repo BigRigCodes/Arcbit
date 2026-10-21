@@ -9,6 +9,7 @@
 
 namespace Arcbit
 {
+class ItemLibrary;
 class SpriteSheet;
 class TileMap;
 
@@ -39,6 +40,9 @@ public:
 
     // Load an .arcmap into `tilemap` (atlases, tile size, chunks).
     [[nodiscard]] virtual bool LoadTileMap(TileMap& tilemap, std::string_view path) = 0;
+
+    // The game's items (a Container's bag reads them); null without a game.
+    [[nodiscard]] virtual const ItemLibrary* Items() const { return nullptr; }
 };
 
 class Scene;

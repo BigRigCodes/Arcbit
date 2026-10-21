@@ -13,6 +13,7 @@ add_library(arcbit-engine STATIC
     src/Application.cpp
     src/ApplicationBoot.cpp
     src/ApplicationDialog.cpp
+    src/ApplicationItems.cpp
     src/ApplicationLocale.cpp
     src/ApplicationSaves.cpp
     src/DebugConsole.cpp
@@ -30,6 +31,8 @@ add_library(arcbit-engine STATIC
     src/Movement.cpp
     src/Scene.cpp
     src/PrefabLibrary.cpp
+    src/Currencies.cpp
+    src/Inventories.cpp
     src/Inventory.cpp
     src/InventoryGrid.cpp
     src/ItemLibrary.cpp
@@ -49,6 +52,7 @@ add_library(arcbit-engine STATIC
     src/ScriptLoc.cpp
     src/ScriptDialog.cpp
     src/ScriptEntity.cpp
+    src/ScriptItems.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
     src/ScriptScreens.cpp

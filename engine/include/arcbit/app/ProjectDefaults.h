@@ -1,6 +1,9 @@
 #pragma once
 
 #include <arcbit/core/Types.h>
+#include <arcbit/items/Container.h>
+#include <arcbit/items/Currencies.h>
+#include <arcbit/items/Inventory.h>
 
 #include <map>
 #include <string>
@@ -61,6 +64,17 @@ struct ProjectDefaults
         { "consumable", 99 }, { "equipment", 1 }, { "key", 1 }, { "material", 999 }, { "currency", 999999 },
     };
     u32 ItemStackOther = 99;
+
+    // The party's shared bag: its kind (pockets, weight, grid, survival - see
+    // InventoryRules) as a new game starts.
+    InventoryRules PartyBag = InventoryRules::Pockets();
+
+    // The game's currencies: SaveData counters, or (Item) stacks in a bag.
+    std::vector<CurrencyDef> Currencies = { { .Id = "gold" } };
+
+    // Opening a Container: the transfer screen, or take everything at once.
+    // Per container: "open".
+    ContainerOpening ContainerOpen = ContainerOpening::Transfer;
 
     // A party member's equipment slots; an item's "slot" names a Kind.
     std::vector<EquipmentSlot> EquipmentSlots = {

@@ -34,6 +34,8 @@ namespace
             if (texture == _app.GetWhiteTexture()) return std::string(BuiltinWhite);
             return _app.GetTextures().GetPath(texture);
         }
+        const ItemLibrary* Items() const override { return &_app.GetItems(); }
+
         SamplerHandle Sampler(const std::string_view name) override
         {
             return _app.GetStockSampler(name == "linear" ? Application::StockSampler::Linear

@@ -237,6 +237,9 @@ private:
     void BindConsole();
     void BindLoc();
     void BindDialog();
+    void BindItems();
+    void BindInventory();
+    void BindCurrency();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with

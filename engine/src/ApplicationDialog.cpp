@@ -158,7 +158,30 @@ DialogHost Application::MakeDialogHost(const DialogRequest& request)
                             request.Scene->CallScript(request.With, method);
         if (!called) LOG_WARN(Engine, "Dialog '{}': no '{}' to call on the one talked to", request.Id, method);
     };
+    AddItemHooks(host);
     return host;
+}
+
+// "has" / "give" / "take" on the party's bag; currencies (counters or items)
+// and `count.<item>` in conditions, "add" and {placeholders}.
+void Application::AddItemHooks(DialogHost& host)
+{
+    host.CountItem  = [this](const std::string_view item) { return _inventories->GetParty().Count(item); };
+    host.ChangeItem = [this](const std::string_view item, const i64 change) -> u32 {
+        Inventory& party = _inventories->GetParty();
+        return change >= 0 ? party.Add(item, static_cast<u32>(change)) : party.Remove(item, static_cast<u32>(-change));
+    };
+    host.Read = [this](const std::string_view key) -> std::optional<SaveValue> {
+        if (_currencies->Find(key)) return SaveValue{ _currencies->Get(key) };
+        if (key.starts_with("count.")) return SaveValue{ static_cast<i64>(_inventories->GetParty().Count(key.substr(6))) };
+        return std::nullopt;
+    };
+    host.AddTo = [this](const std::string_view key, const SaveValue& delta) {
+        const i64* amount = std::get_if<i64>(&delta);
+        if (!amount || !_currencies->Find(key)) return false;
+        (void)_currencies->Add(key, *amount);
+        return true;
+    };
 }
 
 void Application::UpdateDialogs()

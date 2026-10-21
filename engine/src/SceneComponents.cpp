@@ -8,6 +8,8 @@
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Interaction.h>
 #include <arcbit/ecs/Movement.h>
+#include <arcbit/items/Container.h>
+#include <arcbit/items/ItemLibrary.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -255,6 +257,36 @@ namespace
             [](const CameraTarget& c, json& j, const SceneAssets&) { j["lag"] = c.Lag; });
     }
 
+    // "rules" the bag's kind; "items" its contents ({ id: count }, replacing
+    // what it held), or "stacks" as saves write them; "open", "loot".
+    void ReadContainer(Container& c, const json& j, SceneAssets& assets)
+    {
+        const ItemLibrary*   items = assets.Items();
+        const InventoryRules rules = j.contains("rules") ? RulesFromJson(j["rules"]) : c.Items.GetRules();
+        json                 bag   = c.Items.ToJson();
+        bag["rules"]               = RulesToJson(rules);
+        if (const auto it = j.find("stacks"); it != j.end()) bag["stacks"] = *it;
+        c.Items = items ? Inventory(*items, rules) : Inventory{};
+        c.Items.FromJson(bag);
+        if (const auto it = j.find("items"); it != j.end() && it->is_object()) {
+            c.Items.Clear();
+            for (const auto& [item, count] : it->items())
+                if (c.Items.Add(item, count.get<u32>()) < count.get<u32>())
+                    LOG_WARN(Engine, "Container: not all of {} x '{}' fit", count.get<u32>(), item);
+        }
+        Read(j, "open", c.Open);
+        Read(j, "loot", c.Loot);
+    }
+
+    void WriteContainer(const Container& c, json& j, const SceneAssets&)
+    {
+        const json bag = c.Items.ToJson();
+        j["rules"]     = bag["rules"];
+        j["stacks"]    = bag["stacks"];
+        j["open"]      = c.Open;
+        j["loot"]      = c.Loot;
+    }
+
     void RegisterAudioComponents(SceneRegistry& r)
     {
         r.RegisterComponent<AudioSource>(
@@ -408,6 +440,7 @@ void RegisterBuiltinComponents(SceneRegistry& registry)
     RegisterVisualComponents(registry);
     RegisterAudioComponents(registry);
     registry.RegisterComponent<Collider2D>("Collider2D", ReadCollider, WriteCollider);
+    registry.RegisterComponent<Container>("Container", ReadContainer, WriteContainer);
     RegisterControllerComponents(registry);
     RegisterStyleComponents(registry);
 }

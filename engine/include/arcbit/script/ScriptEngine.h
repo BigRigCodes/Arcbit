@@ -15,7 +15,10 @@ namespace Arcbit
 {
 class DebugConsole;
 class EventBus;
+class Currencies;
 class InputManager;
+class Inventories;
+class ItemLibrary;
 class PrefabLibrary;
 class Scene;
 class SceneAssets;
@@ -34,6 +37,9 @@ struct ScriptServices
     SaveManager*         Saves    = nullptr; // Save.Get / Set
     const SceneRegistry* Registry = nullptr; // entity:Get / Set / Add / Remove, Entity.Create
     const PrefabLibrary* Prefabs  = nullptr; // Entity.Spawn
+    const ItemLibrary*   Items    = nullptr; // Items.Get
+    Inventories*         Bags     = nullptr; // Inventory.*
+    Currencies*          Money    = nullptr; // Currency.*
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

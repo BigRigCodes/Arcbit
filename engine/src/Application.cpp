@@ -249,12 +249,16 @@ void Application::Run()
                       .Assets          = [](Scene& scene) { return MakeAppSceneAssets(scene); },
                       .Scripts         = &_scriptEngine });
     RegisterSaveSections();
+    StartInventories(); // empty bags now, so scripts and dialogs can reach them; items read later
     _scriptEngine.SetServices({ .Scenes    = &_scenes,
                                 .Input     = &_input,
                                 .Events    = &_events,
                                 .Saves     = &_saves,
                                 .Registry  = &_sceneRegistry,
                                 .Prefabs   = &_prefabs,
+                                .Items     = &_items,
+                                .Bags      = _inventories.get(),
+                                .Money     = _currencies.get(),
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },

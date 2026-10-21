@@ -30,6 +30,7 @@ add_executable(arcbit-tests
     events/EventPayloadTests.cpp
     input/BindingUpdateTests.cpp
     input/InputManagerTests.cpp
+    items/GameItemsTests.cpp
     items/InventoryGridTests.cpp
     items/InventoryTests.cpp
     items/ItemLibraryTests.cpp

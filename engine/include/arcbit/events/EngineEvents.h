@@ -32,6 +32,13 @@ namespace EngineEvents
     // text (the notice's lines, one per action, localized).
     constexpr std::string_view BindingsUpdatedName = "engine.input.bindings_updated";
 
+    // A game bag (Inventories) gained or lost items. bag, item, count (how
+    // many - always positive).
+    constexpr std::string_view ItemAddedName   = "engine.item.added";
+    constexpr std::string_view ItemRemovedName = "engine.item.removed";
+    // A currency's amount changed (Currencies). currency, amount (now), change.
+    constexpr std::string_view CurrencyChangedName = "engine.currency.changed";
+
     // The window gained or lost focus (pause on alt-tab). focused.
     constexpr std::string_view WindowFocusChangedName = "engine.window.focus_changed";
     // The window's size changed. size (Vec2, pixels).
@@ -76,6 +83,9 @@ namespace EngineEvents
     constexpr EventId SceneResumed       = MakeEvent(SceneResumedName);
     constexpr EventId InputDeviceChanged = MakeEvent(InputDeviceChangedName);
     constexpr EventId BindingsUpdated    = MakeEvent(BindingsUpdatedName);
+    constexpr EventId ItemAdded          = MakeEvent(ItemAddedName);
+    constexpr EventId ItemRemoved        = MakeEvent(ItemRemovedName);
+    constexpr EventId CurrencyChanged    = MakeEvent(CurrencyChangedName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
     constexpr EventId WindowResized      = MakeEvent(WindowResizedName);
     constexpr EventId SettingsChanged    = MakeEvent(SettingsChangedName);
@@ -98,6 +108,7 @@ namespace EngineEvents
         EntitySpawnedName,      EntityDestroyedName,    GameSavedName,      GameLoadedName,
         EntityInteractedName,   LocaleChangedName,      DialogStartedName,  DialogEndedName,
         DialogLineName,         DialogChoiceName,       BindingsUpdatedName,
+        ItemAddedName,          ItemRemovedName,        CurrencyChangedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit
