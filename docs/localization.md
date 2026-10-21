@@ -204,16 +204,16 @@ won't fit a longer translation loses its closing bracket.
 **`arcbit-loc`** (built with the engine):
 
 ```bash
-arcbit-loc check --locales engine/assets/locale game/assets/locale --scan engine/src engine/assets game/src game/assets --dialogs game/assets/dialog
-arcbit-loc coverage --locales engine/assets/locale game/assets/locale --dialogs game/assets/dialog
-arcbit-loc template --locales engine/assets/locale game/assets/locale --dialogs game/assets/dialog --out game/assets/locale/de.json
+arcbit-loc check --locales engine/assets/locale game/assets/locale --scan engine/src engine/assets game/src game/assets --dialogs game/assets/dialog --items game/assets/items
+arcbit-loc coverage --locales engine/assets/locale game/assets/locale --dialogs game/assets/dialog --items game/assets/items
+arcbit-loc template --locales engine/assets/locale game/assets/locale --dialogs game/assets/dialog --items game/assets/items --out game/assets/locale/de.json
 ```
 
 `check` reports:
 
 - keys the content uses that English lacks (exit code 1 if any);
-- problems in the dialog files - errors (exit code 1) and warnings, including
-  a line whose English a locale file replaces;
+- problems in the dialog and item files - errors (exit code 1) and
+  warnings, including a line or name whose English a locale file replaces;
 - raw text in layouts;
 - translations of keys English no longer has - often a dialog line that was
   renumbered or removed, whose translation needs moving;
@@ -221,8 +221,9 @@ arcbit-loc template --locales engine/assets/locale game/assets/locale --dialogs 
   run time can't be seen);
 - each language's coverage.
 
-Dialog files (`--dialogs`, [dialog.md](dialog.md)) carry their own English, so
-their lines count in coverage and templates like any locale file's.
+Dialog files (`--dialogs`, [dialog.md](dialog.md)) and item files (`--items`,
+[items.md](items.md)) carry their own English, so their lines and names count
+in coverage and templates like any locale file's.
 `template` writes a new language's starting file: every English key with its
 English text to replace. A test runs `check` over the engine and the demos.
 

@@ -510,7 +510,7 @@ The rest of the original event list moved to the phases that build those systems
 ---
 
 ## Phase 29: Inventory & Items
-- [ ] Item definition (ID, name, description, icon, stat block, type flags: consumable / equipment / key); all player-visible strings use localization keys (Phase 28)
+- [x] Item definition (ID, name, description, icon, stat block, type flags: consumable / equipment / key); all player-visible strings use localization keys (Phase 28) - `.arcitems` files, `extends`, English in the file (`docs/items.md`)
 - [ ] Inventory kinds a game picks per inventory, without building one: **grid** (Minecraft: slots, optional hotbar section), **pockets** (Pokemon: a list per category), **weight** (Skyrim: category-filtered list, carry weight), **survival** (grid + carry weight); the project picks the party bag's default
 - [ ] Grid items can take more than one cell (`"size"`) and rotate by default; every kind sorts and filters; max stack per item, defaults per type and project
 - [ ] Inventories are game state (the party's bag, a stash), saved as their own section; scene entities that hold items (chests) have a `Container`
