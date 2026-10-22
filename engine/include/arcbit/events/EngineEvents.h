@@ -36,6 +36,14 @@ namespace EngineEvents
     // many - always positive).
     constexpr std::string_view ItemAddedName   = "engine.item.added";
     constexpr std::string_view ItemRemovedName = "engine.item.removed";
+    // A party member put an item on / took it off. member, item, slot.
+    constexpr std::string_view ItemEquippedName   = "engine.item.equipped";
+    constexpr std::string_view ItemUnequippedName = "engine.item.unequipped";
+    // An item was used (Application::UseItem). item, member, bag.
+    constexpr std::string_view ItemUsedName = "engine.item.used";
+    // A character joined / left the party. member.
+    constexpr std::string_view PartyJoinedName = "engine.party.joined";
+    constexpr std::string_view PartyLeftName   = "engine.party.left";
     // A currency's amount changed (Currencies). currency, amount (now), change.
     constexpr std::string_view CurrencyChangedName = "engine.currency.changed";
 
@@ -86,6 +94,11 @@ namespace EngineEvents
     constexpr EventId ItemAdded          = MakeEvent(ItemAddedName);
     constexpr EventId ItemRemoved        = MakeEvent(ItemRemovedName);
     constexpr EventId CurrencyChanged    = MakeEvent(CurrencyChangedName);
+    constexpr EventId ItemEquipped       = MakeEvent(ItemEquippedName);
+    constexpr EventId ItemUnequipped     = MakeEvent(ItemUnequippedName);
+    constexpr EventId ItemUsed           = MakeEvent(ItemUsedName);
+    constexpr EventId PartyJoined        = MakeEvent(PartyJoinedName);
+    constexpr EventId PartyLeft          = MakeEvent(PartyLeftName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
     constexpr EventId WindowResized      = MakeEvent(WindowResizedName);
     constexpr EventId SettingsChanged    = MakeEvent(SettingsChangedName);
@@ -109,6 +122,8 @@ namespace EngineEvents
         EntityInteractedName,   LocaleChangedName,      DialogStartedName,  DialogEndedName,
         DialogLineName,         DialogChoiceName,       BindingsUpdatedName,
         ItemAddedName,          ItemRemovedName,        CurrencyChangedName,
+        ItemEquippedName,       ItemUnequippedName,     ItemUsedName,
+        PartyJoinedName,        PartyLeftName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

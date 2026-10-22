@@ -191,6 +191,26 @@ void CheckItems(const std::span<const std::filesystem::path> folders, Scan& scan
     }
 }
 
+// A game's stats and party files: the names they write are English for
+// stats.<id>.name / party.<id>.name.
+void CheckDataFiles(const std::span<const std::filesystem::path> files, Scan& scan)
+{
+    std::vector<std::pair<std::string, std::string>> strings;
+    for (const auto& file : files) {
+        std::ifstream in(file);
+        const auto    doc = nlohmann::json::parse(in, nullptr, false, true);
+        if (doc.is_discarded() || !doc.is_object()) continue;
+        for (const auto& [kind, section] : { std::pair{ "stats", "stats" }, std::pair{ "party", "members" } })
+            for (const auto& [id, entry] : doc.value(section, nlohmann::json::object()).items())
+                if (entry.is_object() && entry.contains("name")) {
+                    std::string key = std::format("{}.{}.name", kind, id);
+                    scan.Literals.insert(key);
+                    strings.emplace_back(std::move(key), entry["name"].get<std::string>());
+                }
+    }
+    if (!strings.empty()) Loc::SetStrings(Loc::English, "game data", strings);
+}
+
 // Translations English doesn't have (a language's own plural forms aside).
 std::vector<StaleKey> FindStale(const std::set<std::string>& english)
 {
@@ -214,7 +234,8 @@ bool Report::HasItemErrors() const { return std::ranges::any_of(Items, &ItemIssu
 Report Check(const std::span<const std::filesystem::path> localeFolders,
              const std::span<const std::filesystem::path> scanRoots,
              const std::span<const std::filesystem::path> dialogFolders,
-             const std::span<const std::filesystem::path> itemFolders)
+             const std::span<const std::filesystem::path> itemFolders,
+             const std::span<const std::filesystem::path> dataFiles)
 {
     Loc::Clear();
     for (const auto& folder : localeFolders) Loc::AddFolder(folder);
@@ -222,6 +243,7 @@ Report Check(const std::span<const std::filesystem::path> localeFolders,
     Scan   scan = ScanRoots(scanRoots, localeFolders);
     CheckDialogs(dialogFolders, scan, report);
     CheckItems(itemFolders, scan, report);
+    CheckDataFiles(dataFiles, scan);
     const std::vector<std::string> english = EnglishKeys();
     const std::set<std::string>    known(english.begin(), english.end());
 

@@ -10,6 +10,8 @@
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/items/Container.h>
 #include <arcbit/items/ItemLibrary.h>
+#include <arcbit/items/Party.h>
+#include <arcbit/items/Stats.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -441,6 +443,19 @@ void RegisterBuiltinComponents(SceneRegistry& registry)
     RegisterAudioComponents(registry);
     registry.RegisterComponent<Collider2D>("Collider2D", ReadCollider, WriteCollider);
     registry.RegisterComponent<Container>("Container", ReadContainer, WriteContainer);
+    registry.RegisterComponent<Stats>(
+        "Stats",
+        [](Stats& c, const json& j, SceneAssets&) {
+            if (const auto it = j.find("base"); it != j.end()) c.Base = it->get<StatValues>();
+            if (const auto it = j.find("current"); it != j.end()) c.Current = it->get<StatValues>();
+        },
+        [](const Stats& c, json& j, const SceneAssets&) {
+            j["base"]    = c.Base;
+            j["current"] = c.Current;
+        });
+    registry.RegisterComponent<PartyLink>(
+        "PartyLink", [](PartyLink& c, const json& j, SceneAssets&) { Read(j, "member", c.Member); },
+        [](const PartyLink& c, json& j, const SceneAssets&) { j["member"] = c.Member; });
     RegisterControllerComponents(registry);
     RegisterStyleComponents(registry);
 }

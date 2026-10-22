@@ -34,6 +34,7 @@ add_executable(arcbit-tests
     items/InventoryGridTests.cpp
     items/InventoryTests.cpp
     items/ItemLibraryTests.cpp
+    items/PartyTests.cpp
     physics/ContactTrackerTests.cpp
     physics/DirectionArcTests.cpp
     physics/GeometryTests.cpp

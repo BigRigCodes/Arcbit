@@ -45,6 +45,7 @@ void ScriptEngine::State::BindItems()
     AddGlobal("Items", items);
     BindInventory();
     BindCurrency();
+    BindParty();
 }
 
 // Inventory.Add("potion", 2) -> how many fit; Remove, Count, Has; Get() ->

@@ -34,6 +34,8 @@ add_library(arcbit-engine STATIC
     src/Currencies.cpp
     src/Inventories.cpp
     src/Inventory.cpp
+    src/Party.cpp
+    src/Stats.cpp
     src/InventoryGrid.cpp
     src/ItemLibrary.cpp
     src/SceneManager.cpp
@@ -53,6 +55,7 @@ add_library(arcbit-engine STATIC
     src/ScriptDialog.cpp
     src/ScriptEntity.cpp
     src/ScriptItems.cpp
+    src/ScriptParty.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
     src/ScriptScreens.cpp

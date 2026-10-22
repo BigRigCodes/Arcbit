@@ -78,7 +78,8 @@ struct Report
 [[nodiscard]] Report Check(std::span<const std::filesystem::path> localeFolders,
                            std::span<const std::filesystem::path> scanRoots,
                            std::span<const std::filesystem::path> dialogFolders = {},
-                           std::span<const std::filesystem::path> itemFolders   = {});
+                           std::span<const std::filesystem::path> itemFolders   = {},
+                           std::span<const std::filesystem::path> dataFiles     = {}); // stats.json, party.json
 
 // A starting file for translating into a new language: "$locale" with an
 // empty name, then every English key with its English text to replace.

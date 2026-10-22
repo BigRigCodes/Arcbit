@@ -8,6 +8,8 @@
 #include <arcbit/items/Currencies.h>
 #include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
+#include <arcbit/items/Party.h>
+#include <arcbit/items/Stats.h>
 #include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/input/InputTypes.h>
 #include <arcbit/render/RenderThread.h>
@@ -137,6 +139,8 @@ struct ApplicationConfig
     const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
     const char* PrefabFolder = "assets/prefabs"; // the game's .arcprefab files, read at startup (docs/scenes.md#prefabs)
     const char* ItemFolder   = "assets/items";   // the game's .arcitems files, read at startup (docs/items.md)
+    const char* StatsFile    = "assets/stats.json"; // the game's stats, over the engine's (docs/items.md#stats)
+    const char* PartyFile    = "assets/party.json"; // who can join the party, who starts in it (docs/items.md#the-party)
 
     // The engine's behavior defaults - tap to turn, and more as they come
     // (ProjectDefaults.h). Phase 38's project.arcbit will fill them from a file.
@@ -273,6 +277,16 @@ public:
     // (docs/items.md) - game state, saved as the "inventories" section.
     [[nodiscard]] Inventories& GetInventories() { return *_inventories; }
     [[nodiscard]] Currencies&  GetCurrencies() { return *_currencies; }
+
+    // The game's stats and the party (members, equipment) - saved as "party".
+    [[nodiscard]] const StatSet& GetStats() const { return _statSet; }
+    [[nodiscard]] Party&         GetParty() { return *_party; }
+
+    // Use an item from a bag: its "use" stats on the member (default the
+    // leader), its other actions (set / add / event / lua / sound), then one
+    // is used up if it's consumable (or "consume": true). False if the bag
+    // hasn't got it or it has no "use". Publishes engine.item.used.
+    bool UseItem(std::string_view item, std::string_view member = {}, std::string_view bag = Inventories::Party);
 
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
@@ -466,9 +480,14 @@ private:
     ItemLibrary                  _items;
     std::unique_ptr<Inventories> _inventories; // made once the items are read
     std::unique_ptr<Currencies>  _currencies;
+    StatSet                      _statSet;
+    std::unique_ptr<Party>       _party;
+    void                         StartParty();
+    void                         RunUseActions(const ItemDef& item, const std::string& member);
     void                         LoadItems();
     void                         StartInventories();
     void                         RegisterItemCommands();
+    void                         RegisterPartyCommands();
     void                   RegisterPrefabCommands();
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
 

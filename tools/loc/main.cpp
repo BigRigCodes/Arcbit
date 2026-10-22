@@ -1,6 +1,6 @@
 // arcbit-loc - a game's localization against its content.
 //
-//   arcbit-loc check    --locales <dir>... --scan <path>... [--dialogs <dir>...] [--items <dir>...]
+//   arcbit-loc check    --locales <dir>... --scan <path>... [--dialogs <dir>...] [--items <dir>...] [--data <file>...]
 //       keys the content uses that English lacks and errors in dialog and
 //       item files (exit code 1 if any), their warnings, raw text in layouts,
 //       translations English no longer has, English keys nothing uses, and
@@ -10,8 +10,9 @@
 //   arcbit-loc template --locales <dir>... [--dialogs <dir>...] [--items <dir>...] --out <file>
 //       a new language's starting file: every English key and its text
 //
-// Dialog files (--dialogs) and item files (--items) bring their own English,
-// so their lines and names count everywhere a locale file's would.
+// Dialog files (--dialogs), item files (--items) and the stats and party
+// files (--data) bring their own English, so their lines and names count
+// everywhere a locale file's would.
 //
 // The demo: arcbit-loc check --locales engine/assets/locale game/assets/locale
 //                            --scan engine/src engine/assets game/src game/assets
@@ -93,7 +94,7 @@ void PrintFindings(const LocCheck::Report& report)
 int RunCheck(const Options& options)
 {
     const auto report = LocCheck::Check(List(options, "--locales"), List(options, "--scan"), List(options, "--dialogs"),
-                                        List(options, "--items"));
+                                        List(options, "--items"), List(options, "--data"));
     const bool check  = options.Command == "check";
     if (check) PrintFindings(report);
     PrintCoverage(report);
@@ -111,7 +112,7 @@ int RunTemplate(const Options& options)
         std::fprintf(stderr, "%s exists - not overwriting a translation\n", out[0].string().c_str());
         return 2;
     }
-    (void)LocCheck::Check(List(options, "--locales"), {}, List(options, "--dialogs"), List(options, "--items"));
+    (void)LocCheck::Check(List(options, "--locales"), {}, List(options, "--dialogs"), List(options, "--items"), List(options, "--data"));
     std::ofstream(out[0], std::ios::binary) << LocCheck::Template();
     std::printf("wrote %s\n", out[0].string().c_str());
     return 0;

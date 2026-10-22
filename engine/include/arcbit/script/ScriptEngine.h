@@ -18,6 +18,8 @@ class EventBus;
 class Currencies;
 class InputManager;
 class Inventories;
+class Party;
+class StatSet;
 class ItemLibrary;
 class PrefabLibrary;
 class Scene;
@@ -40,6 +42,9 @@ struct ScriptServices
     const ItemLibrary*   Items    = nullptr; // Items.Get
     Inventories*         Bags     = nullptr; // Inventory.*
     Currencies*          Money    = nullptr; // Currency.*
+    Party*               Members  = nullptr; // Party.*
+    const StatSet*       StatDefs = nullptr; // Party.Stats
+    std::function<bool(std::string_view item, std::string_view member, std::string_view bag)> UseItem; // Party.Use
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 
