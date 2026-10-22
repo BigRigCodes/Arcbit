@@ -149,7 +149,11 @@ their names.
 | `engine.item.added`, `engine.item.removed` | `bag`, `item`, `count` | a game bag gained / lost items ([items.md](items.md#the-games-bags)) |
 | `engine.item.equipped`, `engine.item.unequipped` | `member`, `item`, `slot` | a party member put an item on / took it off ([items.md](items.md#equipment)) |
 | `engine.item.used` | `item`, `member`, `bag` | an item was used ([items.md](items.md#using-items)) |
+| `engine.item.picked_up` | `item`, `count` (taken), `entity` (the pickup), `by` | a party entity picked up a pickup - all of it, or what fit ([items.md](items.md#pickups-and-drops)) |
+| `engine.item.not_picked_up` | `item`, `count` (left), `entity`, `by`, `reason` (`no_room`) | some or all of a pickup didn't fit and stays on the ground |
+| `engine.item.dropped` | `item`, `count`, `bag`, `entity` (the new pickup) | items were dropped from a bag into the world |
 | `engine.party.joined`, `engine.party.left` | `member` | a character joined / left the party |
+| `engine.party.encumbered` | `encumbered` | the party went over its carry weight (when its bag allows that) and walks slower, or stopped being |
 | `engine.currency.changed` | `currency`, `amount` (now), `change` | a currency changed through the game's currencies ([items.md](items.md#currencies)) |
 | `engine.input.bindings_updated` | `count`, `text` (the notice's lines) | an update placed new or reset actions among the player's bindings, once the boot is done ([input.md](input.md#across-game-updates)) |
 | `engine.window.focus_changed` | `focused` | the window gained or lost focus (pause on alt-tab) |

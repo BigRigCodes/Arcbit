@@ -15,6 +15,7 @@ the inventory screen build on these (Phase 29, in progress).
   - [Grids](#grids), [Changing bags](#changing-bags)
 - [The game's bags](#the-games-bags)
 - [Containers](#containers)
+- [Pickups and drops](#pickups-and-drops)
 - [Currencies](#currencies)
 - [Stats](#stats)
 - [The party](#the-party) - [Equipment](#equipment), [Using items](#using-items)
@@ -67,7 +68,7 @@ The demo's are in `game/assets/items/demo.arcitems`.
 | `slot` | Equipment: the kind of slot it fits - one of the project's `Defaults.EquipmentSlots` kinds (weapon, offhand, head, body, accessory by default; two accessory slots take `accessory`). |
 | `stats` | Equipment: added to the wearer's stats - flat (`"ATK": 5`) or percent (`"SPD%": -5`). |
 | `use` | What using it does (a later slice). |
-| `drop_prefab` | The prefab it becomes when dropped into the world; default the stock pickup (a later slice). |
+| `drop_prefab` | The prefab it becomes when dropped into the world; default the stock pickup ([Pickups and drops](#pickups-and-drops)). |
 | `properties` | A game's own fields, read back as JSON. |
 | `extends`, `abstract` | See below. |
 
@@ -156,7 +157,7 @@ the presets are starting points, and the rules mix freely:
 | `OneEntryPerItem` | more of an item joins its entry instead of starting another |
 | `UnlimitedStacks` | counts ignore items' `stack` |
 | `MaxWeight` | carry weight; 0 = no limit |
-| `OverWeight` | `Refuse` (default): what would go over isn't taken; `Allow`: it is, and `IsOverWeight()` says so (encumbered) |
+| `OverWeight` | `Refuse` (default): what would go over isn't taken; `Allow`: it is, and `IsOverWeight()` says so - the party is encumbered ([below](#pickups-and-drops)) |
 | `QuickSlots` | how many quick slots - the hotbar, for any kind (below); 0, none, by default |
 | `Width`, `Height`, `Sections` | a grid (both above 0; `Slots` is then unused) and its sections |
 
@@ -280,6 +281,60 @@ bag, saved with the scene's state like any component (make it `Persistent`).
 | `loot` | a loot table it rolls the first time it's opened (later) |
 
 Saves write a container as `stacks` (what it holds now) rather than `items`.
+
+## Pickups and drops
+
+An item lying in the world is an entity with an `ItemPickup`. A party entity -
+one with a `PartyLink`, like the player - picks it up by walking onto it
+(within half a tile of its center), or, with `"on": "interact"`, by using it
+like any `Interactable`. What fits goes into the bag; the entity goes once
+it's all taken.
+
+```json
+"potions": {
+    "ItemPickup": { "item": "potion", "count": 2 },
+    "Persistent": {},
+    "Transform2D": { "position": [64.0, 0.0] }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `item`, `count` | what lies there (default 1) |
+| `on` | `touch` (default) or `interact` - given an `Interactable` if it has none |
+| `bag` | the bag it goes into; default `party` |
+| `reach` | how near a touch counts, in pixels from its center; default half a tile |
+
+- **Make it `Persistent`** so it stays picked up when the scene reloads and
+  in saves.
+- **Its look**: without a `SpriteRenderer` it's drawn as the item's `icon`
+  (a texture, or `"sheet.json#frame"`; a white square if it has none), half a
+  tile across. Give it a `SpriteRenderer` (and scale) for a look of its own.
+- **When it doesn't all fit**, what fit is taken and the rest stays, with
+  `engine.item.not_picked_up` (`reason`: `no_room`) - a toast's cue. It
+  isn't tried again until the player steps off and back on; nor is a dropped
+  item, from under the player's feet.
+- **A currency** picked up (`"item": "gold"`) counts however that currency
+  is kept.
+
+**Dropping** - `Application::DropItem(item, count, bag)`, the console's `drop`,
+Lua's `Inventory.Drop` - takes items out of a bag and puts them on the ground
+where the party's leader stands, as the item's `drop_prefab` or else the stock
+`pickup` prefab (`Tag` Pickup, `ItemPickup`, `Persistent`; a game's own
+`pickup.arcprefab` replaces it). Key items can't be dropped. A dropped pickup
+is saved with the scene like any spawned persistent entity
+([saves.md](saves.md)).
+
+**Encumbered.** When a bag's rules allow going over its carry weight
+(`OverWeight = Allow`) and it's over, the party entities using it walk at the
+project's `Defaults.EncumberedSpeed` (half speed by default) - through
+`MoveIntent::SpeedScale`, so every movement style slows. The change is
+announced with `engine.party.encumbered` (`encumbered`: true / false).
+
+C++: `Scene::PickUp(pickup, by)` picks one up directly. A scene's pickups go
+through its `ItemHost` (what `Take`s the items, what `Dress`es a bare
+pickup), which `Application` gives every scene; a scene without one - in a
+test, say - leaves its pickups lying.
 
 ---
 
@@ -427,8 +482,8 @@ the party carries.
 | `Inventory.Add(item, count, bag)` | adds as many as fit, returns how many (bag optional: the party's) |
 | `Inventory.Remove(item, count, bag)`, `Inventory.Count(item, bag)`, `Inventory.Has(item, count, bag)` | |
 | `Inventory.Get(bag)` | `{ { Item = "potion", Count = 2 }, ... }` |
+| `Inventory.Drop(item, count, bag)` | onto the ground where the leader stands; returns how many |
 | `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
-
 | `Party.Members()`, `Party.Leader()` | the members' ids, the leader first |
 | `Party.Get(id)` | `{ Id, Name, Bag, Equipment = { weapon = "iron_sword" } }` |
 | `Party.Stats(id)` | every stat, with equipment: `{ HP = 100, ATK = 15, ... }` |
@@ -437,8 +492,8 @@ the party carries.
 | `Party.Use(item, member, bag)` | use an item (member: the leader, bag: the party's, when left out): `true`, or `false` and why - `"not_in_bag"`, `"not_usable"`, `"no_member"`, `"no_effect"` |
 
 **Console**: `give <item | currency> [count] [bag]`, `take <item |
-currency> [count] [bag]` (cheats); `items [bag]` lists a bag and the
-currencies; `party` lists the members, their stats and equipment; `equip
+currency> [count] [bag]` (cheats); `drop <item> [count] [bag]` puts items
+on the ground; `items [bag]` lists a bag and the currencies; `party` lists the members, their stats and equipment; `equip
 <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]`
 (cheats).
 

@@ -400,9 +400,15 @@ write it, style systems read it, and speed belongs to the style.
 struct MoveIntent {
     Vec2 Direction;               // zero = idle; length <= 1; cardinal for tile movers
     Vec2 Facing = { 0.0f, 1.0f }; // last nonzero Direction; starts facing down
+    f32  SpeedScale = 1.0f;       // times the style's speed
     void Set(Vec2 dir);           // writes Direction and keeps Facing up to date
 };
 ```
+
+`SpeedScale` slows (or speeds) any style: a free mover's velocity, a smooth
+tile mover's step speed, a snap mover's step rate. Controllers leave it
+alone; the engine sets it on party entities while the party is encumbered
+([items.md](items.md#pickups-and-drops)).
 
 Game code reads `MoveIntent` for facing and animation selection instead of
 polling input. Code and cutscenes can add one and call `Set` to drive any
@@ -606,11 +612,12 @@ lists named systems, [scenes.md](scenes.md#named-systems)), and they run after.
 | 7 | `SnapTileMove` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) |
 | 8 | `CollisionResolution` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) |
 | 9 | `ContactEvents` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls |
-| 10 | `CameraFollow` | `CameraTarget`, `Transform2D` | the scene's `Camera2D` |
-| 11 | `FacingAnimation` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` |
-| 12 | `AnimatorStateMachine` | `AnimatorStateMachine` | `Animator.Clip` |
-| 13 | `Animator` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` / `Pivot`, frame events |
-| 14 | `Audio` | `AudioSource`, `Transform2D` | spatial sounds, the listener |
+| 10 | `ItemPickups` | `ItemPickup`, `PartyLink`, the scene's `ItemHost` | the bags; destroys taken pickups, dresses bare ones ([items.md](items.md#pickups-and-drops)) |
+| 11 | `CameraFollow` | `CameraTarget`, `Transform2D` | the scene's `Camera2D` |
+| 12 | `FacingAnimation` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` |
+| 13 | `AnimatorStateMachine` | `AnimatorStateMachine` | `Animator.Clip` |
+| 14 | `Animator` | `Animator`, `SpriteSheet` | `SpriteRenderer.UV` / `Pivot`, frame events |
+| 15 | `Audio` | `AudioSource`, `Transform2D` | spatial sounds, the listener |
 
 `?` marks an optional component: the system reads it when present. An
 `AIMovement` system joins after `InputMovement` in Phase 30.

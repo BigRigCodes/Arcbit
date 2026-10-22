@@ -516,14 +516,14 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Grid items can take more than one cell (`"size"`) and rotate by default; every kind sorts and filters; max stack per item, defaults per type and project
 - [x] Inventories are game state (the party's bag, a stash), saved as their own section; scene entities that hold items (chests) have a `Container`
 - [ ] Changing a bag (bigger grid, more weight, another kind) moves the contents across; when the new one holds less, the player discards first, `junk`-tagged items picked for them
-- [ ] Carry weight over the limit refused by default; a project can allow it (encumbered: slower)
+- [x] Carry weight over the limit refused by default; a project can allow it (encumbered: slower)
 - [ ] Quick slots for any kind (item references bound to keys, a HUD bar)
 - [x] Currencies: `SaveData` counters by default (`gold`), or an item stack per currency; one API for both
 - [x] A party (brought forward from Phase 31): several members, a party of one by default; each with stats and equipment; the scene's player entity shows the leader
 - [x] `Stats` (brought forward from Phase 31): an engine default set (HP, MaxHP, MP, MaxMP, ATK, DEF, MAG, RES, SPD, LUK) a game's stats file extends or replaces
 - [ ] Containers open into a transfer screen by default (take all per project / per container)
 - [x] Dialog conditions and actions on items (`has`, `give`, `take`); console `give`, `items`, `party`
-- [ ] Pick-up / drop / equip / unequip logic; equip slots (weapon, armor, accessory, etc.)
+- [x] Pick-up / drop / equip / unequip logic; equip slots (weapon, armor, accessory, etc.)
 - [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder; drag and drop and tooltips added to the GUI for it
 - [ ] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable
 - [ ] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
@@ -532,7 +532,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Loot tables: weighted random drops defined in JSON
 - [x] Save / load integration (Phase 25)
 - [x] Lua API: add/remove/check items from scripts
-- [ ] Publishes `engine.item.picked_up` and `engine.item.dropped` (item id, entity) via the Event Bus (Phase 24)
+- [x] Publishes `engine.item.picked_up` and `engine.item.dropped` (item id, entity) via the Event Bus (Phase 24)
 
 ---
 
