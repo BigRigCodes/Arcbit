@@ -2,6 +2,11 @@
     "camera": { "position": [256.0, 0.0], "zoom": 1.5 },
     "config": { "tile_size": 64.0 },
     "entities": {
+        "boot": {
+            "ItemPickup": { "item": "old_boot", "on": "interact" },
+            "Persistent": {},
+            "Transform2D": { "position": [0.0, 128.0] }
+        },
         "chest": {
             "prefab": "chest",
             "Script": { "properties": { "Gold": 25 } },
@@ -58,11 +63,17 @@
             "InputMovement": { "move_down": "Move_Down", "move_left": "Move_Left", "move_right": "Move_Right", "move_up": "Move_Up" },
             "Interactor": {},
             "MoveIntent": {},
+            "PartyLink": {},
             "Persistent": { "components": ["Transform2D"] },
             "SmoothTileMovement": { "speed": 5.0 },
             "SpriteRenderer": { "sampler": "nearest", "texture": "assets/textures/Cute_Fantasy_Free/Player/Player.png" },
             "Tag": { "value": "Player" },
             "Transform2D": { "position": [256.0, 0.0], "scale": [64.0, 64.0] }
+        },
+        "potions": {
+            "ItemPickup": { "count": 2, "item": "potion" },
+            "Persistent": {},
+            "Transform2D": { "position": [64.0, 0.0] }
         },
         "sign": {
             "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },
