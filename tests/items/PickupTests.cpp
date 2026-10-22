@@ -139,6 +139,16 @@ TEST_CASE("An interact pickup is taken by interacting, not by touch", "[items][p
     CHECK_FALSE(f.Ecs().IsValid(potion));
 }
 
+TEST_CASE("A host that claims to take more than was there can't wrap the count", "[items][pickup]")
+{
+    Fixture f;
+    f.host.Take = [](std::string_view, u32, std::string_view) { return 4294967279u; }; // a broken host
+    const Entity gold = f.Drop(4, {});
+    f.Tick();
+    CHECK_FALSE(f.Ecs().IsValid(gold)); // all of it was taken, not 2^32 - 17 left behind
+    CHECK(f.Names() == std::vector<std::string>{ "picked 4" });
+}
+
 TEST_CASE("Without a host, pickups lie where they are", "[items][pickup]")
 {
     Scene        scene;

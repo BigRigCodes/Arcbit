@@ -10,6 +10,7 @@
 #include <arcbit/items/Pickup.h>
 #include <arcbit/scene/Scene.h>
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -21,7 +22,7 @@ u32 Scene::PickUp(const Entity pickup, const Entity by)
     if (!p || !_items || !_items->Take) return 0;
     const std::string item   = p->Item;
     const u32         wanted = p->Count;
-    const u32         taken  = wanted > 0 ? _items->Take(item, wanted, p->Bag) : 0;
+    const u32         taken  = wanted > 0 ? std::min(_items->Take(item, wanted, p->Bag), wanted) : 0;
     if (_events && taken > 0)
         _events->PublishEngine(EngineEvents::ItemPickedUp,
                                { { "item", item }, { "count", taken }, { "entity", pickup }, { "by", by } });

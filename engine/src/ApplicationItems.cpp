@@ -214,10 +214,7 @@ void Application::StartPickups()
 // A currency picked up counts however it's kept; an item goes into the bag.
 u32 Application::TakePickup(const std::string_view item, const u32 count, const std::string_view bag)
 {
-    if (_currencies->Find(item)) {
-        const i64 before = _currencies->Get(item);
-        return static_cast<u32>(_currencies->Add(item, count) - before);
-    }
+    if (_currencies->Find(item)) return static_cast<u32>(_currencies->Add(item, count)); // Add returns the change
     Inventory* into = _inventories->Find(bag);
     return into ? into->Add(item, count) : 0;
 }
