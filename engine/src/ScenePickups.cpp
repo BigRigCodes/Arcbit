@@ -1,9 +1,11 @@
 // Items lying in the world (docs/items.md#pickups-and-drops): Scene::PickUp
-// and the ItemPickups system that dresses pickups and takes touched ones.
+// and the Items system that dresses pickups, takes touched ones and makes
+// containers usable.
 
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Interaction.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/items/Container.h>
 #include <arcbit/items/Party.h>
 #include <arcbit/items/Pickup.h>
 #include <arcbit/scene/Scene.h>
@@ -44,7 +46,8 @@ namespace
     };
 
     // A pickup without a SpriteRenderer gets the host's look; an "interact"
-    // one becomes Interactable so the interaction finder sees it.
+    // one, and a Container, become Interactable so the interaction finder
+    // sees them.
     void DressPickups(Scene& scene, const ItemHost& host)
     {
         World&              world = scene.GetWorld();
@@ -52,6 +55,9 @@ namespace
         world.Query<ItemPickup>().ForEach([&](const Entity e, const ItemPickup& p) {
             if (!world.GetComponent<SpriteRenderer>(e)) bare.push_back(e);
             if (!p.OnTouch && !world.GetComponent<Interactable>(e)) unreachable.push_back(e);
+        });
+        world.Query<Container>().ForEach([&](const Entity e, const Container&) {
+            if (!world.GetComponent<Interactable>(e)) unreachable.push_back(e);
         });
         for (const Entity e : unreachable) world.AddComponent<Interactable>(e);
         if (host.Dress)
@@ -85,7 +91,7 @@ namespace
 
 void RegisterItemPickupSystem(World& world)
 {
-    world.RegisterSystem("ItemPickups", [](Scene& scene, f32) {
+    world.RegisterSystem("Items", [](Scene& scene, f32) {
         const ItemHost* host = scene.GetItemHost();
         if (!host) return;
         DressPickups(scene, *host);

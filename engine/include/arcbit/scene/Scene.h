@@ -261,6 +261,18 @@ private:
 
     void HookEntityEvents();     // constructor: OnAdd / OnDestroy for EntityEvents
     void PublishPendingSpawns(); // Update: the spawned events, now the entities are complete
+
+    // LootDrop: a destroyed entity's table and where it was, dropped at the
+    // next Update (not mid-destroy). SceneManager discards what a save's
+    // destroys queued: that loot was dropped the first time.
+    struct PendingLoot
+    {
+        std::string Table;
+        Vec2        At;
+    };
+    std::vector<PendingLoot> _pendingLoot;
+    void                     HookLootDrops();
+    void                     DropPendingLoot();
     void PublishEntityEvent(Entity entity, const std::string& rename, EventId fallback);
 };
 

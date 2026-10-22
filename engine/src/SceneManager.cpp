@@ -502,6 +502,7 @@ bool SceneManager::TracksState(const Scene& scene) const
 void SceneManager::BeginState(Scene& scene)
 {
     if (TracksState(scene)) ApplySavedState(scene);
+    scene._pendingLoot.clear(); // what the save destroyed again had its loot dropped the first time
     scene.StartScripts();
 }
 

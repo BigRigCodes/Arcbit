@@ -2,6 +2,7 @@
 
 #include <arcbit/core/Types.h>
 #include <arcbit/dialog/DialogRequest.h>
+#include <arcbit/items/Loot.h>
 #include <arcbit/save/SaveManager.h>
 
 #include <filesystem>
@@ -48,6 +49,7 @@ struct ScriptServices
     std::function<std::string(std::string_view item, std::string_view member, std::string_view bag)> UseItem;
     // Inventory.Drop: how many were dropped into the scene.
     std::function<u32(std::string_view item, u32 count, std::string_view bag)> DropItem;
+    std::function<std::vector<LootStack>(std::string_view table)>               RollLoot; // Loot.Roll
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

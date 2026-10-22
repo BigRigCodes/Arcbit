@@ -271,6 +271,7 @@ void Application::Run()
                                     const ItemPickup*  p = e.IsValid() ? GetScene().GetWorld().GetComponent<ItemPickup>(e) : nullptr;
                                     return p ? p->Count : 0u;
                                 },
+                                .RollLoot  = [this](const std::string_view table) { return RollLoot(table); },
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },

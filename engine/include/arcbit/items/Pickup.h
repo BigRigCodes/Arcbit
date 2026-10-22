@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arcbit/core/Math.h>
 #include <arcbit/core/Types.h>
 #include <arcbit/ecs/Entity.h>
 
@@ -39,6 +40,15 @@ struct ItemPickup
     bool _armed = true;
 };
 
+// LootDrop - an entity that leaves loot when it's destroyed (an enemy, a
+// barrel): its table is rolled and scattered around where it was, as
+// pickups. Not when its scene unloads, nor when a save destroys it again.
+// In a scene file: "LootDrop": { "table": "slime" }.
+struct LootDrop
+{
+    std::string Table;
+};
+
 // What a scene's pickups need from the game. Application gives every scene
 // one; a scene without one (tests that don't set it) leaves pickups alone.
 struct ItemHost
@@ -49,5 +59,12 @@ struct ItemHost
 
     // Give a pickup without a SpriteRenderer its look. Optional.
     std::function<void(Scene& scene, Entity pickup)> Dress;
+
+    // `by` used a Container: its loot rolled the first time, then the
+    // transfer screen or everything into the bag. Optional.
+    std::function<void(Scene& scene, Entity container, Entity by)> Open;
+
+    // Roll a loot table and scatter it at `at` as pickups (LootDrop). Optional.
+    std::function<void(Scene& scene, std::string_view table, Vec2 at)> DropLoot;
 };
 } // namespace Arcbit

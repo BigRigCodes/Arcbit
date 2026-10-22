@@ -8,6 +8,7 @@
 #include <arcbit/items/Currencies.h>
 #include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
+#include <arcbit/items/Loot.h>
 #include <arcbit/items/Party.h>
 #include <arcbit/items/Pickup.h>
 #include <arcbit/items/Stats.h>
@@ -42,6 +43,7 @@ class SavingIndicator; // ApplicationSaves.cpp
 class ErrorToasts;     // ApplicationConsole.cpp
 class SaveSlotScreen;
 class GameSettingsScreen;
+struct Container;
 
 // ---------------------------------------------------------------------------
 // How the game starts once the engine's own splash has played: the game's
@@ -140,6 +142,7 @@ struct ApplicationConfig
     const char* DialogFolder = "assets/dialog";  // the game's .arcdialog files, read at startup (docs/dialog.md)
     const char* PrefabFolder = "assets/prefabs"; // the game's .arcprefab files, read at startup (docs/scenes.md#prefabs)
     const char* ItemFolder   = "assets/items";   // the game's .arcitems files, read at startup (docs/items.md)
+    const char* LootFolder   = "assets/loot";    // the game's .arcloot loot tables (docs/items.md#loot-tables)
     const char* StatsFile    = "assets/stats.json"; // the game's stats, over the engine's (docs/items.md#stats)
     const char* PartyFile    = "assets/party.json"; // who can join the party, who starts in it (docs/items.md#the-party)
 
@@ -296,6 +299,18 @@ public:
     // Key items stay. Returns the new pickup, or Entity::Invalid() if nothing
     // was dropped. Publishes engine.item.dropped.
     Entity DropItem(std::string_view item, u32 count = 1, std::string_view bag = Inventories::Party);
+
+    // The loot tables in the loot folder (ApplicationConfig::LootFolder).
+    [[nodiscard]] const LootLibrary& GetLoot() const { return _loot; }
+
+    // Roll a loot table with the game's random numbers.
+    [[nodiscard]] std::vector<LootStack> RollLoot(std::string_view table) { return _loot.Roll(table, _random); }
+
+    // Open a Container in the active scene, as `by` using it does: its loot
+    // rolled the first time, then - by its "open", else the project's
+    // ContainerOpen - everything that fits into the party's bag (take_all),
+    // or the transfer screen. Publishes engine.container.opened.
+    void OpenContainer(Entity container, Entity by = Entity::Invalid());
 
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
@@ -496,6 +511,13 @@ private:
     ItemHost                     _itemHost;           // every scene's pickups (StartPickups)
     bool                         _encumbered = false; // engine.party.encumbered on change
     void                         StartPickups();
+    LootLibrary                  _loot;
+    std::mt19937                 _random{ std::random_device{}() }; // loot rolls
+    Entity                       SpawnPickup(Scene& scene, const ItemDef* def, std::string_view item, u32 count, Vec2 at);
+    void                         DropLoot(Scene& scene, std::string_view table, Vec2 at);
+    void                         FillFromLoot(Container& container);
+    void                         TakeAll(Container& container, u32& taken, u32& left);
+    void                         RegisterLootCommands();
     u32                          TakePickup(std::string_view item, u32 count, std::string_view bag);
     void                         DressPickup(Scene& scene, Entity pickup);
     void                         UpdateEncumbrance(Scene& scene);

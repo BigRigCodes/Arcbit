@@ -32,6 +32,9 @@ void Application::LoadItems()
     for (const EquipmentSlot& slot : _config.Defaults.EquipmentSlots)
         if (std::ranges::find(rules.SlotKinds, slot.Kind) == rules.SlotKinds.end()) rules.SlotKinds.push_back(slot.Kind);
     (void)_items.AddFolder(_config.ItemFolder);
+    (void)_loot.AddFolder(_config.LootFolder);
+    _loot.Check([this](const std::string_view id) { return _items.Has(id); },
+                [this](const std::string_view id) { return _currencies->Find(id) != nullptr; });
     (void)_statSet.LoadFile(_config.StatsFile);
     _statSet.PublishStrings();
     (void)_party->LoadFile(_config.PartyFile); // after the items: starting members wear theirs
@@ -139,6 +142,7 @@ void Application::RegisterItemCommands()
     _debugConsole.Register({ .Name = "take", .Help = "take <item | currency> [count] [bag]", .Cheat = true,
                              .Run = [change](const Args& a) { change(a, -1); } });
     RegisterPartyCommands();
+    RegisterLootCommands();
     _debugConsole.Register({ .Name = "drop", .Help = "drop <item> [count] [bag] - onto the ground, where the leader stands",
                              .Run = [this](const Args& a) {
                                  if (a.empty()) throw std::runtime_error("drop <item> [count] [bag]");
@@ -200,6 +204,8 @@ void Application::StartPickups()
 {
     _itemHost.Take  = [this](const std::string_view item, const u32 count, const std::string_view bag) { return TakePickup(item, count, bag); };
     _itemHost.Dress = [this](Scene& scene, const Entity pickup) { DressPickup(scene, pickup); };
+    _itemHost.Open  = [this](Scene&, const Entity container, const Entity by) { OpenContainer(container, by); };
+    _itemHost.DropLoot = [this](Scene& scene, const std::string_view table, const Vec2 at) { DropLoot(scene, table, at); };
     if (!_prefabs.Has(PickupPrefab))
         _prefabs.Add(std::string(PickupPrefab), { { "Tag", { { "value", "Pickup" } } }, { "ItemPickup", nlohmann::json::object() },
                                                   { "Persistent", nlohmann::json::object() } });
@@ -255,6 +261,22 @@ namespace
     }
 } // namespace
 
+// A pickup of `count` x `item` at `at`: the item's drop_prefab, else the
+// stock pickup (a currency, or anything without a definition, always that).
+Entity Application::SpawnPickup(Scene& scene, const ItemDef* def, const std::string_view item, const u32 count, const Vec2 at)
+{
+    const std::string prefab = def && !def->DropPrefab.empty() ? def->DropPrefab : std::string(PickupPrefab);
+    if (!_prefabs.Has(prefab)) return Entity::Invalid();
+    const Entity e = scene.Spawn(prefab, at);
+    if (!e.IsValid()) return e;
+    World& world = scene.GetWorld();
+    if (!world.GetComponent<ItemPickup>(e)) world.AddComponent<ItemPickup>(e);
+    ItemPickup& pickup = *world.GetComponent<ItemPickup>(e);
+    pickup.Item        = std::string(item);
+    pickup.Count       = count;
+    return e;
+}
+
 Entity Application::DropItem(const std::string_view item, const u32 count, const std::string_view bagName)
 {
     const ItemDef* def   = _items.Find(item);
@@ -265,16 +287,12 @@ Entity Application::DropItem(const std::string_view item, const u32 count, const
     if (!_prefabs.Has(prefab) || !bag->Has(item)) return Entity::Invalid();
 
     const u32    dropped = bag->Remove(item, count);
-    const Entity e       = scene->Spawn(prefab, DropPoint(*scene, _party->GetLeader() ? _party->GetLeader()->Id : ""));
+    const Entity e       = SpawnPickup(*scene, def, item, dropped, DropPoint(*scene, _party->GetLeader() ? _party->GetLeader()->Id : ""));
     if (!e.IsValid()) {
         (void)bag->Add(item, dropped); // back where it was
         return Entity::Invalid();
     }
-    World& world = scene->GetWorld();
-    if (!world.GetComponent<ItemPickup>(e)) world.AddComponent<ItemPickup>(e);
-    ItemPickup& pickup = *world.GetComponent<ItemPickup>(e);
-    pickup.Item        = def->Id;
-    pickup.Count       = dropped;
+    ItemPickup& pickup = *scene->GetWorld().GetComponent<ItemPickup>(e);
     pickup.Bag         = std::string(bagName);
     pickup._armed      = false; // not straight back up from under the player's feet
     _events.PublishEngine(EngineEvents::ItemDropped,

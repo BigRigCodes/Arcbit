@@ -46,6 +46,22 @@ void ScriptEngine::State::BindItems()
     BindInventory();
     BindCurrency();
     BindParty();
+    BindLoot();
+}
+
+// Loot.Roll("slime") -> { { Id = "potion", Count = 2, Currency = false }, ... }:
+// what rolling the table gave, without giving it to anyone.
+void ScriptEngine::State::BindLoot()
+{
+    sol::table loot = Lua.create_table();
+    loot.set_function("Roll", [this](const std::string& table) {
+        if (!Services.RollLoot) throw std::runtime_error("Loot.Roll: no loot tables here");
+        sol::table stacks = Lua.create_table();
+        for (const LootStack& stack : Services.RollLoot(table))
+            stacks.add(Lua.create_table_with("Id", stack.Id, "Count", stack.Count, "Currency", stack.Currency));
+        return stacks;
+    });
+    AddGlobal("Loot", loot);
 }
 
 // Inventory.Add("potion", 2) -> how many fit; Remove, Count, Has; Get() ->

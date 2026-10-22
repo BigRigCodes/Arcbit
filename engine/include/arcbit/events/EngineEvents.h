@@ -50,6 +50,10 @@ namespace EngineEvents
     // Items were dropped from a bag into the world (Application::DropItem).
     // item, count, bag, entity (the new pickup).
     constexpr std::string_view ItemDroppedName = "engine.item.dropped";
+    // A Container was opened (Application::OpenContainer). entity, by, mode
+    // ("transfer" / "take_all"); take_all also taken and left (how many
+    // items went into the bag, and stayed for want of room).
+    constexpr std::string_view ContainerOpenedName = "engine.container.opened";
     // The party became encumbered (its bag over the weight limit, when the
     // project allows that) or stopped being. encumbered.
     constexpr std::string_view PartyEncumberedName = "engine.party.encumbered";
@@ -113,6 +117,7 @@ namespace EngineEvents
     constexpr EventId ItemNotPickedUp    = MakeEvent(ItemNotPickedUpName);
     constexpr EventId ItemDropped        = MakeEvent(ItemDroppedName);
     constexpr EventId PartyEncumbered    = MakeEvent(PartyEncumberedName);
+    constexpr EventId ContainerOpened    = MakeEvent(ContainerOpenedName);
     constexpr EventId PartyJoined        = MakeEvent(PartyJoinedName);
     constexpr EventId PartyLeft          = MakeEvent(PartyLeftName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
@@ -140,7 +145,7 @@ namespace EngineEvents
         ItemAddedName,          ItemRemovedName,        CurrencyChangedName,
         ItemEquippedName,       ItemUnequippedName,     ItemUsedName,
         PartyJoinedName,        PartyLeftName,          PartyEncumberedName,
-        ItemPickedUpName,       ItemNotPickedUpName,    ItemDroppedName,
+        ItemPickedUpName,       ItemNotPickedUpName,    ItemDroppedName,    ContainerOpenedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

@@ -1300,7 +1300,7 @@ void RegisterBuiltinSystems(World& world)
     RegisterSnapTileMoveSystem(world);          // MoveIntent → instant tile steps
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
     RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
-    RegisterItemPickupSystem(world);            // party entities take the pickups they arrive at
+    RegisterItemPickupSystem(world);            // "Items": pickups taken on arrival, containers usable
     RegisterCameraFollowSystem(world);
     RegisterFacingAnimationSystem(world);      // MoveIntent facing + moving -> Animator clip
     RegisterAnimatorStateMachineSystem(world); // evaluates transitions, updates Animator clip

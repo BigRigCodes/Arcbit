@@ -6,6 +6,7 @@
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/items/Container.h>
 #include <arcbit/items/Pickup.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/ecs/Interaction.h>
@@ -49,6 +50,7 @@ Scene::Scene()
     });
 
     HookEntityEvents();
+    HookLootDrops();
 
     // A Script leaving its entity (removed, or the entity destroyed) runs its
     // OnDestroy - but not as the scene itself is torn down: EndScripts did that.
@@ -76,6 +78,20 @@ void Scene::HookEntityEvents()
         const EntityEvents* ev = _world.GetComponent<EntityEvents>(e);
         if (ev && ev->Destroyed) PublishEntityEvent(e, ev->DestroyedEvent, EngineEvents::EntityDestroyed);
     });
+}
+
+void Scene::HookLootDrops()
+{
+    _world.OnDestroy([this](const Entity e) {
+        const LootDrop* drop = _tearingDown ? nullptr : _world.GetComponent<LootDrop>(e);
+        if (drop && !drop->Table.empty()) _pendingLoot.push_back({ drop->Table, _world.GetTransform(e)->Position });
+    });
+}
+
+void Scene::DropPendingLoot()
+{
+    for (const PendingLoot& loot : std::exchange(_pendingLoot, {}))
+        if (_items && _items->DropLoot) _items->DropLoot(*this, loot.Table, loot.At);
 }
 
 void Scene::PublishPendingSpawns()
@@ -210,6 +226,7 @@ void Scene::UpdateInteraction()
             (void)_app->StartDialog({ .Id = used->Dialog, .Node = used->DialogNode, .Scene = this, .With = target, .By = by });
         if (_scripts) _scripts->Interact(target, by);
         if (_events) _events->PublishEngine(EngineEvents::EntityInteracted, { { "entity", target }, { "by", by } });
+        if (_items && _items->Open && _world.GetComponent<Container>(target)) _items->Open(*this, target, by);
         const ItemPickup* pickup = _world.GetComponent<ItemPickup>(target);
         if (pickup && !pickup->OnTouch) (void)PickUp(target, by); // last: it may take the entity away
     }
@@ -234,6 +251,7 @@ PhysicsWorld& Scene::GetPhysics()
 void Scene::Update(const f32 dt)
 {
     PublishPendingSpawns();
+    DropPendingLoot();
     OnUpdate(dt);
     UpdateInteraction();
     if (_scripts) _scripts->Update(dt);

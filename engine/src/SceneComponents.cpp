@@ -277,6 +277,10 @@ namespace
                 if (c.Items.Add(item, count.get<u32>()) < count.get<u32>())
                     LOG_WARN(Engine, "Container: not all of {} x '{}' fit", count.get<u32>(), item);
         }
+        if (const auto it = j.find("currency"); it != j.end() && it->is_object()) {
+            c.Currency.clear();
+            for (const auto& [id, amount] : it->items()) c.Currency[id] = amount.get<i64>();
+        }
         Read(j, "open", c.Open);
         Read(j, "loot", c.Loot);
     }
@@ -301,8 +305,10 @@ namespace
         const json bag = c.Items.ToJson();
         j["rules"]     = bag["rules"];
         j["stacks"]    = bag["stacks"];
-        j["open"]      = c.Open;
-        j["loot"]      = c.Loot;
+        j["currency"]  = json::object();
+        for (const auto& [id, amount] : c.Currency) j["currency"][id] = amount;
+        j["open"] = c.Open;
+        j["loot"] = c.Loot;
     }
 
     void RegisterAudioComponents(SceneRegistry& r)
@@ -470,6 +476,9 @@ void RegisterBuiltinComponents(SceneRegistry& registry)
             j["current"] = c.Current;
         });
     registry.RegisterComponent<ItemPickup>("ItemPickup", ReadPickup, WritePickup);
+    registry.RegisterComponent<LootDrop>(
+        "LootDrop", [](LootDrop& c, const json& j, SceneAssets&) { Read(j, "table", c.Table); },
+        [](const LootDrop& c, json& j, const SceneAssets&) { j["table"] = c.Table; });
     registry.RegisterComponent<PartyLink>(
         "PartyLink", [](PartyLink& c, const json& j, SceneAssets&) { Read(j, "member", c.Member); },
         [](const PartyLink& c, json& j, const SceneAssets&) { j["member"] = c.Member; });

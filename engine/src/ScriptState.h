@@ -241,6 +241,7 @@ private:
     void BindInventory();
     void BindCurrency();
     void BindParty();
+    void BindLoot();
 };
 
 // JSON <-> Lua: objects and arrays become tables, and back - a table with
