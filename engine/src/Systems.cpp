@@ -1286,6 +1286,8 @@ void RegisterBuiltinSystems(World& world);
 // Registration entry point — called from Scene::Scene()
 // ---------------------------------------------------------------------------
 
+void RegisterItemPickupSystem(World& world); // ScenePickups.cpp
+
 void RegisterBuiltinSystems(World& world)
 {
     // Update phase — order matches the blueprint execution table.
@@ -1298,6 +1300,7 @@ void RegisterBuiltinSystems(World& world)
     RegisterSnapTileMoveSystem(world);          // MoveIntent → instant tile steps
     RegisterCollisionResolutionSystem(world);   // sweeps PendingMove → Transform, refreshes broadphase
     RegisterContactEventsSystem(world);         // trigger + blocking-contact callbacks on final positions
+    RegisterItemPickupSystem(world);            // party entities take the pickups they arrive at
     RegisterCameraFollowSystem(world);
     RegisterFacingAnimationSystem(world);      // MoveIntent facing + moving -> Animator clip
     RegisterAnimatorStateMachineSystem(world); // evaluates transitions, updates Animator clip

@@ -41,6 +41,18 @@ namespace EngineEvents
     constexpr std::string_view ItemUnequippedName = "engine.item.unequipped";
     // An item was used (Application::UseItem). item, member, bag.
     constexpr std::string_view ItemUsedName = "engine.item.used";
+    // A pickup (ItemPickup) was picked up - all of it, or what fit. item,
+    // count (taken), entity (the pickup), by.
+    constexpr std::string_view ItemPickedUpName = "engine.item.picked_up";
+    // Some (or all) of a pickup didn't fit and stays on the ground. item,
+    // count (left), entity, by, reason ("no_room").
+    constexpr std::string_view ItemNotPickedUpName = "engine.item.not_picked_up";
+    // Items were dropped from a bag into the world (Application::DropItem).
+    // item, count, bag, entity (the new pickup).
+    constexpr std::string_view ItemDroppedName = "engine.item.dropped";
+    // The party became encumbered (its bag over the weight limit, when the
+    // project allows that) or stopped being. encumbered.
+    constexpr std::string_view PartyEncumberedName = "engine.party.encumbered";
     // A character joined / left the party. member.
     constexpr std::string_view PartyJoinedName = "engine.party.joined";
     constexpr std::string_view PartyLeftName   = "engine.party.left";
@@ -97,6 +109,10 @@ namespace EngineEvents
     constexpr EventId ItemEquipped       = MakeEvent(ItemEquippedName);
     constexpr EventId ItemUnequipped     = MakeEvent(ItemUnequippedName);
     constexpr EventId ItemUsed           = MakeEvent(ItemUsedName);
+    constexpr EventId ItemPickedUp       = MakeEvent(ItemPickedUpName);
+    constexpr EventId ItemNotPickedUp    = MakeEvent(ItemNotPickedUpName);
+    constexpr EventId ItemDropped        = MakeEvent(ItemDroppedName);
+    constexpr EventId PartyEncumbered    = MakeEvent(PartyEncumberedName);
     constexpr EventId PartyJoined        = MakeEvent(PartyJoinedName);
     constexpr EventId PartyLeft          = MakeEvent(PartyLeftName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
@@ -123,7 +139,8 @@ namespace EngineEvents
         DialogLineName,         DialogChoiceName,       BindingsUpdatedName,
         ItemAddedName,          ItemRemovedName,        CurrencyChangedName,
         ItemEquippedName,       ItemUnequippedName,     ItemUsedName,
-        PartyJoinedName,        PartyLeftName,
+        PartyJoinedName,        PartyLeftName,          PartyEncumberedName,
+        ItemPickedUpName,       ItemNotPickedUpName,    ItemDroppedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

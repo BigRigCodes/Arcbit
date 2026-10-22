@@ -11,6 +11,7 @@
 #include <arcbit/items/Container.h>
 #include <arcbit/items/ItemLibrary.h>
 #include <arcbit/items/Party.h>
+#include <arcbit/items/Pickup.h>
 #include <arcbit/items/Stats.h>
 #include <arcbit/physics/Collider2D.h>
 #include <arcbit/physics/CollisionLayers.h>
@@ -280,6 +281,21 @@ namespace
         Read(j, "loot", c.Loot);
     }
 
+    void ReadPickup(ItemPickup& c, const json& j, SceneAssets&)
+    {
+        Read(j, "item", c.Item);
+        Read(j, "count", c.Count);
+        Read(j, "bag", c.Bag);
+        Read(j, "reach", c.Reach);
+        if (j.contains("on")) c.OnTouch = j["on"].get<std::string>() != "interact";
+    }
+
+    void WritePickup(const ItemPickup& c, json& j, const SceneAssets&)
+    {
+        j = { { "item", c.Item }, { "count", c.Count }, { "bag", c.Bag }, { "reach", c.Reach },
+              { "on", c.OnTouch ? "touch" : "interact" } };
+    }
+
     void WriteContainer(const Container& c, json& j, const SceneAssets&)
     {
         const json bag = c.Items.ToJson();
@@ -453,6 +469,7 @@ void RegisterBuiltinComponents(SceneRegistry& registry)
             j["base"]    = c.Base;
             j["current"] = c.Current;
         });
+    registry.RegisterComponent<ItemPickup>("ItemPickup", ReadPickup, WritePickup);
     registry.RegisterComponent<PartyLink>(
         "PartyLink", [](PartyLink& c, const json& j, SceneAssets&) { Read(j, "member", c.Member); },
         [](const PartyLink& c, json& j, const SceneAssets&) { j["member"] = c.Member; });

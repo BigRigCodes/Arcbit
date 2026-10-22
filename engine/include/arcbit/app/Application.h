@@ -9,6 +9,7 @@
 #include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
 #include <arcbit/items/Party.h>
+#include <arcbit/items/Pickup.h>
 #include <arcbit/items/Stats.h>
 #include <arcbit/scene/PrefabLibrary.h>
 #include <arcbit/input/InputTypes.h>
@@ -290,6 +291,12 @@ public:
     // engine.item.used.
     UseResult UseItem(std::string_view item, std::string_view member = {}, std::string_view bag = Inventories::Party);
 
+    // Drop items from a bag into the active scene, where the party's leader
+    // stands: the item's "drop_prefab", else the stock pickup (PickupPrefab).
+    // Key items stay. Returns the new pickup, or Entity::Invalid() if nothing
+    // was dropped. Publishes engine.item.dropped.
+    Entity DropItem(std::string_view item, u32 count = 1, std::string_view bag = Inventories::Party);
+
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)
     // until it ends; autosaves wait. A dialog with "world": "pause" stops
@@ -486,6 +493,12 @@ private:
     std::unique_ptr<Party>       _party;
     void                         StartParty();
     void                         RunUseActions(const ItemDef& item, const std::string& member);
+    ItemHost                     _itemHost;           // every scene's pickups (StartPickups)
+    bool                         _encumbered = false; // engine.party.encumbered on change
+    void                         StartPickups();
+    u32                          TakePickup(std::string_view item, u32 count, std::string_view bag);
+    void                         DressPickup(Scene& scene, Entity pickup);
+    void                         UpdateEncumbrance(Scene& scene);
     void                         LoadItems();
     void                         StartInventories();
     void                         RegisterItemCommands();

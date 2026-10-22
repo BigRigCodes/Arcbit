@@ -46,6 +46,8 @@ struct ScriptServices
     const StatSet*       StatDefs = nullptr; // Party.Stats
     // Party.Use: "used", or why not ("not_in_bag", "not_usable", "no_member", "no_effect").
     std::function<std::string(std::string_view item, std::string_view member, std::string_view bag)> UseItem;
+    // Inventory.Drop: how many were dropped into the scene.
+    std::function<u32(std::string_view item, u32 count, std::string_view bag)> DropItem;
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

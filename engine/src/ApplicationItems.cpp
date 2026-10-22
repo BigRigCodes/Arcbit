@@ -1,14 +1,20 @@
 // Application: items - reading the item files, the game's bags and
 // currencies (game state, saved as the "inventories" section), and the
-// console's give / take / items (docs/items.md).
+// console's give / take / items / drop, and items lying in the world
+// (docs/items.md).
 
 #include <arcbit/app/Application.h>
+#include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/audio/AudioManager.h>
 #include <arcbit/core/Loc.h>
+#include <arcbit/ecs/Components.h>
+#include <arcbit/ecs/Movement.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/items/Pickup.h>
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <filesystem>
 #include <format>
 #include <stdexcept>
@@ -131,6 +137,14 @@ void Application::RegisterItemCommands()
     _debugConsole.Register({ .Name = "take", .Help = "take <item | currency> [count] [bag]", .Cheat = true,
                              .Run = [change](const Args& a) { change(a, -1); } });
     RegisterPartyCommands();
+    _debugConsole.Register({ .Name = "drop", .Help = "drop <item> [count] [bag] - onto the ground, where the leader stands",
+                             .Run = [this](const Args& a) {
+                                 if (a.empty()) throw std::runtime_error("drop <item> [count] [bag]");
+                                 const u32         count = a.size() > 1 ? static_cast<u32>(std::stoul(a[1])) : 1;
+                                 const std::string from  = a.size() > 2 ? a[2] : std::string(Inventories::Party);
+                                 if (!DropItem(a[0], count, from).IsValid()) throw std::runtime_error("nothing dropped - not in the bag, or a key item");
+                                 _debugConsole.Print(std::format("dropped {} ({} left)", a[0], _inventories->Find(from)->Count(a[0])));
+                             } });
     _debugConsole.Register({ .Name = "items", .Help = "items [bag] - what a bag holds, and the currencies",
                              .Run = [this, bag](const Args& a) {
                                  for (const ItemStack& stack : bag(a, 0).GetStacks())
@@ -172,5 +186,113 @@ void Application::RegisterPartyCommands()
                                  if (result != UseResult::Used) throw std::runtime_error(std::format("not used - {}", UseResultName(result)));
                                  _debugConsole.Print(std::format("used {} ({} left)", a[0], _inventories->GetParty().Count(a[0])));
                              } });
+}
+} // namespace Arcbit
+
+namespace Arcbit
+{
+// The scenes' pickups go into the game's bags; the stock pickup prefab, for
+// drops, unless the game has its own.
+void Application::StartPickups()
+{
+    _itemHost.Take  = [this](const std::string_view item, const u32 count, const std::string_view bag) { return TakePickup(item, count, bag); };
+    _itemHost.Dress = [this](Scene& scene, const Entity pickup) { DressPickup(scene, pickup); };
+    if (!_prefabs.Has(PickupPrefab))
+        _prefabs.Add(std::string(PickupPrefab), { { "Tag", { { "value", "Pickup" } } }, { "ItemPickup", nlohmann::json::object() },
+                                                  { "Persistent", nlohmann::json::object() } });
+}
+
+// A currency picked up counts however it's kept; an item goes into the bag.
+u32 Application::TakePickup(const std::string_view item, const u32 count, const std::string_view bag)
+{
+    if (_currencies->Find(item)) {
+        const i64 before = _currencies->Get(item);
+        return static_cast<u32>(_currencies->Add(item, count) - before);
+    }
+    Inventory* into = _inventories->Find(bag);
+    return into ? into->Add(item, count) : 0;
+}
+
+// A pickup with no look of its own: the item's icon (a texture, or
+// "sheet.json#frame"), else a white square - half a tile across.
+void Application::DressPickup(Scene& scene, const Entity pickup)
+{
+    World&            world = scene.GetWorld();
+    const ItemPickup* p     = world.GetComponent<ItemPickup>(pickup);
+    const ItemDef*    def   = p ? _items.Find(p->Item) : nullptr;
+    SpriteRenderer    look{ .Texture = GetWhiteTexture(), .Sampler = GetStockSampler(StockSampler::Nearest) };
+    const std::string icon = def ? def->Icon : std::string{};
+    if (const size_t hash = icon.find('#'); hash != std::string::npos) {
+        const SpriteSheet* sheet = scene.LoadSpriteSheet(icon.substr(0, hash));
+        const auto         frame = sheet ? sheet->GetFrame(icon.substr(hash + 1)) : std::nullopt;
+        if (frame) {
+            look.Texture = sheet->GetTexture();
+            look.UV      = frame->UV;
+        }
+    } else if (!icon.empty()) {
+        if (const TextureHandle texture = scene.LoadTexture(icon); texture.IsValid()) look.Texture = texture;
+    }
+    world.AddComponent<SpriteRenderer>(pickup, look);
+    const f32 half = scene.GetConfig().TileSize * 0.5f;
+    if (Transform2D* t = world.GetTransform(pickup)) t->Scale = { half, half };
+}
+
+namespace
+{
+    // Where a drop lands: the leader's entity, else any party entity, else
+    // the middle of the view.
+    Vec2 DropPoint(Scene& scene, const std::string& leader)
+    {
+        std::optional<Vec2> any, theirs;
+        scene.GetWorld().Query<PartyLink, Transform2D>().ForEach([&](const PartyLink& link, const Transform2D& t) {
+            if (!any) any = t.Position;
+            if (!theirs && (link.Member.empty() || link.Member == leader)) theirs = t.Position;
+        });
+        return theirs.value_or(any.value_or(scene.GetCamera().Position));
+    }
+} // namespace
+
+Entity Application::DropItem(const std::string_view item, const u32 count, const std::string_view bagName)
+{
+    const ItemDef* def   = _items.Find(item);
+    Inventory*     bag   = _inventories->Find(bagName);
+    Scene*         scene = _scenes.GetActive();
+    if (!def || !bag || !scene || count == 0 || def->Type == ItemTypes::Key) return Entity::Invalid();
+    const std::string prefab = def->DropPrefab.empty() ? std::string(PickupPrefab) : def->DropPrefab;
+    if (!_prefabs.Has(prefab) || !bag->Has(item)) return Entity::Invalid();
+
+    const u32    dropped = bag->Remove(item, count);
+    const Entity e       = scene->Spawn(prefab, DropPoint(*scene, _party->GetLeader() ? _party->GetLeader()->Id : ""));
+    if (!e.IsValid()) {
+        (void)bag->Add(item, dropped); // back where it was
+        return Entity::Invalid();
+    }
+    World& world = scene->GetWorld();
+    if (!world.GetComponent<ItemPickup>(e)) world.AddComponent<ItemPickup>(e);
+    ItemPickup& pickup = *world.GetComponent<ItemPickup>(e);
+    pickup.Item        = def->Id;
+    pickup.Count       = dropped;
+    pickup.Bag         = std::string(bagName);
+    pickup._armed      = false; // not straight back up from under the player's feet
+    _events.PublishEngine(EngineEvents::ItemDropped,
+                          { { "item", def->Id }, { "count", dropped }, { "bag", std::string(bagName) }, { "entity", e } });
+    return e;
+}
+
+// A party entity whose member's bag is over its weight limit walks at the
+// project's EncumberedSpeed - possible only when the bag allows going over.
+void Application::UpdateEncumbrance(Scene& scene)
+{
+    bool heavy = false;
+    scene.GetWorld().Query<PartyLink, MoveIntent>().ForEach([&](const PartyLink& link, MoveIntent& intent) {
+        const PartyMember* member = link.Member.empty() ? _party->GetLeader() : _party->Find(link.Member);
+        const Inventory*   bag    = member ? _inventories->Find(member->Bag) : nullptr;
+        const bool         over   = bag && bag->IsOverWeight();
+        intent.SpeedScale         = over ? _config.Defaults.EncumberedSpeed : 1.0f;
+        heavy                     = heavy || over;
+    });
+    if (heavy == _encumbered) return;
+    _encumbered = heavy;
+    _events.PublishEngine(EngineEvents::PartyEncumbered, { { "encumbered", heavy } });
 }
 } // namespace Arcbit

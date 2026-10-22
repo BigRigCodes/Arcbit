@@ -72,6 +72,10 @@ struct ProjectDefaults
     // The game's currencies: SaveData counters, or (Item) stacks in a bag.
     std::vector<CurrencyDef> Currencies = { { .Id = "gold" } };
 
+    // How fast an encumbered party walks (its bag over the weight limit,
+    // when the bag's rules allow going over), times its usual speed.
+    f32 EncumberedSpeed = 0.5f;
+
     // Opening a Container: the transfer screen, or take everything at once.
     // Per container: "open".
     ContainerOpening ContainerOpen = ContainerOpening::Transfer;

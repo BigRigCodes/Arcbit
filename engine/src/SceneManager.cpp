@@ -135,6 +135,7 @@ void SceneManager::SetActive(std::unique_ptr<Scene> scene)
     scene->SetInput(_host.Input);
     if (_host.Configure) _host.Configure(*scene);
     scene->_events      = _host.Events;
+    scene->_items       = _host.Items;
     scene->_musicPlayer = _host.Music;
     scene->_musicFade   = MusicFadeTime;
     _stack.push_back(std::move(scene));
@@ -225,6 +226,7 @@ std::unique_ptr<Scene> SceneManager::Create(const std::string& name)
     scene->_name                 = name;
     scene->_app                  = _host.App;
     scene->_events               = _host.Events;
+    scene->_items                = _host.Items;
     scene->_scriptEngine         = _host.Scripts;
     scene->SetInput(_host.Input);
     if (_host.Configure) _host.Configure(*scene);

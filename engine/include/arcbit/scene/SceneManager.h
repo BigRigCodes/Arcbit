@@ -16,6 +16,7 @@ namespace Arcbit {
 
 class Application;
 class EventBus;
+struct ItemHost;
 class InputManager;
 class SceneAssets;
 class SceneRegistry;
@@ -134,6 +135,7 @@ public:
         bool                  PrepareOnThread = false; // OnPrepare on a loader thread; off = inline (tests)
         MusicPlayer*          Music = nullptr; // scene music (Scene::SetMusic); null = no music
         EventBus*             Events = nullptr; // Scene::Subscribe; null = scenes can't subscribe
+        const ItemHost*       Items  = nullptr; // Scene::SetItemHost on every new scene
 
         // Run on every new scene before its OnPrepare - the project's
         // defaults into its WorldConfig (Application).

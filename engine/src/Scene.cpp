@@ -6,6 +6,7 @@
 #include <arcbit/audio/MusicPlayer.h>
 #include <arcbit/core/Assert.h>
 #include <arcbit/events/EngineEvents.h>
+#include <arcbit/items/Pickup.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/ecs/Interaction.h>
 #include <arcbit/events/EngineEvents.h>
@@ -209,6 +210,8 @@ void Scene::UpdateInteraction()
             (void)_app->StartDialog({ .Id = used->Dialog, .Node = used->DialogNode, .Scene = this, .With = target, .By = by });
         if (_scripts) _scripts->Interact(target, by);
         if (_events) _events->PublishEngine(EngineEvents::EntityInteracted, { { "entity", target }, { "by", by } });
+        const ItemPickup* pickup = _world.GetComponent<ItemPickup>(target);
+        if (pickup && !pickup->OnTouch) (void)PickUp(target, by); // last: it may take the entity away
     }
 }
 

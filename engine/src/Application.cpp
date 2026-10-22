@@ -243,6 +243,7 @@ void Application::Run()
                       .PrepareOnThread = true,
                       .Music           = &AudioManager::GetMusicPlayer(),
                       .Events          = &_events,
+                      .Items           = &_itemHost,
                       .Configure       = [this](Scene& scene) { ApplyDefaults(scene); },
                       .World           = &_world,
                       .Registry        = &_sceneRegistry,
@@ -264,6 +265,11 @@ void Application::Run()
                                 .UseItem   = [this](const std::string_view item, const std::string_view member,
                                                     const std::string_view bag) {
                                     return std::string(UseResultName(UseItem(item, member, bag)));
+                                },
+                                .DropItem  = [this](const std::string_view item, const u32 count, const std::string_view bag) {
+                                    const Entity       e = DropItem(item, count, bag);
+                                    const ItemPickup*  p = e.IsValid() ? GetScene().GetWorld().GetComponent<ItemPickup>(e) : nullptr;
+                                    return p ? p->Count : 0u;
                                 },
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
@@ -302,6 +308,7 @@ void Application::Run()
     // Input bindings are loaded from settings AFTER OnStart so that default
     // bindings set up in OnStart are overwritten by any user-saved bindings.
     (void)_prefabs.AddFolder(_config.PrefabFolder); // before OnStart: the first scene may use them
+    StartPickups();
     OnStart();
     Settings::LoadInputBindings(_input);
 
@@ -377,6 +384,7 @@ void Application::Run()
                 if (Scene* scene = _scenes.GetActive()) {
                     // An input-capturing overlay or a scene fade holds the player still.
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
+                    UpdateEncumbrance(*scene);
                     if (!DialogPausesWorld()) scene->Update(_fixedTimestep * _timeScale);
                 }
                 // Play time: not under menus, but a conversation is playing.

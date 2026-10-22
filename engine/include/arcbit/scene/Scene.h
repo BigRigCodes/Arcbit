@@ -18,6 +18,7 @@ namespace Arcbit {
 struct FramePacket;
 class Application;
 class InputManager;
+struct ItemHost;
 class MusicPlayer;
 struct AuthoredState;
 class PhysicsWorld;
@@ -168,6 +169,18 @@ public:
     void               SetInputBlocked(const bool blocked) { _inputBlocked = blocked; }
     [[nodiscard]] bool IsInputBlocked() const { return _inputBlocked; }
 
+    // Where this scene's pickups (ItemPickup) put what's picked up, and how
+    // they look. SceneManager sets Application's; null (the default) leaves
+    // pickups lying. Not owned.
+    void                          SetItemHost(const ItemHost* host) { _items = host; }
+    [[nodiscard]] const ItemHost* GetItemHost() const { return _items; }
+
+    // `by` picks up an ItemPickup: what fits goes into its bag -
+    // engine.item.picked_up - and the entity goes once it's all taken; what
+    // doesn't stays on the ground (engine.item.not_picked_up). Returns how
+    // many were taken. Not from inside a query over this scene's world.
+    u32 PickUp(Entity pickup, Entity by);
+
     // The scene's own Lua script (docs/scripting.md) - hooks OnLoad,
     // OnUpdate(dt) and OnUnload. Set it in the constructor or OnLoad (a scene
     // file's "script"); it starts once the scene has loaded.
@@ -216,6 +229,7 @@ private:
     std::unique_ptr<PhysicsWorld> _physics; // lazy; created on first GetPhysics()
     const InputManager*           _input        = nullptr;
     bool                          _inputBlocked = false;
+    const ItemHost*               _items        = nullptr;
 
     std::string                _name;
     std::string                _entryPoint;
