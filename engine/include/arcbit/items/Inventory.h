@@ -84,13 +84,13 @@ struct InventoryRules
 
     [[nodiscard]] bool IsGrid() const { return Width > 0 && Height > 0; }
 
-    // Pokemon: a list per category, one entry per item, up to its stack size.
+    // Pokemon inspired: a list per category, one entry per item, up to its stack size.
     [[nodiscard]] static InventoryRules Pockets();
-    // Skyrim: one entry per item, any count, a carry weight limit.
+    // Skyrim inspired: one entry per item, any count, a carry weight limit.
     [[nodiscard]] static InventoryRules Weight(f32 maxWeight);
-    // Minecraft: a grid of cells (add a hotbar with Sections).
+    // Minecraft inspired: a grid of cells (add a hotbar with Sections).
     [[nodiscard]] static InventoryRules Grid(u32 width, u32 height);
-    // A grid with a carry weight limit too.
+    // Valheim inspired: A grid with a carry weight limit too.
     [[nodiscard]] static InventoryRules Survival(u32 width, u32 height, f32 maxWeight);
 };
 

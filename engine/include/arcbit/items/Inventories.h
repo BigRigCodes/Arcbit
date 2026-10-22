@@ -53,8 +53,8 @@ public:
 private:
     void Watch(const std::string& name, Inventory& bag);
 
-    const ItemLibrary*                               _items;
+    const ItemLibrary*                                  _items;
     std::vector<std::pair<std::string, InventoryRules>> _starting;
-    std::map<std::string, Inventory, std::less<>>    _bags;
+    std::map<std::string, Inventory, std::less<>>       _bags;
 };
 } // namespace Arcbit
