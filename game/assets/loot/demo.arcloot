@@ -1,0 +1,19 @@
+{
+    // The demo's loot tables (docs/items.md#loot-tables).
+    "crate": {
+        "always": [ { "currency": "gold", "count": [3, 8] } ],
+        "rolls": [1, 2],
+        "entries": [
+            { "item": "potion", "count": [1, 2], "weight": 4 },
+            { "item": "hi_potion", "weight": 1 },
+            { "item": "old_boot", "weight": 2 }
+        ]
+    },
+    "barrel": {
+        "always": [ { "currency": "gold", "count": [1, 4] } ],
+        "entries": [
+            { "item": "potion", "weight": 2 },
+            { "item": "old_boot", "weight": 1 }
+        ]
+    }
+}

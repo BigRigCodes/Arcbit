@@ -2,6 +2,14 @@
     "camera": { "position": [256.0, 0.0], "zoom": 1.5 },
     "config": { "tile_size": 64.0 },
     "entities": {
+        "barrel": {
+            "Collider2D": { "half_extents": [22.0, 22.0], "kind": "static", "layer": "Prop" },
+            "LootDrop": { "table": "barrel" },
+            "Persistent": {},
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.55, 0.35, 0.2, 1.0] },
+            "Tag": { "value": "Barrel" },
+            "Transform2D": { "position": [448.0, -64.0], "scale": [44.0, 44.0] }
+        },
         "boot": {
             "ItemPickup": { "item": "old_boot", "on": "interact" },
             "Persistent": {},
@@ -17,6 +25,14 @@
             "Script": { "properties": { "Gold": 5 } },
             "SpriteRenderer": { "tint": [0.7, 0.72, 0.78, 1.0] },
             "Transform2D": { "position": [-320.0, 192.0] }
+        },
+        "crate": {
+            "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },
+            "Container": { "loot": "crate", "open": "take_all" },
+            "Persistent": {},
+            "SpriteRenderer": { "sampler": "nearest", "texture": "builtin:white", "tint": [0.6, 0.45, 0.25, 1.0] },
+            "Tag": { "value": "Crate" },
+            "Transform2D": { "position": [448.0, 0.0], "scale": [48.0, 48.0] }
         },
         "door": {
             "Interactable": { "prompt": "demo.scripted.prompt.enter" },
