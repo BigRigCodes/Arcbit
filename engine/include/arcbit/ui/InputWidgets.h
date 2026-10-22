@@ -91,6 +91,7 @@ private:
     [[nodiscard]] u32  PrevWordBoundary() const;
     [[nodiscard]] u32  NextWordBoundary() const;
     void               UpdateScroll(f32 availW, const UISkin& skin);
+    void               UseClipboard(UIControlKey key);
 };
 
 // ---------------------------------------------------------------------------

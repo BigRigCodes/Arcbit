@@ -1,4 +1,5 @@
 #include <arcbit/ui/InputWidgets.h>
+#include <arcbit/core/Clipboard.h>
 #include <arcbit/ui/UISkin.h>
 #include <arcbit/core/Loc.h>
 #include <arcbit/audio/AudioManager.h>
@@ -244,9 +245,38 @@ void TextInput::OnControlKey(const UIControlKey key)
 
     case UIControlKey::Enter: if (OnConfirm) OnConfirm(Text);
         break;
+    case UIControlKey::SelectAll:
+    case UIControlKey::Copy:
+    case UIControlKey::Cut:
+    case UIControlKey::Paste: UseClipboard(key);
+        break;
     default: break;
     }
     _cursorBlink = 0.0f; // reset blink so cursor is always visible right after moving
+}
+
+// Select all, copy and cut the selection, paste over it. A paste is typed
+// in - the field's own rules (mode, pattern, length) apply - with its line
+// breaks as spaces: a text field is one line.
+void TextInput::UseClipboard(const UIControlKey key)
+{
+    if (key == UIControlKey::SelectAll) {
+        _selAnchor = 0;
+        _cursor    = static_cast<u32>(Text.size());
+        return;
+    }
+    if (key == UIControlKey::Paste) {
+        std::string pasted = Clipboard::GetText();
+        std::erase(pasted, '\r');
+        std::ranges::replace(pasted, '\n', ' ');
+        if (!pasted.empty()) OnTextInput(pasted);
+        return;
+    }
+    if (!HasSelection()) return;
+    Clipboard::SetText(std::string_view(Text).substr(SelMin(), SelMax() - SelMin()));
+    if (key != UIControlKey::Cut) return;
+    DeleteSelection();
+    if (OnChanged) OnChanged(Text);
 }
 
 void TextInput::OnUpdate(const f32 dt, const UIRect myRect, const Vec2 /*mousePos*/,

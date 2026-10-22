@@ -26,6 +26,7 @@ enum class UIControlKey : u8
     Home,  ShiftHome,
     End,   ShiftEnd,
     Backspace, Delete, Enter, Escape,
+    SelectAll, Copy, Cut, Paste, // Ctrl+A / C / X / V
 };
 
 // Base layer offset for all UI quads.  Each widget ZOrder level uses 4

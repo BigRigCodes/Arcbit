@@ -1,6 +1,7 @@
 // TextInput editing with UTF-8 text: the cursor, deletion and limits move
 // by whole characters.
 
+#include <arcbit/core/Clipboard.h>
 #include <arcbit/ui/InputWidgets.h>
 #include <arcbit/ui/UIScreen.h>
 
@@ -67,3 +68,31 @@ TEST_CASE("Text changed from outside leaves the cursor on a character", "[ui][te
     f.input->OnTextInput("x");
     CHECK(f.Text() == std::string("ax") + Euro);
 }
+
+TEST_CASE("Ctrl+A, C, X and V select, copy, cut and paste", "[ui][textinput][clipboard]")
+{
+    Fixture f;
+    f.input->OnTextInput("give potion");
+    Clipboard::SetText("untouched");
+    f.input->OnControlKey(UIControlKey::Copy); // nothing selected: the clipboard stays as it was
+    CHECK(Clipboard::GetText() == "untouched");
+
+    f.input->OnControlKey(UIControlKey::SelectAll);
+    f.input->OnControlKey(UIControlKey::Copy);
+    CHECK(Clipboard::GetText() == "give potion");
+
+    f.input->OnControlKey(UIControlKey::End);
+    for (int i = 0; i < 6; ++i) f.input->OnControlKey(UIControlKey::ShiftLeft);
+    f.input->OnControlKey(UIControlKey::Cut);
+    CHECK(Clipboard::GetText() == "potion");
+    CHECK(f.Text() == "give ");
+
+    Clipboard::SetText("hi-potion\r\n2");
+    f.input->OnControlKey(UIControlKey::Paste);
+    CHECK(f.Text() == "give hi-potion 2"); // a field is one line: breaks become spaces
+
+    f.input->MaxLength = 18;
+    f.input->OnControlKey(UIControlKey::Paste);
+    CHECK(f.Text() == "give hi-potion 2hi"); // a paste is typed in: the field's limits hold
+}
+

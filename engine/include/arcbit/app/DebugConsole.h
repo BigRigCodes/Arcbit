@@ -73,6 +73,8 @@ public:
     size_t                                     MaxLines = 400;
 
 private:
+    void CopyOutput(const Args& args);
+
     std::map<std::string, Command, std::less<>> _commands; // sorted, for help and completion
     std::deque<std::string>                     _lines;
     std::vector<std::string>                    _history;

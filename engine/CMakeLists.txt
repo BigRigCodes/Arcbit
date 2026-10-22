@@ -21,6 +21,7 @@ add_library(arcbit-engine STATIC
     src/Camera2D.cpp
     src/RenderThread.cpp
     src/Window.cpp
+    src/Clipboard.cpp
     src/InputManager.cpp
     src/BindingUpdate.cpp
     src/Settings.cpp
@@ -130,7 +131,7 @@ target_link_libraries(arcbit-engine
         arcbit-core
         nlohmann_json::nlohmann_json  # public headers use it: SceneRegistry / SceneFile take JSON, SpriteSheet::FromJson
     PRIVATE
-        SDL3::SDL3                    # used in Window.cpp and InputManager.cpp; not exposed through public headers
+        SDL3::SDL3                    # used in Window.cpp, InputManager.cpp and Clipboard.cpp; not exposed through public headers
         unofficial-sodium::sodium     # SaveSeal.cpp only
         zstd::libzstd                 # SaveSeal.cpp only
         ${LUA_LIBRARIES}

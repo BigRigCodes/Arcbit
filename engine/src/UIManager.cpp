@@ -68,6 +68,10 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     input.RegisterAction(ActionShiftMod, "UI_ShiftMod");
     input.RegisterAction(ActionCtrlMod, "UI_CtrlMod");
     input.RegisterAction(ActionBack, "UI_Back");
+    input.RegisterAction(ActionTextSelectAll, "UI_TextSelectAll");
+    input.RegisterAction(ActionTextCopy, "UI_TextCopy");
+    input.RegisterAction(ActionTextCut, "UI_TextCut");
+    input.RegisterAction(ActionTextPaste, "UI_TextPaste");
 
     input.BindKey(ActionTextLeft, Key::Left);
     input.BindKey(ActionTextRight, Key::Right);
@@ -81,6 +85,10 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     input.BindKey(ActionShiftMod, Key::RightShift);
     input.BindKey(ActionCtrlMod, Key::LeftCtrl);
     input.BindKey(ActionCtrlMod, Key::RightCtrl);
+    input.BindKey(ActionTextSelectAll, Key::A);
+    input.BindKey(ActionTextCopy, Key::C);
+    input.BindKey(ActionTextCut, Key::X);
+    input.BindKey(ActionTextPaste, Key::V);
 
     input.BindGamepadButton(ActionBack, GamepadButton::East);
 
@@ -88,7 +96,8 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     for (const ActionID action : { ActionConfirm, ActionFocusNext, ActionFocusPrev, ActionCursorLeft, ActionCursorRight,
                                    ActionCursorUp, ActionCursorDown, ActionScrollUp, ActionScrollDown, ActionCursorClick,
                                    ActionTextLeft, ActionTextRight, ActionTextHome, ActionTextEnd, ActionTextBackspace,
-                                   ActionTextDelete, ActionTextEscape, ActionTabNext, ActionShiftMod, ActionCtrlMod, ActionBack })
+                                   ActionTextDelete, ActionTextEscape, ActionTabNext, ActionShiftMod, ActionCtrlMod, ActionBack,
+                                   ActionTextSelectAll, ActionTextCopy, ActionTextCut, ActionTextPaste })
         input.KeepWhileTyping(action);
 }
 
@@ -408,6 +417,12 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
                  UIControlKey::End, UIControlKey::ShiftEnd);
     if (input.JustPressed(ActionTextBackspace)) active->DispatchControlKey(UIControlKey::Backspace);
     if (input.JustPressed(ActionTextDelete)) active->DispatchControlKey(UIControlKey::Delete);
+    if (ctrl) { // the letters alone are just typing
+        if (input.JustPressed(ActionTextSelectAll)) active->DispatchControlKey(UIControlKey::SelectAll);
+        if (input.JustPressed(ActionTextCopy)) active->DispatchControlKey(UIControlKey::Copy);
+        if (input.JustPressed(ActionTextCut)) active->DispatchControlKey(UIControlKey::Cut);
+        if (input.JustPressed(ActionTextPaste)) active->DispatchControlKey(UIControlKey::Paste);
+    }
 
     // Sync SDL text input mode against the *final* focus state for the frame.
     // Done last so any focus change above (Tab/arrow nav, ClearFocus on back,

@@ -57,6 +57,11 @@ public:
     static constexpr ActionID ActionTextBackspace = MakeAction("UI_TextBackspace");
     static constexpr ActionID ActionTextDelete    = MakeAction("UI_TextDelete");
     static constexpr ActionID ActionTextEscape    = MakeAction("UI_TextEscape");
+    // With Ctrl held: select all, copy, cut, paste in a text field.
+    static constexpr ActionID ActionTextSelectAll = MakeAction("UI_TextSelectAll");
+    static constexpr ActionID ActionTextCopy      = MakeAction("UI_TextCopy");
+    static constexpr ActionID ActionTextCut       = MakeAction("UI_TextCut");
+    static constexpr ActionID ActionTextPaste     = MakeAction("UI_TextPaste");
 
     // Tab-only focus navigation — active even when a text widget is focused.
     static constexpr ActionID ActionTabNext  = MakeAction("UI_TabNext");

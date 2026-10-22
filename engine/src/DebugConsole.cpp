@@ -1,5 +1,6 @@
 #include <arcbit/app/DebugConsole.h>
 
+#include <arcbit/core/Clipboard.h>
 #include <arcbit/core/Log.h>
 
 #include <format>
@@ -12,6 +13,19 @@ DebugConsole::DebugConsole()
     Register({ .Name = "help", .Help = "help [command] - list commands, or explain one",
                .Run  = [this](const Args& args) { Help(args); } });
     Register({ .Name = "clear", .Help = "clear - empty the console", .Run = [this](const Args&) { Clear(); } });
+    Register({ .Name = "copy", .Help = "copy [lines] - the console's output (the last lines, or all) to the clipboard",
+               .Run  = [this](const Args& args) { CopyOutput(args); } });
+}
+
+// Everything above this command's own line, or its last n lines.
+void DebugConsole::CopyOutput(const Args& args)
+{
+    const size_t shown = _lines.empty() ? 0 : _lines.size() - 1; // not the "> copy" just echoed
+    const size_t count = args.empty() ? shown : std::min<size_t>(std::stoul(args[0]), shown);
+    std::string  text;
+    for (size_t i = shown - count; i < shown; ++i) text += _lines[i] + "\n";
+    Clipboard::SetText(text);
+    Print(std::format("copied {} line{}", count, count == 1 ? "" : "s"));
 }
 
 void DebugConsole::Register(Command command)

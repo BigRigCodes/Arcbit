@@ -2,6 +2,7 @@
 // again - through a headless UIManager with the UI's keys bound by hand.
 
 #include <arcbit/app/DebugConsole.h>
+#include <arcbit/core/Clipboard.h>
 #include <arcbit/input/InputManager.h>
 #include <arcbit/ui/ConsoleScreen.h>
 #include <arcbit/ui/InputWidgets.h>
@@ -31,6 +32,10 @@ struct Fixture
         input.BindKey(UIManager::ActionTextBackspace, Key::Backspace);
         input.RegisterAction(ConsoleScreen::ActionHistoryUp, "Console_HistoryUp");
         input.BindKey(ConsoleScreen::ActionHistoryUp, Key::Up);
+        input.RegisterAction(UIManager::ActionCtrlMod, "UI_CtrlMod");
+        input.BindKey(UIManager::ActionCtrlMod, Key::LeftCtrl);
+        input.RegisterAction(UIManager::ActionTextPaste, "UI_TextPaste");
+        input.BindKey(UIManager::ActionTextPaste, Key::V);
 
         auto screen     = std::make_unique<ConsoleScreen>();
         screen->Console = &console;
@@ -94,4 +99,20 @@ TEST_CASE("The line shows a suggestion that Tab takes", "[console][ui]")
     f.Press(SDL_SCANCODE_TAB);
     CHECK(f.line->Text == "help");
     CHECK(f.line->Suggestion.empty());
+}
+
+// Ctrl itself is read from the keyboard's live state (InputManager::Update),
+// which a test can't hold down; the Ctrl keys are tested on TextInput itself.
+TEST_CASE("V alone doesn't paste into the console's line; copy takes the output", "[console][ui][clipboard]")
+{
+    Fixture f;
+    Clipboard::SetText("give potion 3");
+    f.Press(SDL_SCANCODE_V); // without Ctrl it's typing, not a paste
+    CHECK(f.line->Text.empty());
+
+    f.console.Print("first");
+    f.console.Print("second");
+    f.console.Execute("copy 2");
+    CHECK(Clipboard::GetText() == "first\nsecond\n"); // not the "> copy 2" it echoed
+    CHECK(f.console.GetLines().back() == "copied 2 lines");
 }
