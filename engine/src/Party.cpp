@@ -184,14 +184,47 @@ bool Party::Unequip(const std::string_view id, const std::string_view slotName)
     return true;
 }
 
-void Party::ApplyUse(const std::string_view id, const ItemDef& item)
+std::string_view UseResultName(const UseResult result)
 {
-    PartyMember* member = Find(id);
-    if (!member) return;
+    switch (result) {
+        case UseResult::Used: return "used";
+        case UseResult::NotInBag: return "not_in_bag";
+        case UseResult::NotUsable: return "not_usable";
+        case UseResult::NoMember: return "no_member";
+        case UseResult::NoEffect: return "no_effect";
+    }
+    return "used";
+}
+
+namespace
+{
+StatValues UseStats(const ItemDef& item)
+{
     StatValues changes;
     for (const auto& [stat, amount] : item.Use.value("stats", json::object()).items())
         if (amount.is_number()) changes[stat] = amount.get<f32>();
-    _stats->Apply(member->Own, changes, Worn(*member));
+    return changes;
+}
+} // namespace
+
+bool Party::ApplyUse(const std::string_view id, const ItemDef& item)
+{
+    PartyMember* member = Find(id);
+    if (!member) return false;
+    const std::vector<const ItemDef*> worn   = Worn(*member);
+    const StatValues                  before = _stats->Effective(member->Own, worn);
+    _stats->Apply(member->Own, UseStats(item), worn);
+    return _stats->Effective(member->Own, worn) != before;
+}
+
+bool Party::WouldChange(const std::string_view id, const ItemDef& item) const
+{
+    const auto it = std::ranges::find(_members, id, &PartyMember::Id);
+    if (it == _members.end()) return false;
+    const std::vector<const ItemDef*> worn = Worn(*it);
+    Stats                             own  = it->Own;
+    _stats->Apply(own, UseStats(item), worn);
+    return _stats->Effective(own, worn) != _stats->Effective(it->Own, worn);
 }
 
 // --- Saving ------------------------------------------------------------------------

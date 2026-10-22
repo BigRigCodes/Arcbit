@@ -8,6 +8,7 @@
 #include <arcbit/events/EngineEvents.h>
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <format>
 #include <stdexcept>
@@ -66,17 +67,21 @@ void Application::StartParty()
         [this](const nlohmann::json& section) { _party->FromJson(section); });
 }
 
-bool Application::UseItem(const std::string_view item, const std::string_view member, const std::string_view bagName)
+UseResult Application::UseItem(const std::string_view item, const std::string_view member, const std::string_view bagName)
 {
     const ItemDef* def = _items.Find(item);
     Inventory*     bag = _inventories->Find(bagName);
-    if (!def || !bag || !bag->Has(item) || def->Use.empty()) return false;
+    if (!def || !bag || !bag->Has(item)) return UseResult::NotInBag;
+    if (def->Use.empty()) return UseResult::NotUsable;
     const std::string who = !member.empty() ? std::string(member) : _party->GetLeader() ? _party->GetLeader()->Id : std::string{};
-    _party->ApplyUse(who, *def);
+    if (!_party->Find(who)) return UseResult::NoMember;
+    const bool otherActions = std::ranges::any_of(std::array{ "set", "add", "event", "lua" }, [&](const char* k) { return def->Use.contains(k); });
+    if (!otherActions && !_party->WouldChange(who, *def)) return UseResult::NoEffect;
+    (void)_party->ApplyUse(who, *def);
     RunUseActions(*def, who);
     if (def->Use.value("consume", def->Type == ItemTypes::Consumable)) (void)bag->Remove(item);
     _events.PublishEngine(EngineEvents::ItemUsed, { { "item", def->Id }, { "member", who }, { "bag", std::string(bagName) } });
-    return true;
+    return UseResult::Used;
 }
 
 // A "use" block's other actions: set / add save data (currencies through
@@ -163,7 +168,9 @@ void Application::RegisterPartyCommands()
     _debugConsole.Register({ .Name = "use", .Help = "use <item> [member] - from the party's bag", .Cheat = true,
                              .Run = [this](const Args& a) {
                                  if (a.empty()) throw std::runtime_error("use <item> [member]");
-                                 if (!UseItem(a[0], a.size() > 1 ? a[1] : "")) throw std::runtime_error("can't use that");
+                                 const UseResult result = UseItem(a[0], a.size() > 1 ? a[1] : "");
+                                 if (result != UseResult::Used) throw std::runtime_error(std::format("not used - {}", UseResultName(result)));
+                                 _debugConsole.Print(std::format("used {} ({} left)", a[0], _inventories->GetParty().Count(a[0])));
                              } });
 }
 } // namespace Arcbit

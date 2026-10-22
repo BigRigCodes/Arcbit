@@ -262,7 +262,9 @@ void Application::Run()
                                 .Members   = _party.get(),
                                 .StatDefs  = &_statSet,
                                 .UseItem   = [this](const std::string_view item, const std::string_view member,
-                                                    const std::string_view bag) { return UseItem(item, member, bag); },
+                                                    const std::string_view bag) {
+                                    return std::string(UseResultName(UseItem(item, member, bag)));
+                                },
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },

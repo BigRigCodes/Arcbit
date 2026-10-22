@@ -284,9 +284,11 @@ public:
 
     // Use an item from a bag: its "use" stats on the member (default the
     // leader), its other actions (set / add / event / lua / sound), then one
-    // is used up if it's consumable (or "consume": true). False if the bag
-    // hasn't got it or it has no "use". Publishes engine.item.used.
-    bool UseItem(std::string_view item, std::string_view member = {}, std::string_view bag = Inventories::Party);
+    // is used up if it's consumable (or "consume": true). Refused - and kept
+    // - when the bag hasn't got it, it has no "use", or it would change
+    // nothing (a potion at full HP, with no other action). Publishes
+    // engine.item.used.
+    UseResult UseItem(std::string_view item, std::string_view member = {}, std::string_view bag = Inventories::Party);
 
     // Start a conversation (docs/dialog.md): its box opens over the game, the
     // player's input goes to it, and request.With and .By are held (Held)

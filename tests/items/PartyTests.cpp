@@ -152,11 +152,15 @@ TEST_CASE("Using an item changes a member's stats; the party saves", "[items][pa
 {
     World w;
     Party party(w.items, w.stats, w.bags, Slots);
+    const ItemDef& potion = *w.items.Find("potion");
+    CHECK_FALSE(party.WouldChange("player", potion)); // full HP: a potion would do nothing
     party.Find("player")->Own.Current["HP"] = 40.0f;
-    party.ApplyUse("player", *w.items.Find("potion"));
+    CHECK(party.WouldChange("player", potion));
+    CHECK(party.ApplyUse("player", potion));
     CHECK(party.GetStats("player")["HP"] == 90.0f);
-    party.ApplyUse("player", *w.items.Find("potion"));
+    CHECK(party.ApplyUse("player", potion));
     CHECK(party.GetStats("player")["HP"] == 100.0f); // up to MaxHP
+    CHECK_FALSE(party.ApplyUse("player", potion));   // nothing left to heal
     party.ApplyUse("player", *w.items.Find("tonic"));
     CHECK(party.GetStats("player")["ATK"] == 11.0f); // a base stat, for good
 
@@ -180,7 +184,7 @@ TEST_CASE("Scripts see the party, its stats, and change it", "[items][party][scr
     lua.SetServices({ .Items = &w.items, .Bags = &w.bags, .Members = &party, .StatDefs = &w.stats,
                       .UseItem = [&](const std::string_view item, const std::string_view member, const std::string_view) {
                           used = std::string(item) + "@" + std::string(member);
-                          return true;
+                          return std::string(item == "potion" ? "used" : "no_effect");
                       } });
     (void)w.bags.GetParty().Add("sword");
     const auto run = [&](const char* code) {
@@ -194,6 +198,7 @@ TEST_CASE("Scripts see the party, its stats, and change it", "[items][party][scr
     CHECK(run("return Party.Get('player').Equipment.weapon") == std::vector<std::string>{ "sword" });
     CHECK(run("return Party.Use('potion', 'player')") == std::vector<std::string>{ "true" });
     CHECK(used == "potion@player");
+    CHECK(run("return Party.Use('tonic')") == std::vector<std::string>{ "false", "no_effect" });
 }
 
 TEST_CASE("arcbit-loc reads the names a game's stats and party files write", "[items][party][loc]")

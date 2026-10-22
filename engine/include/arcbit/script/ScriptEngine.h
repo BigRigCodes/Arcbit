@@ -44,7 +44,8 @@ struct ScriptServices
     Currencies*          Money    = nullptr; // Currency.*
     Party*               Members  = nullptr; // Party.*
     const StatSet*       StatDefs = nullptr; // Party.Stats
-    std::function<bool(std::string_view item, std::string_view member, std::string_view bag)> UseItem; // Party.Use
+    // Party.Use: "used", or why not ("not_in_bag", "not_usable", "no_member", "no_effect").
+    std::function<std::string(std::string_view item, std::string_view member, std::string_view bag)> UseItem;
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

@@ -397,8 +397,11 @@ member (the leader when left out), from a bag (the party's):
 | `sound` | plays a sound |
 | `consume` | whether one is used up; default: yes for consumables |
 
-An item without `use` can't be used. Publishes `engine.item.used` (`item`,
-`member`, `bag`).
+It returns how it went (`UseResult`): `Used`; or, with the item kept,
+`NotInBag`, `NotUsable` (no `use`), `NoMember`, or `NoEffect` - its `stats`
+would change nothing (a potion at full HP) and it does nothing else (`set`,
+`add`, `event` and `lua` always count as doing something). Publishes
+`engine.item.used` (`item`, `member`, `bag`) when used.
 
 ---
 
@@ -431,7 +434,7 @@ the party carries.
 | `Party.Stats(id)` | every stat, with equipment: `{ HP = 100, ATK = 15, ... }` |
 | `Party.Join(id)`, `Party.Leave(id)` | |
 | `Party.Equip(id, item, slot)`, `Party.Unequip(id, slot)` | slot optional for Equip |
-| `Party.Use(item, member, bag)` | use an item (member: the leader, bag: the party's, when left out) |
+| `Party.Use(item, member, bag)` | use an item (member: the leader, bag: the party's, when left out): `true`, or `false` and why - `"not_in_bag"`, `"not_usable"`, `"no_member"`, `"no_effect"` |
 
 **Console**: `give <item | currency> [count] [bag]`, `take <item |
 currency> [count] [bag]` (cheats); `items [bag]` lists a bag and the

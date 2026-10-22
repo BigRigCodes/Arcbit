@@ -38,6 +38,19 @@ struct CharacterDef
     std::string                        Bag;       // empty: the party's
 };
 
+// How using an item went (Application::UseItem).
+enum class UseResult : u8
+{
+    Used,
+    NotInBag,  // the bag hasn't got one
+    NotUsable, // it has no "use"
+    NoMember,  // no such member (or no party)
+    NoEffect,  // it would change nothing (a potion at full HP): kept
+};
+
+// "used", "not_in_bag", "not_usable", "no_member", "no_effect".
+[[nodiscard]] std::string_view UseResultName(UseResult result);
+
 // A scene entity standing for a party member - the player entity shows the
 // leader. Member empty: whoever leads. In a scene file: "PartyLink": {}.
 struct PartyLink
@@ -101,8 +114,10 @@ public:
     // Back into their bag; false if the slot is empty or the bag is full.
     bool Unequip(std::string_view member, std::string_view slot);
 
-    // An item's "use" stats on a member (resources within their maximum).
-    void ApplyUse(std::string_view member, const ItemDef& item);
+    // An item's "use" stats on a member (resources within their maximum);
+    // false if they changed nothing. WouldChange asks without changing.
+    bool               ApplyUse(std::string_view member, const ItemDef& item);
+    [[nodiscard]] bool WouldChange(std::string_view member, const ItemDef& item) const;
 
     // Back to the starting party (a new game); the save section.
     void                         Reset();

@@ -13,7 +13,8 @@ namespace Arcbit
 // Party.Members() -> { "hero", "ayla" } (the leader first); Party.Get(id) ->
 // { Id, Name, Bag, Equipment = { weapon = "iron_sword" } }; Party.Stats(id)
 // -> { HP = 100, ATK = 15, ... } (with equipment); Join, Leave, Equip(id,
-// item, slot), Unequip(id, slot), Use(item, member, bag).
+// item, slot), Unequip(id, slot); Use(item, member, bag) -> true, or false
+// and why ("not_in_bag", "not_usable", "no_member", "no_effect").
 void ScriptEngine::State::BindParty()
 {
     const auto party = [this]() -> Party& {
@@ -45,7 +46,11 @@ void ScriptEngine::State::BindParty()
     });
     api.set_function("Unequip", [party](const std::string& id, const std::string& slot) { return party().Unequip(id, slot); });
     api.set_function("Use", [this](const std::string& item, const sol::optional<std::string> member, const sol::optional<std::string> bag) {
-        return Services.UseItem && Services.UseItem(item, member.value_or(""), bag.value_or("party"));
+        const std::string   result = Services.UseItem ? Services.UseItem(item, member.value_or(""), bag.value_or("party")) : "no_member";
+        sol::variadic_results out;
+        out.push_back(sol::make_object(Lua, result == "used"));
+        if (result != "used") out.push_back(sol::make_object(Lua, result));
+        return out;
     });
     AddGlobal("Party", api);
 }
