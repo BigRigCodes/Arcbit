@@ -135,7 +135,7 @@ namespace
         ecs.Query<const MoveIntent, FreeMovement>()
            .Without<Disabled>()
            .ForEach([](const MoveIntent& intent, FreeMovement& fm) {
-               fm.Velocity = intent.Direction * fm.Speed;
+               fm.Velocity = intent.Direction * (fm.Speed * intent.SpeedScale);
            });
     }
 
@@ -605,7 +605,8 @@ namespace
             stm.Progress = 0.0f;
         }
 
-        stm.Progress += stm.Speed * dt;
+        const MoveIntent* intent = ctx.Ecs.GetComponent<MoveIntent>(e);
+        stm.Progress += stm.Speed * (intent ? intent->SpeedScale : 1.0f) * dt;
         if (stm.Progress >= 1.0f && stm.HasQueued) {
             const f32 overshoot = stm.Progress - 1.0f;
             t.Position          = stm.TargetWorld; // round from the exact tile center
@@ -718,7 +719,7 @@ namespace
             }
             t.Position = target;
             RefreshCollider(e, col, t.Position, ctx.Physics);
-            snap.Cooldown += snap.StepInterval;
+            snap.Cooldown += snap.StepInterval / std::max(intent.SpeedScale, 0.01f);
             snap._turn.Walking = true;
         }
         snap.Cooldown -= dt;

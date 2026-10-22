@@ -280,6 +280,31 @@ TEST_CASE("Snap movers step at once, then repeat every StepInterval while held",
     CHECK(PositionOf(scene, e).X == TileSize * 7.0f);
 }
 
+TEST_CASE("SpeedScale slows every movement style (an encumbered party)", "[ecs][movement]")
+{
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity free  = AddMover(scene, {});
+    world.AddComponent<FreeMovement>(free, FreeMovement{ .Speed = 120.0f });
+    world.AddComponent<PendingMove>(free);
+    const Entity smooth = AddMover(scene, { 0.0f, 200.0f });
+    world.AddComponent<SmoothTileMovement>(smooth, SmoothTileMovement{ .Speed = 4.0f });
+    const Entity snap = AddMover(scene, { 0.0f, 400.0f });
+    world.AddComponent<SnapTileMovement>(snap, SnapTileMovement{ .StepInterval = 0.15f });
+    for (const Entity e : { free, smooth, snap }) {
+        SetIntent(scene, e, { 1.0f, 0.0f });
+        world.GetComponent<MoveIntent>(e)->SpeedScale = 0.5f;
+    }
+
+    Step(scene, 18);
+    CHECK(PositionOf(scene, snap).X == TileSize); // a step every 0.3 s, not 0.15
+    Step(scene);
+    CHECK(PositionOf(scene, snap).X == TileSize * 2.0f);
+    Step(scene, 41);
+    CHECK_THAT(PositionOf(scene, free).X, WithinAbs(60.0f, 1e-2f));
+    CHECK_THAT(PositionOf(scene, smooth).X, WithinAbs(TileSize * 2.0f, 0.5f));
+}
+
 TEST_CASE("Snap movers step on every fresh press", "[ecs][movement]")
 {
     Scene        scene;

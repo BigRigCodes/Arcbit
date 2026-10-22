@@ -20,6 +20,11 @@ struct MoveIntent
     Vec2 Direction;               // zero = idle; length <= 1; cardinal for tile movers
     Vec2 Facing = { 0.0f, 1.0f }; // last nonzero Direction; starts facing down
 
+    // Multiplies the style's speed (and divides a snap mover's step interval).
+    // Set from outside the controller - an encumbered party walks at
+    // ProjectDefaults::EncumberedSpeed - so the controller never resets it.
+    f32 SpeedScale = 1.0f;
+
     // Prefer this over writing Direction directly so Facing keeps up.
     void Set(const Vec2 dir)
     {
