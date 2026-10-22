@@ -145,6 +145,7 @@ public:
 
     // ECS world — create/destroy entities, add/remove components, register systems.
     [[nodiscard]] World&       GetWorld()   { return _world; }
+    [[nodiscard]] const World& GetWorld() const { return _world; }
     [[nodiscard]] Camera2D&    GetCamera()  { return _camera; }
     [[nodiscard]] WorldConfig& GetConfig()  { return _config; }
     [[nodiscard]] TileMap&     GetTileMap() { return _tileMap; }

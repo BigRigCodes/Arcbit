@@ -7,6 +7,7 @@
 #include <arcbit/ecs/Components.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/scene/FileScene.h>
 #include <arcbit/scene/Scene.h>
 #include <arcbit/scene/SceneAssets.h>
 #include <arcbit/scene/SceneFile.h>
@@ -366,4 +367,20 @@ TEST_CASE("Without persist_all only entities that ask for it persist", "[scene][
     REQUIRE(SceneFile::Load(scene, doc, registry, assets, ids));
     CHECK(scene.GetWorld().GetComponent<Persistent>(ids.at("chest"))->Id == "chest");
     CHECK_FALSE(scene.GetWorld().GetComponent<Persistent>(ids.at("rock")));
+}
+
+TEST_CASE("FindEntityById: a Persistent id before a Name; destroyed entities aren't found", "[scene]")
+{
+    Scene        scene;
+    World&       world = scene.GetWorld();
+    const Entity named = world.CreateEntity();
+    world.AddComponent<Name>(named, Name{ .Value = "barrel" });
+    const Entity saved = world.CreateEntity();
+    world.AddComponent<Persistent>(saved, Persistent{ .Id = "barrel" });
+    CHECK(FindEntityById(scene, "barrel") == saved);
+
+    world.DestroyEntity(saved);
+    CHECK(FindEntityById(scene, "barrel") == named);
+    world.DestroyEntity(named);
+    CHECK_FALSE(FindEntityById(scene, "barrel").IsValid());
 }

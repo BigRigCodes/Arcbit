@@ -107,18 +107,9 @@ void ScriptEngine::State::BindEntityStatics(sol::usertype<ScriptEntity>& type)
 {
     // A scene file's entity id, else a Persistent id, else a Name.
     type["Find"] = [this](const std::string& id) -> std::optional<ScriptEntity> {
-        Scene& scene = RequireScene();
-        if (const auto* file = dynamic_cast<FileScene*>(&scene))
-            if (const Entity e = file->FindEntity(id); e.IsValid()) return Handle(scene, e);
-        std::optional<ScriptEntity> found;
-        scene.GetWorld().Query<Persistent>().ForEach([&](const Entity e, const Persistent& p) {
-            if (!found && p.Id == id) found = Handle(scene, e);
-        });
-        if (!found)
-            scene.GetWorld().Query<Name>().ForEach([&](const Entity e, const Name& n) {
-                if (!found && n.Value == id) found = Handle(scene, e);
-            });
-        return found;
+        Scene&       scene = RequireScene();
+        const Entity e     = FindEntityById(scene, id);
+        return e.IsValid() ? std::optional(Handle(scene, e)) : std::nullopt;
     };
     type["FindAll"] = [this](const std::string& tag) {
         Scene&                    scene = RequireScene();

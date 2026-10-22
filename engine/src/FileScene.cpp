@@ -2,6 +2,7 @@
 
 #include <arcbit/app/Application.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/ecs/Components.h>
 #include <arcbit/physics/PhysicsWorld.h>
 #include <arcbit/render/RenderThread.h>
 #include <arcbit/scene/SceneAssets.h>
@@ -167,7 +168,22 @@ void FileScene::OnRender(FramePacket& packet)
 Entity FileScene::FindEntity(const std::string_view id) const
 {
     const auto it = _ids.find(std::string(id));
-    return it != _ids.end() ? it->second : Entity::Invalid();
+    return it != _ids.end() && GetWorld().IsValid(it->second) ? it->second : Entity::Invalid();
+}
+
+Entity FindEntityById(Scene& scene, const std::string_view id)
+{
+    if (const auto* file = dynamic_cast<FileScene*>(&scene))
+        if (const Entity e = file->FindEntity(id); e.IsValid()) return e;
+    Entity found = Entity::Invalid();
+    scene.GetWorld().Query<Persistent>().ForEach([&](const Entity e, const Persistent& p) {
+        if (!found.IsValid() && p.Id == id) found = e;
+    });
+    if (!found.IsValid())
+        scene.GetWorld().Query<Name>().ForEach([&](const Entity e, const Name& n) {
+            if (!found.IsValid() && n.Value == id) found = e;
+        });
+    return found;
 }
 
 bool FileScene::Save(const std::string_view path)

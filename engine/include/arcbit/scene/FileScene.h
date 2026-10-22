@@ -41,7 +41,8 @@ public:
     // True once OnLoad has built the file without errors.
     [[nodiscard]] bool IsLoaded() const { return _loaded; }
 
-    // The runtime entity for a file entity id; invalid if there's none.
+    // The runtime entity for a file entity id; invalid if there's none (or
+    // it has been destroyed).
     [[nodiscard]] Entity FindEntity(std::string_view id) const;
 
     // Write the scene's current state to `path` (default: the file it came
@@ -60,4 +61,9 @@ private:
     std::optional<Color>          _ambient;
     bool                          _loaded = false;
 };
+
+// An entity by id, the way scripts' Entity.Find and the console look one up:
+// a scene file's entity id, else a Persistent id, else a Name. Invalid if
+// there's none.
+[[nodiscard]] Entity FindEntityById(Scene& scene, std::string_view id);
 } // namespace Arcbit
