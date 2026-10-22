@@ -73,7 +73,7 @@
         "potions": {
             "ItemPickup": { "count": 2, "item": "potion" },
             "Persistent": {},
-            "Transform2D": { "position": [64.0, 0.0] }
+            "Transform2D": { "position": [128.0, 0.0] }
         },
         "sign": {
             "Collider2D": { "half_extents": [24.0, 24.0], "kind": "static", "layer": "Prop" },
