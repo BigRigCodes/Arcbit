@@ -53,13 +53,14 @@ One JSON document - sealed in release builds, plain while developing:
         "world":     { "scenes": { "Village": { ... } } }, // every visited scene's changes
         "scenes":    { "stack": [ { "name": "Village", "entry": "north_gate" } ] },
         "inventories": { "party": { ... } },               // the game's bags (docs/items.md)
+        "party": { "members": [ ... ] },                   // who's in the party, their stats and equipment
         "quests": { ... }                                  // a game participant
     }
 }
 ```
 
-`world`, `scenes` and `inventories` are the engine's own sections; don't
-register participants under those names.
+`world`, `scenes`, `inventories` and `party` are the engine's own sections;
+don't register participants under those names.
 
 ---
 

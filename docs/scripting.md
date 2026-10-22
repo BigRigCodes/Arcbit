@@ -194,6 +194,7 @@ Subscriptions end with the script that made them.
 | `Items.Get(id)` | an item's definition and its name in the player's language ([items.md](items.md#in-dialogs-scripts-and-the-console)) |
 | `Inventory.Add / Remove / Count / Has / Get` | the game's bags, the party's unless named |
 | `Currency.Get / Add / Spend` | the game's currencies, counters or items |
+| `Party.Members / Leader / Get / Stats / Join / Leave / Equip / Unequip / Use` | the party ([items.md](items.md#the-party)) |
 
 ### Loc
 
@@ -333,6 +334,8 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `dialog [id] [node]` | list the dialogs, or start one - cheat |
 | `give <item> [count] [bag]`, `take ...` | items or currencies into / out of a bag - cheat |
 | `items [bag]` | what a bag holds, and the currencies |
+| `party` | the members, their stats and equipment |
+| `equip <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]` | the party's equipment and items - cheats |
 | `spawn [prefab] [x y]` | list the prefabs, or place one (at the camera, or x y) - cheat |
 | `quit` | |
 

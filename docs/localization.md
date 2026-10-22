@@ -221,9 +221,10 @@ arcbit-loc template --locales engine/assets/locale game/assets/locale --dialogs 
   run time can't be seen);
 - each language's coverage.
 
-Dialog files (`--dialogs`, [dialog.md](dialog.md)) and item files (`--items`,
-[items.md](items.md)) carry their own English, so their lines and names count
-in coverage and templates like any locale file's.
+Dialog files (`--dialogs`, [dialog.md](dialog.md)), item files (`--items`,
+[items.md](items.md)) and a game's stats and party files (`--data
+assets/stats.json assets/party.json`) carry their own English, so their
+lines and names count in coverage and templates like any locale file's.
 `template` writes a new language's starting file: every English key with its
 English text to replace. A test runs `check` over the engine and the demos.
 

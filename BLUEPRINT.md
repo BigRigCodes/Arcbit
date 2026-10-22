@@ -518,16 +518,16 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Carry weight over the limit refused by default; a project can allow it (encumbered: slower)
 - [ ] Quick slots for any kind (item references bound to keys, a HUD bar)
 - [x] Currencies: `SaveData` counters by default (`gold`), or an item stack per currency; one API for both
-- [ ] A party (brought forward from Phase 31): several members, a party of one by default; each with stats and equipment; the scene's player entity shows the leader
-- [ ] `Stats` (brought forward from Phase 31): an engine default set (HP, MaxHP, MP, MaxMP, ATK, DEF, MAG, RES, SPD, LUK) a game's stats file extends or replaces
+- [x] A party (brought forward from Phase 31): several members, a party of one by default; each with stats and equipment; the scene's player entity shows the leader
+- [x] `Stats` (brought forward from Phase 31): an engine default set (HP, MaxHP, MP, MaxMP, ATK, DEF, MAG, RES, SPD, LUK) a game's stats file extends or replaces
 - [ ] Containers open into a transfer screen by default (take all per project / per container)
-- [ ] Dialog conditions and actions on items (`has`, `give`, `take`); console `give`, `items`, `party`
+- [x] Dialog conditions and actions on items (`has`, `give`, `take`); console `give`, `items`, `party`
 - [ ] Pick-up / drop / equip / unequip logic; equip slots (weapon, armor, accessory, etc.)
 - [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder; drag and drop and tooltips added to the GUI for it
 - [ ] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable
 - [ ] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
 - [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game
-- [ ] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component
+- [x] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component - done as effective stats worked out when read (`StatSet::Effective`), so nothing can fall out of step
 - [ ] Loot tables: weighted random drops defined in JSON
 - [x] Save / load integration (Phase 25)
 - [x] Lua API: add/remove/check items from scripts

@@ -16,6 +16,8 @@ the inventory screen build on these (Phase 29, in progress).
 - [The game's bags](#the-games-bags)
 - [Containers](#containers)
 - [Currencies](#currencies)
+- [Stats](#stats)
+- [The party](#the-party) - [Equipment](#equipment), [Using items](#using-items)
 - [In dialogs, scripts and the console](#in-dialogs-scripts-and-the-console)
 
 ---
@@ -299,6 +301,107 @@ only what fits) and `Spend` (all or nothing). Changes made through it publish
 
 ---
 
+## Stats
+
+A character's numbers. The engine has ten - `HP`, `MaxHP`, `MP`, `MaxMP`,
+`ATK`, `DEF`, `MAG`, `RES`, `SPD`, `LUK` - and a game's stats file
+(`assets/stats.json`, `ApplicationConfig::StatsFile`) adds to them, changes
+them, or replaces them all:
+
+```json
+{ "replace": false,
+  "stats": {
+    "STR":        { "name": "Strength", "default": 10, "min": 0, "max": 99 },
+    "Stamina":    { "name": "Stamina", "default": 50, "max_stat": "MaxStamina" },
+    "MaxStamina": { "name": "Max Stamina", "default": 50 },
+    "ATK":        { "default": 8 } } }
+```
+
+| Field | Meaning |
+|-------|---------|
+| `name` | English (`stats.<id>.name`); the engine's stats have theirs in the engine's locale files - rename one in your own locale file |
+| `default` | a character's value when nothing sets it |
+| `min`, `max` | kept within (min 0; no max unless given) |
+| `max_stat` | a **resource**: it has a current value that can't pass this stat (HP up to MaxHP) - spent and restored, rather than a character's ability |
+
+`Stats` (a value, and a component for enemies and NPCs: `"Stats": { "base":
+{ "ATK": 14 }, "current": { "HP": 30 } }`) holds a character's own numbers:
+`Base` (a stat not there is its default) and `Current` for resources (one not
+there is full). `StatSet::Effective` works out every stat: base, plus what
+equipment adds - flat first (`"ATK": 5`), then percent (`"SPD%": -20`) -
+within min and max; a resource is its current value, at most its maximum's.
+
+---
+
+## The party
+
+Who's in the party is game state, like the bags - `Application::GetParty()`,
+saved as the `party` section. The game's party file (`assets/party.json`,
+`ApplicationConfig::PartyFile`) says who can join and who's there when a
+game starts:
+
+```json
+{ "starting": ["hero"],
+  "members": {
+    "hero": { "name": "Hero", "stats": { "MaxHP": 120, "ATK": 12 }, "equipment": { "weapon": "iron_sword" } },
+    "ayla": { "name": "Ayla", "stats": { "MAG": 18 }, "bag": "ayla" } } }
+```
+
+Without one, the party is `player` alone. A member's `name` is English
+(`party.<id>.name`); `stats` go over the stats' defaults; `equipment` is
+what they wear when they first join; `bag` gives them a bag of their own
+instead of the party's shared one.
+
+- `Join(id)` / `Leave(id)` (what a leaver wore goes to their bag) /
+  `Move(id, index)`. The first member leads - the one the scene's player
+  entity shows: a `PartyLink` component (`"PartyLink": {}` - the leader; or
+  `{ "member": "ayla" }`).
+- `GetStats(id)`: every stat, with equipment.
+- Events: `engine.party.joined` / `engine.party.left` (`member`).
+
+### Equipment
+
+The project's equipment slots (`Defaults.EquipmentSlots`: weapon, offhand,
+head, body, accessory1, accessory2 - each with the kind of item it takes; an
+item's `slot` names a kind).
+
+- `Equip(member, item, slot)` takes the item from the member's bag and wears
+  it: in `slot` if given, else the first free slot of its kind, else the
+  first of its kind - what was there goes back to the bag. It refuses
+  anything that isn't equipment, an item the bag hasn't got, and a swap
+  whose old item won't fit back.
+- `Unequip(member, slot)` puts it back in the bag (refused if the bag is
+  full).
+- Events: `engine.item.equipped` / `engine.item.unequipped` (`member`,
+  `item`, `slot`).
+
+Equipment's bonuses aren't copied anywhere: effective stats are worked out
+when asked, so they're never out of step with what's worn.
+
+### Using items
+
+`Application::UseItem(item, member, bag)` runs the item's `use` block on a
+member (the leader when left out), from a bag (the party's):
+
+```json
+"use": { "stats": { "HP": 50 }, "add": { "gold": 5 }, "event": "game.drank",
+         "sound": "assets/sfx/drink.wav", "consume": true }
+```
+
+| Key | Does |
+|-----|------|
+| `stats` | changes the member's stats: a resource's current value (within its maximum), else their own base for good |
+| `set`, `add` | save data, as in a dialog (`add` on a currency goes through the currencies) |
+| `event` | publishes a game event, with `item` and `member` |
+| `lua` | runs a Lua statement |
+| `sound` | plays a sound |
+| `consume` | whether one is used up; default: yes for consumables |
+
+An item without `use` can't be used. Publishes `engine.item.used` (`item`,
+`member`, `bag`).
+
+---
+
 ## In dialogs, scripts and the console
 
 **Dialogs** ([dialog.md](dialog.md)) check and change the party's bag:
@@ -323,6 +426,16 @@ the party carries.
 | `Inventory.Get(bag)` | `{ { Item = "potion", Count = 2 }, ... }` |
 | `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
 
-**Console** (cheats): `give <item | currency> [count] [bag]`, `take <item |
-currency> [count] [bag]`; `items [bag]` lists a bag and the currencies.
+| `Party.Members()`, `Party.Leader()` | the members' ids, the leader first |
+| `Party.Get(id)` | `{ Id, Name, Bag, Equipment = { weapon = "iron_sword" } }` |
+| `Party.Stats(id)` | every stat, with equipment: `{ HP = 100, ATK = 15, ... }` |
+| `Party.Join(id)`, `Party.Leave(id)` | |
+| `Party.Equip(id, item, slot)`, `Party.Unequip(id, slot)` | slot optional for Equip |
+| `Party.Use(item, member, bag)` | use an item (member: the leader, bag: the party's, when left out) |
+
+**Console**: `give <item | currency> [count] [bag]`, `take <item |
+currency> [count] [bag]` (cheats); `items [bag]` lists a bag and the
+currencies; `party` lists the members, their stats and equipment; `equip
+<member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]`
+(cheats).
 

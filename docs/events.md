@@ -147,6 +147,9 @@ their names.
 | `engine.scene.resumed` | `name` | the scene above was popped and this one is active again |
 | `engine.input.device_changed` | `device`: `"keyboard_mouse"` / `"gamepad"` | the player used a different kind of device - swap button hints |
 | `engine.item.added`, `engine.item.removed` | `bag`, `item`, `count` | a game bag gained / lost items ([items.md](items.md#the-games-bags)) |
+| `engine.item.equipped`, `engine.item.unequipped` | `member`, `item`, `slot` | a party member put an item on / took it off ([items.md](items.md#equipment)) |
+| `engine.item.used` | `item`, `member`, `bag` | an item was used ([items.md](items.md#using-items)) |
+| `engine.party.joined`, `engine.party.left` | `member` | a character joined / left the party |
 | `engine.currency.changed` | `currency`, `amount` (now), `change` | a currency changed through the game's currencies ([items.md](items.md#currencies)) |
 | `engine.input.bindings_updated` | `count`, `text` (the notice's lines) | an update placed new or reset actions among the player's bindings, once the boot is done ([input.md](input.md#across-game-updates)) |
 | `engine.window.focus_changed` | `focused` | the window gained or lost focus (pause on alt-tab) |
