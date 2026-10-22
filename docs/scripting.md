@@ -341,6 +341,8 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `party` | the members, their stats and equipment |
 | `equip <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]` | the party's equipment and items - cheats |
 | `spawn [prefab] [x y]` | list the prefabs, or place one (at the camera, or x y) - cheat |
+| `destroy <id> [id ...]` | take entities out of the scene, found as `Entity.Find` finds them; a `LootDrop` drops its loot - cheat |
+| `kill <id> [id ...]` | the same as `destroy` for now; with combat (Phase 31), a death - its events, XP - cheat |
 | `quit` | |
 
 Games add their own - from C++ `GetConsole().Register({ .Name, .Help, .Cheat,

@@ -10,9 +10,11 @@
 #include <arcbit/ecs/Interaction.h>
 #include <arcbit/ecs/Movement.h>
 #include <arcbit/physics/PhysicsWorld.h>
+#include <arcbit/scene/FileScene.h>
 #include <arcbit/settings/Settings.h>
 #include <arcbit/ui/ConsoleScreen.h>
 
+#include <algorithm>
 #include <charconv>
 #include <format>
 
@@ -197,9 +199,28 @@ void Application::RegisterConsoleCommands()
                              } });
 }
 
-// spawn: a prefab at the camera's center (or x y) in the active scene.
+// spawn: a prefab at the camera's center (or x y) in the active scene;
+// destroy / kill take entities away again.
 void Application::RegisterPrefabCommands()
 {
+    // Each id first, so a typo destroys nothing.
+    const auto destroy = [this](const DebugConsole::Args& a, const char* usage) {
+        Scene* scene = _scenes.GetActive();
+        if (a.empty()) throw std::runtime_error(usage);
+        if (!scene) throw std::runtime_error("no scene");
+        std::vector<Entity> found;
+        for (const std::string& id : a) {
+            const Entity e = FindEntityById(*scene, id);
+            if (!e.IsValid()) throw std::runtime_error(std::format("no entity '{}'", id));
+            if (std::ranges::find(found, e) == found.end()) found.push_back(e); // named twice: once
+        }
+        for (const Entity e : found) scene->GetWorld().DestroyEntity(e);
+        _debugConsole.Print(std::format("destroyed {}", found.size() == 1 ? a[0] : std::format("{} entities", found.size())));
+    };
+    _debugConsole.Register({ .Name = "destroy", .Help = "destroy <id> [id ...] - take entities out of the scene (scene file id, Persistent id or Name)",
+                             .Cheat = true, .Run = [destroy](const DebugConsole::Args& a) { destroy(a, "destroy <id> [id ...]"); } });
+    _debugConsole.Register({ .Name = "kill", .Help = "kill <id> [id ...] - destroy, for now; with combat, a death (loot, XP)",
+                             .Cheat = true, .Run = [destroy](const DebugConsole::Args& a) { destroy(a, "kill <id> [id ...]"); } });
     _debugConsole.Register({ .Name = "spawn", .Help = "spawn [prefab] [x y] - list the prefabs, or place one", .Cheat = true,
                              .Run = [this](const DebugConsole::Args& a) {
                                  if (a.empty()) {
