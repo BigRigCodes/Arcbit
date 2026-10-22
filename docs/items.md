@@ -144,7 +144,7 @@ the presets are starting points, and the rules mix freely:
 |--------|------|-------|
 | `InventoryRules::Pockets()` | Pokemon | one entry per item, up to its stack size; the screen shows a list per category |
 | `InventoryRules::Weight(max)` | Skyrim | one entry per item, any count (stack sizes ignored), a carry weight limit; category tabs filter it |
-| `InventoryRules::Grid(w, h)` | Minecraft | a grid of cells, one stack each; an item takes the cells of its `size`; optional sections (a hotbar) - see [Grids](#grids) |
+| `InventoryRules::Grid(w, h)` | Minecraft | a grid of cells, one stack each; an item takes the cells of its `size`; sections only if added - see [Grids](#grids) |
 | `InventoryRules::Survival(w, h, max)` | survival games | a grid, and a carry weight limit |
 | `{ .Slots = 20 }` | an old-school list | up to 20 entries; a full stack starts another |
 
@@ -155,7 +155,7 @@ the presets are starting points, and the rules mix freely:
 | `UnlimitedStacks` | counts ignore items' `stack` |
 | `MaxWeight` | carry weight; 0 = no limit |
 | `OverWeight` | `Refuse` (default): what would go over isn't taken; `Allow`: it is, and `IsOverWeight()` says so (encumbered) |
-| `QuickSlots` | how many quick slots (below) |
+| `QuickSlots` | how many quick slots - the hotbar, for any kind (below); 0, none, by default |
 | `Width`, `Height`, `Sections` | a grid (both above 0; `Slots` is then unused) and its sections |
 
 ```cpp
@@ -176,7 +176,9 @@ if (bag.Has("cellar_key")) ...
   and ties go by name. A grid repacks (below).
 - **Filtering** (`Filter`) keeps entries by category, type, tag or text in
   the name (any case), returning their indices in order.
-- **Quick slots** are references to items, not the items: a slot keeps its
+- **Quick slots** are the hotbar, and any kind of bag can have them - or not:
+  none unless the game sets `QuickSlots`. They're references to items, not
+  the items: a slot keeps its
   item while the bag has none and shows 0 (`SetQuickSlot`, `GetQuickSlots`).
 - **Changes** reach `OnChange(item, delta)`.
 - **Saving**: `ToJson` / `FromJson` write the stacks (in a grid, where each
@@ -193,7 +195,9 @@ up to the item's stack size.
 
 - **Placing**: a new stack goes in the first space it fits, row by row,
   upright first, then turned (unless the item has `"rotatable": false`).
-- **Sections** are small grids beside the main one - a hotbar, a quiver -
+- **Sections** are small grids beside the main one, only when a game adds
+  them - a quiver, or a Minecraft-style hotbar of real slots (quick slots
+  are the hotbar every kind can have) -
   each with a name, a size and optionally the one category it takes. New
   stacks try the main grid first, then each section in order:
 
