@@ -461,6 +461,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] Tasks and timers: `self:Run`, `Wait`, `WaitUntil`, `Timer.After / Every`
 - [x] Lua UI: `.arcui` `"script"`, `"on_click"` / `"on_change"`, `UI.Open`
 - [x] Debug console: commands (C++ and Lua), Lua, history, predictive completion, `ConsoleAccess`, cheats flag `engine.cheats_used`
+- [ ] **Clipboard**: Ctrl+V pastes into any `TextInput` (the console's included), Ctrl+C / Ctrl+X copy and cut a selection; the console copies its output (a `copy [n]` command for the last lines, or all of it) - so a session can be pasted into a bug report
 - [x] Hot reload (debug builds) keeping instance state; script errors in the console and on screen
 - [x] The Scripted demo, built entirely in Lua
 
