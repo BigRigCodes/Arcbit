@@ -612,7 +612,7 @@ lists named systems, [scenes.md](scenes.md#named-systems)), and they run after.
 | 7 | `SnapTileMove` | `SnapTileMovement`, `MoveIntent`, `Collider2D`?, TileMap tile size | `Transform2D.Position` (plan-then-commit) |
 | 8 | `CollisionResolution` | `PendingMove`, `Collider2D`?, `Pushable`? | `Transform2D.Position` (swept clamp + slide, shoves Pushables) |
 | 9 | `ContactEvents` | contacts from the movers + trigger overlaps | `TriggerCallback` / `CollisionCallback` calls |
-| 10 | `ItemPickups` | `ItemPickup`, `PartyLink`, the scene's `ItemHost` | the bags; destroys taken pickups, dresses bare ones ([items.md](items.md#pickups-and-drops)) |
+| 10 | `Items` | `ItemPickup`, `Container`, `PartyLink`, the scene's `ItemHost` | the bags; destroys taken pickups, dresses bare ones, makes containers `Interactable` ([items.md](items.md#pickups-and-drops)) |
 | 11 | `CameraFollow` | `CameraTarget`, `Transform2D` | the scene's `Camera2D` |
 | 12 | `FacingAnimation` | `FacingAnimation`, `MoveIntent`, tile step / velocity | `Animator.Clip`, `SpriteRenderer.FlipX` |
 | 13 | `AnimatorStateMachine` | `AnimatorStateMachine` | `Animator.Clip` |

@@ -195,6 +195,7 @@ Subscriptions end with the script that made them.
 | `Inventory.Add / Remove / Count / Has / Get / Drop` | the game's bags, the party's unless named; `Drop` puts items on the ground |
 | `Currency.Get / Add / Spend` | the game's currencies, counters or items |
 | `Party.Members / Leader / Get / Stats / Join / Leave / Equip / Unequip / Use` | the party ([items.md](items.md#the-party)) |
+| `Loot.Roll(table)` | what a loot table gives, as stacks ([items.md](items.md#loot-tables)) |
 
 ### Loc
 
@@ -335,6 +336,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `dialog [id] [node]` | list the dialogs, or start one - cheat |
 | `give <item> [count] [bag]`, `take ...` | items or currencies into / out of a bag - cheat |
 | `drop <item> [count] [bag]` | onto the ground, where the party's leader stands |
+| `loot [table] [times]` | list the loot tables, or roll one - many times, a tally of the averages |
 | `items [bag]` | what a bag holds, and the currencies |
 | `party` | the members, their stats and equipment |
 | `equip <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]` | the party's equipment and items - cheats |

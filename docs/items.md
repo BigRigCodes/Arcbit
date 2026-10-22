@@ -16,6 +16,7 @@ the inventory screen build on these (Phase 29, in progress).
 - [The game's bags](#the-games-bags)
 - [Containers](#containers)
 - [Pickups and drops](#pickups-and-drops)
+- [Loot tables](#loot-tables)
 - [Currencies](#currencies)
 - [Stats](#stats)
 - [The party](#the-party) - [Equipment](#equipment), [Using items](#using-items)
@@ -268,7 +269,7 @@ bag, saved with the scene's state like any component (make it `Persistent`).
 
 ```json
 "chest": {
-    "Container": { "items": { "potion": 2, "cellar_key": 1 },
+    "Container": { "items": { "potion": 2, "cellar_key": 1 }, "currency": { "gold": 25 },
                    "rules": { "kind": "list", "slots": 8 }, "open": "take_all" }
 }
 ```
@@ -276,11 +277,22 @@ bag, saved with the scene's state like any component (make it `Persistent`).
 | Field | Meaning |
 |-------|---------|
 | `items` | its contents, `{ id: count }`, in that order |
+| `currency` | amounts of the game's currencies, `{ id: amount }` |
 | `rules` | the kind of bag (an `InventoryRules` as JSON: `kind`, `slots`, `one_entry_per_item`, `max_weight`, `width` / `height`...); default a plain list |
 | `open` | `transfer` (the transfer screen, the bag beside it) or `take_all` (everything into the party's bag at once); default the project's `Defaults.ContainerOpen` (transfer) |
-| `loot` | a loot table it rolls the first time it's opened (later) |
+| `loot` | a [loot table](#loot-tables) rolled into it the first time it's opened |
 
 Saves write a container as `stacks` (what it holds now) rather than `items`.
+
+**Opening.** The player uses a container like any `Interactable` (one is
+added if it has none), or code calls `Application::OpenContainer(entity,
+by)`. The first time, its `loot` is rolled into it and cleared - so it's
+rolled once, and what it rolled is saved. Then, `take_all` moves everything
+that fits into the party's bag, and all its currency; what doesn't fit
+stays. `transfer` is for the transfer screen, which comes with the inventory
+screens - until then it only rolls the loot. Either way
+`engine.container.opened` says so (`mode`; with `take_all`, `taken` and
+`left`).
 
 ## Pickups and drops
 
@@ -335,6 +347,56 @@ C++: `Scene::PickUp(pickup, by)` picks one up directly. A scene's pickups go
 through its `ItemHost` (what `Take`s the items, what `Dress`es a bare
 pickup), which `Application` gives every scene; a scene without one - in a
 test, say - leaves its pickups lying.
+
+## Loot tables
+
+What a chest holds or an enemy leaves, rolled. Loot tables live in
+`assets/loot/*.arcloot` (`ApplicationConfig::LootFolder`), many to a file,
+by id:
+
+```json
+{
+    "slime": {
+        "always":  [ { "currency": "gold", "count": [1, 5] } ],
+        "rolls":   [1, 2],
+        "entries": [ { "item": "potion", "weight": 3 },
+                     { "item": "old_boot", "count": [1, 2] },
+                     { "table": "gems" },
+                     { "weight": 6 } ]
+    }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `always` | entries given every time the table is rolled |
+| `rolls` | how many weighted picks from `entries` - a number or `[min, max]`; default 1 |
+| `entries` | the picks: each has its `weight` (default 1) against the others |
+
+An entry gives an `item`, a `currency` or another `table` (rolled `count`
+times), or - with none of them - nothing: `{ "weight": 6 }` above makes
+empty-handed the likeliest pick. `count` is a number or `[min, max]`
+(default 1). The same item from several entries comes back as one stack.
+
+Once the items are read, every table is checked: an unknown item, currency
+or table is an error, as is a table that rolls itself (`a -> b -> a`),
+logged with its file; a misspelled field is a warning.
+
+**Where loot goes:**
+
+- **Containers** with `"loot"` roll it the first time they're opened ([above](#containers)).
+- **`LootDrop`** - `"LootDrop": { "table": "slime" }` on an enemy, a barrel:
+  when the entity is destroyed, its table is rolled and scattered around
+  where it was as pickups (each stack one, currencies too). Not when its
+  scene unloads, and not when a save destroys it again - that loot was
+  dropped the first time.
+- **Code**: `Application::RollLoot(table)` gives the stacks
+  (`LootStack`: `Id`, `Count`, `Currency`) without giving them to anyone;
+  `GetLoot().Roll(table, rng)` with your own `std::mt19937` for a seeded,
+  repeatable roll. Lua: `Loot.Roll(table)`.
+
+The console's `loot` lists the tables; `loot <table> [times]` rolls one,
+and many times over tallies the average - a quick check of the odds.
 
 ---
 
@@ -483,6 +545,7 @@ the party carries.
 | `Inventory.Remove(item, count, bag)`, `Inventory.Count(item, bag)`, `Inventory.Has(item, count, bag)` | |
 | `Inventory.Get(bag)` | `{ { Item = "potion", Count = 2 }, ... }` |
 | `Inventory.Drop(item, count, bag)` | onto the ground where the leader stands; returns how many |
+| `Loot.Roll(table)` | `{ { Id = "potion", Count = 2, Currency = false }, ... }` - given to no one |
 | `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
 | `Party.Members()`, `Party.Leader()` | the members' ids, the leader first |
 | `Party.Get(id)` | `{ Id, Name, Bag, Equipment = { weapon = "iron_sword" } }` |
@@ -493,7 +556,8 @@ the party carries.
 
 **Console**: `give <item | currency> [count] [bag]`, `take <item |
 currency> [count] [bag]` (cheats); `drop <item> [count] [bag]` puts items
-on the ground; `items [bag]` lists a bag and the currencies; `party` lists the members, their stats and equipment; `equip
+on the ground; `loot [table] [times]` lists or rolls loot tables; `items
+[bag]` lists a bag and the currencies; `party` lists the members, their stats and equipment; `equip
 <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]`
 (cheats).
 

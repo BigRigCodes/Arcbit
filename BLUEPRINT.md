@@ -529,7 +529,7 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
 - [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game
 - [x] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component - done as effective stats worked out when read (`StatSet::Effective`), so nothing can fall out of step
-- [ ] Loot tables: weighted random drops defined in JSON
+- [x] Loot tables: weighted random drops defined in JSON
 - [x] Save / load integration (Phase 25)
 - [x] Lua API: add/remove/check items from scripts
 - [x] Publishes `engine.item.picked_up` and `engine.item.dropped` (item id, entity) via the Event Bus (Phase 24)
