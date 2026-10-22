@@ -316,6 +316,14 @@ Inherits `NineSlice` border fields. Texture/sampler wired in code.
 | `mode`        | `"text"` / `"numeric"` / `"regex"` | Input filter (`regex` uses `pattern`)            |
 | `pattern`     | string                            | Regex used by `mode = "regex"`                   |
 
+Editing: arrows (with Shift to select, Ctrl to jump words), Home / End,
+Backspace / Delete, and the clipboard - **Ctrl+A** selects all, **Ctrl+C** /
+**Ctrl+X** copy / cut the selection, **Ctrl+V** pastes over it. A paste is
+typed in, so the field's mode, pattern and `max_length` hold, and its line
+breaks become spaces (a field is one line). The clipboard is the system's
+(`Clipboard::SetText` / `GetText`); without a window - tests, tools - it's a
+store inside the program.
+
 **Slider**
 
 | Field   | Type  | Description                                 |

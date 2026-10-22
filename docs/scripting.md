@@ -322,6 +322,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 |---|---|
 | `help [command]` | list commands, or explain one |
 | `clear` | |
+| `copy [lines]` | the console's output - its last lines, or all - to the clipboard, for a bug report; Ctrl+V pastes into the console's line |
 | `scene <name> [entry]` | switch scenes |
 | `tp <x> <y>` | move the player (the first Interactor, else tag `Player`) - cheat |
 | `timescale <n>` | game speed; 0 pauses - cheat |
