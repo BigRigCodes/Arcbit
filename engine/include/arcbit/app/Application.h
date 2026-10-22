@@ -124,7 +124,8 @@ struct ConsoleConfig
 //
 // Studio and GameName name the per-user data folder settings and saves live
 // in (UserDataFolder): %APPDATA%\<Studio>\<GameName>\ on Windows. A relative
-// SettingsPath is inside it.
+// SettingsPath is inside it. UserFolder replaces that folder - a throwaway
+// profile for test runs that mustn't touch the player's settings and saves.
 // ---------------------------------------------------------------------------
 struct ApplicationConfig
 {
@@ -135,6 +136,7 @@ struct ApplicationConfig
     const char* SettingsPath = "settings.json";
     const char* Studio       = "Arcbit";
     const char* GameName     = nullptr; // null = Title
+    const char* UserFolder   = nullptr; // null = the OS's per-user folder (above); created if missing
     const char* ScriptRoot   = "assets/scripts"; // Lua modules (docs/scripting.md); a debug build can use the source folder
     i32         Display      = -1;               // the monitor (0 = first) the window opens on; -1 = the OS's choice
     const char* Language     = nullptr;          // a locale code to start in; null = the player's choice, the OS's, else English

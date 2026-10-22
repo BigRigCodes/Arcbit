@@ -33,7 +33,12 @@ Application::Application(const ApplicationConfig& config) : _config(config)
 
     // Settings and saves live in the per-user data folder (it may log, so
     // after Log::Init).
-    _userFolder = UserDataFolder(config.Studio, config.GameName ? config.GameName : config.Title);
+    if (config.UserFolder) {
+        _userFolder = config.UserFolder;
+        std::error_code ec;
+        std::filesystem::create_directories(_userFolder, ec);
+    }
+    else _userFolder = UserDataFolder(config.Studio, config.GameName ? config.GameName : config.Title);
     _saves.SetDirectory(_userFolder / "saves");
     _scriptEngine.SetRoot(config.ScriptRoot);
     LOG_INFO(Engine, "User data folder: '{}'", _userFolder.string());

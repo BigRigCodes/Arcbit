@@ -102,11 +102,13 @@ public:
         f32  LoadDelay    = 0.0f;  // --load-delay
         bool Mute         = false; // --mute
         i32  Display      = -1;    // --display
+        std::string UserDir;       // --user-dir: settings and saves here instead of the player's
     };
 
     explicit DemoApp(const Options& options) :
-        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080, .ScriptRoot = ScriptRoot,
-                      .Display = options.Display, .LocaleFolder = LocaleFolder,
+        Application({ .Title = "Arcbit Demos", .Width = 1920, .Height = 1080,
+                      .UserFolder = options.UserDir.empty() ? nullptr : options.UserDir.c_str(),
+                      .ScriptRoot = ScriptRoot, .Display = options.Display, .LocaleFolder = LocaleFolder,
                       .DialogFolder = DialogFolder }),
         _cycleSeconds(options.CycleSeconds), _loadDelay(options.LoadDelay), _mute(options.Mute)
     {
@@ -341,6 +343,7 @@ int main(const int argc, char* argv[])
         if (arg == "--load-delay" && more) options.LoadDelay = std::stof(argv[i + 1]);
         if (arg == "--mute") options.Mute = true;
         if (arg == "--display" && more) options.Display = std::stoi(argv[i + 1]);
+        if (arg == "--user-dir" && more) options.UserDir = argv[i + 1];
     }
 
     DemoApp app(options);

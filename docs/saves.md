@@ -197,6 +197,10 @@ to the executable:
         quick.arcsave    quick.png     the quicksave
 ```
 
+`ApplicationConfig::UserFolder` puts all of it somewhere else instead - a
+throwaway profile for automated or test runs, which mustn't touch the
+player's settings and saves. The demo takes it as `--user-dir <folder>`.
+
 The counts are `SaveManager::ManualSlots` / `AutoSlots`. `NextAutoSlot()` is
 the first empty autosave, else the oldest.
 
