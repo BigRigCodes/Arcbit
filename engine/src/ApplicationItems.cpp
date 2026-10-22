@@ -14,9 +14,10 @@
 
 #include <algorithm>
 #include <array>
-#include <optional>
 #include <filesystem>
 #include <format>
+#include <limits>
+#include <optional>
 #include <stdexcept>
 
 namespace Arcbit
@@ -125,7 +126,8 @@ void Application::RegisterItemCommands()
     };
     const auto change = [this, bag](const Args& a, const i64 sign) {
         if (a.empty()) throw std::runtime_error("which item?");
-        const i64 count = a.size() > 1 ? std::stoll(a[1]) : 1;
+        constexpr i64 Most  = std::numeric_limits<u32>::max();
+        const i64     count = a.size() > 1 ? DebugConsole::Integer(a[1], "count", 1, Most) : 1;
         if (_currencies->Find(a[0])) return _debugConsole.Print(std::format("{} {}", a[0], _currencies->Add(a[0], sign * count)));
         if (!_items.Has(a[0])) throw std::runtime_error(std::format("no item '{}'", a[0]));
         Inventory& into  = bag(a, 2);
@@ -140,7 +142,8 @@ void Application::RegisterItemCommands()
     _debugConsole.Register({ .Name = "drop", .Help = "drop <item> [count] [bag] - onto the ground, where the leader stands",
                              .Run = [this](const Args& a) {
                                  if (a.empty()) throw std::runtime_error("drop <item> [count] [bag]");
-                                 const u32         count = a.size() > 1 ? static_cast<u32>(std::stoul(a[1])) : 1;
+                                 constexpr i64     Most  = std::numeric_limits<u32>::max();
+                                 const u32         count = a.size() > 1 ? static_cast<u32>(DebugConsole::Integer(a[1], "count", 1, Most)) : 1;
                                  const std::string from  = a.size() > 2 ? a[2] : std::string(Inventories::Party);
                                  if (!DropItem(a[0], count, from).IsValid()) throw std::runtime_error("nothing dropped - not in the bag, or a key item");
                                  _debugConsole.Print(std::format("dropped {} ({} left)", a[0], _inventories->Find(from)->Count(a[0])));

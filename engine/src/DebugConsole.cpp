@@ -3,8 +3,10 @@
 #include <arcbit/core/Clipboard.h>
 #include <arcbit/core/Log.h>
 
+#include <charconv>
 #include <format>
 #include <ranges>
+#include <stdexcept>
 
 namespace Arcbit
 {
@@ -21,11 +23,32 @@ DebugConsole::DebugConsole()
 void DebugConsole::CopyOutput(const Args& args)
 {
     const size_t shown = _lines.empty() ? 0 : _lines.size() - 1; // not the "> copy" just echoed
-    const size_t count = args.empty() ? shown : std::min<size_t>(std::stoul(args[0]), shown);
+    const size_t count = args.empty() ? shown : std::min<size_t>(Integer(args[0], "lines", 0), shown);
     std::string  text;
     for (size_t i = shown - count; i < shown; ++i) text += _lines[i] + "\n";
     Clipboard::SetText(text);
     Print(std::format("copied {} line{}", count, count == 1 ? "" : "s"));
+}
+
+i64 DebugConsole::Integer(const std::string_view word, const std::string_view what, const i64 min, const i64 max)
+{
+    i64        value = 0;
+    const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), value);
+    if (error == std::errc::result_out_of_range) throw std::runtime_error(std::format("{} '{}' is too big", what, word));
+    if (error != std::errc{} || end != word.data() + word.size())
+        throw std::runtime_error(std::format("{} must be a whole number, not '{}'", what, word));
+    if (value < min) throw std::runtime_error(std::format("{} must be at least {}, not {}", what, min, value));
+    if (value > max) throw std::runtime_error(std::format("{} must be at most {}, not {}", what, max, value));
+    return value;
+}
+
+f32 DebugConsole::Decimal(const std::string_view word, const std::string_view what)
+{
+    f32        value = 0.0f;
+    const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), value);
+    if (error != std::errc{} || end != word.data() + word.size())
+        throw std::runtime_error(std::format("{} must be a number, not '{}'", what, word));
+    return value;
 }
 
 void DebugConsole::Register(Command command)

@@ -208,7 +208,7 @@ void Application::RegisterPrefabCommands()
                                  }
                                  Scene* scene = _scenes.GetActive();
                                  if (!scene) throw std::runtime_error("no scene");
-                                 const Vec2 at = a.size() >= 3 ? Vec2{ std::stof(a[1]), std::stof(a[2]) }
+                                 const Vec2 at = a.size() >= 3 ? Vec2{ DebugConsole::Decimal(a[1], "x"), DebugConsole::Decimal(a[2], "y") }
                                                                : scene->GetCamera().GetEffectivePosition();
                                  if (!scene->Spawn(a[0], at).IsValid()) throw std::runtime_error(std::format("can't spawn '{}'", a[0]));
                              } });

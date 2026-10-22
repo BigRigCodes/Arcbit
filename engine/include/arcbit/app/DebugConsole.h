@@ -4,6 +4,7 @@
 
 #include <deque>
 #include <functional>
+#include <limits>
 #include <map>
 #include <string>
 #include <string_view>
@@ -66,6 +67,13 @@ public:
 
     // Words, with "quoted text" kept as one.
     [[nodiscard]] static Args Split(std::string_view line);
+
+    // A command's argument as a number. The whole word must be one, within
+    // [min, max]; otherwise they throw a message naming it by `what`
+    // ("count must be a whole number, not 'a'"), which Execute prints.
+    [[nodiscard]] static i64 Integer(std::string_view word, std::string_view what,
+                                     i64 min = std::numeric_limits<i64>::min(), i64 max = std::numeric_limits<i64>::max());
+    [[nodiscard]] static f32 Decimal(std::string_view word, std::string_view what);
 
     std::function<void(std::string_view code)> RunLua;  // what isn't a command; null = "unknown command"
     std::function<std::vector<std::string>(std::string_view line)> CompleteLua; // remainders, sorted (ScriptEngine::Complete)

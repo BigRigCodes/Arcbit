@@ -344,7 +344,14 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 Games add their own - from C++ `GetConsole().Register({ .Name, .Help, .Cheat,
 .Run })`, from Lua `Console.Register("heal", fn, "heal <n> - restore health",
 true)` (ending with the script that registered it). `Console.Print(...)`
-writes to it.
+writes to it. A C++ command reports a mistake by throwing; the console prints
+the message. `DebugConsole::Integer(word, "count", 1)` and `Decimal(word,
+"x")` read number arguments and throw a readable one ("count must be a whole
+number, not 'a'").
+
+Commands take their words as typed: a Lua variable set in the console
+(`a = 4 * 3`) doesn't reach `give potion a`. In Lua, use it directly -
+`Inventory.Add("potion", a)`.
 
 Who may open it: `_consoleConfig.Access` - `Off`, `DevOnly` (default: debug
 builds), `Players` (shipped builds too). A cheat command, or any Lua typed in,

@@ -4,6 +4,7 @@
 #include <arcbit/app/DebugConsole.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
 
 #include <stdexcept>
 #include <string>
@@ -62,6 +63,26 @@ TEST_CASE("Mistakes print instead of throwing; help and completion list commands
     console.Clear();
     console.Execute("help scene");
     CHECK(console.GetLines().back() == "scene <name> - switch");
+}
+
+TEST_CASE("Number arguments say what's wrong with them", "[console]")
+{
+    DebugConsole console;
+    console.Register({ .Name = "give", .Help = "give <item> [count]", .Run = [](const DebugConsole::Args& a) {
+                          (void)DebugConsole::Integer(a[1], "count", 1);
+                      } });
+    console.Execute("give key a");
+    CHECK(console.GetLines().back() == "give: count must be a whole number, not 'a'");
+    console.Execute("give key 3x");
+    CHECK(console.GetLines().back() == "give: count must be a whole number, not '3x'");
+    console.Execute("give key -5");
+    CHECK(console.GetLines().back() == "give: count must be at least 1, not -5");
+    console.Execute("give key 99999999999999999999");
+    CHECK(console.GetLines().back() == "give: count '99999999999999999999' is too big");
+
+    CHECK(DebugConsole::Integer("12", "count") == 12);
+    CHECK(DebugConsole::Decimal("-2.5", "x") == -2.5f);
+    CHECK_THROWS_WITH(DebugConsole::Decimal("left", "x"), "x must be a number, not 'left'");
 }
 
 TEST_CASE("Output keeps the newest lines", "[console]")
