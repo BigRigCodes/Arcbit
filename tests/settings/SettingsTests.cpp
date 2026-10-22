@@ -213,6 +213,32 @@ TEST_CASE("Input bindings round-trip; UI_ actions are not persisted", "[settings
     CHECK(input.GetBindings(MakeAction("UI_Confirm"))[0].BoundKey == Key::Space);
 }
 
+TEST_CASE("The console's keys keep their defaults, like the UI's", "[settings][input]")
+{
+    SettingsScope scope;
+    // History up saved unbound (it lost Up to movement), history down not
+    // saved at all (a file from before the console).
+    std::ofstream(scope.Path()) << R"({ "input": { "bindings": {
+        "Move_Up": [ { "type": "Key", "key": "Up" } ], "Console_HistoryUp": [] } } })";
+    Settings::Init(scope.Path());
+    InputManager   input;
+    const ActionID up = MakeAction("Console_HistoryUp"), down = MakeAction("Console_HistoryDown"), move = MakeAction("Move_Up");
+    input.RegisterAction(up, "Console_HistoryUp");
+    input.BindKey(up, Key::Up);
+    input.RegisterAction(down, "Console_HistoryDown");
+    input.BindKey(down, Key::Down);
+    input.RegisterAction(move, "Move_Up");
+    input.BindKey(move, Key::Up);
+    (void)Settings::LoadInputBindings(input);
+
+    REQUIRE(input.GetBindings(up).size() == 1);
+    CHECK(input.GetBindings(up)[0].BoundKey == Key::Up);
+    REQUIRE(input.GetBindings(down).size() == 1);
+    CHECK(input.GetBindings(down)[0].BoundKey == Key::Down);
+    CHECK(input.GetBindings(move)[0].BoundKey == Key::Up); // both have Up: different contexts
+    CHECK(Settings::GetBindingChanges().empty());           // nothing to tell the player
+}
+
 TEST_CASE("Loading bindings without a saved section reports nothing loaded", "[settings][input]")
 {
     SettingsScope scope;

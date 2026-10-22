@@ -32,9 +32,11 @@ have any number of bindings; it's pressed while any of them is. A stick axis
 binds whole or by half (`AxisHalf::Negative` / `Positive`), so one stick can
 drive Move_Left and Move_Right.
 
-The UI's own actions (`UI_*`: confirm, back, navigation, text editing) are
-the engine's and always keep their bindings; rebinding a game action never
-takes them away. The Controls screen (`InputRebindScreen`) rebinds the rest.
+The UI's own actions (`UI_*`: confirm, back, navigation, text editing) and
+the console's (`Console_*`: history, completion) are the engine's and always
+keep their bindings: they aren't saved, an update never moves them, and
+rebinding a game action never takes them away - the same arrow keys can walk
+in the game and recall lines in the console. The Controls screen (`InputRebindScreen`) rebinds the rest.
 
 ---
 

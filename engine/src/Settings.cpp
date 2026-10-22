@@ -419,9 +419,14 @@ void Settings::SyncToStore()   {}
 
 namespace
 {
-// Saved and merged: not unnamed actions or the UI's own (UI_*), which
-// always keep their defaults.
-bool Persisted(const std::string_view name) { return !name.empty() && !name.starts_with("UI_"); }
+// Saved and merged: not unnamed actions, nor the UI's own (UI_*) or the
+// console's (Console_*) - keys of their own context, which always keep
+// their defaults. (Merged, the console's history would lose Up / Down to
+// movement.)
+bool Persisted(const std::string_view name)
+{
+    return !name.empty() && !name.starts_with("UI_") && !name.starts_with("Console_");
+}
 
 ActionBindingMap ReadBindingMap(const nlohmann::json& section)
 {
