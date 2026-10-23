@@ -547,15 +547,17 @@ weight; the grid kinds get their own view next.
   leader's feet), each leaving a message.
 - **Equipment**: a member's slots (`<` / `>` change member); click a slot to
   take off what's in it, drop an item on one to wear it; their stats below.
-- **Footer**: the carry weight (a bar, red when over), the currencies.
+- **Footer**: the carry weight (a bar, red when over), the currencies, and a
+  help line naming the keys bound now - a gamepad's buttons once it's in use.
 - The screen follows the bag: a pickup or a script changing it while it's
   open redraws it.
 
 Names come from the locale files: categories `items.category.<id>`,
 equipment slots `equipment.slot.<name>`, currencies `currency.<id>.name`,
-members `party.<id>.name`; one a file lacks shows as its id, tidied
-(`key_items` -> "Key items"). The engine has the stock types', slots' and
-`gold`'s.
+members `party.<id>.name`. One a file lacks shows as its id, tidied
+(`key_items` -> "Key items"), and logs a warning the first time - a game's
+own categories need their names in every language it ships. The engine has
+the stock types', slots' and `gold`'s.
 
 **Layout and art.** The layout is `assets/engine/ui/inventory.arcui`
 (`InventoryScreen::LayoutPath`, replaceable like the dialog box's) and the art
