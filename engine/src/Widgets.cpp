@@ -145,6 +145,64 @@ static void PushNineSlice(FramePacket&        packet, const UIRect     rect, con
 // Panel
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// GridPanel
+// ---------------------------------------------------------------------------
+
+std::vector<UIWidget*> GridPanel::GetCells() const
+{
+    std::vector<UIWidget*> cells;
+    for (const auto& child : _children)
+        if (child->Visible) cells.push_back(child.get());
+    return cells;
+}
+
+void GridPanel::Arrange()
+{
+    const std::vector<UIWidget*> cells = GetCells();
+    const u32                    cols  = std::max(Columns, 1u);
+    for (size_t i = 0; i < cells.size(); ++i) {
+        UIWidget& cell = *cells[i];
+        if (CellSize.X > 0.0f) cell.Size.X = CellSize.X;
+        if (CellSize.Y > 0.0f) cell.Size.Y = CellSize.Y;
+        const f32 col = static_cast<f32>(i % cols), row = static_cast<f32>(i / cols);
+        cell.Anchor = cell.Pivot = cell.SizePercent = { 0.0f, 0.0f };
+        cell.Offset = { Padding.X + col * (cell.Size.X + Gap.X), Padding.Y + row * (cell.Size.Y + Gap.Y) };
+    }
+    if (!Fit || cells.empty()) return;
+    const u32 rows = static_cast<u32>((cells.size() + cols - 1) / cols);
+    const Vec2 cell = cells.front()->Size;
+    Size = { Padding.X * 2.0f + cols * cell.X + (cols - 1) * Gap.X, Padding.Y * 2.0f + rows * cell.Y + (rows - 1) * Gap.Y };
+}
+
+UIWidget* GridPanel::Neighbor(const UIWidget* cell, const i32 dx, const i32 dy) const
+{
+    const std::vector<UIWidget*> cells = GetCells();
+    const auto                   at    = std::ranges::find(cells, cell);
+    if (at == cells.end()) return nullptr;
+    const i32 cols  = static_cast<i32>(std::max(Columns, 1u));
+    const i32 index = static_cast<i32>(at - cells.begin());
+    const i32 col   = index % cols + dx, row = index / cols + dy;
+    const i32 to    = row * cols + col;
+    if (col < 0 || col >= cols || row < 0 || to >= static_cast<i32>(cells.size())) return nullptr;
+    UIWidget* next = cells[static_cast<size_t>(to)];
+    return next->Focusable && next->Enabled ? next : nullptr;
+}
+
+void GridPanel::UpdateTree(const f32 dt, const UIRect parent, const Vec2 mousePos, const bool mouseDown,
+                           const bool mouseJustDown, const bool mouseJustUp, bool& consumed, const f32 scrollDelta)
+{
+    Arrange();
+    UIWidget::UpdateTree(dt, parent, mousePos, mouseDown, mouseJustDown, mouseJustUp, consumed, scrollDelta);
+}
+
+void GridPanel::CollectTree(FramePacket& packet, const UIRect parent, const f32 parentOpacity, const TextureHandle whiteTex,
+                            const SamplerHandle whiteSampler, const UISkin& skin)
+{
+    Arrange(); // a grid filled since the last update still draws in place
+    UIWidget::CollectTree(packet, parent, parentOpacity, whiteTex, whiteSampler, skin);
+}
+
 void Panel::OnCollect(FramePacket&        packet, const UIRect          myRect, const f32 effectiveOpacity,
                       const TextureHandle whiteTex, const SamplerHandle whiteSampler,
                       const UISkin&       skin)

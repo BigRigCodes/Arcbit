@@ -1,4 +1,5 @@
 #include <arcbit/ui/UIWidget.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/ui/UISkin.h>
 #include <arcbit/render/RenderThread.h>
 
@@ -17,6 +18,12 @@ void UIWidget::LocaleChangedTree()
 {
     OnLocaleChanged();
     for (const auto& child : _children) child->LocaleChangedTree();
+}
+
+std::string UIWidget::TooltipText() const
+{
+    if (GetTooltip) return GetTooltip();
+    return TooltipKey.empty() ? Tooltip : Loc::Get(TooltipKey);
 }
 
 UIWidget* UIWidget::FindDescendant(const std::string_view name)
@@ -62,6 +69,28 @@ void UIWidget::UpdateTree(const f32  dt, const UIRect      parent, const Vec2   
 
     if (Enabled)
         OnUpdate(dt, myRect, mousePos, mouseDown, mouseJustDown, mouseJustUp, consumed);
+}
+
+// A drop target with a payload over it: a 2px outline, the skin's accept or
+// refuse color, above its own drawing.
+void UIWidget::CollectDropOutline(FramePacket& packet, const UIRect r, const f32 alpha, const TextureHandle whiteTex,
+                                  const SamplerHandle whiteSampler, const UISkin& skin) const
+{
+    Color color = _dragAccepts ? skin.DropAccept : skin.DropRefuse;
+    color.A *= alpha;
+    const i32 layer = UIBaseLayer + (skin.ScreenLayerBase + ZOrder) * UILayerStride + UILayerText;
+    constexpr f32 T = 2.0f;
+    for (const UIRect edge : { UIRect{ r.X, r.Y, r.W, T }, UIRect{ r.X, r.Y + r.H - T, r.W, T },
+                               UIRect{ r.X, r.Y, T, r.H }, UIRect{ r.X + r.W - T, r.Y, T, r.H } }) {
+        Sprite s{};
+        s.Texture  = whiteTex;
+        s.Sampler  = whiteSampler;
+        s.Position = { edge.X + edge.W * 0.5f, edge.Y + edge.H * 0.5f };
+        s.Size     = { edge.W, edge.H };
+        s.Tint     = color;
+        s.Layer    = layer;
+        packet.UISprites.push_back(s);
+    }
 }
 
 UISkin UIWidget::GetEffectiveSkin(const UISkin& base) const
@@ -114,10 +143,11 @@ void UIWidget::CollectTree(FramePacket&        packet, const UIRect          par
     if (!Visible) return;
 
     const UIRect myRect         = ComputeRect(parent);
-    const f32    effectiveAlpha = Opacity * parentOpacity;
+    const f32    effectiveAlpha = Opacity * parentOpacity * (_dragSource ? 0.45f : 1.0f); // what's dragged dims
     const UISkin effectiveSkin  = GetEffectiveSkin(skin);
 
     OnCollect(packet, myRect, effectiveAlpha, whiteTex, whiteSampler, effectiveSkin);
+    if (_dragOver) CollectDropOutline(packet, myRect, effectiveAlpha, whiteTex, whiteSampler, effectiveSkin);
 
     // Children sorted by ascending ZOrder so higher values render on top.
     // Children receive the original skin — overrides are per-widget, not cascading.

@@ -3,12 +3,14 @@
 #include <arcbit/core/Types.h>
 #include <arcbit/core/Math.h>
 #include <arcbit/render/RenderHandle.h>
+#include <arcbit/ui/UIDrag.h>
 #include <arcbit/ui/UIRect.h>
 
 #include <arcbit/ui/UISkin.h>
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -92,6 +94,40 @@ public:
     // Per-widget skin overrides. Set any field to override that skin property
     // for this widget's OnCollect call. See UISkinOverride in UISkin.h.
     UISkinOverride SkinOverride;
+
+    // --- Tooltip (docs/gui.md#tooltips) -------------------------------------
+
+    // Shown after the pointer rests on the widget (UISkin::TooltipDelay), or
+    // once focus moves to it by keys. Rich text. TooltipKey is a Loc key, read
+    // when shown; GetTooltip, when set, is asked instead (text that changes).
+    std::string                  Tooltip;
+    std::string                  TooltipKey;
+    std::function<std::string()> GetTooltip;
+
+    // The tooltip as it would show now; empty: none.
+    [[nodiscard]] std::string TooltipText() const;
+
+    // --- Drag and drop (docs/gui.md#drag-and-drop; UIDrag.h) ----------------
+
+    // A source: dragging from it asks what's dragged - nullopt, nothing (an
+    // empty slot). OnDragEnd follows when the drag ends: dropped on a target
+    // that took it, or not (dropped nowhere, refused, cancelled with Back).
+    std::function<std::optional<DragPayload>(const DragStart&)> OnDragStart;
+    std::function<void(const DragPayload&, bool dropped)>       OnDragEnd;
+
+    // A target: whether it takes a payload (unset: anything) - drawn with
+    // the skin's DropAccept / DropRefuse outline while one is over it - and
+    // taking it.
+    std::function<bool(const DragPayload&)> CanDrop;
+    std::function<void(const DragPayload&)> OnDrop;
+
+    [[nodiscard]] bool IsDragSource() const { return static_cast<bool>(OnDragStart); }
+    [[nodiscard]] bool IsDropTarget() const { return static_cast<bool>(OnDrop); }
+    [[nodiscard]] bool Accepts(const DragPayload& payload) const { return IsDropTarget() && (!CanDrop || CanDrop(payload)); }
+
+    // While a drag is on: this widget is its source / the target it's over.
+    [[nodiscard]] bool IsBeingDragged() const { return _dragSource; }
+    [[nodiscard]] bool IsDragOver() const { return _dragOver; }
 
     virtual ~UIWidget() { ++s_destroyedCount; }
 
@@ -188,6 +224,10 @@ protected:
     // Re-read text from its key (Label::TextKey and the like).
     virtual void OnLocaleChanged() {}
 
+    // The outline a drop target gets while a payload is over it.
+    void CollectDropOutline(FramePacket& packet, UIRect myRect, f32 alpha, TextureHandle whiteTex,
+                            SamplerHandle whiteSampler, const UISkin& skin) const;
+
     // Focus lifecycle hooks — called by UIScreen during focus navigation.
     virtual void OnFocusGained() {}
     virtual void OnFocusLost()   {}
@@ -199,6 +239,12 @@ protected:
     // True while this widget is the focused widget in its screen.
     // Read in OnCollect to apply a focus highlight (e.g. Button uses it).
     bool _focused = false;
+
+    // Set by the screen while a drag is on (IsBeingDragged / IsDragOver):
+    // CollectTree outlines a target, and dims the source.
+    bool _dragSource  = false;
+    bool _dragOver    = false;
+    bool _dragAccepts = false;
 
     // Sound key cached from the effective skin during the last OnCollect pass.
     // Interactive widgets set this in their OnCollect; OnActivate and mouse-click

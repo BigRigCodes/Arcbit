@@ -61,6 +61,7 @@ add_library(arcbit-engine STATIC
     src/Loot.cpp
     src/Container.cpp
     src/ApplicationLoot.cpp
+    src/UIScreenInteraction.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
     src/ScriptScreens.cpp

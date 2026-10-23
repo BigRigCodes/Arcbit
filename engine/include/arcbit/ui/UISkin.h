@@ -71,6 +71,18 @@ struct UISkin
     Color SwitchOff   = {0.20f, 0.20f, 0.25f, 1.00f};
     Color SwitchThumb = {0.90f, 0.90f, 0.95f, 1.00f};
 
+    // Tooltips (screen-wide, not per widget): shown after the pointer rests
+    // TooltipDelay seconds on a widget with one, wrapped at TooltipWidth.
+    Color TooltipBg     = {0.06f, 0.06f, 0.08f, 0.96f};
+    Color TooltipBorder = {0.38f, 0.60f, 0.90f, 1.00f};
+    f32   TooltipDelay  = 0.5f;
+    f32   TooltipWidth  = 360.0f;
+
+    // Drag and drop: the outline of a target a payload is over - one that
+    // takes it, and one that doesn't.
+    Color DropAccept = {0.40f, 0.85f, 0.45f, 1.00f}; // apart from the focus accent: a target can be focused too
+    Color DropRefuse = {0.85f, 0.30f, 0.30f, 1.00f};
+
     // Sound keys — resolved via AudioManager at interaction time; empty = no sound.
     // Replaced by asset handle references in Phase 36.
     std::string SoundFocusMove;   // keyboard/gamepad focus navigation

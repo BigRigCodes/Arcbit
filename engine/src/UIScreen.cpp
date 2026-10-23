@@ -153,6 +153,8 @@ void UIScreen::Collect(FramePacket& packet, const UIRect screenRect, const UISki
 
     for (UIWidget* w : sorted)
         w->CollectTree(packet, screenRect, _transitionOpacity, whiteTex, whiteSampler, skin);
+    CollectTooltip(packet, skin, whiteTex, whiteSampler);
+    CollectGhost(packet, skin, whiteTex, whiteSampler);
 }
 
 // ---------------------------------------------------------------------------

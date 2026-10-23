@@ -98,6 +98,17 @@ UISkin UISkin::LoadFromFile(const std::string_view path)
         skin.SwitchOff   = GetColor(sw, "off", skin.SwitchOff);
         skin.SwitchThumb = GetColor(sw, "thumb", skin.SwitchThumb);
     }
+    if (j.contains("tooltip")) {
+        const auto& t      = j["tooltip"];
+        skin.TooltipBg     = GetColor(t, "background", skin.TooltipBg);
+        skin.TooltipBorder = GetColor(t, "border", skin.TooltipBorder);
+        skin.TooltipDelay  = t.value("delay", skin.TooltipDelay);
+        skin.TooltipWidth  = t.value("width", skin.TooltipWidth);
+    }
+    if (j.contains("drop")) {
+        skin.DropAccept = GetColor(j["drop"], "accept", skin.DropAccept);
+        skin.DropRefuse = GetColor(j["drop"], "refuse", skin.DropRefuse);
+    }
     skin.AccentColor = GetColor(j, "accentColor", skin.AccentColor);
     // Accept legacy "overlayColor" key as a fallback so existing skin files keep working.
     skin.ScrimColor = GetColor(j, "scrimColor",
@@ -147,6 +158,9 @@ bool UISkin::SaveToFile(const std::string_view path) const
         {"check", ColorToJson(CheckboxCheck)}
     };
     j["switch"] = {{"on", ColorToJson(SwitchOn)}, {"off", ColorToJson(SwitchOff)}, {"thumb", ColorToJson(SwitchThumb)}};
+    j["tooltip"] = { {"background", ColorToJson(TooltipBg)}, {"border", ColorToJson(TooltipBorder)},
+                     {"delay", TooltipDelay}, {"width", TooltipWidth} };
+    j["drop"]    = { {"accept", ColorToJson(DropAccept)}, {"refuse", ColorToJson(DropRefuse)} };
     j["accentColor"] = ColorToJson(AccentColor);
     j["scrimColor"]  = ColorToJson(ScrimColor);
     j["sounds"] = {

@@ -45,6 +45,43 @@ protected:
 };
 
 // ---------------------------------------------------------------------------
+// GridPanel - lays its visible children out in cells, left to right, row by
+// row: Columns across, each CellSize (0 on an axis: the child keeps its
+// own), Gap apart, Padding in from the panel's edge. With Fit, the panel
+// sizes itself to its rows. A child's own Anchor / Pivot / Offset are
+// overwritten. Fill one from a layout template with UIScreen::AddFromTemplate
+// (name, grid, count). Arrow keys and the D-pad move focus between its cells
+// in two dimensions (Neighbor), leaving the grid at its edges.
+// ---------------------------------------------------------------------------
+class GridPanel : public UIWidget
+{
+public:
+    u32  Columns  = 4;
+    Vec2 CellSize = {48.0f, 48.0f};
+    Vec2 Gap      = {4.0f, 4.0f};
+    Vec2 Padding  = {0.0f, 0.0f};
+    bool Fit      = false;
+
+    // Place the children now (the update and draw passes do it each tick).
+    void Arrange();
+
+    // The cell dx columns and dy rows from `cell` (one of this grid's
+    // children); null past the grid's edge, or where nothing focusable is.
+    [[nodiscard]] UIWidget* Neighbor(const UIWidget* cell, i32 dx, i32 dy) const;
+
+    // The visible children, in cell order.
+    [[nodiscard]] std::vector<UIWidget*> GetCells() const;
+
+    void UpdateTree(f32 dt, UIRect parent, Vec2 mousePos, bool mouseDown, bool mouseJustDown, bool mouseJustUp,
+                    bool& consumed, f32 scrollDelta) override;
+    void CollectTree(FramePacket& packet, UIRect parent, f32 parentOpacity, TextureHandle whiteTex,
+                     SamplerHandle whiteSampler, const UISkin& skin) override;
+
+protected:
+    void OnCollect(FramePacket&, UIRect, f32, TextureHandle, SamplerHandle, const UISkin&) override {}
+};
+
+// ---------------------------------------------------------------------------
 // Label — single- or multi-line text.
 // ---------------------------------------------------------------------------
 class Label : public UIWidget

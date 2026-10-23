@@ -1,4 +1,5 @@
 #include <arcbit/ui/UIManager.h>
+#include <arcbit/ui/Widgets.h>
 #include <arcbit/render/RichText.h>
 #include <arcbit/ui/UILoader.h>
 #include <arcbit/audio/AudioManager.h>
@@ -56,6 +57,8 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
     input.BindGamepadButton(ActionFocusPrev, GamepadButton::DPadUp);
     input.BindGamepadButton(ActionFocusPrev, GamepadButton::DPadLeft);
 
+    RegisterDragActions(input);
+
     // Text widget control keys — UI_ prefix hides them from the rebind screen.
     input.RegisterAction(ActionTextLeft, "UI_TextLeft");
     input.RegisterAction(ActionTextRight, "UI_TextRight");
@@ -99,6 +102,27 @@ void UIManager::Init(const RenderThread& rt, const FontAtlas& font, InputManager
                                    ActionTextDelete, ActionTextEscape, ActionTabNext, ActionShiftMod, ActionCtrlMod, ActionBack,
                                    ActionTextSelectAll, ActionTextCopy, ActionTextCut, ActionTextPaste })
         input.KeepWhileTyping(action);
+}
+
+// The grab and rotate keys, and one action per direction for grids.
+void UIManager::RegisterDragActions(InputManager& input)
+{
+    input.RegisterAction(ActionGrab, "UI_Grab");
+    input.BindKey(ActionGrab, Key::Space);
+    input.BindGamepadButton(ActionGrab, GamepadButton::West);
+    input.RegisterAction(ActionRotate, "UI_Rotate");
+    input.BindKey(ActionRotate, Key::R);
+    input.BindGamepadButton(ActionRotate, GamepadButton::North);
+    for (const auto& [action, name, key, pad] : {
+             std::tuple{ ActionNavLeft, "UI_NavLeft", Key::Left, GamepadButton::DPadLeft },
+             std::tuple{ ActionNavRight, "UI_NavRight", Key::Right, GamepadButton::DPadRight },
+             std::tuple{ ActionNavUp, "UI_NavUp", Key::Up, GamepadButton::DPadUp },
+             std::tuple{ ActionNavDown, "UI_NavDown", Key::Down, GamepadButton::DPadDown },
+         }) {
+        input.RegisterAction(action, name);
+        input.BindKey(action, key);
+        input.BindGamepadButton(action, pad);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +320,7 @@ void UIManager::UpdatePointer(const f32 dt, const Vec2 windowSize, const InputMa
         _mouseDown     = input.IsPressed(ActionCursorClick);
         _mouseJustDown = input.JustPressed(ActionCursorClick);
         _mouseJustUp   = input.JustReleased(ActionCursorClick);
+        _altDown = _altJustDown = _altJustUp = false;
         return;
     }
     i32 mx = 0, my = 0;
@@ -304,6 +329,53 @@ void UIManager::UpdatePointer(const f32 dt, const Vec2 windowSize, const InputMa
     _mouseDown     = input.IsMouseButtonDown(MouseButton::Left);
     _mouseJustDown = input.IsMouseButtonJustDown(MouseButton::Left);
     _mouseJustUp   = input.IsMouseButtonJustUp(MouseButton::Left);
+    _altDown       = input.IsMouseButtonDown(MouseButton::Right);
+    _altJustDown   = input.IsMouseButtonJustDown(MouseButton::Right);
+    _altJustUp     = input.IsMouseButtonJustUp(MouseButton::Right);
+}
+
+// Arrow keys / D-pad, repeating while held. A direction held into a new
+// screen starts over rather than racing through it. In a grid, they move
+// across and down its cells, and leave it along the line at its edges.
+void UIManager::MoveFocus(UIScreen& active, UIWidget* focused, const bool consumesNav, const InputManager& input, const f32 dt)
+{
+    if (&active != _navScreen) _nav = _navX = _navY = NavRepeat{};
+    _navScreen     = &active;
+    const i32 step = _nav.Step(input.JustPressed(ActionFocusNext), input.JustPressed(ActionFocusPrev),
+                               input.IsPressed(ActionFocusNext), input.IsPressed(ActionFocusPrev), dt);
+    const i32 dx   = _navX.Step(input.JustPressed(ActionNavRight), input.JustPressed(ActionNavLeft),
+                                input.IsPressed(ActionNavRight), input.IsPressed(ActionNavLeft), dt);
+    const i32 dy   = _navY.Step(input.JustPressed(ActionNavDown), input.JustPressed(ActionNavUp),
+                                input.IsPressed(ActionNavDown), input.IsPressed(ActionNavUp), dt);
+
+    // Tab always moves focus regardless of whether a text widget is focused.
+    if (input.JustPressed(ActionTabNext)) {
+        active.FocusNext();
+        return;
+    }
+    if (consumesNav) {
+        if (step != 0) focused->OnNavStep(step);
+        return;
+    }
+    if (const GridPanel* grid = focused ? active.FindGridOf(focused) : nullptr; grid && (dx != 0 || dy != 0)) {
+        if (UIWidget* next = grid->Neighbor(focused, dx, dy)) active.ApplyFocus(next);
+        else if (dx + dy > 0) active.FocusNext(); // off the grid's edge
+        else active.FocusPrev();
+        return;
+    }
+    if (step > 0) active.FocusNext();
+    else if (step < 0) active.FocusPrev();
+}
+
+// Grab picks up or puts down; rotate turns what's held; Back cancels a drag
+// (true: the screen doesn't also go back).
+bool UIManager::HandleDragKeys(UIScreen& active, const InputManager& input)
+{
+    if (input.JustPressed(ActionGrab)) active.GrabFocused(input.IsPressed(ActionShiftMod));
+    if (input.JustPressed(ActionRotate)) active.RotateDrag();
+    if (!active.IsDragging() || !IsBackPressed(input)) return false;
+    active.CancelDrag();
+    return true;
 }
 
 void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputManager& input)
@@ -333,9 +405,20 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     const bool skipInput        = active->_skipInputThisFrame;
     active->_skipInputThisFrame = false;
 
+    // Only the screen taking input has a drag or a tooltip.
+    for (UIScreen* s : screens)
+        if (s != active) {
+            s->CancelDrag();
+            s->HideTooltip();
+        }
+
     const UIRect screenRect = {0.0f, 0.0f, windowSize.X, windowSize.Y};
     if (!skipInput) active->OnTick(dt, input);
-    active->Update(dt, screenRect, _mousePos, _mouseDown, _mouseJustDown, _mouseJustUp, _scrollDelta);
+    const UIPointer seen = active->Interact(dt, screenRect,
+                                            { .Pos = _mousePos, .Down = _mouseDown, .JustDown = _mouseJustDown, .JustUp = _mouseJustUp,
+                                              .AltDown = _altDown, .AltJustDown = _altJustDown, .AltJustUp = _altJustUp },
+                                            _skin);
+    active->Update(dt, screenRect, seen.Pos, seen.Down, seen.JustDown, seen.JustUp, _scrollDelta);
 
     if (skipInput) return;
 
@@ -346,27 +429,16 @@ void UIManager::UpdateScreens(const f32 dt, const Vec2 windowSize, const InputMa
     UIWidget* const prevFocused      = active->GetFocusedWidget();
     const bool      prevConsumesNav  = prevFocused && prevFocused->ConsumesFocusNav();
 
-    // Arrow keys / D-pad, repeating while held. A direction held into a new
-    // screen starts over rather than racing through it.
-    if (active != _navScreen) _nav = NavRepeat{};
-    _navScreen     = active;
-    const i32 step = _nav.Step(input.JustPressed(ActionFocusNext), input.JustPressed(ActionFocusPrev),
-                               input.IsPressed(ActionFocusNext), input.IsPressed(ActionFocusPrev), dt);
-
-    // Tab always moves focus regardless of whether a text widget is focused.
-    if (input.JustPressed(ActionTabNext)) active->FocusNext();
-    else if (!prevConsumesNav) {
-        if (step > 0) active->FocusNext();
-        else if (step < 0) active->FocusPrev();
-    }
-    else if (step != 0) prevFocused->OnNavStep(step);
+    MoveFocus(*active, prevFocused, prevConsumesNav, input, dt);
 
     // Focus-move sound — read from the newly-focused widget's effective skin so
-    // per-widget overrides apply.
+    // per-widget overrides apply. Focus moved by keys shows its tooltip.
     if (UIWidget* const nowFocused = active->GetFocusedWidget(); nowFocused != prevFocused) {
         const UISkin src = nowFocused ? nowFocused->GetEffectiveSkin(_skin) : _skin;
         if (!src.SoundFocusMove.empty()) AudioManager::PlayOneShot(src.SoundFocusMove, 1.0f, AudioCategories::Ui);
+        active->FocusMovedByKeys();
     }
+    if (HandleDragKeys(*active, input)) return; // Back went to the drag
 
     // Enter activates the focused widget (fires OnClick for buttons, OnConfirm
     // for TextInput) - unless the gamepad cursor is up, when South clicks

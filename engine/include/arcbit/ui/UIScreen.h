@@ -4,8 +4,10 @@
 #include <arcbit/ui/UIWidget.h>
 #include <arcbit/ui/UISkin.h>
 
+#include <functional>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -14,7 +16,17 @@
 namespace Arcbit {
 
 struct FramePacket;
+class  GridPanel;
 class  InputManager;
+
+// The pointer as the UI sees it this tick: the mouse (or the gamepad
+// cursor), its primary button, and the alternate one (the right button).
+struct UIPointer
+{
+    Vec2 Pos;
+    bool Down = false, JustDown = false, JustUp = false;
+    bool AltDown = false, AltJustDown = false, AltJustUp = false;
+};
 
 // ---------------------------------------------------------------------------
 // UIScreen — a full-screen root widget container.
@@ -173,6 +185,39 @@ public:
     [[nodiscard]] i32 GetFocusIndex() const;
     void              FocusAt(i32 index);
 
+    // --- Drag and drop, tooltips (docs/gui.md) -------------------------------
+
+    // UIManager, each tick before Update on the screen taking input: drags
+    // started, carried and dropped by the pointer, and the tooltip's timer.
+    // Returns the pointer as the widgets should see it - its buttons up
+    // while a drag is on, so nothing under it clicks.
+    UIPointer Interact(f32 dt, UIRect screenRect, const UIPointer& pointer, const UISkin& skin);
+
+    // The grab key: pick up from the focused widget, or put down on it.
+    // Alternate (Shift): the alternate drag (a split).
+    void GrabFocused(bool alternate);
+    void RotateDrag(); // a Rotatable payload turns
+    void CancelDrag(); // Back: nothing dropped
+
+    [[nodiscard]] bool               IsDragging() const { return _drag.Active; }
+    [[nodiscard]] const DragPayload* GetDrag() const { return _drag.Active ? &_drag.Payload : nullptr; }
+    [[nodiscard]] UIWidget*          GetDropTarget() const { return Resolve(_drag.Target); }
+
+    // Focus moved by keys or the D-pad: its tooltip shows under it, after
+    // the delay, until the pointer moves.
+    void FocusMovedByKeys();
+    void HideTooltip(); // and its timer starts over
+
+    // The tooltip showing now; empty: none.
+    [[nodiscard]] const std::string& GetTooltipText() const { return _tooltip.Text; }
+
+    // The grid `widget` is a cell of; null if it isn't in one.
+    [[nodiscard]] GridPanel* FindGridOf(const UIWidget* widget) const;
+
+    // Stamp `count` copies of a layout template into `parent` (a GridPanel's
+    // cells, a list's rows).
+    std::vector<UIWidget*> AddFromTemplate(std::string_view name, UIWidget& parent, u32 count);
+
     // --- Visibility / transition state --------------------------------------
 
     [[nodiscard]] bool IsVisible()       const { return _visible; }
@@ -197,6 +242,50 @@ protected:
 
 private:
     enum class TransitionState { Idle, FadingIn, FadingOut };
+
+    // A widget held across ticks: its serial tells it from a new one at the
+    // same address, and it's only used while still in the tree.
+    struct WidgetRef
+    {
+        UIWidget* Ptr    = nullptr;
+        u64       Serial = 0;
+    };
+    [[nodiscard]] UIWidget* Resolve(const WidgetRef& ref) const;
+    [[nodiscard]] static WidgetRef Ref(UIWidget* widget) { return { widget, widget ? widget->_serial : 0 }; }
+
+    struct DragState
+    {
+        bool        Active   = false;
+        bool        Keyboard = false; // the grab key started it: the focused widget is the target
+        bool        Alt      = false; // the right button carries it (released: dropped)
+        WidgetRef   Source, Target, Pressed;
+        Vec2        PressPos;
+        bool        PressAlt = false;
+        DragPayload Payload;
+    } _drag;
+
+    struct TooltipState
+    {
+        WidgetRef   Over;      // the widget it's for
+        bool        Focus = false; // shown for the focused widget (keys), not the pointer
+        f32         Timer = 0.0f;
+        bool        Shown = false;
+        Vec2        At;        // the pointer when it showed
+        std::string Text;
+    } _tooltip;
+    UIPointer _pointer;        // the last Interact's, for drawing the ghost
+    UIRect    _screenRect;
+
+    void BeginPointerDrag(const UIPointer& p, UIRect screenRect);
+    void CarryDrag(const UIPointer& p, UIRect screenRect);
+    void EndDrag(bool drop);
+    void SetDragTarget(UIWidget* target);
+    void UpdateTooltip(f32 dt, const UIPointer& p, UIRect screenRect, const UISkin& skin);
+    void CollectTooltip(FramePacket& packet, const UISkin& skin, TextureHandle whiteTex, SamplerHandle whiteSampler) const;
+    void CollectGhost(FramePacket& packet, const UISkin& skin, TextureHandle whiteTex, SamplerHandle whiteSampler) const;
+    [[nodiscard]] UIWidget* FindHit(UIRect screenRect, Vec2 pos, const std::function<bool(const UIWidget&)>& wanted) const;
+    [[nodiscard]] static UIWidget* FindHitIn(UIWidget& w, UIRect parent, Vec2 pos, const std::function<bool(const UIWidget&)>& wanted);
+    [[nodiscard]] std::optional<UIRect> RectOf(const UIWidget* widget, UIRect screenRect) const;
 
     std::vector<ScriptHandler>                   _scriptHandlers; // LoadLayout
     std::unordered_map<std::string, f32>         _metaF32;

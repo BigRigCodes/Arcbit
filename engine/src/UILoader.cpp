@@ -141,6 +141,8 @@ static void ApplyBase(UIWidget& w, const json& j)
     if (auto it = j.find("enabled"); it != j.end()) w.Enabled = it->get<bool>();
     if (auto it = j.find("focusable"); it != j.end()) w.Focusable = it->get<bool>();
     if (auto it = j.find("tab_order"); it != j.end()) w.TabOrder = it->get<u32>();
+    if (auto it = j.find("tooltip"); it != j.end()) w.Tooltip = it->get<std::string>();
+    if (auto it = j.find("tooltip_key"); it != j.end()) w.TooltipKey = it->get<std::string>();
     if (auto it = j.find("text_style"); it != j.end()) w.SkinOverride.Text = ReadTextStyle(*it, w.SkinOverride.Text.value_or(TextStyle{}));
     if (auto it = j.find("skin"); it != j.end()) ApplySkinBlock(w.SkinOverride, *it);
 }
@@ -193,6 +195,16 @@ static void ApplyProgressBar(UIWidget& w, const json& j)
     auto& p = dynamic_cast<ProgressBar&>(w);
     if (const auto it = j.find("value"); it != j.end()) p.Value = it->get<f32>();
     if (const auto it = j.find("fill_color"); it != j.end()) p.SkinOverride.ProgressFill = ReadColor(*it);
+}
+
+static void ApplyGridPanel(UIWidget& w, const json& j)
+{
+    auto& g = dynamic_cast<GridPanel&>(w);
+    if (const auto it = j.find("columns"); it != j.end()) g.Columns = it->get<u32>();
+    if (const auto it = j.find("cell_size"); it != j.end()) g.CellSize = ReadVec2(*it, g.CellSize);
+    if (const auto it = j.find("gap"); it != j.end()) g.Gap = ReadVec2(*it, g.Gap);
+    if (const auto it = j.find("padding"); it != j.end()) g.Padding = ReadVec2(*it, g.Padding);
+    if (const auto it = j.find("fit"); it != j.end()) g.Fit = it->get<bool>();
 }
 
 static void ApplyScrollPanel(UIWidget& w, const json& j)
@@ -350,6 +362,7 @@ void UILoader::EnsureBuiltins()
     r["NineSliceProgressBar"] = {[] { return std::make_unique<NineSliceProgressBar>(); }, ApplyNineSliceProgressBar};
     r["ProgressBar"]          = {[] { return std::make_unique<ProgressBar>(); }, ApplyProgressBar};
     r["ScrollPanel"]          = {[] { return std::make_unique<ScrollPanel>(); }, ApplyScrollPanel};
+    r["GridPanel"]            = {[] { return std::make_unique<GridPanel>(); }, ApplyGridPanel};
     r["TextInput"]            = {[] { return std::make_unique<TextInput>(); }, ApplyTextInput};
     r["Slider"]               = {[] { return std::make_unique<Slider>(); }, ApplySlider};
     r["Dropdown"]             = {[] { return std::make_unique<Dropdown>(); }, ApplyDropdown};

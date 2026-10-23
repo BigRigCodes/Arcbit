@@ -76,6 +76,7 @@ add_executable(arcbit-tests
     ui/DropdownTests.cpp
     ui/LocaleUITests.cpp
     ui/TextInputTests.cpp
+    ui/DragDropTests.cpp
     ui/TextStyleTests.cpp
     ui/UISkinTests.cpp
 )

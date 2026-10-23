@@ -80,6 +80,19 @@ public:
     static constexpr ActionID ActionScrollUp    = MakeAction("UI_ScrollUp");
     static constexpr ActionID ActionScrollDown  = MakeAction("UI_ScrollDown");
 
+    // Drag and drop by keys (docs/gui.md#drag-and-drop): pick up from / put
+    // down on the focused widget (Space, gamepad West); turn what's held (R,
+    // gamepad North).
+    static constexpr ActionID ActionGrab   = MakeAction("UI_Grab");
+    static constexpr ActionID ActionRotate = MakeAction("UI_Rotate");
+
+    // One direction each (arrows, D-pad), for moving through a GridPanel's
+    // cells; FocusNext / FocusPrev fold them into a line elsewhere.
+    static constexpr ActionID ActionNavLeft  = MakeAction("UI_NavLeft");
+    static constexpr ActionID ActionNavRight = MakeAction("UI_NavRight");
+    static constexpr ActionID ActionNavUp    = MakeAction("UI_NavUp");
+    static constexpr ActionID ActionNavDown  = MakeAction("UI_NavDown");
+
     // Modifier state — used to dispatch Shift/Ctrl variants of control keys.
     static constexpr ActionID ActionShiftMod = MakeAction("UI_ShiftMod");
     static constexpr ActionID ActionCtrlMod  = MakeAction("UI_CtrlMod");
@@ -184,6 +197,9 @@ private:
     bool _mouseDown     = false;
     bool _mouseJustDown = false;
     bool _mouseJustUp   = false;
+    bool _altDown       = false;  // the right button: the alternate drag
+    bool _altJustDown   = false;
+    bool _altJustUp     = false;
     f32  _scrollDelta   = 0.0f;   // wheel plus right stick
 
     // The gamepad cursor: shown once the left stick moves while a screen
@@ -198,7 +214,14 @@ private:
     void CollectCursor(FramePacket& packet) const;
 
     NavRepeat       _nav;
+    NavRepeat       _navX, _navY;         // inside a GridPanel: across and down
     const UIScreen* _navScreen = nullptr; // the screen a held direction started on
+
+    // Arrows / D-pad: focus along the line, or across a grid's cells.
+    void MoveFocus(UIScreen& active, UIWidget* focused, bool consumesNav, const InputManager& input, f32 dt);
+    // The grab / rotate / back keys on a drag, and screens that lost the input dropping theirs.
+    [[nodiscard]] bool HandleDragKeys(UIScreen& active, const InputManager& input);
+    static void RegisterDragActions(InputManager& input);
 
     std::function<void(bool)> _textInputActiveCallback;
     bool _textInputActive = false; // tracks current SDL text input mode
