@@ -250,6 +250,16 @@ const GlyphInfo* FontAtlas::GetGlyph(const u32 codepoint) const
     return &_glyphs.at(codepoint);
 }
 
+// An 'H' sits on the baseline with no descender, so whatever its bitmap
+// reaches below the baseline is padding - and as much again is above it.
+f32 FontAtlas::GetCapHeight() const
+{
+    const GlyphInfo* h = GetGlyph('H');
+    if (!h || h->BitmapSize.Y <= 0.0f) return _ascent * 0.7f;
+    const f32 padding = std::max(0.0f, h->Bearing.Y + h->BitmapSize.Y);
+    return std::max(0.0f, -h->Bearing.Y - padding);
+}
+
 void FontAtlas::Prepare(const std::string_view text) const
 {
     for (const u32 cp : Utf8::Codepoints(text))

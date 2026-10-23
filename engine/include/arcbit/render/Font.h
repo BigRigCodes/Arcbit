@@ -165,6 +165,11 @@ public:
     [[nodiscard]] FontMode      GetMode()       const { return _mode; }
     [[nodiscard]] f32           GetLineHeight() const { return _lineHeight; }
     [[nodiscard]] f32           GetAscent()     const { return _ascent; }
+
+    // How tall a capital stands above the baseline (an 'H', its SDF padding
+    // left out): what text is centered on in a button. The ascent also holds
+    // the room above capitals (accents), so centering on it sits text low.
+    [[nodiscard]] f32 GetCapHeight() const;
     [[nodiscard]] bool          IsValid()       const { return !_pages.empty() && _pages[0].Texture.IsValid(); }
 
 private:

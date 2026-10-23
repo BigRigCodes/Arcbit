@@ -289,7 +289,10 @@ static void DrawButtonText(FramePacket& packet, CachedTextLayout& cache, const s
                                                              .Align    = TextAlign::Center,
                                                              .Markup   = false,
                                                              .Style    = skin.Text });
-    const f32 top = rect.Y + rect.H * 0.5f - skin.Font->GetAscent() * skin.FontScale * 0.5f;
+    // Capitals centered: the baseline half a cap height below the middle (the
+    // layout's top is an ascent above its baseline).
+    const f32 baseline = rect.Y + rect.H * 0.5f + skin.Font->GetCapHeight() * skin.FontScale * 0.5f;
+    const f32 top      = baseline - skin.Font->GetAscent() * skin.FontScale;
     DrawRichText(packet, *skin.Font, layout, { .Position = { rect.X, top }, .Color = color, .Layer = layer, .Style = skin.Text,
                                                .White = white, .WhiteSampler = whiteSampler });
 }
