@@ -216,11 +216,12 @@ void InventoryScreen::ShowEquipment()
         SetIcon(row.FindDescendant("icon"), def ? def->Icon : std::string_view{});
         row.OnClick = [this, name = slot.Name] { Later([this, name] { Unequip(name); }); };
         row.CanDrop = [this, kind = slot.Kind](const DragPayload& p) {
-            const ItemDef* item = p.Kind == "item" && Host.Items ? Host.Items->Find(std::any_cast<std::string>(p.Data)) : nullptr;
+            const ItemDrag* drag = AsItemDrag(p);
+            const ItemDef*  item = drag && Host.Items ? Host.Items->Find(drag->Item) : nullptr;
             return item && item->Slot == kind;
         };
         row.OnDrop = [this, name = slot.Name](const DragPayload& p) {
-            const std::string item = std::any_cast<std::string>(p.Data);
+            const std::string item = AsItemDrag(p)->Item;
             Later([this, name, item] {
                 const bool worn = Host.Members->Equip(_member, item, name);
                 const ItemDef* def = Host.Items ? Host.Items->Find(item) : nullptr;

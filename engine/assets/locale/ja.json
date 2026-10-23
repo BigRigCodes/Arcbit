@@ -149,6 +149,7 @@
   "ui.inventory.on_use": "使用：{stat} {amount}",
   "ui.inventory.compare": "{stat}：{from} → {to}",
   "ui.inventory.help": "<b>{confirm}</b> 使う／装備　<b>{grab}</b> 移動　<b>{prev}</b>／<b>{next}</b> タブ　<b>{back}</b> 閉じる",
+  "ui.inventory.help_grid": "<b>{confirm}</b> 使う／装備　<b>{grab}</b> 移動　<b>{rotate}</b> 回転　<b>{back}</b> 閉じる",
   "ui.inventory.used": "{item}を使いました。",
   "ui.inventory.not_used.no_effect": "{item}を使っても効果がありません。",
   "ui.inventory.not_used.not_usable": "{item}は使えません。",
@@ -171,5 +172,9 @@
   "equipment.slot.body": "体",
   "equipment.slot.accessory1": "装飾品",
   "equipment.slot.accessory2": "装飾品",
-  "currency.gold.name": "ゴールド"
+  "currency.gold.name": "ゴールド",
+  "ui.inventory.view.list": "リスト",
+  "ui.inventory.view.grid": "グリッド",
+  "ui.inventory.no_fit": "{item}はそこに入りません。",
+  "items.section.hotbar": "ホットバー"
 }

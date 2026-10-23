@@ -149,6 +149,7 @@
   "ui.inventory.on_use": "Use: {stat} {amount}",
   "ui.inventory.compare": "{stat}: {from} → {to}",
   "ui.inventory.help": "<b>{confirm}</b> use / equip   <b>{grab}</b> move   <b>{prev}</b> / <b>{next}</b> tabs   <b>{back}</b> close",
+  "ui.inventory.help_grid": "<b>{confirm}</b> use / equip   <b>{grab}</b> move   <b>{rotate}</b> turn   <b>{back}</b> close",
   "ui.inventory.used": "Used the {item}.",
   "ui.inventory.not_used.no_effect": "The {item} would have no effect.",
   "ui.inventory.not_used.not_usable": "The {item} can't be used.",
@@ -171,5 +172,9 @@
   "equipment.slot.body": "Body",
   "equipment.slot.accessory1": "Accessory",
   "equipment.slot.accessory2": "Accessory",
-  "currency.gold.name": "Gold"
+  "currency.gold.name": "Gold",
+  "ui.inventory.view.list": "List",
+  "ui.inventory.view.grid": "Grid",
+  "ui.inventory.no_fit": "The {item} doesn't fit there.",
+  "items.section.hotbar": "Hotbar"
 }

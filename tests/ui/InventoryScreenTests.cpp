@@ -50,7 +50,7 @@ struct Fixture
             "potion": { "name": "Potion", "description": "Restores 50 HP.", "type": "consumable", "category": "medicine",
                         "weight": 0.5, "value": 25, "use": { "stats": { "HP": 50 } } },
             "ether":  { "name": "Ether", "type": "consumable", "category": "medicine", "weight": 0.5 },
-            "sword":  { "name": "Sword", "type": "equipment", "slot": "weapon", "category": "weapons", "weight": 6,
+            "sword":  { "name": "Sword", "type": "equipment", "slot": "weapon", "category": "weapons", "weight": 6, "size": [1, 2],
                         "stats": { "ATK": 5 } },
             "key":    { "name": "Cellar Key", "type": "key" } })");
         items.LogIssues = false;
@@ -215,10 +215,10 @@ TEST_CASE("Dropping an item on an equipment slot wears it; the screen follows th
     UIWidget* head   = f.screen->FindWidget<UIWidget>("slot-head");
     REQUIRE(weapon);
     REQUIRE(head);
-    const DragPayload sword{ .Kind = "item", .Data = std::string("sword") };
+    const DragPayload sword{ .Kind = "item", .Data = ItemDrag{ "sword" } };
     CHECK(weapon->Accepts(sword));
     CHECK_FALSE(head->Accepts(sword)); // a sword isn't worn on the head
-    CHECK_FALSE(weapon->Accepts(DragPayload{ .Kind = "item", .Data = std::string("potion") }));
+    CHECK_FALSE(weapon->Accepts(DragPayload{ .Kind = "item", .Data = ItemDrag{ "potion" } }));
 
     weapon->OnDrop(sword);
     f.Tick(); // the drop's work runs at the next tick
@@ -232,4 +232,74 @@ TEST_CASE("Dropping an item on an equipment slot wears it; the screen follows th
     CHECK(f.bags->GetParty().GetStacks()[f.screen->GetShown()[0]].Count == 5);
     CHECK(f.screen->FindWidget<Label>("row-0") == nullptr); // rows are buttons
     CHECK(f.screen->FindWidget<UIWidget>("row-0")->FindDescendant("count"));
+}
+
+namespace
+{
+// A 4 x 3 grid with a hotbar section of 4 below it.
+InventoryRules GridBag()
+{
+    InventoryRules rules = InventoryRules::Grid(4, 3);
+    rules.Sections.push_back({ .Name = "hotbar", .Width = 4, .Height = 1 });
+    return rules;
+}
+
+u32 IndexOf(const Inventory& bag, const std::string& item)
+{
+    const auto& stacks = bag.GetStacks();
+    return static_cast<u32>(std::ranges::find_if(stacks, [&](const ItemStack& s) { return s.Item == item; }) - stacks.begin());
+}
+} // namespace
+
+TEST_CASE("A grid bag shows its grid: a cell for each, items across the cells they take", "[ui][inventory][grid]")
+{
+    Fixture f(GridBag());
+    f.Open();
+    REQUIRE(f.screen->IsGridView());
+    const Inventory& bag   = f.bags->GetParty();
+    const u32        sword = IndexOf(bag, "sword");
+    CHECK(bag.StackAt("", bag.GetStacks()[sword].X, bag.GetStacks()[sword].Y + 1) == sword); // a 1 x 2 sword: two cells
+    CHECK(f.screen->FindWidget<UIWidget>("cell-main-3-2"));
+    CHECK(f.screen->FindWidget<UIWidget>("cell-hotbar-3-0"));
+    CHECK_FALSE(f.screen->FindWidget<UIWidget>("list")->Visible); // the list view's widgets are hidden
+    CHECK_FALSE(f.screen->FindWidget<UIWidget>("tabs")->Visible);
+
+    f.screen->ToggleView(); // the same items as a list, with tabs
+    CHECK_FALSE(f.screen->IsGridView());
+    CHECK(f.Shown().size() == 3);
+    CHECK_FALSE(f.screen->FindWidget<UIWidget>("grid-area")->Visible);
+}
+
+TEST_CASE("Grid drops move, turn, split, merge and swap - or say it doesn't fit", "[ui][inventory][grid]")
+{
+    Fixture f(GridBag());
+    f.Open();
+    Inventory& bag    = f.bags->GetParty();
+    const auto at     = [&](const std::string& item) { const ItemStack& s = bag.GetStacks()[IndexOf(bag, item)]; return std::tuple{ s.Section, s.X, s.Y, s.Rotated }; };
+
+    CHECK(f.screen->PlaceAt(IndexOf(bag, "sword"), "", 0, 2, true, 1)); // turned: across two cells of the last row
+    CHECK(at("sword") == std::tuple{ std::string{}, 0u, 2u, true });
+    CHECK_FALSE(f.screen->PlaceAt(IndexOf(bag, "sword"), "", 3, 2, true, 1)); // turned, it'd stick out
+    CHECK(f.screen->GetMessage() == "The Sword doesn't fit there.");
+    CHECK(f.screen->PlaceAt(IndexOf(bag, "sword"), "", 3, 1, false, 1));     // upright it fits
+
+    CHECK(f.screen->PlaceAt(IndexOf(bag, "potion"), "hotbar", 0, 0, false, 1)); // one of three, split off
+    CHECK(bag.Count("potion") == 3);
+    CHECK(bag.GetStacks().size() == 4);
+    const auto split = std::ranges::find_if(bag.GetStacks(), [](const ItemStack& s) { return s.Section == "hotbar"; });
+    REQUIRE(split != bag.GetStacks().end());
+    CHECK(split->Count == 1);
+    const u32 single = static_cast<u32>(split - bag.GetStacks().begin());
+    const auto [section, x, y, turned] = at("potion");
+    CHECK(f.screen->PlaceAt(single, section, x, y, false, 1)); // back onto the rest: merged
+    CHECK(bag.GetStacks().size() == 3);
+
+    // A drop on a cell goes through the same: the cell takes what fits.
+    UIWidget* cell = f.screen->FindWidget<UIWidget>("cell-hotbar-2-0");
+    REQUIRE(cell);
+    const DragPayload key{ .Kind = "item", .Data = ItemDrag{ "key", IndexOf(bag, "key") } };
+    CHECK(cell->Accepts(key));
+    cell->OnDrop(key);
+    f.Tick();
+    CHECK(at("key") == std::tuple{ std::string("hotbar"), 2u, 0u, false });
 }

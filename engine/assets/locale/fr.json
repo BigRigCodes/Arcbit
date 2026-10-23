@@ -149,6 +149,7 @@
   "ui.inventory.on_use": "Utilisation : {stat} {amount}",
   "ui.inventory.compare": "{stat} : {from} → {to}",
   "ui.inventory.help": "<b>{confirm}</b> utiliser / équiper   <b>{grab}</b> déplacer   <b>{prev}</b> / <b>{next}</b> onglets   <b>{back}</b> fermer",
+  "ui.inventory.help_grid": "<b>{confirm}</b> utiliser / équiper   <b>{grab}</b> déplacer   <b>{rotate}</b> tourner   <b>{back}</b> fermer",
   "ui.inventory.used": "Objet utilisé : {item}.",
   "ui.inventory.not_used.no_effect": "{item} : cela n'aurait aucun effet.",
   "ui.inventory.not_used.not_usable": "{item} : impossible de l'utiliser.",
@@ -171,5 +172,9 @@
   "equipment.slot.body": "Corps",
   "equipment.slot.accessory1": "Accessoire",
   "equipment.slot.accessory2": "Accessoire",
-  "currency.gold.name": "Or"
+  "currency.gold.name": "Or",
+  "ui.inventory.view.list": "Liste",
+  "ui.inventory.view.grid": "Grille",
+  "ui.inventory.no_fit": "{item} : pas de place ici.",
+  "items.section.hotbar": "Raccourcis"
 }

@@ -99,6 +99,7 @@ void InventoryScreen::OnEnter()
             if (auto* button = FindWidget<Button>(name)) button->OnClick = [this, action] { Later([this, action] { (this->*action)(); }); };
         if (auto* prev = FindWidget<Button>("member-prev")) prev->OnClick = [this] { Later([this] { SelectMember(-1); }); };
         if (auto* next = FindWidget<Button>("member-next")) next->OnClick = [this] { Later([this] { SelectMember(1); }); };
+        if (auto* view = FindWidget<NineSliceButton>("view")) view->OnClick = [this] { Later([this] { ToggleView(); }); };
         _built = true;
     }
     if (_member.empty() && Host.Members && Host.Members->GetLeader()) _member = Host.Members->GetLeader()->Id;
@@ -111,6 +112,7 @@ void InventoryScreen::Refresh()
     BuildTabs();
     BuildRows();
     ShowTabs();
+    BuildGrid();
     ShowDetail();
     ShowEquipment();
     ShowFooter();
@@ -171,7 +173,9 @@ void InventoryScreen::BuildRows()
 {
     Inventory* bag = GetBag();
     _shown.clear();
-    if (bag) _shown = bag->Filter({ .Category = _tab < _tabs.size() ? _tabs[_tab] : std::string{}, .Text = _filterText });
+    // The grid view shows everything (the filter dims what it leaves out).
+    const bool grid = IsGridView();
+    if (bag) _shown = bag->Filter({ .Category = !grid && _tab < _tabs.size() ? _tabs[_tab] : std::string{}, .Text = grid ? std::string{} : _filterText });
     // The selection is an entry's place: one used up or worn may leave it
     // past the end, or off this tab.
     if (_selected && std::ranges::find(_shown, *_selected) == _shown.end()) _selected.reset();
@@ -217,22 +221,20 @@ void InventoryScreen::WireRow(UIWidget& row, const u32 shownIndex)
         const Inventory* bag = GetBag();
         if (!bag || shownIndex >= _shown.size()) return std::nullopt;
         const ItemStack& stack = bag->GetStacks()[_shown[shownIndex]];
-        DragPayload      payload{ .Kind = "item", .Data = stack.Item, .Count = stack.Count, .Size = { 40.0f, 40.0f } };
+        DragPayload      payload{ .Kind = "item", .Data = ItemDrag{ stack.Item, _shown[shownIndex] }, .Count = stack.Count, .Size = { 40.0f, 40.0f } };
         payload.Text = stack.Count > 1 ? std::format("{}", stack.Count) : std::string{};
         const ItemDef* def = Host.Items ? Host.Items->Find(stack.Item) : nullptr;
         if (const auto icon = def && Host.LoadIcon ? Host.LoadIcon(def->Icon) : std::nullopt)
             payload.Texture = icon->Texture, payload.Sampler = icon->Sampler, payload.UV = icon->UV;
         return payload;
     };
-    row.CanDrop = [](const DragPayload& p) { return p.Kind == "item"; };
+    row.CanDrop = [](const DragPayload& p) { const ItemDrag* d = AsItemDrag(p); return d && d->Index; };
     row.OnDrop  = [this, shownIndex](const DragPayload& p) {
-        const std::string item = std::any_cast<std::string>(p.Data);
-        Later([this, shownIndex, item] {
+        const u32 from = *AsItemDrag(p)->Index;
+        Later([this, shownIndex, from] {
             Inventory* bag = GetBag();
             if (!bag || shownIndex >= _shown.size()) return;
-            const auto& stacks = bag->GetStacks();
-            const auto  from   = std::ranges::find_if(stacks, [&](const ItemStack& s) { return s.Item == item; });
-            if (from != stacks.end()) (void)bag->Move(static_cast<u32>(from - stacks.begin()), _shown[shownIndex]);
+            (void)bag->Move(from, _shown[shownIndex]);
             Refresh();
         });
     };
@@ -304,13 +306,24 @@ void InventoryScreen::CycleSort()
     Refresh();
 }
 
-// Keyboard and gamepad focus moving down the rows selects as it goes.
+// Keyboard and gamepad focus moving over the rows - or the grid's cells -
+// selects as it goes.
 void InventoryScreen::FollowFocus()
 {
     const UIWidget* focused = GetFocusedWidget();
     for (u32 i = 0; i < _rows.size() && i < _shown.size(); ++i)
         if (_rows[i] == focused && _selected != _shown[i]) {
             Select(i);
+            return;
+        }
+    const Inventory* bag = GetBag();
+    for (const GridCell& cell : _cells)
+        if (cell.Widget == focused && bag) {
+            const std::optional<u32> on = bag->StackAt(cell.Section, cell.X, cell.Y);
+            if (on && _selected != on) {
+                _selected = on;
+                Refresh();
+            }
             return;
         }
 }
@@ -338,6 +351,7 @@ void InventoryScreen::OnTick(f32, const InputManager& input)
 {
     if (!_helpShown || input.GetLastDevice() != _helpDevice) ShowHelp(input);
     FollowFocus();
+    if (IsGridView()) ShowDropPreview();
     if (_tabs.empty()) return;
     const u32 count = static_cast<u32>(_tabs.size());
     if (input.JustPressed(ActionPagePrev)) SelectTab((_tab + count - 1) % count);
@@ -361,10 +375,12 @@ void InventoryScreen::ShowHelp(const InputManager& input)
     _helpShown       = true;
     const auto key   = [&](const ActionID action) { return KeyFor(input, action, _helpDevice); };
     const ActionID back = _helpDevice == InputDevice::Gamepad ? UIManager::ActionBack : UIManager::ActionTextEscape;
+    // The grid view has no tabs; it turns what's held instead.
     if (auto* help = FindWidget<Label>("help"))
-        help->Text = Loc::Format("ui.inventory.help", { { "confirm", key(UIManager::ActionConfirm) }, { "grab", key(UIManager::ActionGrab) },
-                                                        { "prev", key(ActionPagePrev) }, { "next", key(ActionPageNext) },
-                                                        { "back", key(back) } });
+        help->Text = Loc::Format(IsGridView() ? "ui.inventory.help_grid" : "ui.inventory.help",
+                                 { { "confirm", key(UIManager::ActionConfirm) }, { "grab", key(UIManager::ActionGrab) },
+                                   { "prev", key(ActionPagePrev) }, { "next", key(ActionPageNext) },
+                                   { "rotate", key(UIManager::ActionRotate) }, { "back", key(back) } });
 }
 
 // What Refresh depends on: the bag's entries, the member's equipment and the
@@ -377,7 +393,8 @@ u64 InventoryScreen::Signature() const
         hash = (hash ^ 0xFF) * 1099511628211ull;
     };
     if (const Inventory* bag = GetBag())
-        for (const ItemStack& stack : bag->GetStacks()) mix(std::format("{}:{}", stack.Item, stack.Count));
+        for (const ItemStack& stack : bag->GetStacks())
+            mix(std::format("{}:{}@{}:{},{}{}", stack.Item, stack.Count, stack.Section, stack.X, stack.Y, stack.Rotated ? "r" : ""));
     if (Host.Members)
         for (const PartyMember& member : Host.Members->GetMembers()) {
             mix(member.Id);

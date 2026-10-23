@@ -5,7 +5,9 @@
 #include <arcbit/items/Party.h>
 #include <arcbit/ui/UIScreen.h>
 
+#include <any>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -39,6 +41,20 @@ struct ItemIcon
     SamplerHandle Sampler;
     UVRect        UV;
 };
+
+// What an inventory drag carries (DragPayload::Data, Kind "item"): the item,
+// and its entry in the screen's bag (none: from elsewhere - a container).
+struct ItemDrag
+{
+    std::string        Item;
+    std::optional<u32> Index;
+};
+
+// The ItemDrag a payload carries; null if it carries something else.
+[[nodiscard]] inline const ItemDrag* AsItemDrag(const DragPayload& payload)
+{
+    return payload.Kind == "item" ? std::any_cast<ItemDrag>(&payload.Data) : nullptr;
+}
 
 // What the screen shows and acts on - Application fills it in.
 struct InventoryHost
@@ -112,6 +128,19 @@ public:
     // Rebuild from the bag now (done each tick the bag or the party changed).
     void Refresh();
 
+    // --- Grid bags (grid, survival) -----------------------------------------
+
+    // A grid bag shows its grid - items drawn across the cells they take -
+    // or, switched, a list of the same items with tabs and the filter.
+    [[nodiscard]] bool IsGridView() const { return _gridView && GetBag() && GetBag()->GetRules().IsGrid(); }
+    void               ToggleView();
+
+    // What dropping an entry on a cell does: count less than it holds splits
+    // that many off there; onto the same item, merges; onto another, they
+    // trade places; else it moves - turned or not. False (a message says
+    // why) if it doesn't fit.
+    bool PlaceAt(u32 index, std::string_view section, u32 x, u32 y, bool rotated, u32 count);
+
     // A name from the locale files - key - else the id tidied ("key_items" ->
     // "Key items"), with a warning the first time, so a missing string shows.
     [[nodiscard]] static std::string NameOr(const std::string& key, std::string_view id);
@@ -167,6 +196,30 @@ private:
     std::string              _messageText;
     u64                      _signature = 0;
     bool                     _built     = false;
+
+    // The grid view: a cell widget per cell of each area (the main grid "",
+    // then the sections), the item views drawn over them, and the cell size
+    // that fits the bag in the space the layout gives it.
+    struct GridCell
+    {
+        NineSliceButton* Widget = nullptr;
+        std::string      Section;
+        u32              X = 0, Y = 0;
+    };
+    std::vector<GridCell>       _cells;
+    std::vector<UIWidget*>      _itemViews;
+    std::map<std::string, Vec2> _areaOrigins; // each area's top-left in "grid-area"
+    std::string                 _gridShape;   // what the cells were built for
+    f32                         _cellSize = 48.0f;
+    f32                         _cellGap  = 4.0f;
+    bool                        _gridView = true;
+    void BuildGrid();
+    void BuildCells(const InventoryRules& rules);
+    void WireCell(u32 cell);
+    void ShowGridItems();
+    void ShowDropPreview();
+    [[nodiscard]] std::optional<DragPayload> GridPayload(u32 index, const DragStart& how) const;
+    [[nodiscard]] bool                       CanPlace(const DragPayload& p, const GridCell& cell) const;
 
     ScrollPanel*                   _list = nullptr;
     std::vector<NineSliceButton*>  _rows;

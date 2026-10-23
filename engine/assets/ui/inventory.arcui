@@ -16,8 +16,14 @@
           "uv_border_left": 0.25, "uv_border_right": 0.25, "uv_border_top": 0.25, "uv_border_bottom": 0.25,
           "pixel_left": 6, "pixel_right": 6, "pixel_top": 6, "pixel_bottom": 6 },
 
-        { "type": "GridPanel", "name": "tabs", "zorder": 2, "offset": [24, 60], "columns": 6, "cell_size": [116, 34], "gap": [4, 0] },
+        { "type": "GridPanel", "name": "tabs", "zorder": 2, "offset": [24, 60], "columns": 5, "cell_size": [116, 34], "gap": [4, 0] },
 
+        { "type": "NineSliceButton", "name": "view", "zorder": 2, "offset": [624, 60], "size": [120, 34], "tab_order": 6, "visible": false,
+          "tint_normal": [0.20, 0.24, 0.38, 1], "tint_hovered": [0.30, 0.36, 0.56, 1], "tint_pressed": [0.16, 0.19, 0.30, 1],
+          "uv_border_left": 0.25, "uv_border_right": 0.25, "uv_border_top": 0.25, "uv_border_bottom": 0.25,
+          "pixel_left": 6, "pixel_right": 6, "pixel_top": 6, "pixel_bottom": 6 },
+        { "type": "Panel", "name": "grid-area", "zorder": 2, "offset": [24, 102], "size": [720, 404], "visible": false,
+          "background_color": [0, 0, 0, 0] },
         { "type": "ScrollPanel", "name": "list", "zorder": 2, "offset": [24, 102], "size": [720, 404] },
         { "type": "Label", "name": "empty", "zorder": 2, "text_key": "ui.inventory.empty", "offset": [24, 290], "size": [720, 24],
           "align": "center", "visible": false },
@@ -61,6 +67,22 @@
     }
   ],
   "templates": {
+    "cell": {
+      "type": "NineSliceButton", "tab_order": 1, "zorder": 3,
+      "tint_normal": [0.16, 0.19, 0.31, 1], "tint_hovered": [0.30, 0.36, 0.56, 1], "tint_pressed": [0.12, 0.15, 0.24, 1],
+      "uv_border_left": 0.25, "uv_border_right": 0.25, "uv_border_top": 0.25, "uv_border_bottom": 0.25,
+      "pixel_left": 4, "pixel_right": 4, "pixel_top": 4, "pixel_bottom": 4
+    },
+    "grid-item": {
+      "type": "Panel", "zorder": 5, "draw_border": true,
+      "children": [
+        { "type": "Image", "name": "icon", "zorder": 6, "offset": [4, 4], "size": [40, 40], "visible": false },
+        { "type": "Label", "name": "name", "zorder": 6, "offset": [4, 4], "size_percent": [0.95, 0.9], "word_wrap": true,
+          "skin": { "FontScale": 0.7 } },
+        { "type": "Label", "name": "count", "zorder": 7, "anchor": [1, 1], "pivot": [1, 1], "offset": [-4, -2], "size": [60, 22],
+          "align": "right", "skin": { "FontScale": 0.85 } }
+      ]
+    },
     "tab": {
       "type": "NineSliceButton", "tab_order": 5, "zorder": 3,
       "tint_normal": [0.20, 0.24, 0.38, 1], "tint_hovered": [0.30, 0.36, 0.56, 1], "tint_pressed": [0.16, 0.19, 0.30, 1],

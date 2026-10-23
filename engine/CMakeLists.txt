@@ -64,6 +64,7 @@ add_library(arcbit-engine STATIC
     src/UIScreenInteraction.cpp
     src/InventoryScreen.cpp
     src/InventoryScreenDetail.cpp
+    src/InventoryScreenGrid.cpp
     src/ApplicationInventory.cpp
     src/ScriptGame.cpp
     src/ScriptTasks.cpp
