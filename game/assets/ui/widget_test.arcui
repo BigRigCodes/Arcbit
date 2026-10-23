@@ -9,6 +9,7 @@
       "name": "panel",
       "anchor": [0.5, 0.5],
       "pivot": [0.5, 0.5],
+      "offset": [-180, 0],
       "size": [580, 736],
       "draw_border": true,
       "children": [
@@ -25,6 +26,7 @@
           "type": "Button",
           "name": "close-btn",
           "text_key": "demo.widgets.close",
+          "tooltip_key": "demo.widgets.close_tip",
           "anchor": [1.0, 0.0],
           "pivot": [1.0, 0.0],
           "offset": [-8, 10],
@@ -202,11 +204,44 @@
           "type": "Button",
           "name": "replay-btn",
           "text_key": "demo.widgets.replay",
+          "tooltip_key": "demo.widgets.replay_tip",
           "offset": [480, 690],
           "size": [86, 32],
           "tab_order": 9
         }
       ]
+    },
+    {
+      "type": "Panel",
+      "name": "drag-panel",
+      "anchor": [0.5, 0.5],
+      "pivot": [0.0, 0.5],
+      "offset": [124, 0],
+      "size": [324, 548],
+      "draw_border": true,
+      "children": [
+        { "type": "Label", "text_key": "demo.widgets.drag.title", "anchor": [0.5, 0.0], "pivot": [0.5, 0.0],
+          "offset": [0, 12], "size": [300, 26], "align": "center" },
+        { "type": "GridPanel", "name": "drag-grid", "offset": [22, 50], "columns": 4, "cell_size": [64, 64],
+          "gap": [8, 8], "fit": true },
+        { "type": "Panel", "name": "drag-discard", "offset": [22, 274], "size": [280, 48], "draw_border": true,
+          "focusable": true, "tab_order": 20, "tooltip_key": "demo.widgets.drag.discard_tip",
+          "children": [
+            { "type": "Label", "text_key": "demo.widgets.drag.discard", "anchor": [0.5, 0.5], "pivot": [0.5, 0.5],
+              "size": [260, 24], "align": "center" }
+          ] },
+        { "type": "Label", "name": "drag-status", "offset": [22, 334], "size": [280, 48], "word_wrap": true },
+        { "type": "Label", "text_key": "demo.widgets.drag.help", "offset": [22, 388], "size": [280, 104],
+          "word_wrap": true, "markup": true }
+      ]
     }
-  ]
+  ],
+  "templates": {
+    "drag-cell": {
+      "type": "Panel", "focusable": true, "tab_order": 10, "draw_border": true,
+      "children": [
+        { "type": "Panel", "name": "thing", "anchor": [0.5, 0.5], "pivot": [0.5, 0.5], "size": [40, 40], "visible": false }
+      ]
+    }
+  }
 }

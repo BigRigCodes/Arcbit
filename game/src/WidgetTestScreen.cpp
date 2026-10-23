@@ -4,14 +4,36 @@
 
 #include <arcbit/input/InputManager.h>
 
+#include <any>
+#include <array>
 #include <format>
 
 namespace Arcbit {
+
+namespace
+{
+    struct Thing
+    {
+        const char* Key;
+        Color       Tint;
+        Vec2        Size; // as it lies unturned
+        bool        Rotatable = false;
+    };
+    constexpr std::array Things = {
+        Thing{ "demo.widgets.thing.potion", { 0.85f, 0.25f, 0.30f, 1.0f }, { 36.0f, 36.0f } },
+        Thing{ "demo.widgets.thing.key", { 0.95f, 0.78f, 0.25f, 1.0f }, { 40.0f, 24.0f } },
+        Thing{ "demo.widgets.thing.gem", { 0.30f, 0.55f, 0.95f, 1.0f }, { 24.0f, 48.0f }, true },
+        Thing{ "demo.widgets.thing.boot", { 0.50f, 0.35f, 0.22f, 1.0f }, { 34.0f, 40.0f } },
+        Thing{ "demo.widgets.thing.herb", { 0.35f, 0.75f, 0.35f, 1.0f }, { 30.0f, 30.0f } },
+    };
+    constexpr u32 KeyThing = 1;
+} // namespace
 
 void WidgetTestScreen::OnEnter()
 {
     LoadLayout("assets/ui/widget_test.arcui");
     WireWidgets();
+    WireDragDemo();
     UpdateOutput();
 }
 
@@ -20,8 +42,91 @@ void WidgetTestScreen::OnBackPressed()
     if (OnClose) OnClose();
 }
 
+// Keyboard focus shows on the drag panel's cells: their border lights up.
 void WidgetTestScreen::OnTick(const f32 /*dt*/, const InputManager& /*input*/)
 {
+    std::vector<UIWidget*> lit = _cellWidgets;
+    lit.push_back(_discard);
+    for (UIWidget* w : lit)
+        if (w) w->SkinOverride.PanelBorder = w->IsFocused() ? std::optional(UISkin{}.AccentColor) : std::nullopt;
+}
+
+// The drag and drop panel: twelve cells from the layout's template, five
+// things in them, and the discard box.
+void WidgetTestScreen::WireDragDemo()
+{
+    auto* grid = FindWidget<GridPanel>("drag-grid");
+    if (!grid) return;
+    _cellWidgets = AddFromTemplate("drag-cell", *grid, 12);
+    _cells.assign(_cellWidgets.size(), Cell{});
+    for (const auto& [cell, thing] : { std::pair{ 0u, 0u }, std::pair{ 1u, 1u }, std::pair{ 2u, 2u }, std::pair{ 5u, 3u }, std::pair{ 9u, 4u } })
+        if (cell < _cells.size()) _cells[cell].Thing = thing;
+    for (u32 i = 0; i < _cellWidgets.size(); ++i) WireCell(i);
+
+    _discard = FindWidget<UIWidget>("drag-discard");
+    if (_discard) {
+        _discard->CanDrop = [this](const DragPayload& p) { return _cells[std::any_cast<u32>(p.Data)].Thing != KeyThing; };
+        _discard->OnDrop  = [this](const DragPayload& p) {
+            Cell& from = _cells[std::any_cast<u32>(p.Data)];
+            SetDragStatus("demo.widgets.drag.discarded", *from.Thing);
+            from = {};
+            ShowCells();
+        };
+    }
+    if (auto* status = FindWidget<Label>("drag-status")) status->SetTextKey("demo.widgets.drag.ready");
+    ShowCells();
+}
+
+// Each cell: a source when it holds something, a target for anything (the
+// two cells swap), with its thing's name as a tooltip.
+void WidgetTestScreen::WireCell(const u32 index)
+{
+    UIWidget* w   = _cellWidgets[index];
+    w->OnDragStart = [this, index](const DragStart& how) { return PickUp(index, how); };
+    w->OnDragEnd   = [this](const DragPayload& p, const bool dropped) {
+        if (const auto& thing = _cells[std::any_cast<u32>(p.Data)].Thing; !dropped && thing) SetDragStatus("demo.widgets.drag.put_back", *thing);
+    };
+    w->CanDrop = [](const DragPayload& p) { return p.Kind == "demo-thing"; };
+    w->OnDrop  = [this, index](const DragPayload& p) {
+        const u32 from = std::any_cast<u32>(p.Data);
+        Cell      held = _cells[from];
+        held.Rotated   = p.Rotated;
+        SetDragStatus(p.Count > 1 ? "demo.widgets.drag.moved_alt" : "demo.widgets.drag.moved", *held.Thing);
+        _cells[from]  = _cells[index];
+        _cells[index] = held;
+        ShowCells();
+    };
+    w->GetTooltip = [this, index] { return _cells[index].Thing ? Loc::Get(Things[*_cells[index].Thing].Key) : std::string{}; };
+}
+
+std::optional<DragPayload> WidgetTestScreen::PickUp(const u32 index, const DragStart& how) const
+{
+    const Cell& cell = _cells[index];
+    if (!cell.Thing) return std::nullopt;
+    const Thing& thing = Things[*cell.Thing];
+    // Count stands in for "the alternate drag" here; an inventory would split the stack.
+    return DragPayload{ .Kind = "demo-thing", .Data = index, .Count = how.Alternate ? 2u : 1u, .Rotatable = thing.Rotatable,
+                        .Rotated = cell.Rotated, .Tint = thing.Tint, .Size = thing.Size, .Text = how.Alternate ? "x2" : "" };
+}
+
+// Each cell's "thing" panel: the color and shape of what it holds.
+void WidgetTestScreen::ShowCells()
+{
+    for (size_t i = 0; i < _cellWidgets.size(); ++i) {
+        auto* shown = dynamic_cast<Panel*>(_cellWidgets[i]->FindDescendant("thing"));
+        if (!shown) continue;
+        shown->Visible = _cells[i].Thing.has_value();
+        if (!shown->Visible) continue;
+        const Thing& thing          = Things[*_cells[i].Thing];
+        shown->SkinOverride.PanelBg = thing.Tint;
+        shown->Size                 = _cells[i].Rotated ? Vec2{ thing.Size.Y, thing.Size.X } : thing.Size;
+    }
+}
+
+void WidgetTestScreen::SetDragStatus(const std::string_view key, const u32 thing)
+{
+    if (auto* status = FindWidget<Label>("drag-status"))
+        status->Text = Loc::Format(key, { { "thing", Loc::Get(Things[thing].Key) } });
 }
 
 void WidgetTestScreen::WireWidgets()
