@@ -160,6 +160,10 @@ public:
     // Put an entry at a cell of the main grid ("") or a section, turned or
     // not; false if it doesn't fit there (it, or the section, refuses).
     bool MoveTo(u32 index, std::string_view section, u32 x, u32 y, bool rotated);
+    [[nodiscard]] bool CanMoveTo(u32 index, std::string_view section, u32 x, u32 y, bool rotated) const; // without moving it
+    // Split `count` off an entry into a new one at a cell (right after it in
+    // the entries); false, nothing split, if it doesn't fit there.
+    bool SplitTo(u32 index, u32 count, std::string_view section, u32 x, u32 y, bool rotated);
     bool Rotate(u32 index);             // turn it where it lies, if it fits turned
     bool Swap(u32 a, u32 b);            // trade places, if each fits in the other's
     [[nodiscard]] std::optional<u32> StackAt(std::string_view section, u32 x, u32 y) const; // what covers a cell

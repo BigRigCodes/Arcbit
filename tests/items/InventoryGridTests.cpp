@@ -205,3 +205,18 @@ TEST_CASE("A grid saves where everything lies, and re-places what no longer fits
     CHECK(loaded.Count("gem") == 1);
     CHECK(Layout(loaded).back() == "gem@:1,0"); // moved to the first free cell
 }
+
+TEST_CASE("SplitTo puts part of a stack at a chosen cell, or splits nothing", "[items][inventory][grid]")
+{
+    Items     items;
+    Inventory bag(items.library, InventoryRules::Grid(2, 1));
+    CHECK(bag.Add("potion", 6) == 6);
+    CHECK(bag.CanMoveTo(0, "", 1, 0, false));
+    CHECK_FALSE(bag.SplitTo(0, 2, "", 0, 0, false)); // its own cell: taken
+    CHECK_FALSE(bag.SplitTo(0, 6, "", 1, 0, false)); // all of it is a move, not a split
+    CHECK(bag.SplitTo(0, 2, "", 1, 0, false));
+    CHECK(Layout(bag) == std::vector<std::string>{ "potion@:0,0", "potion@:1,0" });
+    CHECK(bag.GetStacks()[0].Count == 4);
+    CHECK(bag.GetStacks()[1].Count == 2);
+    CHECK_FALSE(bag.SplitTo(0, 1, "", 1, 0, false)); // full now
+}

@@ -130,18 +130,36 @@ void Inventory::PlaceNew(ItemStack& stack)
     stack.Rotated = place->Rotated;
 }
 
-bool Inventory::MoveTo(const u32 index, const std::string_view section, const u32 x, const u32 y, const bool rotated)
+bool Inventory::CanMoveTo(const u32 index, const std::string_view section, const u32 x, const u32 y, const bool rotated) const
 {
     if (!_rules.IsGrid() || index >= _stacks.size()) return false;
     const ItemDef* def = Def(_stacks[index].Item);
-    std::vector<Area> areas = BuildAreas(static_cast<i32>(index));
-    const Place       place{ std::string(section), x, y, rotated };
-    if (!def || !FitsAt(areas, *def, place)) return false;
+    std::vector<Area> areas = BuildAreas(static_cast<i32>(index)); // its own cells are free to it
+    return def && FitsAt(areas, *def, Place{ std::string(section), x, y, rotated });
+}
+
+bool Inventory::MoveTo(const u32 index, const std::string_view section, const u32 x, const u32 y, const bool rotated)
+{
+    if (!CanMoveTo(index, section, x, y, rotated)) return false;
     ItemStack& stack = _stacks[index];
-    stack.Section    = place.Section;
+    stack.Section    = std::string(section);
     stack.X          = x;
     stack.Y          = y;
     stack.Rotated    = rotated;
+    return true;
+}
+
+bool Inventory::SplitTo(const u32 index, const u32 count, const std::string_view section, const u32 x, const u32 y, const bool rotated)
+{
+    if (!_rules.IsGrid() || index >= _stacks.size() || count == 0 || count >= _stacks[index].Count) return false;
+    const ItemDef*    def   = Def(_stacks[index].Item);
+    std::vector<Area> areas = BuildAreas(); // its own cells taken: the part goes somewhere else
+    const Place       place{ std::string(section), x, y, rotated };
+    if (!def || !FitsAt(areas, *def, place)) return false;
+    ItemStack part{ .Item = _stacks[index].Item, .Count = count, .Acquired = _stacks[index].Acquired,
+                    .Section = place.Section, .X = x, .Y = y, .Rotated = rotated };
+    _stacks[index].Count -= count;
+    _stacks.insert(_stacks.begin() + index + 1, std::move(part));
     return true;
 }
 
