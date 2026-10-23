@@ -151,7 +151,7 @@ protected:
 
     void OnRender(FramePacket& packet) override
     {
-        packet.AmbientColor  = Color{0.018f, 0.022f, 0.03f, 1.0f};
+        packet.AmbientColor  = Color{0.143f, 0.16f, 0.19f, 1.0f}; // sRGB: a white wall at night shows as this
         packet.ReferenceSize = {ViewportW, ViewportH};
         if (_showGrid) {
             // Engine-provided tile-grid debug overlay (slice 1, Phase 22B).
