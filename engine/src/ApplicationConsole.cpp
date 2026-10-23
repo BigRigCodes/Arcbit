@@ -171,6 +171,7 @@ void Application::RegisterConsoleCommands()
     RegisterDialogCommands();
     RegisterPrefabCommands();
     RegisterItemCommands();
+    RegisterInventoryActions();
     _debugConsole.Register({ .Name = "fps", .Help = "fps - show / hide the FPS counter", .Run = [](const Args&) {
         Settings::Graphics.ShowFps = !Settings::Graphics.ShowFps;
         Settings::MarkDirty("graphics");

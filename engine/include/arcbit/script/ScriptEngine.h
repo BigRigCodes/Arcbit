@@ -50,6 +50,7 @@ struct ScriptServices
     // Inventory.Drop: how many were dropped into the scene.
     std::function<u32(std::string_view item, u32 count, std::string_view bag)> DropItem;
     std::function<std::vector<LootStack>(std::string_view table)>               RollLoot; // Loot.Roll
+    std::function<void(std::string_view bag)>                                   OpenInventory; // Inventory.Open
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

@@ -277,6 +277,7 @@ void Application::Run()
                                     return p ? p->Count : 0u;
                                 },
                                 .RollLoot  = [this](const std::string_view table) { return RollLoot(table); },
+                                .OpenInventory = [this](const std::string_view bag) { OpenInventory(bag); },
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },

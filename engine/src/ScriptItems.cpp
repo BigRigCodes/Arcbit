@@ -66,7 +66,7 @@ void ScriptEngine::State::BindLoot()
 
 // Inventory.Add("potion", 2) -> how many fit; Remove, Count, Has; Get() ->
 // { { Item = "potion", Count = 2 }, ... }; Drop -> how many went to the
-// ground. Every call takes an optional last argument, the bag ("party" when
+// ground; Open shows the inventory screen. Every call takes an optional last argument, the bag ("party" when
 // left out).
 void ScriptEngine::State::BindInventory()
 {
@@ -90,6 +90,10 @@ void ScriptEngine::State::BindInventory()
     inventory.set_function("Drop", [this](const std::string& item, const sol::optional<u32> count, const sol::optional<std::string> name) {
         if (!Services.DropItem) throw std::runtime_error("Inventory.Drop: no scene to drop into");
         return Services.DropItem(item, count.value_or(1), name.value_or(std::string(Inventories::Party)));
+    });
+    inventory.set_function("Open", [this](const sol::optional<std::string> name) {
+        if (!Services.OpenInventory) throw std::runtime_error("Inventory.Open: no inventory screen here");
+        Services.OpenInventory(name.value_or(std::string(Inventories::Party)));
     });
     inventory.set_function("Get", [this, bag](const sol::optional<std::string> name) {
         sol::table stacks = Lua.create_table();

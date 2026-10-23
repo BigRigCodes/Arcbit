@@ -25,7 +25,9 @@
 #include <arcbit/scene/SceneManager.h>
 #include <arcbit/script/ScriptEngine.h>
 #include <arcbit/scene/SceneRegistry.h>
+#include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/ui/DialogScreen.h>
+#include <arcbit/ui/InventoryScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
 
@@ -302,6 +304,14 @@ public:
     // was dropped. Publishes engine.item.dropped.
     Entity DropItem(std::string_view item, u32 count = 1, std::string_view bag = Inventories::Party);
 
+    // Open the inventory screen on a bag (a menu: it replaces any open one).
+    // Its stock art and layout are assets/engine/ui/inventory*.
+    void OpenInventory(std::string_view bag = Inventories::Party);
+
+    // An item's icon (ItemDef::Icon: a texture, or "sheet.json#frame"), for
+    // any UI; nullopt if it can't be read. Read once, cached.
+    [[nodiscard]] std::optional<ItemIcon> LoadItemIcon(std::string_view icon);
+
     // The loot tables in the loot folder (ApplicationConfig::LootFolder).
     [[nodiscard]] const LootLibrary& GetLoot() const { return _loot; }
 
@@ -529,6 +539,10 @@ private:
     void                         RegisterPartyCommands();
     void                   RegisterPrefabCommands();
     DialogArt              _dialogArt; // the stock art, loaded by the first CreateDialogScreen
+    InventoryArt           _inventoryArt; // loaded by the first OpenInventory
+    std::map<std::string, std::optional<ItemIcon>, std::less<>>      _itemIcons;  // LoadItemIcon, misses too
+    std::map<std::string, std::unique_ptr<SpriteSheet>, std::less<>> _iconSheets; // icon sheets, by path
+    void                   RegisterInventoryActions();
 
     // Conversations (ApplicationDialog.cpp).
     struct ActiveDialog
