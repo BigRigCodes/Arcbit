@@ -105,6 +105,7 @@
   "input.debug_physics": "Débogage physique",
   "input.debug_grid": "Afficher la grille",
   "input.widget_test": "Test des widgets",
+  "input.inventory": "Inventaire",
   "input.movement_style": "Changer de déplacement",
   "input.gate": "Barrière en pause",
   "input.player_shape": "Forme du joueur",

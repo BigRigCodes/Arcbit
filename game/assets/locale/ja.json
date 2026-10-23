@@ -110,6 +110,7 @@
   "input.debug_physics": "物理デバッグ切り替え",
   "input.debug_grid": "グリッド切り替え",
   "input.widget_test": "ウィジェットテスト",
+  "input.inventory": "持ち物",
   "input.movement_style": "移動方式の切り替え",
   "input.gate": "ゲート停止",
   "input.player_shape": "プレイヤーの形の切り替え",

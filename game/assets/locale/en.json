@@ -105,6 +105,7 @@
   "input.debug_physics": "Toggle Physics Debug",
   "input.debug_grid": "Toggle Grid",
   "input.widget_test": "Widget Test",
+  "input.inventory": "Inventory",
   "input.movement_style": "Toggle Movement Style",
   "input.gate": "Pause Gate",
   "input.player_shape": "Toggle Player Shape",

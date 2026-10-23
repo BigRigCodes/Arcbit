@@ -75,6 +75,7 @@ constexpr ActionID ActionQuickSave  = MakeAction("Demo_QuickSave");
 constexpr ActionID ActionQuickLoad  = MakeAction("Demo_QuickLoad");
 constexpr ActionID ActionPause      = MakeAction("Pause");
 constexpr ActionID ActionWidgetTest = MakeAction("Debug_WidgetTest");
+constexpr ActionID ActionInventory  = MakeAction("Inventory");
 
 constexpr const char* BattleScene = "Battle";
 
@@ -156,6 +157,7 @@ protected:
         HandlePauseKey();
         if (GetUI().HasBlockingScreen()) return; // a menu owns the other keys
         if (GetInput().JustPressed(ActionWidgetTest)) ShowWidgetTest();
+        if (GetInput().JustPressed(ActionInventory)) OpenInventory(); // the party's bag
 
         const size_t count = Demo::Entries().size();
         if (GetInput().JustPressed(ActionQuickSave)) (void)SaveTo(SaveSlot::Quick());

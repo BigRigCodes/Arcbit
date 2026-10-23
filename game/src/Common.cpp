@@ -88,6 +88,7 @@ namespace
             { "Interact", "input.interact", "input.category.gameplay", { Key::E, Key::Enter } },
             { "Sprint", "input.sprint", "input.category.gameplay", { Key::LeftShift } },
             { "Player_Attack", "input.attack", "input.category.gameplay", { Key::Space } },
+            { "Inventory", "input.inventory", "input.category.gameplay", { Key::I } },
             { "Pause", "input.pause", "input.category.system", { Key::Escape } },
             { "Debug_Physics", "input.debug_physics", "input.category.debug", { Key::F2 } },
             { "Debug_ToggleGrid", "input.debug_grid", "input.category.debug", { Key::G } },
