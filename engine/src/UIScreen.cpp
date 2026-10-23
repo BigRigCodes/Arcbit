@@ -189,10 +189,11 @@ void UIScreen::DispatchControlKey(const UIControlKey key)
 // Focus navigation
 // ---------------------------------------------------------------------------
 
+// A hidden widget's children are hidden with it: none of them takes focus.
 void UIScreen::CollectFocusables(UIWidget& w, std::vector<UIWidget*>& out)
 {
-    if (w.Visible && w.Enabled && w.Focusable)
-        out.push_back(&w);
+    if (!w.Visible) return;
+    if (w.Enabled && w.Focusable) out.push_back(&w);
     for (auto& child : w._children)
         CollectFocusables(*child, out);
 }
