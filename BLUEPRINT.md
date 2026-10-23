@@ -525,6 +525,7 @@ The rest of the original event list moved to the phases that build those systems
 - [x] Dialog conditions and actions on items (`has`, `give`, `take`); console `give`, `items`, `party`
 - [x] Pick-up / drop / equip / unequip logic; equip slots (weapon, armor, accessory, etc.)
 - [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder; drag and drop and tooltips added to the GUI for it
+  - [x] GUI groundwork: drag and drop (mouse, right-button alternate, grab key, R to turn), tooltips, `GridPanel`
 - [ ] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable
 - [ ] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
 - [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game

@@ -169,6 +169,25 @@ f32 ScrollbarWidth = 6.0f;
 
 Overrides `UpdateTree` and `CollectTree` to apply scissor clipping and scroll offset.
 
+### `GridPanel`
+
+Lays its visible children out in cells, left to right, row by row - an
+inventory's slots, a palette, a level select. Each child's `Anchor`, `Pivot`
+and `Offset` are set for it (and its `Size`, where `CellSize` gives one).
+
+```cpp
+u32  Columns  = 4;
+Vec2 CellSize = {48, 48}; // 0 on an axis: the child keeps its own
+Vec2 Gap      = {4, 4};
+Vec2 Padding  = {0, 0};
+bool Fit      = false;    // size the panel to its rows
+```
+
+Fill one from a layout template - `AddFromTemplate("slot", *grid, 24)` stamps
+24 copies ([Templates](#templates)). The arrow keys and the D-pad move focus
+across and down its cells (`Neighbor(cell, dx, dy)`), and out along the focus
+order at its edges; elsewhere they step through the focus order as before.
+
 ---
 
 ## .arcui File Format
@@ -191,13 +210,30 @@ C++ wires `OnClick` and other callbacks after loading via `FindWidget<T>`.
 the screen). `meta` is a flat key-value object for style hints that C++ reads via
 `GetMetaF32` / `GetMetaStr`.
 
+### Templates
+
+A layout may also have `"templates"`: named widget objects it doesn't place,
+for code to stamp out as often as it needs - a row per audio category, a cell
+per inventory slot:
+
+```json
+"templates": {
+  "slot": { "type": "Panel", "focusable": true, "draw_border": true,
+            "children": [ { "type": "Image", "name": "icon", "size": [40, 40] } ] }
+}
+```
+
+`UIScreen::AddFromTemplate(name, parent)` adds one copy as a child of `parent`
+and returns it; `AddFromTemplate(name, parent, count)` adds `count` and returns
+them all. Find a copy's parts with `copy->FindDescendant("icon")`.
+
 ### Widget object — base properties
 
 Every widget object has a required `"type"` field and any subset of:
 
 | Field          | Type         | Default      | Description                                                                                               |
 |----------------|--------------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `type`         | string       | required     | One of: `"Panel"`, `"Scrim"`, `"Label"`, `"Button"`, `"Image"`, `"NineSlice"`, `"NineSliceButton"`, `"NineSliceProgressBar"`, `"ProgressBar"`, `"ScrollPanel"`, `"TextInput"`, `"Slider"`, `"Dropdown"`, `"Checkbox"`, `"RadioGroup"`, `"Switch"` |
+| `type`         | string       | required     | One of: `"Panel"`, `"Scrim"`, `"Label"`, `"Button"`, `"Image"`, `"NineSlice"`, `"NineSliceButton"`, `"NineSliceProgressBar"`, `"ProgressBar"`, `"ScrollPanel"`, `"GridPanel"`, `"TextInput"`, `"Slider"`, `"Dropdown"`, `"Checkbox"`, `"RadioGroup"`, `"Switch"` |
 | `name`         | string       | —            | Identifier for `FindWidget<T>(name)`                                                                      |
 | `size`         | `[w, h]`     | `[100, 100]` | Pixel size                                                                                                |
 | `size_percent` | `[x, y]`     | `[0, 0]`     | Overrides `size` as fraction of parent when > 0                                                           |
@@ -212,6 +248,8 @@ Every widget object has a required `"type"` field and any subset of:
 | `children`     | array        | —            | Nested widget objects                                                                                     |
 | `tab_order`    | unsigned int | 0            | Focus order for keyboard/gamepad navigation. Equal values keep tree order.                                |
 | `skin`         | object       | —            | Per-widget skin override block (see [Per-widget skin overrides](#per-widget-skin-overrides))              |
+| `tooltip`      | string       | —            | Rich text shown after the pointer rests on it ([Tooltips](#tooltips))                                     |
+| `tooltip_key`  | string       | —            | The same, as a Loc key read when it shows                                                                 |
 
 * Defaults listed are the base defaults. Specific widgets may override them — e.g., `focusable` defaults to `true` on `Button`, `Dropdown`, `Switch`, `Checkbox`, `Slider`, `TextInput`, and `RadioGroup`.
 * All colors are `[r, g, b, a]` floats in 0–1 range.
@@ -265,6 +303,16 @@ Every widget object has a required `"type"` field and any subset of:
 |-------------------|-------|----------------------------------|
 | `content_height`  | float | Total logical height of children |
 | `scrollbar_width` | float | Scrollbar gutter width in pixels |
+
+**GridPanel**
+
+| Field       | Type     | Description                                   |
+|-------------|----------|-----------------------------------------------|
+| `columns`   | int      | Cells across (default 4)                      |
+| `cell_size` | `[w, h]` | Every cell's size; 0 on an axis keeps a child's own |
+| `gap`       | `[x, y]` | Space between cells                           |
+| `padding`   | `[x, y]` | Space inside the panel's edge                 |
+| `fit`       | bool     | The panel sizes itself to its rows            |
 
 **NineSlice**
 
@@ -597,6 +645,63 @@ just closes the switcher.
 
 ---
 
+## Drag and drop
+
+Any widget can be a drag source, a drop target, or both - by setting hooks
+on it, like a button's `OnClick` (types in `UIDrag.h`):
+
+```cpp
+slot->OnDragStart = [this, i](const DragStart& how) -> std::optional<DragPayload> {
+    if (Empty(i)) return std::nullopt;                       // nothing to drag here
+    return DragPayload{ .Kind = "item", .Data = i, .Count = how.Alternate ? Half(i) : Count(i),
+                        .Rotatable = true, .Texture = IconOf(i), .Size = { 48, 96 }, .Text = "x3" };
+};
+slot->OnDragEnd = [this](const DragPayload& p, bool dropped) { /* cancelled: nothing moved */ };
+slot->CanDrop   = [this, i](const DragPayload& p) { return p.Kind == "item" && Fits(p, i); };
+slot->OnDrop    = [this, i](const DragPayload& p) { Move(std::any_cast<u32>(p.Data), i, p.Count, p.Rotated); };
+```
+
+- **The payload** says what it is (`Kind`, which targets check), carries
+  whatever the source needs (`Data`, a `std::any`), a `Count`, and how its
+  **ghost** looks under the pointer: an image (or a block of `Tint`), its
+  `Size`, and corner text.
+- **With the mouse** (or the gamepad cursor), pressing on a source and moving
+  a few pixels starts the drag; letting go drops. The **right button** starts
+  the **alternate** drag (`DragStart::Alternate`) - a source may make it
+  "split the stack".
+- **With keys or a gamepad**, `UI_Grab` (Space, gamepad West) picks up from
+  the focused widget; focus moves as usual and the ghost follows it; `UI_Grab`
+  again puts it down on the focused widget, if it takes it. Shift + grab is the
+  alternate drag.
+- **`UI_Rotate`** (R, gamepad North) turns a `Rotatable` payload while it's
+  held: `Rotated` flips, and so does the ghost.
+- **Back** (Esc, gamepad East) cancels a drag instead of closing the screen.
+- **Targets** draw an outline while a payload is over them: `DropAccept` if
+  they'd take it (`CanDrop`; unset takes anything), `DropRefuse` if not. The
+  source draws dimmed while it's dragged (`IsBeingDragged`). Under a drag,
+  nothing else sees the button - no clicks.
+- **The drop** reaches the target's `OnDrop`, then the source's
+  `OnDragEnd(payload, true)`; anything else - dropped nowhere, refused,
+  cancelled - is `OnDragEnd(payload, false)`. Either may rebuild the screen.
+- A drag belongs to the screen taking input; a screen pushed over it cancels it.
+
+C++ can drive it too: `UIScreen::GrabFocused`, `RotateDrag`, `CancelDrag`,
+`IsDragging`, `GetDrag`, `GetDropTarget`.
+
+## Tooltips
+
+Give any widget `Tooltip` (rich text), `TooltipKey` (a Loc key), or
+`GetTooltip` (asked each time - text that changes, like an item's stats); in a
+layout, `"tooltip"` / `"tooltip_key"`. It shows:
+
+- after the pointer rests on the widget for the skin's `TooltipDelay`
+  (0.5 s), below-right of the pointer, until the pointer leaves or presses;
+- after focus moves to the widget by keys or the D-pad, under it (above it at
+  the screen's bottom), until the mouse moves.
+
+It wraps at the skin's `TooltipWidth` and stays on screen. Not while a drag
+is on. `UIScreen::GetTooltipText()` says what's showing.
+
 ## Fonts and text
 
 Text is UTF-8 everywhere: labels, buttons, text inputs (which move, delete
@@ -728,9 +833,10 @@ arrays grouped by widget: `panel` (`background`, `border`), `button` (`normal`,
 `progressBar` (`background`, `fill`), `scrollBar` (`track`, `thumb`, `thumbHovered`),
 `input` (`background`, `border`, `focusBorder`, `cursor`, `placeholder`), `slider`
 (`thumb`, `thumbHovered`), `checkbox` (`background`, `hovered`, `check`), `switch`
-(`on`, `off`, `thumb`), plus top-level `accentColor`, `scrimColor` (legacy key
-`overlayColor` is still read), `fontScale`, and a `sounds` object (`focusMove`,
-`activate`, `back`, `sliderTick`, `toggle`). Any missing key keeps the `UISkin` default.
+(`on`, `off`, `thumb`), `tooltip` (`background`, `border`, `delay` in seconds,
+`width` in pixels), `drop` (`accept`, `refuse`), plus top-level `accentColor`,
+`scrimColor` (legacy key `overlayColor` is still read), `fontScale`, and a
+`sounds` object (`focusMove`, `activate`, `back`, `sliderTick`, `toggle`). Any missing key keeps the `UISkin` default.
 
 Sound keys are plain strings for now; Phase 36 replaces them with asset handle references from `arcbit-pack`. The default engine skin ships with all sound keys empty (no sound).
 
