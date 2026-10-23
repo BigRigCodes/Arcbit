@@ -205,6 +205,11 @@ struct Vec4
 // both supported so it can be used both in game code and passed directly to
 // Vulkan clear values (which expect float[4]).
 //
+// R, G and B are sRGB, like a color picker or an image file: 0.5 is a mid
+// gray on screen. The renderer turns them into linear values (ToLinear) for
+// the shaders, which blend and light in linear space; the sRGB swapchain
+// encodes the result back. A is coverage and is never converted.
+//
 // Common presets are exposed as static methods.
 // ---------------------------------------------------------------------------
 struct Color
@@ -222,6 +227,16 @@ struct Color
 
     constexpr bool operator==(const Color& o) const { return R == o.R && G == o.G && B == o.B && A == o.A; }
     constexpr bool operator!=(const Color& o) const { return !(*this == o); }
+
+    // The sRGB decode (IEC 61966-2-1) of R, G and B; A as it is. 0 and 1 (and
+    // anything outside them, an HDR light color) skip the pow.
+    [[nodiscard]] static f32 SrgbToLinear(const f32 c)
+    {
+        if (c <= 0.0f || c >= 1.0f) return c;
+        return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+    }
+
+    [[nodiscard]] Color ToLinear() const { return { SrgbToLinear(R), SrgbToLinear(G), SrgbToLinear(B), A }; }
 
     // -----------------------------------------------------------------------
     // Common presets

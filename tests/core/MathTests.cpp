@@ -82,6 +82,20 @@ TEST_CASE("Color defaults, presets, and indexing", "[core][math]")
     CHECK(c.A == 0.5f);
 }
 
+TEST_CASE("Color decodes sRGB to linear, alpha untouched", "[core][math]")
+{
+    CHECK(Color::White().ToLinear() == Color::White()); // 0 and 1 are fixed points
+    CHECK(Color::Black().ToLinear() == Color::Black());
+
+    const Color gray = Color{ 0.5f, 0.5f, 0.5f, 0.5f }.ToLinear();
+    CHECK_THAT(gray.R, WithinAbs(0.21404f, 1e-4f)); // mid gray is about 21% of the light
+    CHECK(gray.A == 0.5f);
+
+    CHECK_THAT(Color::SrgbToLinear(0.04f), WithinAbs(0.04f / 12.92f, 1e-7f)); // the linear toe
+    CHECK_THAT(Color::SrgbToLinear(22.0f / 255.0f), WithinAbs(0.00802f, 1e-5f));
+    CHECK(Color::SrgbToLinear(2.0f) == 2.0f); // an over-bright light color passes through
+}
+
 TEST_CASE("Angle constants agree", "[core][math]")
 {
     CHECK_THAT(180.0f * DegToRad, WithinAbs(Pi, 1e-6f));

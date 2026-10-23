@@ -570,9 +570,10 @@ u32 RenderThread::UploadLights(const FramePacket& packet, const u32 frameSlot)
             g.PosY      = l.Position.Y;
             g.Radius    = l.Radius;
             g.Intensity = l.Intensity;
-            g.ColorR    = l.LightColor.R;
-            g.ColorG    = l.LightColor.G;
-            g.ColorB    = l.LightColor.B;
+            const Color color = l.LightColor.ToLinear();
+            g.ColorR    = color.R;
+            g.ColorG    = color.G;
+            g.ColorB    = color.B;
             g.ShadowRow = shadowRows[i];
         }
         _device->UpdateBuffer(_lightSSBO[frameSlot], gpuLights.data(), lightCount * sizeof(GpuPointLight));
@@ -678,10 +679,11 @@ void RenderThread::UploadInstances(const std::vector<const Sprite*>& sorted, con
         inst.V0              = s->UV.V0;
         inst.U1              = s->UV.U1;
         inst.V1              = s->UV.V1;
-        inst.TintR           = s->Tint.R;
-        inst.TintG           = s->Tint.G;
-        inst.TintB           = s->Tint.B;
-        inst.TintA           = s->Tint.A;
+        const Color tint     = s->Tint.ToLinear();
+        inst.TintR           = tint.R;
+        inst.TintG           = tint.G;
+        inst.TintB           = tint.B;
+        inst.TintA           = tint.A;
         inst.RotCos          = std::cos(s->Rotation);
         inst.RotSin          = std::sin(s->Rotation);
         inst._pad0           = 0.0f;
@@ -723,7 +725,7 @@ void RenderThread::BeginRenderPass(const CommandListHandle cmd, const TextureHan
     colorAttach.Texture    = backBuffer;
     colorAttach.Load       = LoadOp::Clear;
     colorAttach.Store      = StoreOp::Store;
-    colorAttach.ClearColor = packet.LetterboxColor;
+    colorAttach.ClearColor = packet.LetterboxColor.ToLinear(); // cleared as linear, encoded by the sRGB target
 
     std::array<Attachment, 1> attachments = { colorAttach };
     RenderingDesc             renderDesc{};
@@ -734,7 +736,7 @@ void RenderThread::BeginRenderPass(const CommandListHandle cmd, const TextureHan
     const bool hasBars = lb.X > 0.5f || lb.Y > 0.5f;
     if (hasBars || packet.ClearColor != packet.LetterboxColor)
     {
-        _device->ClearColorRect(cmd, packet.ClearColor,
+        _device->ClearColorRect(cmd, packet.ClearColor.ToLinear(),
                                 static_cast<i32>(lb.X), static_cast<i32>(lb.Y),
                                 static_cast<u32>(lb.W), static_cast<u32>(lb.H));
     }
@@ -768,10 +770,11 @@ u32 RenderThread::DrawSpriteBatches(const CommandListHandle cmd, const std::vect
     pc.ViewportH  = refH / packet.CameraZoom;
     pc.RotCos     = std::cos(packet.CameraRotation);
     pc.RotSin     = std::sin(packet.CameraRotation);
-    pc.AmbientR   = packet.AmbientColor.R;
-    pc.AmbientG   = packet.AmbientColor.G;
-    pc.AmbientB   = packet.AmbientColor.B;
-    pc.AmbientA   = packet.AmbientColor.A;
+    const Color ambient = packet.AmbientColor.ToLinear();
+    pc.AmbientR   = ambient.R;
+    pc.AmbientG   = ambient.G;
+    pc.AmbientB   = ambient.B;
+    pc.AmbientA   = ambient.A;
     pc.LightCount = lightCount;
     _device->PushConstants(cmd, ShaderStage::Vertex | ShaderStage::Fragment, &pc, sizeof(pc));
 
@@ -840,10 +843,11 @@ void RenderThread::DrawLegacyCalls(const CommandListHandle cmd, const FramePacke
         fpc.V0         = dc.UV.V0;
         fpc.U1         = dc.UV.U1;
         fpc.V1         = dc.UV.V1;
-        fpc.AmbientR   = packet.AmbientColor.R;
-        fpc.AmbientG   = packet.AmbientColor.G;
-        fpc.AmbientB   = packet.AmbientColor.B;
-        fpc.AmbientA   = packet.AmbientColor.A;
+        const Color ambient = packet.AmbientColor.ToLinear();
+        fpc.AmbientR   = ambient.R;
+        fpc.AmbientG   = ambient.G;
+        fpc.AmbientB   = ambient.B;
+        fpc.AmbientA   = ambient.A;
         fpc.LightCount = lightCount;
         _device->PushConstants(cmd, ShaderStage::Vertex | ShaderStage::Fragment, &fpc, sizeof(fpc));
 
@@ -878,7 +882,8 @@ void RenderThread::UploadSDFInstances(const std::vector<const Sprite*>& sorted, 
         inst.PosX   = s->Position.X; inst.PosY  = s->Position.Y;
         inst.HalfW  = s->Size.X * 0.5f; inst.HalfH = s->Size.Y * 0.5f;
         inst.U0     = s->UV.U0; inst.V0 = s->UV.V0; inst.U1 = s->UV.U1; inst.V1 = s->UV.V1;
-        inst.TintR  = s->Tint.R; inst.TintG = s->Tint.G; inst.TintB = s->Tint.B; inst.TintA = s->Tint.A;
+        const Color tint = s->Tint.ToLinear();
+        inst.TintR  = tint.R; inst.TintG = tint.G; inst.TintB = tint.B; inst.TintA = tint.A;
         inst.RotCos = 1.0f; inst.RotSin = 0.0f; inst._pad0 = 0.0f; inst._pad1 = 0.0f;
     }
     _device->UpdateBuffer(_sdfInstanceBuffers[frameSlot], instances.data(), count * sizeof(SpriteInstance));
@@ -912,13 +917,15 @@ void RenderThread::UploadUIInstances(const std::vector<const Sprite*>& sorted, c
         inst.PosX  = s->Position.X; inst.PosY  = s->Position.Y;
         inst.HalfW = s->Size.X * 0.5f; inst.HalfH = s->Size.Y * 0.5f;
         inst.U0    = s->UV.U0; inst.V0 = s->UV.V0; inst.U1 = s->UV.U1; inst.V1 = s->UV.V1;
-        inst.TintR = s->Tint.R; inst.TintG = s->Tint.G; inst.TintB = s->Tint.B; inst.TintA = s->Tint.A;
+        const Color tint = s->Tint.ToLinear();
+        inst.TintR = tint.R; inst.TintG = tint.G; inst.TintB = tint.B; inst.TintA = tint.A;
         // ui.vert turns the quad about its center (a spinner, the cursor's diamond).
         inst.RotCos = std::cos(s->Rotation); inst.RotSin = std::sin(s->Rotation);
         inst._pad0  = s->SDFMode ? 1.0f : 0.0f; // mode flag read by ui.vert / ui.frag
         inst._pad1  = 0.0f;
         ui.Weight   = s->Weight; ui.Outline = s->Outline; ui.Softness = s->Softness; ui.Shear = s->Shear;
-        ui.OutR     = s->OutlineColor.R; ui.OutG = s->OutlineColor.G; ui.OutB = s->OutlineColor.B; ui.OutA = s->OutlineColor.A;
+        const Color out = s->OutlineColor.ToLinear();
+        ui.OutR     = out.R; ui.OutG = out.G; ui.OutB = out.B; ui.OutA = out.A;
     }
     _device->UpdateBuffer(_uiInstanceBuffers[frameSlot], instances.data(), count * sizeof(UIInstance));
 }

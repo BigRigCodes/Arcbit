@@ -95,6 +95,15 @@ sprites (characters overlapping, particles, UI) need no extra passes, there's
 one set of shaders and no G-buffer, and normal maps still work per sprite.
 Tile-binned light culling on the GPU can come later if profiling asks.
 
+Shading happens in linear space. Image files are color art, so every texture
+`TextureManager` loads is uploaded as sRGB and sampling decodes it to linear;
+every `Color` (tints, UI skins, text, lights, ambient, clear colors) is sRGB
+too, like a color picker, and the render thread converts it with
+`Color::ToLinear` before upload. The sRGB swapchain encodes the result once on
+output. So a skin color of `[0.1, 0.1, 0.12]` shows as about 10% gray, as an
+artist expects, and a white sprite under ambient `A` shows as `A`. Data
+textures stay `UNorm`: the font atlas (a distance field) and normal maps.
+
 Post-processing, render targets and the effects that need them are Phase 34.
 
 ---
