@@ -184,6 +184,7 @@ public:
     // by place (clamped) - for keeping focus where it was across a rebuild.
     [[nodiscard]] i32 GetFocusIndex() const;
     void              FocusAt(i32 index);
+    void              Focus(UIWidget* widget) { ApplyFocus(widget); } // one of this screen's; null: none
 
     // --- Drag and drop, tooltips (docs/gui.md) -------------------------------
 

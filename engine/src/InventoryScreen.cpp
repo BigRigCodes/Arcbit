@@ -133,10 +133,12 @@ void InventoryScreen::ShowTabs()
     auto* grid = FindWidget<GridPanel>("tabs");
     if (!grid) return;
     if (_tabButtons.size() != _tabs.size()) {
+        const bool onTab = std::ranges::find(_tabButtons, GetFocusedWidget()) != _tabButtons.end();
         grid->ClearChildren();
         _tabButtons.clear();
         for (UIWidget* made : AddFromTemplate("tab", *grid, static_cast<u32>(_tabs.size())))
             if (auto* button = dynamic_cast<NineSliceButton*>(made)) _tabButtons.push_back(button);
+        if (onTab && !_tabButtons.empty()) Focus(_tabButtons[std::min<size_t>(_tab, _tabButtons.size() - 1)]);
     }
     for (u32 i = 0; i < _tabButtons.size(); ++i) {
         NineSliceButton& tab = *_tabButtons[i];
@@ -162,12 +164,17 @@ void InventoryScreen::BuildRows()
     if (_selected && std::ranges::find(_shown, *_selected) == _shown.end()) _selected.reset();
     if (!_selected && !_shown.empty()) _selected = _shown.front();
     if (_list && _rows.size() != _shown.size()) {
-        const i32 focus = GetFocusIndex();
+        // Focus on a row stays on the row at its place (the last, if there
+        // are fewer now); focus anywhere else - the filter being typed in -
+        // isn't touched.
+        const auto onRow = std::ranges::find(_rows, GetFocusedWidget());
+        const auto place = onRow != _rows.end() ? std::optional(static_cast<size_t>(onRow - _rows.begin())) : std::nullopt;
         _list->ClearChildren();
         _rows.clear();
         for (UIWidget* made : AddFromTemplate("row", *_list, static_cast<u32>(_shown.size())))
             if (auto* row = dynamic_cast<NineSliceButton*>(made)) _rows.push_back(row);
-        if (focus >= 0) FocusAt(focus);
+        if (place && !_rows.empty()) Focus(_rows[std::min(*place, _rows.size() - 1)]);
+        else if (place && !_tabButtons.empty()) Focus(_tabButtons[std::min<size_t>(_tab, _tabButtons.size() - 1)]); // nothing left: the tab
     }
     if (_list) _list->ContentHeight = _rowHeight * static_cast<f32>(_rows.size());
     for (u32 i = 0; i < _rows.size() && i < _shown.size(); ++i) {

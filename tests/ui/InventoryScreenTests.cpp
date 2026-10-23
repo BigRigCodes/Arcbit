@@ -128,6 +128,25 @@ TEST_CASE("A weight bag: All first, then what it holds; the carry weight shows",
     CHECK(f.screen->GetSort() == InventorySort::Type);
 }
 
+TEST_CASE("Typing in the filter keeps focus as the rows come and go; focus on a row stays on a row", "[ui][inventory]")
+{
+    Fixture f(InventoryRules::Weight(10.0f));
+    f.Open();
+    UIWidget* filter = f.screen->FindWidget<UIWidget>("filter");
+    f.screen->Focus(filter);
+    f.screen->SetFilterText("zz"); // three rows to none
+    CHECK(f.Shown().empty());
+    CHECK(f.screen->GetFocusedWidget() == filter);
+    f.screen->SetFilterText("o"); // none to some
+    CHECK_FALSE(f.Shown().empty());
+    CHECK(f.screen->GetFocusedWidget() == filter);
+
+    f.screen->SetFilterText("");
+    f.screen->Focus(f.screen->FindWidget<UIWidget>("row-2"));
+    f.screen->SetFilterText("ot"); // three rows to one: focus goes to the last row there is
+    CHECK(f.screen->GetFocusedWidget() == f.screen->FindWidget<UIWidget>("row-0"));
+}
+
 TEST_CASE("The detail panel: what an item does, and what wearing it would change", "[ui][inventory]")
 {
     Fixture f;
