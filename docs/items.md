@@ -20,6 +20,7 @@ the inventory screen build on these (Phase 29, in progress).
 - [Currencies](#currencies)
 - [Stats](#stats)
 - [The party](#the-party) - [Equipment](#equipment), [Using items](#using-items)
+- [The inventory screen](#the-inventory-screen)
 - [In dialogs, scripts and the console](#in-dialogs-scripts-and-the-console)
 
 ---
@@ -522,6 +523,54 @@ would change nothing (a potion at full HP) and it does nothing else (`set`,
 
 ---
 
+## The inventory screen
+
+`Application::OpenInventory(bag)` (default the party's) opens `InventoryScreen`
+as a menu; so do the console's `inventory [bag]` and Lua's
+`Inventory.Open(bag)`. This is the screen for the list kinds - pockets,
+weight; the grid kinds get their own view next.
+
+- **Tabs**: pockets have one per item category the game has (empty ones too,
+  as a Pokemon bag's pockets are); other kinds have **All**, then the
+  categories the bag holds. Click one, or **Q** / **E** (the shoulder buttons).
+- **Rows**: icon, name, count - and weight, in a bag with a carry limit. Focus
+  (arrows, D-pad) or a click selects a row; **Enter**, or a click on the
+  selected row, uses it (if it has a `use`) or else equips it. Dragging a row
+  onto another moves it; onto an equipment slot, wears it.
+- **Sort** cycles name, type, value, weight, count, recent (it sorts the bag
+  itself); the **filter** keeps rows whose names match.
+- **Details**: the selected item's icon, name, weight and value,
+  description, the stats it gives worn ("Attack +5"), what using it does
+  ("Use: HP +50"), and - for equipment - the member's stats that wearing it
+  would change ("Attack: 10 → 15", better green, worse red). **Use**,
+  **Equip** and **Drop** act on it (Drop: not key items; it lands at the
+  leader's feet), each leaving a message.
+- **Equipment**: a member's slots (`<` / `>` change member); click a slot to
+  take off what's in it, drop an item on one to wear it; their stats below.
+- **Footer**: the carry weight (a bar, red when over), the currencies.
+- The screen follows the bag: a pickup or a script changing it while it's
+  open redraws it.
+
+Names come from the locale files: categories `items.category.<id>`,
+equipment slots `equipment.slot.<name>`, currencies `currency.<id>.name`,
+members `party.<id>.name`; one a file lacks shows as its id, tidied
+(`key_items` -> "Key items"). The engine has the stock types', slots' and
+`gold`'s.
+
+**Layout and art.** The layout is `assets/engine/ui/inventory.arcui`
+(`InventoryScreen::LayoutPath`, replaceable like the dialog box's) and the art
+`assets/engine/ui/inventory/` - `panel.png` (the frame), `row.png` and
+`tab.png` (drawn white, tinted per state), `slot.png` (an icon's well). The
+screen fills these widgets when they're there: `title`, `filter`
+(TextInput), `sort`, `tabs` (GridPanel), `list` (ScrollPanel), `empty`,
+`weight-text`, `weight-bar`, `currencies`, `message`, `detail-icon`,
+`detail-slot`, `detail-name`, `detail-info`, `detail-desc`, `detail-stats`,
+`use`, `equip`, `drop`, `equipment`, `member-name`, `member-prev`,
+`member-next`, `slots`, `member-stats`; and stamps the templates `tab`, `row`
+(with `slot`, `icon`, `name`, `count`, `weight`) and `slot-row` (with `slot`,
+`icon`, `item`). Rows are named `row-0`, `row-1`...; slot rows
+`slot-<name>`. Meta `row_height`, `slot_row_height`.
+
 ## In dialogs, scripts and the console
 
 **Dialogs** ([dialog.md](dialog.md)) check and change the party's bag:
@@ -546,6 +595,7 @@ the party carries.
 | `Inventory.Get(bag)` | `{ { Item = "potion", Count = 2 }, ... }` |
 | `Inventory.Drop(item, count, bag)` | onto the ground where the leader stands; returns how many |
 | `Loot.Roll(table)` | `{ { Id = "potion", Count = 2, Currency = false }, ... }` - given to no one |
+| `Inventory.Open(bag)` | the inventory screen, on a bag (the party's when left out) |
 | `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
 | `Party.Members()`, `Party.Leader()` | the members' ids, the leader first |
 | `Party.Get(id)` | `{ Id, Name, Bag, Equipment = { weapon = "iron_sword" } }` |
@@ -556,8 +606,9 @@ the party carries.
 
 **Console**: `give <item | currency> [count] [bag]`, `take <item |
 currency> [count] [bag]` (cheats); `drop <item> [count] [bag]` puts items
-on the ground; `loot [table] [times]` lists or rolls loot tables; `items
-[bag]` lists a bag and the currencies; `party` lists the members, their stats and equipment; `equip
+on the ground; `loot [table] [times]` lists or rolls loot tables;
+`inventory [bag]` opens the inventory screen; `items [bag]` lists a bag and
+the currencies; `party` lists the members, their stats and equipment; `equip
 <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]`
 (cheats).
 
