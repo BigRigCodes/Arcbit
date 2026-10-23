@@ -66,7 +66,9 @@ enum class Format : u32
 {
     Undefined = 0,
 
-    // 8-bit per channel
+    // 8-bit per channel. _SRGB: the texels are sRGB-encoded color; sampling
+    // returns linear values and rendering into one encodes them again. _UNorm:
+    // the bytes are used as they are (data such as normals or distance fields).
     RGBA8_UNorm,
     RGBA8_SRGB,
     BGRA8_UNorm,

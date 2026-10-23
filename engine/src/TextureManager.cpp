@@ -202,10 +202,13 @@ TextureHandle TextureManager::LoadFromDisk(const std::string& path)
 
 TextureHandle TextureManager::Upload(const std::string& path, const DecodedImage& image)
 {
+    // Image files hold sRGB-encoded color: an sRGB format makes sampling return
+    // linear values, so blending and lighting work in linear and the sRGB
+    // swapchain encodes the result back exactly once.
     TextureDesc desc{};
     desc.Width     = image.Width;
     desc.Height    = image.Height;
-    desc.Format    = Format::RGBA8_UNorm;
+    desc.Format    = Format::RGBA8_SRGB;
     desc.Usage     = TextureUsage::Sampled | TextureUsage::Transfer;
     desc.DebugName = path.c_str();
 

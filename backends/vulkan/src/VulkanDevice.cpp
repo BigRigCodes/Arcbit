@@ -81,6 +81,13 @@ VkAttachmentLoadOp ToVkLoadOp(LoadOp op)
 }
 
 // Convert our Format enum → VkFormat.
+//
+// The sRGB formats need no special handling elsewhere in the backend:
+// R8G8B8A8_SRGB is in the spec's mandatory format table for sampled images
+// with linear filtering and transfer src/dst, and the device decodes it to
+// linear on every sample (and encodes on every write to a B8G8R8A8_SRGB
+// swapchain image). UploadTexture fills mip 0 only and nothing blits, so
+// there is no mip generation that would have to filter in linear space.
 VkFormat ToVkFormat(Format fmt)
 {
     switch (fmt)

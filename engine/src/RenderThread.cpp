@@ -111,7 +111,7 @@ void RenderThread::CreateDefaultNormalResources()
     TextureDesc normalDesc{};
     normalDesc.Width     = 1;
     normalDesc.Height    = 1;
-    normalDesc.Format    = Format::RGBA8_UNorm;
+    normalDesc.Format    = Format::RGBA8_UNorm; // a normal is data, not color: stays linear
     normalDesc.Usage     = TextureUsage::Sampled | TextureUsage::Transfer;
     normalDesc.DebugName = "default_normal";
     _defaultNormalTex   = _device->CreateTexture(normalDesc);

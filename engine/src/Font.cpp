@@ -523,7 +523,7 @@ void FontAtlas::Upload(RenderDevice& device)
             TextureDesc desc{};
             desc.Width     = PageSize;
             desc.Height    = PageSize;
-            desc.Format    = Format::RGBA8_UNorm;
+            desc.Format    = Format::RGBA8_UNorm; // a distance field / coverage is data, not color: no sRGB decode
             desc.Usage     = TextureUsage::Sampled | TextureUsage::Transfer;
             desc.DebugName = _mode == FontMode::SDF ? "font_sdf_page" : "font_bitmap_page";
             page.Texture   = device.CreateTexture(desc);

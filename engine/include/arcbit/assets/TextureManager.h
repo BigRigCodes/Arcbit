@@ -41,6 +41,11 @@ struct DecodedImage
 // Loads 2D textures from disk (PNG, JPG, BMP, TGA via stb_image) and
 // caches them by canonical file path so duplicate loads are free.
 //
+// Every texture is uploaded as RGBA8_SRGB: the files are color art (sprites,
+// tiles, UI), and sampling an sRGB texture returns linear values. Data that
+// is not color (a normal map) must not go through here - it would be decoded
+// as if it were sRGB.
+//
 // Game code should NOT call Load() directly. Load textures through
 // SpriteSheet::Load() instead — this ensures every texture has associated
 // metadata (frames, animations, pivot points, pixels_per_unit) and keeps the
