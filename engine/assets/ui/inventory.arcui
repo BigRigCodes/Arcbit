@@ -26,7 +26,7 @@
         { "type": "ProgressBar", "name": "weight-bar", "zorder": 2, "offset": [330, 520], "size": [414, 16] },
         { "type": "Label", "name": "currencies", "zorder": 2, "offset": [28, 548], "size": [716, 24], "markup": true },
         { "type": "Label", "name": "message", "zorder": 2, "offset": [28, 580], "size": [716, 24], "markup": true },
-        { "type": "Label", "name": "help", "zorder": 2, "text_key": "ui.inventory.help", "offset": [28, 614], "size": [716, 24],
+        { "type": "Label", "name": "help", "zorder": 2, "offset": [28, 614], "size": [716, 24],
           "markup": true, "skin": { "FontScale": 0.8 } },
 
         {

@@ -10,33 +10,35 @@
 #include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
 #include <arcbit/ui/InputWidgets.h>
+#include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/Widgets.h>
 
 #include <algorithm>
 #include <any>
 #include <array>
 #include <format>
+#include <set>
 #include <utility>
 
 namespace Arcbit
 {
 namespace
 {
-    // "weapons" -> "Weapons", "key_items" -> "Key items": a name for an id
-    // the locale files don't have one for.
-    std::string Humanize(const std::string_view id)
-    {
-        std::string name(id);
-        std::ranges::replace(name, '_', ' ');
-        if (!name.empty() && name[0] >= 'a' && name[0] <= 'z') name[0] = static_cast<char>(name[0] - 'a' + 'A');
-        return name;
-    }
-
-    std::string NameOr(const std::string& key, const std::string_view id) { return Loc::Has(key) ? Loc::Get(key) : Humanize(id); }
-
     std::string CategoryName(const std::string& category)
     {
-        return category.empty() ? Loc::Get("ui.inventory.all") : NameOr("items.category." + category, category);
+        return category.empty() ? Loc::Get("ui.inventory.all") : InventoryScreen::NameOr("items.category." + category, category);
+    }
+
+    // The key bound to an action on this device - its first binding of the
+    // kind the device has; "?" if there's none.
+    std::string KeyFor(const InputManager& input, const ActionID action, const InputDevice device)
+    {
+        const bool pad = device == InputDevice::Gamepad;
+        for (const Binding& b : input.GetBindings(action)) {
+            const bool padBinding = b.BindingType == Binding::Type::GamepadButton || b.BindingType == Binding::Type::GamepadAxis;
+            if (padBinding == pad) return InputManager::BindingToString(b);
+        }
+        return "?";
     }
 
     std::string CategoryOf(const ItemDef& def) { return def.Category.empty() ? def.Type : def.Category; }
@@ -46,6 +48,17 @@ namespace
     constexpr std::array SortKeys  = { "ui.inventory.sort.name", "ui.inventory.sort.type", "ui.inventory.sort.value",
                                        "ui.inventory.sort.weight", "ui.inventory.sort.count", "ui.inventory.sort.recent" };
 } // namespace
+
+std::string InventoryScreen::NameOr(const std::string& key, const std::string_view id)
+{
+    if (Loc::Has(key)) return Loc::Get(key);
+    static std::set<std::string, std::less<>> warned;
+    if (warned.insert(key).second) LOG_WARN(UI, "Inventory: no string '{}' - showing '{}' as it is", key, id);
+    std::string name(id);
+    std::ranges::replace(name, '_', ' ');
+    if (!name.empty() && name[0] >= 'a' && name[0] <= 'z') name[0] = static_cast<char>(name[0] - 'a' + 'A');
+    return name;
+}
 
 InventoryScreen::InventoryScreen()
 {
@@ -323,6 +336,7 @@ void InventoryScreen::OnUpdate(f32)
 
 void InventoryScreen::OnTick(f32, const InputManager& input)
 {
+    if (!_helpShown || input.GetLastDevice() != _helpDevice) ShowHelp(input);
     FollowFocus();
     if (_tabs.empty()) return;
     const u32 count = static_cast<u32>(_tabs.size());
@@ -337,7 +351,20 @@ void InventoryScreen::OnBackPressed()
 
 void InventoryScreen::OnLocaleChanged()
 {
+    _helpShown = false;
     if (_built) Refresh();
+}
+
+void InventoryScreen::ShowHelp(const InputManager& input)
+{
+    _helpDevice      = input.GetLastDevice();
+    _helpShown       = true;
+    const auto key   = [&](const ActionID action) { return KeyFor(input, action, _helpDevice); };
+    const ActionID back = _helpDevice == InputDevice::Gamepad ? UIManager::ActionBack : UIManager::ActionTextEscape;
+    if (auto* help = FindWidget<Label>("help"))
+        help->Text = Loc::Format("ui.inventory.help", { { "confirm", key(UIManager::ActionConfirm) }, { "grab", key(UIManager::ActionGrab) },
+                                                        { "prev", key(ActionPagePrev) }, { "next", key(ActionPageNext) },
+                                                        { "back", key(back) } });
 }
 
 // What Refresh depends on: the bag's entries, the member's equipment and the

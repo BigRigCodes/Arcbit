@@ -18,15 +18,6 @@ namespace Arcbit
 {
 namespace
 {
-    std::string NameOr(const std::string& key, std::string_view id)
-    {
-        if (Loc::Has(key)) return Loc::Get(key);
-        std::string name(id);
-        std::ranges::replace(name, '_', ' ');
-        if (!name.empty() && name[0] >= 'a' && name[0] <= 'z') name[0] = static_cast<char>(name[0] - 'a' + 'A');
-        return name;
-    }
-
     std::string Number(const f32 value) { return std::format("{:g}", std::round(value * 100.0f) / 100.0f); }
 
     // "ATK" -> "Attack", "SPD%" -> "Speed" (percent: true).
@@ -198,7 +189,7 @@ void InventoryScreen::ShowEquipment()
     if (panel) panel->Visible = member != nullptr;
     if (!member) return;
     const CharacterDef* character = Host.Members->FindCharacter(member->Id);
-    SetText(FindWidget<Label>("member-name"), character ? Loc::Get(character->NameKey) : NameOr("party." + member->Id + ".name", member->Id));
+    SetText(FindWidget<Label>("member-name"), character ? Loc::Get(character->NameKey) : InventoryScreen::NameOr("party." + member->Id + ".name", member->Id));
     for (const char* arrow : { "member-prev", "member-next" })
         if (auto* button = FindWidget<Button>(arrow)) button->Visible = Host.Members->GetMembers().size() > 1;
     SetText(FindWidget<Label>("member-stats"), MemberStats());
@@ -220,7 +211,7 @@ void InventoryScreen::ShowEquipment()
         row.Name    = "slot-" + slot.Name;
         row.Offset  = { 0.0f, height * static_cast<f32>(i) };
         row.Texture = Art.Row, row.Sampler = Art.Sampler;
-        SetText(row.FindDescendant("slot"), NameOr("equipment.slot." + slot.Name, slot.Name));
+        SetText(row.FindDescendant("slot"), InventoryScreen::NameOr("equipment.slot." + slot.Name, slot.Name));
         SetText(row.FindDescendant("item"), def ? Loc::Get(def->NameKey) : Loc::Get("ui.inventory.empty_slot"));
         SetIcon(row.FindDescendant("icon"), def ? def->Icon : std::string_view{});
         row.OnClick = [this, name = slot.Name] { Later([this, name] { Unequip(name); }); };
@@ -275,7 +266,7 @@ void InventoryScreen::ShowFooter()
     std::string money;
     if (Host.Money)
         for (const CurrencyDef& currency : Host.Money->GetAll())
-            money += (money.empty() ? "" : "   ") + NameOr("currency." + currency.Id + ".name", currency.Id) +
+            money += (money.empty() ? "" : "   ") + InventoryScreen::NameOr("currency." + currency.Id + ".name", currency.Id) +
                      std::format(" <color=gold>{}</color>", Host.Money->Get(currency.Id));
     SetText(FindWidget<Label>("currencies"), money);
 

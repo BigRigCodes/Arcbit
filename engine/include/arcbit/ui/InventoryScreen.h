@@ -112,6 +112,10 @@ public:
     // Rebuild from the bag now (done each tick the bag or the party changed).
     void Refresh();
 
+    // A name from the locale files - key - else the id tidied ("key_items" ->
+    // "Key items"), with a warning the first time, so a missing string shows.
+    [[nodiscard]] static std::string NameOr(const std::string& key, std::string_view id);
+
 protected:
     void OnEnter() override;
     void OnBackPressed() override;
@@ -139,6 +143,12 @@ private:
     [[nodiscard]] std::string CompareEquip(const ItemDef& def) const;
     [[nodiscard]] std::string MemberStats() const;
     [[nodiscard]] u64         Signature() const; // the bag and the party as shown
+
+    // The help line, from the keys bound now on the device in use (a gamepad's
+    // buttons once it's picked up); redrawn when either changes.
+    void        ShowHelp(const InputManager& input);
+    InputDevice _helpDevice = InputDevice::KeyboardMouse;
+    bool        _helpShown  = false;
 
     // A widget's callback runs its work at the next tick: a row's click may
     // rebuild the rows, and the row mustn't be destroyed mid-callback.

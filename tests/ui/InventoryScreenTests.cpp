@@ -18,8 +18,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <format>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace Arcbit;
@@ -145,6 +147,24 @@ TEST_CASE("Typing in the filter keeps focus as the rows come and go; focus on a 
     f.screen->Focus(f.screen->FindWidget<UIWidget>("row-2"));
     f.screen->SetFilterText("ot"); // three rows to one: focus goes to the last row there is
     CHECK(f.screen->GetFocusedWidget() == f.screen->FindWidget<UIWidget>("row-0"));
+}
+
+TEST_CASE("The help line names the keys bound now", "[ui][inventory]")
+{
+    Fixture f;
+    for (const auto& [action, name, key] : { std::tuple{ UIManager::ActionConfirm, "UI_Confirm", Key::Enter },
+                                             std::tuple{ UIManager::ActionGrab, "UI_Grab", Key::G },
+                                             std::tuple{ InventoryScreen::ActionPagePrev, "UI_PagePrev", Key::Q },
+                                             std::tuple{ InventoryScreen::ActionPageNext, "UI_PageNext", Key::E } }) {
+        f.input.RegisterAction(action, name);
+        f.input.BindKey(action, key);
+    }
+    f.Open();
+    f.Tick(); // the tick after opening reads the keys
+    const auto name = [](const Key key) { return InputManager::BindingToString(Binding{ .BindingType = Binding::Type::Key, .BoundKey = key }); };
+    // Esc isn't bound here: "?" rather than a name it doesn't have.
+    CHECK(f.Text("help") == std::format("<b>{}</b> use / equip   <b>{}</b> move   <b>{}</b> / <b>{}</b> tabs   <b>?</b> close",
+                                        name(Key::Enter), name(Key::G), name(Key::Q), name(Key::E)));
 }
 
 TEST_CASE("The detail panel: what an item does, and what wearing it would change", "[ui][inventory]")

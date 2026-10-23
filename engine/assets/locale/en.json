@@ -148,7 +148,7 @@
   "ui.inventory.weight": "Weight {now} / {max}",
   "ui.inventory.on_use": "Use: {stat} {amount}",
   "ui.inventory.compare": "{stat}: {from} → {to}",
-  "ui.inventory.help": "<b>Enter</b> use / equip   <b>Space</b> move   <b>Q</b> / <b>E</b> tabs   <b>Esc</b> close",
+  "ui.inventory.help": "<b>{confirm}</b> use / equip   <b>{grab}</b> move   <b>{prev}</b> / <b>{next}</b> tabs   <b>{back}</b> close",
   "ui.inventory.used": "Used the {item}.",
   "ui.inventory.not_used.no_effect": "The {item} would have no effect.",
   "ui.inventory.not_used.not_usable": "The {item} can't be used.",

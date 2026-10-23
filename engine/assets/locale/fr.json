@@ -148,7 +148,7 @@
   "ui.inventory.weight": "Poids {now} / {max}",
   "ui.inventory.on_use": "Utilisation : {stat} {amount}",
   "ui.inventory.compare": "{stat} : {from} → {to}",
-  "ui.inventory.help": "<b>Entrée</b> utiliser / équiper   <b>Espace</b> déplacer   <b>Q</b> / <b>E</b> onglets   <b>Échap</b> fermer",
+  "ui.inventory.help": "<b>{confirm}</b> utiliser / équiper   <b>{grab}</b> déplacer   <b>{prev}</b> / <b>{next}</b> onglets   <b>{back}</b> fermer",
   "ui.inventory.used": "Objet utilisé : {item}.",
   "ui.inventory.not_used.no_effect": "{item} : cela n'aurait aucun effet.",
   "ui.inventory.not_used.not_usable": "{item} : impossible de l'utiliser.",
