@@ -41,9 +41,12 @@ void DiscardScreen::OnEnter()
     FocusAt(0);
 }
 
+// Key items can't be marked: throwing one away could leave a story stuck.
 void DiscardScreen::Toggle(const u32 index)
 {
     if (!Bag || index >= Bag->GetStacks().size()) return;
+    const ItemDef* def = Items ? Items->Find(Bag->GetStacks()[index].Item) : nullptr;
+    if (def && def->Type == ItemTypes::Key) return;
     if (const auto at = std::ranges::find(_marked, index); at != _marked.end()) _marked.erase(at);
     else _marked.insert(std::ranges::upper_bound(_marked, index), index);
     Show();
@@ -104,6 +107,7 @@ void DiscardScreen::Show()
         row.Offset     = { 0.0f, height * static_cast<f32>(i) };
         row.Texture    = Art.Row, row.Sampler = Art.Sampler;
         row.TintNormal = marked ? Color{ 0.55f, 0.22f, 0.22f, 1.0f } : Color{ 0.16f, 0.19f, 0.31f, 1.0f };
+        row.Enabled    = !def || def->Type != ItemTypes::Key; // kept, whatever happens
         row.OnClick    = [this, i] { _later.push_back([this, i] { Toggle(i); }); };
         if (auto* mark = dynamic_cast<Label*>(row.FindDescendant("mark"))) mark->Text = marked ? "X" : "";
         if (auto* name = dynamic_cast<Label*>(row.FindDescendant("name"))) name->Text = def ? Loc::Get(def->NameKey) : stacks[i].Item;

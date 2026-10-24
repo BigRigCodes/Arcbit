@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <tuple>
 
 namespace Arcbit
 {
@@ -261,32 +262,38 @@ bool Inventory::Convert(const InventoryRules& to)
     return true;
 }
 
-// This bag's items in a bag with other rules, junk last (so it's what's left
-// out first). A grid keeps each where it was if it still fits there; when
-// that leaves something out, a fresh largest-first packing is tried too, and
-// whichever leaves out fewer things that aren't junk (then fewer at all) wins.
+// This bag's items in a bag with other rules: key items placed first (the
+// last thing ever left out - they keep stories going), junk last (what's
+// left out first). A grid keeps each where it was if it still fits there;
+// when that leaves something out, a fresh largest-first packing is tried
+// too, and whichever leaves out fewer key items, then fewer things that
+// aren't junk, then fewer at all, wins.
 Inventory Inventory::ConvertedTo(const InventoryRules& to, std::vector<ItemStack>& overflow) const
 {
-    const auto junk = [this](const ItemStack* s) { const ItemDef* d = Def(s->Item); return d && d->IsJunk(); };
+    const auto rank = [this](const ItemStack* s) {
+        const ItemDef* d = Def(s->Item);
+        return !d ? 1 : d->Type == ItemTypes::Key ? 0 : d->IsJunk() ? 2 : 1;
+    };
     std::vector<const ItemStack*> order;
     for (const ItemStack& stack : _stacks) order.push_back(&stack);
-    std::ranges::stable_partition(order, [&](const ItemStack* s) { return !junk(s); });
+    std::ranges::stable_sort(order, {}, rank);
     Inventory kept = Fill(to, order, true, overflow);
     if (overflow.empty() || !to.IsGrid()) return kept;
 
     const auto area = [this](const ItemStack* s) { const ItemDef* d = Def(s->Item); return d ? d->Width * d->Height : 1u; };
     std::ranges::stable_sort(order, [&](const ItemStack* a, const ItemStack* b) {
-        return junk(a) != junk(b) ? junk(b) : area(a) > area(b);
+        return rank(a) != rank(b) ? rank(a) < rank(b) : area(a) > area(b);
     });
     std::vector<ItemStack> packedOverflow;
     Inventory              packed = Fill(to, order, false, packedOverflow);
     const auto score = [&](const std::vector<ItemStack>& out) {
-        u64 serious = 0, all = 0;
+        u64 keys = 0, serious = 0, all = 0;
         for (const ItemStack& s : out) {
             all += s.Count;
-            if (!junk(&s)) serious += s.Count;
+            if (rank(&s) == 0) keys += s.Count;
+            if (rank(&s) < 2) serious += s.Count;
         }
-        return std::pair{ serious, all };
+        return std::tuple{ keys, serious, all };
     };
     if (score(packedOverflow) < score(overflow)) {
         overflow = std::move(packedOverflow);

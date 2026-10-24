@@ -32,7 +32,7 @@ struct Fixture
     DiscardScreen*       screen = nullptr;
     std::optional<bool>  done;
 
-    Fixture()
+    explicit Fixture(const bool withKey = false)
     {
         Loc::Clear();
         Loc::AddFolder(ArcbitTests::SourcePath("engine/assets/locale"));
@@ -40,15 +40,17 @@ struct Fixture
         (void)dir.Write("a.arcitems", R"({
             "potion": { "name": "Potion", "stack": 10 },
             "rock":   { "name": "Rock", "stack": 1 },
-            "boot":   { "name": "Old Boot", "stack": 1, "tags": ["junk"] } })");
+            "boot":   { "name": "Old Boot", "stack": 1, "tags": ["junk"] },
+            "key":    { "name": "Cellar Key", "type": "key" } })");
         items.LogIssues = false;
-        REQUIRE(items.AddFolder(dir.File("")) == 3);
+        REQUIRE(items.AddFolder(dir.File("")) == 4);
         InventoryRules five;
         five.Slots = 5;
         bag        = Inventory(items, five);
         (void)bag.Add("boot");
         (void)bag.Add("potion", 3);
-        (void)bag.Add("rock", 3); // five entries
+        (void)bag.Add("rock", withKey ? 2 : 3); // five entries
+        if (withKey) (void)bag.Add("key");      // the newest, but never what goes
 
         InventoryRules three;
         three.Slots      = 3;
@@ -103,4 +105,15 @@ TEST_CASE("Rules from JSON start from their kind's preset", "[items][inventory]"
     CHECK(weight.MaxWeight == 30.0f);
     CHECK(RulesFromJson({ { "kind", "pockets" } }).OneEntryPerItem);
     CHECK_FALSE(RulesFromJson({ { "kind", "pockets" }, { "one_entry_per_item", false } }).OneEntryPerItem); // a saved bag says so itself
+}
+
+TEST_CASE("A key item is never suggested to go, and can't be marked", "[ui][discard]")
+{
+    Fixture f(true);
+    // Boot (junk), potion, rock, rock, key: the boot and a rock go, not the key.
+    REQUIRE(f.screen->GetMarked() == std::vector<u32>{ 0, 3 });
+    f.screen->Toggle(4);
+    CHECK(f.screen->GetMarked() == std::vector<u32>{ 0, 3 });
+    f.screen->Confirm();
+    CHECK(f.bag.Count("key") == 1);
 }
