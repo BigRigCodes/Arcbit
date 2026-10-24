@@ -148,7 +148,7 @@ the presets are starting points, and the rules mix freely:
 
 | Preset | Like | Rules |
 |--------|------|-------|
-| `InventoryRules::Pockets()` | Pokemon | one entry per item, up to its stack size; the screen shows a list per category |
+| `InventoryRules::Pockets()` | Pokemon | one entry per item, up to its stack size (an item that doesn't stack - a sword - has an entry each); the screen shows a list per category |
 | `InventoryRules::Weight(max)` | Skyrim | one entry per item, any count (stack sizes ignored), a carry weight limit; category tabs filter it |
 | `InventoryRules::Grid(w, h)` | Minecraft | a grid of cells, one stack each; an item takes the cells of its `size`; sections only if added - see [Grids](#grids) |
 | `InventoryRules::Survival(w, h, max)` | survival games | a grid, and a carry weight limit |
@@ -605,10 +605,13 @@ view the filter dims what it leaves out.
 - **Select** an item by focusing (arrows and D-pad move across and down the
   cells) or clicking any cell it covers; Enter, or a click on the selected
   one, uses or equips it, as in the list.
-- **Drag** an item (mouse, or the grab key) and drop it on a cell: that's
-  where its top-left goes. While it's held, the cells it would cover there
-  light up - green if it fits, red if not - and **R** turns it (if it's
-  rotatable), footprint and all.
+- **Drag** an item (mouse, or the grab key): it lands where its ghost is
+  drawn - the ghost is centered on the pointer, so a two-cell item held by
+  its right half goes one cell left of the pointer, as it looks (with the
+  grab key, the ghost sits on the focused cell, its top-left there). While
+  it's held, the cells it would take light up - green if it fits, red if not
+  - it dims where it lies, and **R** turns it (if it's rotatable),
+  footprint and all.
 - Dropped onto **the same item**, it merges; onto **another item**, they
   trade places (when each fits where the other was); somewhere it doesn't
   fit, nothing moves and a message says so.

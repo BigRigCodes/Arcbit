@@ -625,7 +625,8 @@ controls->OnBack = [&ui, screen] { ui.Close(screen); }; // close yourself, by po
 has a transition). `Pop` closes the topmost menu, but a screen closing itself
 by pointer can't close the wrong one; `CloseMenus` closes them all; `Remove`
 drops a screen at once (a scene's HUD as it unloads). `IsOpen(screen)` and
-`HasOpenMenu()` tell what's up.
+`HasOpenMenu()` tell what's up; `FindScreen<T>()` finds the topmost open
+screen of a type (`Top()` may be an overlay above it - the saving indicator).
 
 **Gamepad.** In menus the D-pad moves focus (like the arrow keys), South (A)
 confirms and East (B) goes back. Held, either repeats: one step on the press,
@@ -677,9 +678,16 @@ slot->OnDrop    = [this, i](const DragPayload& p) { Move(std::any_cast<u32>(p.Da
   held: `Rotated` flips, and so does the ghost.
 - **Back** (Esc, gamepad East) cancels a drag instead of closing the screen.
 - **Targets** draw an outline while a payload is over them: `DropAccept` if
-  they'd take it (`CanDrop`; unset takes anything), `DropRefuse` if not. The
-  source draws dimmed while it's dragged (`IsBeingDragged`). Under a drag,
-  nothing else sees the button - no clicks.
+  they'd take it (`CanDrop`; unset takes anything), `DropRefuse` if not -
+  unless `DropOutline` is off, for a target that shows where a drop lands
+  its own way (the inventory grid lights the cells). The source draws dimmed
+  while it's dragged (`IsBeingDragged`). Under a drag, nothing else sees the
+  button - no clicks.
+- **The ghost** is drawn see-through, centered on the pointer; for a
+  grab-key drag, its top-left sits on the focused widget's (centered where
+  it's smaller). A target that places by the ghost rather than by the widget
+  under the pointer reads `UIScreen::GetPointerPos`, `IsKeyboardDrag` and
+  `GetWidgetRect`.
 - **The drop** reaches the target's `OnDrop`, then the source's
   `OnDragEnd(payload, true)`; anything else - dropped nowhere, refused,
   cancelled - is `OnDragEnd(payload, false)`. Either may rebuild the screen.
