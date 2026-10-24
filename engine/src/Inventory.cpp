@@ -81,7 +81,9 @@ u32 Inventory::Room(const std::string_view item, const u32 count) const
     }
     if (_rules.IsGrid()) return WeightRoom(*def, std::min(SaturatingAdd(room, NewStackRoom(*def, count - std::min(room, count))), count));
     const u64 freeEntries = _rules.Slots == 0 ? NoLimit : _rules.Slots - std::min<u64>(_rules.Slots, _stacks.size());
-    if (_rules.OneEntryPerItem) {
+    // One entry per item is for what stacks: what doesn't (a sword) has an
+    // entry each, or a pockets bag could only ever hold one.
+    if (_rules.OneEntryPerItem && limit > 1) {
         if (!held && freeEntries > 0) room = SaturatingAdd(room, limit);
     }
     else room = SaturatingAdd(room, std::min<u64>(freeEntries * limit, NoLimit));

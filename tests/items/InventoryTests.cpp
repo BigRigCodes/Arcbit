@@ -73,6 +73,11 @@ TEST_CASE("Pockets keep one entry per item, up to its stack size", "[items][inve
     CHECK(Order(bag) == std::vector<std::string>{ "potion:10", "arrow:50" });
     CHECK_FALSE(bag.Split(0, 2)); // one entry per item
 
+    // ...for what stacks: swords don't, so each has an entry of its own.
+    CHECK(bag.Add("sword", 2) == 2);
+    CHECK(Order(bag) == std::vector<std::string>{ "potion:10", "arrow:50", "sword:1", "sword:1" });
+    CHECK(bag.Remove("sword") == 1);
+
     // A list per category: the screen filters by it.
     CHECK(bag.Filter({ .Category = "medicine" }) == std::vector<u32>{ 0 });
     CHECK(bag.Filter({ .Category = "ammo" }) == std::vector<u32>{ 1 });

@@ -71,7 +71,8 @@ struct InventoryRules
     u32         Slots = 0;     // the most entries; 0 = no limit
 
     // One entry per item: more of it joins that entry (Pokemon, Skyrim).
-    // Otherwise a full stack starts another.
+    // Otherwise a full stack starts another. An item that doesn't stack
+    // (stack 1, in a bag without UnlimitedStacks) has an entry each anyway.
     bool OneEntryPerItem = false;
 
     // Counts ignore items' stack sizes (Skyrim's 300 arrows in one entry).
