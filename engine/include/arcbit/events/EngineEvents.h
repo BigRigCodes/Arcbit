@@ -54,6 +54,9 @@ namespace EngineEvents
     // ("transfer" / "take_all"); take_all also taken and left (how many
     // items went into the bag, and stayed for want of room).
     constexpr std::string_view ContainerOpenedName = "engine.container.opened";
+    // A bag became another kind (Application::ChangeBag) - after the player
+    // discarded what wouldn't fit, if anything didn't. bag, kind.
+    constexpr std::string_view BagChangedName = "engine.item.bag_changed";
     // The party became encumbered (its bag over the weight limit, when the
     // project allows that) or stopped being. encumbered.
     constexpr std::string_view PartyEncumberedName = "engine.party.encumbered";
@@ -118,6 +121,7 @@ namespace EngineEvents
     constexpr EventId ItemDropped        = MakeEvent(ItemDroppedName);
     constexpr EventId PartyEncumbered    = MakeEvent(PartyEncumberedName);
     constexpr EventId ContainerOpened    = MakeEvent(ContainerOpenedName);
+    constexpr EventId BagChanged         = MakeEvent(BagChangedName);
     constexpr EventId PartyJoined        = MakeEvent(PartyJoinedName);
     constexpr EventId PartyLeft          = MakeEvent(PartyLeftName);
     constexpr EventId WindowFocusChanged = MakeEvent(WindowFocusChangedName);
@@ -146,6 +150,7 @@ namespace EngineEvents
         ItemEquippedName,       ItemUnequippedName,     ItemUsedName,
         PartyJoinedName,        PartyLeftName,          PartyEncumberedName,
         ItemPickedUpName,       ItemNotPickedUpName,    ItemDroppedName,    ContainerOpenedName,
+        BagChangedName,
     };
 } // namespace EngineEvents
 } // namespace Arcbit

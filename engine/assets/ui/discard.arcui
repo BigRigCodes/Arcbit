@@ -1,0 +1,36 @@
+{
+  "meta": { "row_height": 48 },
+  "widgets": [
+    { "type": "Scrim", "background_color": [0.0, 0.0, 0.0, 0.55] },
+    {
+      "type": "NineSlice", "name": "panel", "zorder": 1, "size": [720, 560], "anchor": [0.5, 0.5], "pivot": [0.5, 0.5],
+      "uv_border_left": 0.3333, "uv_border_right": 0.3333, "uv_border_top": 0.3333, "uv_border_bottom": 0.3333,
+      "pixel_left": 18, "pixel_right": 18, "pixel_top": 18, "pixel_bottom": 18,
+      "children": [
+        { "type": "Label", "name": "title", "zorder": 2, "text_key": "ui.discard.title", "offset": [28, 20], "size": [664, 30],
+          "skin": { "FontScale": 1.25 } },
+        { "type": "Label", "name": "message", "zorder": 2, "offset": [28, 58], "size": [664, 48], "word_wrap": true },
+        { "type": "ScrollPanel", "name": "list", "zorder": 2, "offset": [24, 110], "size": [672, 340] },
+        { "type": "Label", "name": "status", "zorder": 2, "offset": [28, 458], "size": [664, 26] },
+        { "type": "Button", "name": "confirm", "zorder": 2, "text_key": "ui.discard.confirm", "offset": [24, 500], "size": [300, 38],
+          "tab_order": 20 },
+        { "type": "Button", "name": "cancel", "zorder": 2, "text_key": "ui.discard.cancel", "offset": [396, 500], "size": [300, 38],
+          "tab_order": 21 }
+      ]
+    }
+  ],
+  "templates": {
+    "row": {
+      "type": "NineSliceButton", "size": [656, 44], "tab_order": 1, "zorder": 3,
+      "tint_hovered": [0.28, 0.34, 0.54, 1], "tint_pressed": [0.12, 0.15, 0.24, 1],
+      "uv_border_left": 0.25, "uv_border_right": 0.25, "uv_border_top": 0.25, "uv_border_bottom": 0.25,
+      "pixel_left": 6, "pixel_right": 6, "pixel_top": 6, "pixel_bottom": 6,
+      "children": [
+        { "type": "Label", "name": "mark", "zorder": 4, "offset": [12, 10], "size": [24, 24], "align": "center" },
+        { "type": "Image", "name": "icon", "zorder": 4, "offset": [44, 6], "size": [32, 32], "visible": false },
+        { "type": "Label", "name": "name", "zorder": 4, "offset": [86, 10], "size": [440, 24] },
+        { "type": "Label", "name": "count", "zorder": 4, "offset": [530, 10], "size": [110, 24], "align": "right" }
+      ]
+    }
+  }
+}

@@ -198,5 +198,11 @@
   "ui.transfer.took_all": "Took everything.",
   "ui.transfer.took_some": "Took what fit - there's no room for the rest.",
   "ui.transfer.no_room": "There's no room for the {item}.",
-  "ui.transfer.help": "Select a row to move it to the other side; hold Shift to move one. Rows drag across too."
+  "ui.transfer.help": "Select a row to move it to the other side; hold Shift to move one. Rows drag across too.",
+  "ui.discard.title": "Your new bag can't hold everything",
+  "ui.discard.message": {"one": "{count} entry is marked to go - junk first. Change the marks if you'd rather keep something else.", "other": "{count} entries are marked to go - junk first. Change the marks if you'd rather keep something else."},
+  "ui.discard.too_much": "Still too much to fit - mark more.",
+  "ui.discard.fits": "The rest fits.",
+  "ui.discard.confirm": "Discard and change bags",
+  "ui.discard.cancel": "Keep my old bag"
 }

@@ -51,6 +51,7 @@ struct ScriptServices
     std::function<u32(std::string_view item, u32 count, std::string_view bag)> DropItem;
     std::function<std::vector<LootStack>(std::string_view table)>               RollLoot; // Loot.Roll
     std::function<void(std::string_view bag)>                                   OpenInventory; // Inventory.Open
+    std::function<bool(std::string_view bag, const nlohmann::json& rules)>      ChangeBag;     // Inventory.Change
     UIManager*           UI       = nullptr; // UI.Open / Close, scripted screens
     DebugConsole*        Console  = nullptr; // Console.Register / Print
 

@@ -309,6 +309,13 @@ public:
     // Its stock art and layout are assets/engine/ui/inventory*.
     void OpenInventory(std::string_view bag = Inventories::Party);
 
+    // Make a bag another kind (a bigger grid, a weight limit, pockets): its
+    // contents move across. If they all fit, now (true); if not, the discard
+    // prompt opens - what won't fit marked, junk first - and `done` hears
+    // whether the player went through with it (false now). Publishes
+    // engine.item.bag_changed when it changes.
+    bool ChangeBag(std::string_view bag, const InventoryRules& to, std::function<void(bool changed)> done = {});
+
     // The hotbar HUD; null when the project has none (ProjectDefaults::Hotbar).
     [[nodiscard]] HotbarScreen* GetHotbar() const { return _hotbar; }
 
@@ -552,6 +559,7 @@ private:
     std::map<std::string, std::unique_ptr<SpriteSheet>, std::less<>> _iconSheets; // icon sheets, by path
     void                   RegisterInventoryActions();
     void                   LoadInventoryArt();
+    void                   ChangeBagCommand(const DebugConsole::Args& a);
     void                   OpenTransfer(Scene& scene, Entity container);
     HotbarScreen*          _hotbar = nullptr; // owned by _ui
     [[nodiscard]] bool     HotbarWanted() const;

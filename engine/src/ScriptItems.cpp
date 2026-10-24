@@ -100,6 +100,12 @@ void ScriptEngine::State::BindInventory()
         for (const std::string& item : bag(name).GetQuickSlots()) slots.add(item);
         return slots;
     });
+    // Inventory.Change({ kind = "grid", width = 6, height = 4 }, bag): true if
+    // it changed now; false while the player picks what to discard.
+    inventory.set_function("Change", [this](const sol::table rules, const sol::optional<std::string> name) {
+        if (!Services.ChangeBag) throw std::runtime_error("Inventory.Change: no bags here");
+        return Services.ChangeBag(name.value_or(std::string(Inventories::Party)), LuaToJson(rules));
+    });
     inventory.set_function("Open", [this](const sol::optional<std::string> name) {
         if (!Services.OpenInventory) throw std::runtime_error("Inventory.Open: no inventory screen here");
         Services.OpenInventory(name.value_or(std::string(Inventories::Party)));

@@ -288,7 +288,10 @@ json RulesToJson(const InventoryRules& rules)
 InventoryRules RulesFromJson(const json& j)
 {
     InventoryRules rules;
-    rules.Kind            = j.value("kind", rules.Kind);
+    const std::string kind = j.value("kind", rules.Kind);
+    if (kind == "pockets") rules = InventoryRules::Pockets();
+    else if (kind == "weight") rules = InventoryRules::Weight(0.0f);
+    rules.Kind            = kind;
     rules.Slots           = j.value("slots", rules.Slots);
     rules.OneEntryPerItem = j.value("one_entry_per_item", rules.OneEntryPerItem);
     rules.UnlimitedStacks = j.value("unlimited_stacks", rules.UnlimitedStacks);

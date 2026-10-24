@@ -198,5 +198,11 @@
   "ui.transfer.took_all": "Tout est pris.",
   "ui.transfer.took_some": "Pris ce qui rentrait - plus de place pour le reste.",
   "ui.transfer.no_room": "Plus de place pour : {item}.",
-  "ui.transfer.help": "Choisissez une ligne pour la passer de l'autre côté ; Maj pour un seul. On peut aussi glisser les lignes."
+  "ui.transfer.help": "Choisissez une ligne pour la passer de l'autre côté ; Maj pour un seul. On peut aussi glisser les lignes.",
+  "ui.discard.title": "Votre nouveau sac ne peut pas tout contenir",
+  "ui.discard.message": {"one": "{count} objet est marqué pour partir - le bric-à-brac d'abord. Changez les marques pour garder autre chose.", "other": "{count} objets sont marqués pour partir - le bric-à-brac d'abord. Changez les marques pour garder autre chose."},
+  "ui.discard.too_much": "Encore trop pour tout ranger - marquez-en davantage.",
+  "ui.discard.fits": "Le reste rentre.",
+  "ui.discard.confirm": "Jeter et changer de sac",
+  "ui.discard.cancel": "Garder l'ancien sac"
 }

@@ -4,6 +4,8 @@
 #include <arcbit/app/Application.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/events/EngineEvents.h>
+#include <arcbit/ui/DiscardScreen.h>
 #include <arcbit/ui/InventoryScreen.h>
 
 #include <algorithm>
@@ -35,6 +37,35 @@ void Application::OpenInventory(const std::string_view bag)
                         },
                         .LoadIcon = [this](const std::string_view icon) { return LoadItemIcon(icon); } };
     _ui.OpenMenu(std::move(screen));
+}
+
+bool Application::ChangeBag(const std::string_view bag, const InventoryRules& to, std::function<void(bool)> done)
+{
+    Inventory* from = _inventories->Find(bag);
+    if (!from) return false;
+    const auto changed = [this, name = std::string(bag), kind = to.Kind] {
+        _events.PublishEngine(EngineEvents::BagChanged, { { "bag", name }, { "kind", kind } });
+    };
+    if (from->Convert(to)) {
+        changed();
+        if (done) done(true);
+        return true;
+    }
+    if (!_inventoryArt.Sampler.IsValid()) LoadInventoryArt();
+    auto      screen = std::make_unique<DiscardScreen>();
+    UIScreen* shown  = screen.get();
+    screen->Art      = _inventoryArt;
+    screen->Bag      = from;
+    screen->To       = to;
+    screen->Items    = &_items;
+    screen->LoadIcon = [this](const std::string_view icon) { return LoadItemIcon(icon); };
+    screen->OnDone   = [this, shown, changed, done = std::move(done)](const bool ok) {
+        _ui.Close(shown);
+        if (ok) changed();
+        if (done) done(ok);
+    };
+    _ui.Push(std::move(screen)); // over the inventory screen, if that's where it came from
+    return false;
 }
 
 // The stock inventory art, shared by the inventory and transfer screens.
@@ -135,6 +166,30 @@ bool Application::UseHotbar()
     return !def->Slot.empty() && leader && _party->Equip(leader->Id, item);
 }
 
+// bag party grid 6 4: the console's way to try the kinds.
+void Application::ChangeBagCommand(const DebugConsole::Args& a)
+{
+    if (a.size() < 2) throw std::runtime_error("bag <bag> <pockets | weight W | grid W H | survival W H W | list SLOTS>");
+    if (!_inventories->Find(a[0])) throw std::runtime_error(std::format("no bag '{}'", a[0]));
+    const auto number = [&](const size_t at, const char* what) {
+        if (a.size() <= at) throw std::runtime_error(std::format("{} {} what?", a[1], what));
+        return DebugConsole::Decimal(a[at], what);
+    };
+    const auto whole = [&](const size_t at, const char* what) {
+        if (a.size() <= at) throw std::runtime_error(std::format("{} {} what?", a[1], what));
+        return static_cast<u32>(DebugConsole::Integer(a[at], what, 1, 64));
+    };
+    InventoryRules to;
+    if (a[1] == "pockets") to = InventoryRules::Pockets();
+    else if (a[1] == "weight") to = InventoryRules::Weight(number(2, "weight"));
+    else if (a[1] == "grid") to = InventoryRules::Grid(whole(2, "width"), whole(3, "height"));
+    else if (a[1] == "survival") to = InventoryRules::Survival(whole(2, "width"), whole(3, "height"), number(4, "weight"));
+    else if (a[1] == "list") to.Slots = whole(2, "slots");
+    else throw std::runtime_error(std::format("no kind '{}'", a[1]));
+    to.QuickSlots = static_cast<u32>(_inventories->Find(a[0])->GetQuickSlots().size()); // the hotbar stays
+    _debugConsole.Print(ChangeBag(a[0], to) ? std::format("{} is {} now", a[0], to.Kind) : "it won't all fit - choose what to discard");
+}
+
 // The inventory screen's keys: Q / E (shoulder buttons) change its tabs.
 void Application::RegisterInventoryActions()
 {
@@ -144,6 +199,8 @@ void Application::RegisterInventoryActions()
     _input.RegisterAction(InventoryScreen::ActionPageNext, "UI_PageNext");
     _input.BindKey(InventoryScreen::ActionPageNext, Key::E);
     _input.BindGamepadButton(InventoryScreen::ActionPageNext, GamepadButton::RightShoulder);
+    _debugConsole.Register({ .Name = "bag", .Help = "bag <bag> <pockets | weight W | grid W H | survival W H W | list SLOTS> - change a bag's kind",
+                             .Cheat = true, .Run = [this](const DebugConsole::Args& a) { ChangeBagCommand(a); } });
     _debugConsole.Register({ .Name = "inventory", .Help = "inventory [bag] - open the inventory screen on a bag (default the party's)",
                              .Run = [this](const DebugConsole::Args& a) {
                                  const std::string bag = a.empty() ? std::string(Inventories::Party) : a[0];

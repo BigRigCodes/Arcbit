@@ -278,6 +278,9 @@ void Application::Run()
                                 },
                                 .RollLoot  = [this](const std::string_view table) { return RollLoot(table); },
                                 .OpenInventory = [this](const std::string_view bag) { OpenInventory(bag); },
+                                .ChangeBag = [this](const std::string_view bag, const nlohmann::json& rules) {
+                                    return ChangeBag(bag, RulesFromJson(rules));
+                                },
                                 .UI        = &_ui,
                                 .Console   = &_debugConsole,
                                 .Assets    = [](Scene& scene) { return MakeAppSceneAssets(scene); },

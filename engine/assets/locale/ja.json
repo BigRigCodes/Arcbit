@@ -198,5 +198,11 @@
   "ui.transfer.took_all": "すべて取りました。",
   "ui.transfer.took_some": "入る分だけ取りました。残りは入りません。",
   "ui.transfer.no_room": "{item}を入れる場所がありません。",
-  "ui.transfer.help": "行を選ぶと反対側へ移します（Shiftで1つずつ）。ドラッグでも移せます。"
+  "ui.transfer.help": "行を選ぶと反対側へ移します（Shiftで1つずつ）。ドラッグでも移せます。",
+  "ui.discard.title": "新しい袋にはすべて入りません",
+  "ui.discard.message": { "one": "{count}個が捨てる候補です（がらくたが先）。別の物を残したいときは印を変えてください。", "other": "{count}個が捨てる候補です（がらくたが先）。別の物を残したいときは印を変えてください。" },
+  "ui.discard.too_much": "まだ入りきりません。もっと選んでください。",
+  "ui.discard.fits": "残りは入ります。",
+  "ui.discard.confirm": "捨てて袋を替える",
+  "ui.discard.cancel": "元の袋のままにする"
 }
