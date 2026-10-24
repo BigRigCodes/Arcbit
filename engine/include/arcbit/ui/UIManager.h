@@ -145,6 +145,16 @@ public:
     void Remove(const UIScreen* screen);
 
     [[nodiscard]] UIScreen* Top()   const;
+
+    // The topmost open screen of a type (an overlay may be above it, so Top
+    // won't do); null if none is open.
+    template <typename T>
+    [[nodiscard]] T* FindScreen() const
+    {
+        for (auto it = _stack.rbegin(); it != _stack.rend(); ++it)
+            if (auto* screen = dynamic_cast<T*>(it->get()); screen && !screen->IsFadingOut()) return screen;
+        return nullptr;
+    }
     [[nodiscard]] bool      Empty() const { return _stack.empty(); }
 
     // True while the screen is on the stack and not closing.
