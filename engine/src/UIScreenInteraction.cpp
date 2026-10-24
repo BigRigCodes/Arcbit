@@ -184,8 +184,10 @@ void UIScreen::EndDrag(const bool drop)
     UIWidget* target = Resolve(ended.Target);
     if (source) source->_dragSource = false;
     if (target) target->_dragOver = target->_dragAccepts = false;
+    _endingKeyboard    = ended.Keyboard; // the target may ask how it came (IsKeyboardDrag) while it takes it
     const bool dropped = drop && target && target->Accepts(ended.Payload);
     if (dropped) target->OnDrop(ended.Payload);
+    _endingKeyboard = false;
     if (UIWidget* still = Resolve(ended.Source); still && still->OnDragEnd) still->OnDragEnd(ended.Payload, dropped);
 }
 

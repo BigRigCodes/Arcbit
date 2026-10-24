@@ -207,7 +207,8 @@ public:
     // A drag carried by the grab key (it goes where focus is), and where the
     // pointer is - for a target placing what's dropped by the ghost, not just
     // by the widget under the pointer.
-    [[nodiscard]] bool IsKeyboardDrag() const { return _drag.Active && _drag.Keyboard; }
+    // True through the drop too (CanDrop, OnDrop), though the drag is over by then.
+    [[nodiscard]] bool IsKeyboardDrag() const { return (_drag.Active && _drag.Keyboard) || _endingKeyboard; }
     [[nodiscard]] Vec2 GetPointerPos() const { return _pointer.Pos; }
 
     // Where one of this screen's widgets is, as last laid out; nullopt if it
@@ -285,6 +286,7 @@ private:
         std::string Text;
     } _tooltip;
     UIPointer _pointer;        // the last Interact's, for drawing the ghost
+    bool      _endingKeyboard = false; // EndDrag: the drag being dropped was the grab key's
     UIRect    _screenRect;
 
     void BeginPointerDrag(const UIPointer& p, UIRect screenRect);

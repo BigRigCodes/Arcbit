@@ -313,6 +313,18 @@ TEST_CASE("Grid drops move, turn, split, merge and swap - or say it doesn't fit"
     (void)f.screen->Interact(1.0f / 60.0f, screenRect, { .Pos = point("cell-main-2-1", 0.25f), .JustUp = true }, skin);
     f.Tick(); // the drop's work runs at the next tick
     CHECK(at("sword") == std::tuple{ std::string{}, 1u, 1u, true }); // cells (1,1) and (2,1)
+
+    // With the grab key it lands on the focused cell - wherever the mouse
+    // happens to be resting over the grid.
+    f.screen->Focus(f.screen->FindWidget<UIWidget>("cell-main-1-1"));
+    f.screen->GrabFocused(false);
+    REQUIRE(f.screen->IsDragging());
+    f.screen->Focus(f.screen->FindWidget<UIWidget>("cell-main-2-2"));
+    f.screen->FocusMovedByKeys();
+    (void)f.screen->Interact(1.0f / 60.0f, screenRect, { .Pos = point("cell-main-0-0", 0.5f) }, skin); // the mouse, elsewhere
+    f.screen->GrabFocused(false);
+    f.Tick();
+    CHECK(at("sword") == std::tuple{ std::string{}, 2u, 2u, true });
 }
 
 TEST_CASE("Number keys on the inventory screen put the selected item on a quick slot", "[ui][inventory][hotbar]")
