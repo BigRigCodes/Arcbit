@@ -191,5 +191,12 @@
   "ui.input.hotbar_6": "Emplacement rapide 6",
   "ui.input.hotbar_7": "Emplacement rapide 7",
   "ui.input.hotbar_8": "Emplacement rapide 8",
-  "ui.input.hotbar_9": "Emplacement rapide 9"
+  "ui.input.hotbar_9": "Emplacement rapide 9",
+  "ui.transfer.title": "Contenant",
+  "ui.transfer.bag": "Votre sac",
+  "ui.transfer.take_all": "Tout prendre",
+  "ui.transfer.took_all": "Tout est pris.",
+  "ui.transfer.took_some": "Pris ce qui rentrait - plus de place pour le reste.",
+  "ui.transfer.no_room": "Plus de place pour : {item}.",
+  "ui.transfer.help": "Choisissez une ligne pour la passer de l'autre côté ; Maj pour un seul. On peut aussi glisser les lignes."
 }

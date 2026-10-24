@@ -191,5 +191,12 @@
   "ui.input.hotbar_6": "ホットバー 6",
   "ui.input.hotbar_7": "ホットバー 7",
   "ui.input.hotbar_8": "ホットバー 8",
-  "ui.input.hotbar_9": "ホットバー 9"
+  "ui.input.hotbar_9": "ホットバー 9",
+  "ui.transfer.title": "入れ物",
+  "ui.transfer.bag": "持ち物",
+  "ui.transfer.take_all": "すべて取る",
+  "ui.transfer.took_all": "すべて取りました。",
+  "ui.transfer.took_some": "入る分だけ取りました。残りは入りません。",
+  "ui.transfer.no_room": "{item}を入れる場所がありません。",
+  "ui.transfer.help": "行を選ぶと反対側へ移します（Shiftで1つずつ）。ドラッグでも移せます。"
 }

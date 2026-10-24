@@ -2,10 +2,13 @@
 // LootDrop's scattered pickups, and the console's loot (docs/items.md).
 
 #include <arcbit/app/Application.h>
+#include <arcbit/core/Loc.h>
 #include <arcbit/core/Log.h>
+#include <arcbit/ecs/Components.h>
 #include <arcbit/events/EngineEvents.h>
 #include <arcbit/items/Container.h>
 #include <arcbit/items/Pickup.h>
+#include <arcbit/ui/TransferScreen.h>
 
 #include <cmath>
 #include <format>
@@ -31,7 +34,29 @@ void Application::OpenContainer(const Entity container, const Entity by)
         payload.Set("taken", taken);
         payload.Set("left", left);
     }
+    else OpenTransfer(*scene, container);
     _events.PublishEngine(EngineEvents::ContainerOpened, std::move(payload));
+}
+
+// The transfer screen on a container of the active scene: it looks the
+// container up each tick, so it closes if the scene goes.
+void Application::OpenTransfer(Scene& scene, const Entity container)
+{
+    if (!_inventoryArt.Sampler.IsValid()) LoadInventoryArt();
+    auto      screen = std::make_unique<TransferScreen>();
+    UIScreen* shown  = screen.get();
+    const Name* name = scene.GetWorld().GetComponent<Name>(container);
+    screen->Title    = name && !name->Value.empty() && Loc::Has(name->Value) ? Loc::Get(name->Value) : std::string{};
+    screen->Art      = _inventoryArt;
+    screen->OnClose  = [this, shown] { _ui.Close(shown); };
+    screen->Host     = { .Items = &_items, .Bags = _inventories.get(), .Money = _currencies.get(),
+                         .Container = [this, sceneAt = &scene, container]() -> Container* {
+                             Scene* active = _scenes.GetActive();
+                             if (active != sceneAt || !active->GetWorld().IsValid(container)) return nullptr;
+                             return active->GetWorld().GetComponent<Container>(container);
+                         },
+                         .LoadIcon = [this](const std::string_view icon) { return LoadItemIcon(icon); } };
+    _ui.OpenMenu(std::move(screen));
 }
 
 // The loot table rolled into the container, once: the table is cleared, and

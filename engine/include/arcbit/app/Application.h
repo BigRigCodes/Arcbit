@@ -551,6 +551,8 @@ private:
     std::map<std::string, std::optional<ItemIcon>, std::less<>>      _itemIcons;  // LoadItemIcon, misses too
     std::map<std::string, std::unique_ptr<SpriteSheet>, std::less<>> _iconSheets; // icon sheets, by path
     void                   RegisterInventoryActions();
+    void                   LoadInventoryArt();
+    void                   OpenTransfer(Scene& scene, Entity container);
     HotbarScreen*          _hotbar = nullptr; // owned by _ui
     [[nodiscard]] bool     HotbarWanted() const;
     void                   StartHotbar();

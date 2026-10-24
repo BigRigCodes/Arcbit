@@ -19,15 +19,7 @@ void Application::OpenInventory(const std::string_view bag)
         LOG_WARN(Engine, "OpenInventory: there's no bag '{}'", bag);
         return;
     }
-    if (!_inventoryArt.Sampler.IsValid()) {
-        const auto load = [this](const std::string_view name) {
-            const std::string   path    = std::format("assets/engine/ui/inventory/{}.png", name);
-            const TextureHandle texture = _textures->Load(path);
-            if (!texture.IsValid()) LOG_WARN(Engine, "Inventory art '{}' not found", path);
-            return texture;
-        };
-        _inventoryArt = { .Panel = load("panel"), .Row = load("row"), .Tab = load("tab"), .Slot = load("slot"), .Sampler = _nearestSampler };
-    }
+    if (!_inventoryArt.Sampler.IsValid()) LoadInventoryArt();
     auto screen     = std::make_unique<InventoryScreen>();
     UIScreen* shown = screen.get();
     screen->Art     = _inventoryArt;
@@ -43,6 +35,18 @@ void Application::OpenInventory(const std::string_view bag)
                         },
                         .LoadIcon = [this](const std::string_view icon) { return LoadItemIcon(icon); } };
     _ui.OpenMenu(std::move(screen));
+}
+
+// The stock inventory art, shared by the inventory and transfer screens.
+void Application::LoadInventoryArt()
+{
+    const auto load = [this](const std::string_view name) {
+        const std::string   path    = std::format("assets/engine/ui/inventory/{}.png", name);
+        const TextureHandle texture = _textures->Load(path);
+        if (!texture.IsValid()) LOG_WARN(Engine, "Inventory art '{}' not found", path);
+        return texture;
+    };
+    _inventoryArt = { .Panel = load("panel"), .Row = load("row"), .Tab = load("tab"), .Slot = load("slot"), .Sampler = _nearestSampler };
 }
 
 // An icon: a texture, or a sprite sheet's frame ("sheet.json#frame"). Each

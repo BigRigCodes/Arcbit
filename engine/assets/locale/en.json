@@ -191,5 +191,12 @@
   "ui.input.hotbar_6": "Hotbar slot 6",
   "ui.input.hotbar_7": "Hotbar slot 7",
   "ui.input.hotbar_8": "Hotbar slot 8",
-  "ui.input.hotbar_9": "Hotbar slot 9"
+  "ui.input.hotbar_9": "Hotbar slot 9",
+  "ui.transfer.title": "Container",
+  "ui.transfer.bag": "Your Bag",
+  "ui.transfer.take_all": "Take All",
+  "ui.transfer.took_all": "Took everything.",
+  "ui.transfer.took_some": "Took what fit - there's no room for the rest.",
+  "ui.transfer.no_room": "There's no room for the {item}.",
+  "ui.transfer.help": "Select a row to move it to the other side; hold Shift to move one. Rows drag across too."
 }
