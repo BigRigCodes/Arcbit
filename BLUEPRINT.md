@@ -515,19 +515,19 @@ The rest of the original event list moved to the phases that build those systems
 - [ ] Inventory kinds a game picks per inventory, without building one: **grid** (Minecraft: slots, optional hotbar section), **pockets** (Pokemon: a list per category), **weight** (Skyrim: category-filtered list, carry weight), **survival** (grid + carry weight); the project picks the party bag's default
 - [ ] Grid items can take more than one cell (`"size"`) and rotate by default; every kind sorts and filters; max stack per item, defaults per type and project
 - [x] Inventories are game state (the party's bag, a stash), saved as their own section; scene entities that hold items (chests) have a `Container`
-- [ ] Changing a bag (bigger grid, more weight, another kind) moves the contents across; when the new one holds less, the player discards first, `junk`-tagged items picked for them
+- [x] Changing a bag (bigger grid, more weight, another kind) moves the contents across; when the new one holds less, the player discards first, `junk`-tagged items picked for them - `ChangeBag`, the discard prompt (key items kept)
 - [x] Carry weight over the limit refused by default; a project can allow it (encumbered: slower)
-- [ ] Quick slots for any kind (item references bound to keys, a HUD bar)
+- [x] Quick slots for any kind (item references bound to keys, a HUD bar) - `HotbarScreen`, only when the project's bag has them
 - [x] Currencies: `SaveData` counters by default (`gold`), or an item stack per currency; one API for both
 - [x] A party (brought forward from Phase 31): several members, a party of one by default; each with stats and equipment; the scene's player entity shows the leader
 - [x] `Stats` (brought forward from Phase 31): an engine default set (HP, MaxHP, MP, MaxMP, ATK, DEF, MAG, RES, SPD, LUK) a game's stats file extends or replaces
-- [ ] Containers open into a transfer screen by default (take all per project / per container)
+- [x] Containers open into a transfer screen by default (take all per project / per container) - `TransferScreen`
 - [x] Dialog conditions and actions on items (`has`, `give`, `take`); console `give`, `items`, `party`
 - [x] Pick-up / drop / equip / unequip logic; equip slots (weapon, armor, accessory, etc.)
-- [ ] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder; drag and drop and tooltips added to the GUI for it
+- [x] **Grid view**: icon-based inventory panel (like classic RPGs); drag-and-drop reorder; drag and drop and tooltips added to the GUI for it - items across their cells, R turns, right-drag splits
   - [x] GUI groundwork: drag and drop (mouse, right-button alternate, grab key, R to turn), tooltips, `GridPanel`
 - [x] **List view**: name + quantity rows (Pokémon-style); keyboard/gamepad navigable - `InventoryScreen` for the list kinds: tabs, details, actions, equipment
-- [ ] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
+- [x] Both views built on the GUI system (Phase 21); a grid inventory can switch to a list view at runtime
 - [ ] Default look is game art, not the flat UI skin: a textured panel with slot sprites (Minecraft-style), nine-slice where it stretches, shipped as stock engine art and replaceable per game
 - [x] Equipment stat application: `EquipmentSystem` aggregates equipped item bonuses onto a `Stats` component - done as effective stats worked out when read (`StatSet::Effective`), so nothing can fall out of step
 - [x] Loot tables: weighted random drops defined in JSON

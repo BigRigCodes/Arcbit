@@ -20,7 +20,8 @@ the inventory screen build on these (Phase 29, in progress).
 - [Currencies](#currencies)
 - [Stats](#stats)
 - [The party](#the-party) - [Equipment](#equipment), [Using items](#using-items)
-- [The inventory screen](#the-inventory-screen)
+- [The inventory screen](#the-inventory-screen) - [The grid view](#the-grid-view),
+  [Quick slots and the hotbar](#quick-slots-and-the-hotbar)
 - [In dialogs, scripts and the console](#in-dialogs-scripts-and-the-console)
 
 ---
@@ -185,6 +186,7 @@ if (bag.Has("cellar_key")) ...
   none unless the game sets `QuickSlots`. They're references to items, not
   the items: a slot keeps its
   item while the bag has none and shows 0 (`SetQuickSlot`, `GetQuickSlots`).
+  [The hotbar](#quick-slots-and-the-hotbar) shows them.
 - **Changes** reach `OnChange(item, delta)`.
 - **Saving**: `ToJson` / `FromJson` write the stacks (in a grid, where each
   lies), quick slots and the bag's own rules (a bag the player upgraded stays
@@ -236,14 +238,27 @@ enough is gone:
 ```cpp
 const std::vector<ItemStack> mustGo = bag.ConvertOverflow(bigger);
 if (mustGo.empty()) bag.Convert(bigger);
-else ShowDiscardPrompt(mustGo);           // junk is what it lists first
 ```
 
-`ConvertOverflow` lists what wouldn't fit, filling the new bag with junk
-last, so junk is what's left out first - the player is offered that to
-discard (and may pick other things). If keeping stacks where they were
-leaves something out, a fresh largest-first packing is tried too, and the one
-that leaves out less that isn't junk wins.
+`ConvertOverflow` lists what wouldn't fit. It fills the new bag with key
+items first and junk last, so junk is what's left out first and a key item
+only if nothing else will do. If keeping stacks where they were leaves
+something out, a fresh largest-first packing is tried too, and the one that
+leaves out fewer key items, then less that isn't junk, wins.
+
+**In the game**, `Application::ChangeBag(bag, rules, done)` does it all: if
+everything fits, the bag changes now (true). If not, the **discard prompt**
+opens over whatever's showing: every entry, with what won't fit marked to go
+(junk first). The player changes the marks - key items can't be marked -
+and **Discard and change bags** (only once the rest fits) removes the marked
+entries and changes the bag; **Keep my old bag**, or Back, leaves it as it
+was. `done(changed)` hears which, and `engine.item.bag_changed` (`bag`,
+`kind`) announces a change. The console's `bag party grid 6 4` (also
+`pockets`, `weight 30`, `survival 6 4 30`, `list 12`) and Lua's
+`Inventory.Change({ kind = "grid", width = 6, height = 4 }, bag)` reach it.
+Rules JSON starts from its kind's preset, so `{ kind = "weight",
+max_weight = 30 }` is a weight bag. The prompt's layout is
+`assets/engine/ui/discard.arcui`.
 
 ---
 
@@ -290,10 +305,14 @@ added if it has none), or code calls `Application::OpenContainer(entity,
 by)`. The first time, its `loot` is rolled into it and cleared - so it's
 rolled once, and what it rolled is saved. Then, `take_all` moves everything
 that fits into the party's bag, and all its currency; what doesn't fit
-stays. `transfer` is for the transfer screen, which comes with the inventory
-screens - until then it only rolls the loot. Either way
-`engine.container.opened` says so (`mode`; with `take_all`, `taken` and
-`left`).
+stays. `transfer` opens the **transfer screen**: the container beside the
+party's bag, a row per entry each side. Selecting a row moves all of it to
+the other side (Shift: one); rows drag across too; **Take All** takes
+everything that fits and the currency. It closes if the container goes (its
+scene unloads). Either way `engine.container.opened` says so (`mode`; with
+`take_all`, `taken` and `left`). The screen's layout is
+`assets/engine/ui/transfer.arcui`; its title is the container's `Name`, when
+that's a locale key.
 
 ## Pickups and drops
 
@@ -573,6 +592,61 @@ screen fills these widgets when they're there: `title`, `filter`
 `icon`, `item`). Rows are named `row-0`, `row-1`...; slot rows
 `slot-<name>`. Meta `row_height`, `slot_row_height`.
 
+### The grid view
+
+A grid bag (grid, survival) opens in its **grid view**: a cell for every cell
+of the main grid, and its sections in a row beneath it (named
+`items.section.<name>` - the engine has `hotbar`), all sized to fit the
+layout's `grid-area`. Each item is drawn across the cells it takes - a 1 x 2
+sword over two - turned if it lies turned. **List** switches to a list of
+the same items, with tabs and the filter; **Grid** switches back. In the grid
+view the filter dims what it leaves out.
+
+- **Select** an item by focusing (arrows and D-pad move across and down the
+  cells) or clicking any cell it covers; Enter, or a click on the selected
+  one, uses or equips it, as in the list.
+- **Drag** an item (mouse, or the grab key) and drop it on a cell: that's
+  where its top-left goes. While it's held, the cells it would cover there
+  light up - green if it fits, red if not - and **R** turns it (if it's
+  rotatable), footprint and all.
+- Dropped onto **the same item**, it merges; onto **another item**, they
+  trade places (when each fits where the other was); somewhere it doesn't
+  fit, nothing moves and a message says so.
+- The **alternate drag** (right button, or Shift with the grab key) takes
+  half a stack: dropped on a free cell it's split off there
+  (`Inventory::SplitTo`), onto the same item it joins it.
+
+`InventoryScreen::PlaceAt(index, section, x, y, rotated, count)` is what a
+drop does. The layout's `grid-area`, `view` and the templates `cell` and
+`grid-item` (with `icon`, `name`, `count`) are the grid view's; meta
+`cell_size` is the largest a cell gets.
+
+### Quick slots and the hotbar
+
+Never forced: a game has a hotbar when its party bag (`Defaults.PartyBag`)
+has quick slots or a section named `hotbar`, or `Defaults.Hotbar` is set.
+Then:
+
+- **The hotbar HUD** (`HotbarScreen`) runs along the bottom while a scene
+  plays and no menu is up: the bag's quick slots - or, a grid bag with a
+  `hotbar` section and no quick slots, what lies in that section's cells. A
+  slot shows the item's icon, its key and how many the bag has (dimmed at
+  none - a quick slot keeps its item). One is selected.
+- **Its keys**, gameplay actions the player can rebind (the Controls
+  screen's Hotbar group): `Hotbar_1` to `_9` (1-9) pick a slot, `Hotbar_Next`
+  / `_Prev` (the shoulder buttons, and the mouse wheel) step,
+  `Hotbar_Use` (F, D-pad down) uses what's selected - uses it if it has a
+  `use`, else equips it on the leader. With `Defaults.HotbarNumberUses` the
+  number keys use their slot at once (Diablo) rather than only picking it
+  (Minecraft).
+- **Assigning**: on the inventory screen, a number key puts the selected item
+  on that quick slot (again: takes it off); rows show it - "Potion  [2]". A
+  grid's hotbar section is just more cells: drag items into it. Lua:
+  `Inventory.SetQuickSlot(slot, item, bag)` (from 1), `Inventory.QuickSlots(bag)`.
+
+`Application::GetHotbar()`, `UseHotbar()`. The layout is
+`assets/engine/ui/hotbar.arcui` (a `bar`, the `slot` template).
+
 ## In dialogs, scripts and the console
 
 **Dialogs** ([dialog.md](dialog.md)) check and change the party's bag:
@@ -598,6 +672,8 @@ the party carries.
 | `Inventory.Drop(item, count, bag)` | onto the ground where the leader stands; returns how many |
 | `Loot.Roll(table)` | `{ { Id = "potion", Count = 2, Currency = false }, ... }` - given to no one |
 | `Inventory.Open(bag)` | the inventory screen, on a bag (the party's when left out) |
+| `Inventory.Change(rules, bag)` | make it another kind; `true` if it changed now, `false` while the player picks what to discard |
+| `Inventory.SetQuickSlot(slot, item, bag)`, `Inventory.QuickSlots(bag)` | the quick slots, counted from 1 |
 | `Currency.Get(id)`, `Currency.Add(id, change)`, `Currency.Spend(id, amount)` | as above |
 | `Party.Members()`, `Party.Leader()` | the members' ids, the leader first |
 | `Party.Get(id)` | `{ Id, Name, Bag, Equipment = { weapon = "iron_sword" } }` |
@@ -609,8 +685,8 @@ the party carries.
 **Console**: `give <item | currency> [count] [bag]`, `take <item |
 currency> [count] [bag]` (cheats); `drop <item> [count] [bag]` puts items
 on the ground; `loot [table] [times]` lists or rolls loot tables;
-`inventory [bag]` opens the inventory screen; `items [bag]` lists a bag and
-the currencies; `party` lists the members, their stats and equipment; `equip
+`inventory [bag]` opens the inventory screen; `bag <bag> <kind> [size]`
+changes a bag's kind (cheat); `items [bag]` lists a bag and the currencies; `party` lists the members, their stats and equipment; `equip
 <member> <item> [slot]`, `unequip <member> <slot>`, `use <item> [member]`
 (cheats).
 

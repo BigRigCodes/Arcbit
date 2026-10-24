@@ -192,7 +192,7 @@ Subscriptions end with the script that made them.
 | | |
 |---|---|
 | `Items.Get(id)` | an item's definition and its name in the player's language ([items.md](items.md#in-dialogs-scripts-and-the-console)) |
-| `Inventory.Add / Remove / Count / Has / Get / Drop / Open` | the game's bags, the party's unless named; `Drop` puts items on the ground, `Open` shows the inventory screen |
+| `Inventory.Add / Remove / Count / Has / Get / Drop / Open / Change / SetQuickSlot / QuickSlots` | the game's bags, the party's unless named; `Drop` puts items on the ground, `Open` shows the inventory screen, `Change` makes a bag another kind ([items.md](items.md#changing-bags)) |
 | `Currency.Get / Add / Spend` | the game's currencies, counters or items |
 | `Party.Members / Leader / Get / Stats / Join / Leave / Equip / Unequip / Use` | the party ([items.md](items.md#the-party)) |
 | `Loot.Roll(table)` | what a loot table gives, as stacks ([items.md](items.md#loot-tables)) |
@@ -337,6 +337,7 @@ shows dimmed: Tab takes it (`he` -> `help`, `Entity.Fi` -> `Entity.Find`,
 | `give <item> [count] [bag]`, `take ...` | items or currencies into / out of a bag - cheat |
 | `drop <item> [count] [bag]` | onto the ground, where the party's leader stands |
 | `inventory [bag]` | open the inventory screen on a bag (default the party's) |
+| `bag <bag> <pockets / weight W / grid W H / survival W H W / list SLOTS>` | change a bag's kind - the discard prompt if it won't all fit - cheat |
 | `loot [table] [times]` | list the loot tables, or roll one - many times, a tally of the averages |
 | `items [bag]` | what a bag holds, and the currencies |
 | `party` | the members, their stats and equipment |
