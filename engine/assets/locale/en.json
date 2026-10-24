@@ -176,5 +176,20 @@
   "ui.inventory.view.list": "List",
   "ui.inventory.view.grid": "Grid",
   "ui.inventory.no_fit": "The {item} doesn't fit there.",
-  "items.section.hotbar": "Hotbar"
+  "items.section.hotbar": "Hotbar",
+  "ui.input.hotbar": "Hotbar",
+  "ui.input.hotbar_next": "Hotbar: next",
+  "ui.input.hotbar_prev": "Hotbar: previous",
+  "ui.input.hotbar_use": "Hotbar: use",
+  "ui.inventory.quick_on": "{item} is on quick slot {slot}.",
+  "ui.inventory.quick_off": "{item} is off quick slot {slot}.",
+  "ui.input.hotbar_1": "Hotbar slot 1",
+  "ui.input.hotbar_2": "Hotbar slot 2",
+  "ui.input.hotbar_3": "Hotbar slot 3",
+  "ui.input.hotbar_4": "Hotbar slot 4",
+  "ui.input.hotbar_5": "Hotbar slot 5",
+  "ui.input.hotbar_6": "Hotbar slot 6",
+  "ui.input.hotbar_7": "Hotbar slot 7",
+  "ui.input.hotbar_8": "Hotbar slot 8",
+  "ui.input.hotbar_9": "Hotbar slot 9"
 }

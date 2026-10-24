@@ -120,6 +120,10 @@ public:
     void EquipSelected();
     void DropSelected();
     void Unequip(std::string_view slot);
+
+    // Put the selected item on a quick slot (a bag with quick slots); on it
+    // already, take it off. The hotbar's number keys do it on this screen.
+    void AssignQuickSlot(u32 slot);
     void SelectMember(i32 step); // the equipment panel's member, cycling
 
     [[nodiscard]] const std::string& GetMember() const { return _member; }

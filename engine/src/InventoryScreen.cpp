@@ -9,6 +9,7 @@
 #include <arcbit/items/Currencies.h>
 #include <arcbit/items/Inventories.h>
 #include <arcbit/items/ItemLibrary.h>
+#include <arcbit/ui/HotbarScreen.h>
 #include <arcbit/ui/InputWidgets.h>
 #include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/Widgets.h>
@@ -248,7 +249,12 @@ void InventoryScreen::FillRow(UIWidget& row, const ItemStack& stack) const
     button.TintNormal = _selected && GetBag() && &GetBag()->GetStacks()[*_selected] == &stack ? SelectedTint : Color{ 0.16f, 0.19f, 0.31f, 1.0f };
     if (auto* well = dynamic_cast<Image*>(row.FindDescendant("slot"))) well->Texture = Art.Slot, well->Sampler = Art.Sampler;
     SetIcon(row.FindDescendant("icon"), def ? def->Icon : std::string_view{});
-    if (auto* name = dynamic_cast<Label*>(row.FindDescendant("name"))) name->Text = def ? Loc::Get(def->NameKey) : stack.Item;
+    if (auto* name = dynamic_cast<Label*>(row.FindDescendant("name"))) {
+        name->Text = def ? Loc::Get(def->NameKey) : stack.Item;
+        const auto& quick = GetBag()->GetQuickSlots(); // on a quick slot: its number after the name
+        if (const auto on = std::ranges::find(quick, stack.Item); on != quick.end())
+            name->Text += std::format("  [{}]", on - quick.begin() + 1);
+    }
     if (auto* count = dynamic_cast<Label*>(row.FindDescendant("count"))) count->Text = stack.Count > 1 ? std::format("x{}", stack.Count) : "";
     // Weight only matters (and only shows) in a bag with a carry limit.
     const bool weighed = GetBag() && GetBag()->GetRules().MaxWeight > 0.0f;
@@ -352,6 +358,8 @@ void InventoryScreen::OnTick(f32, const InputManager& input)
     if (!_helpShown || input.GetLastDevice() != _helpDevice) ShowHelp(input);
     FollowFocus();
     if (IsGridView()) ShowDropPreview();
+    for (u32 i = 0; i < HotbarScreen::ActionSlots.size(); ++i)
+        if (input.JustPressed(HotbarScreen::ActionSlots[i])) AssignQuickSlot(i);
     if (_tabs.empty()) return;
     const u32 count = static_cast<u32>(_tabs.size());
     if (input.JustPressed(ActionPagePrev)) SelectTab((_tab + count - 1) % count);

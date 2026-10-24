@@ -12,6 +12,7 @@
 #include <arcbit/items/Party.h>
 #include <arcbit/items/Stats.h>
 #include <arcbit/save/SaveData.h>
+#include <arcbit/ui/HotbarScreen.h>
 #include <arcbit/ui/InventoryScreen.h>
 #include <arcbit/ui/UIManager.h>
 #include <arcbit/ui/Widgets.h>
@@ -302,4 +303,52 @@ TEST_CASE("Grid drops move, turn, split, merge and swap - or say it doesn't fit"
     cell->OnDrop(key);
     f.Tick();
     CHECK(at("key") == std::tuple{ std::string("hotbar"), 2u, 0u, false });
+}
+
+TEST_CASE("Number keys on the inventory screen put the selected item on a quick slot", "[ui][inventory][hotbar]")
+{
+    InventoryRules rules = InventoryRules::Pockets();
+    rules.QuickSlots     = 3;
+    Fixture f(rules);
+    f.Open();
+    f.SelectItem("potion");
+    f.screen->AssignQuickSlot(1);
+    CHECK(f.bags->GetParty().GetQuickSlots() == std::vector<std::string>{ "", "potion", "" });
+    CHECK(f.screen->GetMessage() == "Potion is on quick slot 2.");
+    CHECK(dynamic_cast<Label*>(f.screen->FindWidget<UIWidget>("row-0")->FindDescendant("name"))->Text == "Potion  [2]");
+    f.screen->AssignQuickSlot(1); // again: off
+    CHECK(f.bags->GetParty().GetQuickSlots()[1].empty());
+    f.screen->AssignQuickSlot(7); // past the bag's quick slots: nothing
+    CHECK(f.screen->GetMessage() == "Potion is off quick slot 2.");
+}
+
+TEST_CASE("The hotbar shows quick slots, or a grid's hotbar section; selection wraps", "[ui][hotbar]")
+{
+    InventoryRules rules = InventoryRules::Pockets();
+    rules.QuickSlots     = 4;
+    Fixture f(rules);
+    (void)f.bags->GetParty().SetQuickSlot(0, "potion");
+    (void)f.bags->GetParty().SetQuickSlot(2, "sword");
+    auto made        = std::make_unique<HotbarScreen>();
+    made->LayoutPath = ArcbitTests::SourcePath("engine/assets/ui/hotbar.arcui").string();
+    made->Host       = { .Bag = [&f] { return &f.bags->GetParty(); }, .Items = &f.items };
+    HotbarScreen* bar = made.get();
+    f.ui.Push(std::move(made));
+    f.Tick();
+    CHECK(bar->GetSlots() == std::vector<std::string>{ "potion", "", "sword", "" });
+    CHECK(bar->GetSelectedItem() == "potion");
+    bar->Step(-1);
+    CHECK(bar->GetSelected() == 3); // round to the end
+    bar->Select(2);
+    CHECK(bar->GetSelectedItem() == "sword");
+    CHECK(bar->FindWidget<UIWidget>("bar")->Visible);
+
+    // A grid with a hotbar section and no quick slots: what lies in it.
+    InventoryRules grid = InventoryRules::Grid(3, 2);
+    grid.Sections.push_back({ .Name = "hotbar", .Width = 3, .Height = 1 });
+    Inventory& stash = f.bags->Create("stash", grid);
+    (void)stash.Add("key");
+    REQUIRE(stash.MoveTo(0, "hotbar", 1, 0, false));
+    bar->Host.Bag = [&stash] { return &stash; };
+    CHECK(bar->GetSlots() == std::vector<std::string>{ "", "key", "" });
 }

@@ -27,6 +27,7 @@
 #include <arcbit/scene/SceneRegistry.h>
 #include <arcbit/assets/SpriteSheet.h>
 #include <arcbit/ui/DialogScreen.h>
+#include <arcbit/ui/HotbarScreen.h>
 #include <arcbit/ui/InventoryScreen.h>
 #include <arcbit/ui/SplashScreen.h>
 #include <arcbit/ui/UIManager.h>
@@ -308,6 +309,13 @@ public:
     // Its stock art and layout are assets/engine/ui/inventory*.
     void OpenInventory(std::string_view bag = Inventories::Party);
 
+    // The hotbar HUD; null when the project has none (ProjectDefaults::Hotbar).
+    [[nodiscard]] HotbarScreen* GetHotbar() const { return _hotbar; }
+
+    // Use what's in the hotbar's selected slot: use it, or equip it on the
+    // leader; false if the slot is empty or it can be neither.
+    bool UseHotbar();
+
     // An item's icon (ItemDef::Icon: a texture, or "sheet.json#frame"), for
     // any UI; nullopt if it can't be read. Read once, cached.
     [[nodiscard]] std::optional<ItemIcon> LoadItemIcon(std::string_view icon);
@@ -543,6 +551,10 @@ private:
     std::map<std::string, std::optional<ItemIcon>, std::less<>>      _itemIcons;  // LoadItemIcon, misses too
     std::map<std::string, std::unique_ptr<SpriteSheet>, std::less<>> _iconSheets; // icon sheets, by path
     void                   RegisterInventoryActions();
+    HotbarScreen*          _hotbar = nullptr; // owned by _ui
+    [[nodiscard]] bool     HotbarWanted() const;
+    void                   StartHotbar();
+    void                   UpdateHotbar();
 
     // Conversations (ApplicationDialog.cpp).
     struct ActiveDialog

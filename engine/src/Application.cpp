@@ -316,6 +316,7 @@ void Application::Run()
     // bindings set up in OnStart are overwritten by any user-saved bindings.
     (void)_prefabs.AddFolder(_config.PrefabFolder); // before OnStart: the first scene may use them
     StartPickups();
+    StartHotbar(); // its keys before the game's, so OnStart can change them
     OnStart();
     Settings::LoadInputBindings(_input);
 
@@ -392,6 +393,7 @@ void Application::Run()
                     // An input-capturing overlay or a scene fade holds the player still.
                     scene->SetInputBlocked(_ui.HasBlockingScreen() || _scenes.IsFading());
                     UpdateEncumbrance(*scene);
+                    UpdateHotbar();
                     if (!DialogPausesWorld()) scene->Update(_fixedTimestep * _timeScale);
                 }
                 // Play time: not under menus, but a conversation is playing.

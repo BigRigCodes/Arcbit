@@ -176,5 +176,20 @@
   "ui.inventory.view.list": "Liste",
   "ui.inventory.view.grid": "Grille",
   "ui.inventory.no_fit": "{item} : pas de place ici.",
-  "items.section.hotbar": "Raccourcis"
+  "items.section.hotbar": "Raccourcis",
+  "ui.input.hotbar": "Barre rapide",
+  "ui.input.hotbar_next": "Barre rapide : suivant",
+  "ui.input.hotbar_prev": "Barre rapide : précédent",
+  "ui.input.hotbar_use": "Barre rapide : utiliser",
+  "ui.inventory.quick_on": "{item} est sur l’emplacement rapide {slot}.",
+  "ui.inventory.quick_off": "{item} n’est plus sur l’emplacement rapide {slot}.",
+  "ui.input.hotbar_1": "Emplacement rapide 1",
+  "ui.input.hotbar_2": "Emplacement rapide 2",
+  "ui.input.hotbar_3": "Emplacement rapide 3",
+  "ui.input.hotbar_4": "Emplacement rapide 4",
+  "ui.input.hotbar_5": "Emplacement rapide 5",
+  "ui.input.hotbar_6": "Emplacement rapide 6",
+  "ui.input.hotbar_7": "Emplacement rapide 7",
+  "ui.input.hotbar_8": "Emplacement rapide 8",
+  "ui.input.hotbar_9": "Emplacement rapide 9"
 }

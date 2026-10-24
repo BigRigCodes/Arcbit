@@ -72,6 +72,15 @@ struct ProjectDefaults
     // The game's currencies: SaveData counters, or (Item) stacks in a bag.
     std::vector<CurrencyDef> Currencies = { { .Id = "gold" } };
 
+    // The hotbar HUD and its keys (Hotbar_1 to _9, _Next, _Prev, _Use;
+    // docs/items.md#quick-slots-and-the-hotbar). Never forced: it's there
+    // when the party bag has quick slots or a "hotbar" section, or this says so.
+    bool Hotbar = false;
+
+    // A hotbar number key uses its slot at once (Diablo) rather than only
+    // selecting it for the Use key (Minecraft).
+    bool HotbarNumberUses = false;
+
     // How fast an encumbered party walks (its bag over the weight limit,
     // when the bag's rules allow going over), times its usual speed.
     f32 EncumberedSpeed = 0.5f;

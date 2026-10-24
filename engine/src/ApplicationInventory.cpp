@@ -6,6 +6,8 @@
 #include <arcbit/core/Log.h>
 #include <arcbit/ui/InventoryScreen.h>
 
+#include <algorithm>
+#include <array>
 #include <format>
 #include <stdexcept>
 
@@ -63,6 +65,70 @@ std::optional<ItemIcon> Application::LoadItemIcon(const std::string_view icon)
     if (!found) LOG_WARN(Engine, "Item icon '{}' not found", key);
     _itemIcons.emplace(key, found);
     return found;
+}
+
+// The hotbar: wanted when the project's party bag has quick slots or a
+// hotbar section, or the project asks for one.
+bool Application::HotbarWanted() const
+{
+    const InventoryRules& bag = _config.Defaults.PartyBag;
+    return _config.Defaults.Hotbar || bag.QuickSlots > 0 ||
+           std::ranges::any_of(bag.Sections, [](const InventorySection& s) { return s.Name == HotbarScreen::Section; });
+}
+
+// Its keys (gameplay actions, rebindable: 1-9, the shoulder buttons, F /
+// D-pad down to use) and the HUD, shown while a scene plays and no menu is up.
+void Application::StartHotbar()
+{
+    if (!HotbarWanted()) return;
+    constexpr std::array Digits = { Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9 };
+    for (u32 i = 0; i < HotbarScreen::ActionSlots.size(); ++i) {
+        const std::string name = std::format("Hotbar_{}", i + 1);
+        _input.RegisterAction(HotbarScreen::ActionSlots[i], name, std::format("ui.input.hotbar_{}", i + 1), "ui.input.hotbar");
+        _input.BindKey(HotbarScreen::ActionSlots[i], Digits[i]);
+    }
+    _input.RegisterAction(HotbarScreen::ActionNext, "Hotbar_Next", "ui.input.hotbar_next", "ui.input.hotbar");
+    _input.BindGamepadButton(HotbarScreen::ActionNext, GamepadButton::RightShoulder);
+    _input.RegisterAction(HotbarScreen::ActionPrev, "Hotbar_Prev", "ui.input.hotbar_prev", "ui.input.hotbar");
+    _input.BindGamepadButton(HotbarScreen::ActionPrev, GamepadButton::LeftShoulder);
+    _input.RegisterAction(HotbarScreen::ActionUse, "Hotbar_Use", "ui.input.hotbar_use", "ui.input.hotbar");
+    _input.BindKey(HotbarScreen::ActionUse, Key::F);
+    _input.BindGamepadButton(HotbarScreen::ActionUse, GamepadButton::DPadDown);
+
+    auto hotbar  = std::make_unique<HotbarScreen>();
+    _hotbar      = hotbar.get();
+    hotbar->Art  = _inventoryArt;
+    hotbar->Host = { .Bag      = [this] { return _inventories->Find(Inventories::Party); },
+                     .Items    = &_items,
+                     .LoadIcon = [this](const std::string_view icon) { return LoadItemIcon(icon); },
+                     .Shown    = [this] { return _scenes.GetActive() && !_ui.HasOpenMenu() && !_ui.HasGameBlockingScreen(); } };
+    _ui.Push(std::move(hotbar));
+}
+
+// Each tick, unless a screen has the input: a number picks a slot (and uses
+// it, if the project says), the shoulders and the wheel step, Use uses.
+void Application::UpdateHotbar()
+{
+    if (!_hotbar || _ui.HasBlockingScreen()) return;
+    for (u32 i = 0; i < HotbarScreen::ActionSlots.size(); ++i)
+        if (_input.JustPressed(HotbarScreen::ActionSlots[i])) {
+            _hotbar->Select(i);
+            if (_config.Defaults.HotbarNumberUses) (void)UseHotbar();
+        }
+    if (_input.JustPressed(HotbarScreen::ActionNext)) _hotbar->Step(1);
+    if (_input.JustPressed(HotbarScreen::ActionPrev)) _hotbar->Step(-1);
+    if (const f32 wheel = _input.GetScrollDelta(); wheel != 0.0f) _hotbar->Step(wheel > 0.0f ? -1 : 1);
+    if (_input.JustPressed(HotbarScreen::ActionUse)) (void)UseHotbar();
+}
+
+bool Application::UseHotbar()
+{
+    const std::string item = _hotbar ? _hotbar->GetSelectedItem() : std::string{};
+    const ItemDef*    def  = item.empty() ? nullptr : _items.Find(item);
+    if (!def) return false;
+    if (!def->Use.empty()) return UseItem(item) == UseResult::Used;
+    const PartyMember* leader = _party->GetLeader();
+    return !def->Slot.empty() && leader && _party->Equip(leader->Id, item);
 }
 
 // The inventory screen's keys: Q / E (shoulder buttons) change its tabs.

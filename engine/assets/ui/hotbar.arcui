@@ -1,0 +1,20 @@
+{
+  "meta": { "gap": 6 },
+  "widgets": [
+    { "type": "Panel", "name": "bar", "anchor": [0.5, 1.0], "pivot": [0.5, 1.0], "offset": [0, -14], "size": [400, 56],
+      "background_color": [0, 0, 0, 0], "zorder": 1 }
+  ],
+  "templates": {
+    "slot": {
+      "type": "Panel", "size": [56, 56], "draw_border": true, "zorder": 2,
+      "children": [
+        { "type": "Image", "name": "icon", "offset": [6, 6], "size": [44, 44], "zorder": 3, "visible": false },
+        { "type": "Label", "name": "name", "offset": [4, 14], "size": [48, 36], "word_wrap": true, "zorder": 3,
+          "skin": { "FontScale": 0.6 } },
+        { "type": "Label", "name": "key", "offset": [4, 1], "size": [20, 16], "zorder": 4, "skin": { "FontScale": 0.6 } },
+        { "type": "Label", "name": "count", "anchor": [1, 1], "pivot": [1, 1], "offset": [-4, -1], "size": [40, 18],
+          "align": "right", "zorder": 4, "skin": { "FontScale": 0.7 } }
+      ]
+    }
+  }
+}

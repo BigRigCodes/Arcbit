@@ -91,6 +91,15 @@ void ScriptEngine::State::BindInventory()
         if (!Services.DropItem) throw std::runtime_error("Inventory.Drop: no scene to drop into");
         return Services.DropItem(item, count.value_or(1), name.value_or(std::string(Inventories::Party)));
     });
+    // Quick slots count from 1, as Lua does.
+    inventory.set_function("SetQuickSlot", [bag](const u32 slot, const std::string& item, const sol::optional<std::string> name) {
+        return slot >= 1 && bag(name).SetQuickSlot(slot - 1, item);
+    });
+    inventory.set_function("QuickSlots", [this, bag](const sol::optional<std::string> name) {
+        sol::table slots = Lua.create_table();
+        for (const std::string& item : bag(name).GetQuickSlots()) slots.add(item);
+        return slots;
+    });
     inventory.set_function("Open", [this](const sol::optional<std::string> name) {
         if (!Services.OpenInventory) throw std::runtime_error("Inventory.Open: no inventory screen here");
         Services.OpenInventory(name.value_or(std::string(Inventories::Party)));

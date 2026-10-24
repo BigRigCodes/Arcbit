@@ -160,6 +160,18 @@ void InventoryScreen::Unequip(const std::string_view slot)
     Refresh();
 }
 
+void InventoryScreen::AssignQuickSlot(const u32 slot)
+{
+    Inventory*     bag = Host.Bags ? Host.Bags->Find(Bag) : nullptr;
+    const ItemDef* def = SelectedDef();
+    if (!bag || !def || slot >= bag->GetQuickSlots().size()) return;
+    const bool        off  = bag->GetQuickSlots()[slot] == def->Id;
+    const std::string name = Loc::Get(def->NameKey);
+    (void)bag->SetQuickSlot(slot, off ? std::string{} : def->Id);
+    SetMessage(off ? "ui.inventory.quick_off" : "ui.inventory.quick_on", { { "item", name }, { "slot", std::format("{}", slot + 1) } });
+    Refresh();
+}
+
 void InventoryScreen::SelectMember(const i32 step)
 {
     if (!Host.Members || Host.Members->GetMembers().empty()) return;

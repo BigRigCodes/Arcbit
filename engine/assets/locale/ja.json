@@ -176,5 +176,20 @@
   "ui.inventory.view.list": "リスト",
   "ui.inventory.view.grid": "グリッド",
   "ui.inventory.no_fit": "{item}はそこに入りません。",
-  "items.section.hotbar": "ホットバー"
+  "items.section.hotbar": "ホットバー",
+  "ui.input.hotbar": "ホットバー",
+  "ui.input.hotbar_next": "ホットバー：次",
+  "ui.input.hotbar_prev": "ホットバー：前",
+  "ui.input.hotbar_use": "ホットバー：使う",
+  "ui.inventory.quick_on": "{item}をショートカット{slot}に登録しました。",
+  "ui.inventory.quick_off": "{item}をショートカット{slot}から外しました。",
+  "ui.input.hotbar_1": "ホットバー 1",
+  "ui.input.hotbar_2": "ホットバー 2",
+  "ui.input.hotbar_3": "ホットバー 3",
+  "ui.input.hotbar_4": "ホットバー 4",
+  "ui.input.hotbar_5": "ホットバー 5",
+  "ui.input.hotbar_6": "ホットバー 6",
+  "ui.input.hotbar_7": "ホットバー 7",
+  "ui.input.hotbar_8": "ホットバー 8",
+  "ui.input.hotbar_9": "ホットバー 9"
 }
