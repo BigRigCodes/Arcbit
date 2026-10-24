@@ -9,6 +9,7 @@
 #include <arcbit/ui/Widgets.h>
 
 #include <algorithm>
+#include <cmath>
 #include <format>
 
 namespace Arcbit
@@ -17,6 +18,7 @@ namespace
 {
     constexpr f32   SectionLabel = 26.0f; // a section's name above it
     constexpr Color CellTint     = { 0.16f, 0.19f, 0.31f, 1.0f };
+    constexpr Color CellHover    = { 0.30f, 0.36f, 0.56f, 1.0f }; // the "cell" template's own
     constexpr Color FitsTint     = { 0.25f, 0.55f, 0.30f, 1.0f };
     constexpr Color NoFitTint    = { 0.60f, 0.22f, 0.22f, 1.0f };
 
@@ -109,7 +111,8 @@ void InventoryScreen::WireCell(const u32 index)
 {
     GridCell& cell = _cells[index];
     cell.Widget->Name    = std::format("cell-{}-{}-{}", cell.Section.empty() ? "main" : cell.Section, cell.X, cell.Y);
-    cell.Widget->Texture = Art.Slot, cell.Widget->Sampler = Art.Sampler;
+    cell.Widget->Texture     = Art.Row, cell.Widget->Sampler = Art.Sampler; // white, so the tints (and the fit preview) show
+    cell.Widget->DropOutline = false; // the cells it would take light up instead
     cell.Widget->OnClick = [this, index] {
         Later([this, index] {
             const Inventory*         bag = GetBag();
@@ -138,9 +141,9 @@ void InventoryScreen::WireCell(const u32 index)
     cell.Widget->CanDrop = [this, index](const DragPayload& p) { return index < _cells.size() && CanPlace(p, _cells[index]); };
     cell.Widget->OnDrop  = [this, index](const DragPayload& p) {
         const ItemDrag* drag = AsItemDrag(p);
-        if (!drag || !drag->Index || index >= _cells.size()) return;
-        const GridCell at = _cells[index];
-        Later([this, at, from = *drag->Index, rotated = p.Rotated, count = p.Count] { (void)PlaceAt(from, at.Section, at.X, at.Y, rotated, count); });
+        const auto      at   = index < _cells.size() ? AnchorFor(p, _cells[index]) : std::nullopt; // where the ghost is now
+        if (!drag || !drag->Index || !at) return;
+        Later([this, at = *at, from = *drag->Index, rotated = p.Rotated, count = p.Count] { (void)PlaceAt(from, at.Section, at.X, at.Y, rotated, count); });
     };
 }
 
@@ -162,14 +165,33 @@ std::optional<DragPayload> InventoryScreen::GridPayload(const u32 index, const D
     return payload;
 }
 
-// Whether a drop on this cell would land: the entry fits there (as it's
-// held, turned or not), or what's there is the same item (merge) or another
-// to trade places with.
-bool InventoryScreen::CanPlace(const DragPayload& p, const GridCell& cell) const
+// Where a drop over a cell puts the item's top-left: the cell under the
+// ghost's top-left corner - the ghost is centered on the pointer, so a two-
+// cell item held by its right half lands one cell left of the pointer, as it
+// looks. With the grab key, the focused cell itself (the ghost sits on it).
+// Nullopt: past the area's top or left edge.
+std::optional<InventoryScreen::GridCell> InventoryScreen::AnchorFor(const DragPayload& p, const GridCell& over) const
+{
+    const auto rect = IsKeyboardDrag() ? std::nullopt : GetWidgetRect(over.Widget);
+    if (!rect) return over;
+    const Vec2 corner = GetPointerPos() - p.HeldSize() * 0.5f;
+    const f32  pitch  = _cellSize + _cellGap;
+    const i64  x      = static_cast<i64>(over.X) + static_cast<i64>(std::round((corner.X - rect->X) / pitch));
+    const i64  y      = static_cast<i64>(over.Y) + static_cast<i64>(std::round((corner.Y - rect->Y) / pitch));
+    if (x < 0 || y < 0) return std::nullopt;
+    return GridCell{ nullptr, over.Section, static_cast<u32>(x), static_cast<u32>(y) };
+}
+
+// Whether a drop here would land: the entry fits where the ghost puts it (as
+// it's held, turned or not), or what's there is the same item (merge) or
+// another to trade places with.
+bool InventoryScreen::CanPlace(const DragPayload& p, const GridCell& over) const
 {
     const ItemDrag*  drag = AsItemDrag(p);
     const Inventory* bag  = GetBag();
-    if (!drag || !drag->Index || !bag || *drag->Index >= bag->GetStacks().size()) return false;
+    const auto       at   = AnchorFor(p, over);
+    if (!drag || !drag->Index || !bag || !at || *drag->Index >= bag->GetStacks().size()) return false;
+    const GridCell& cell = *at;
     if (bag->CanMoveTo(*drag->Index, cell.Section, cell.X, cell.Y, p.Rotated)) return true;
     const std::optional<u32> there = bag->StackAt(cell.Section, cell.X, cell.Y);
     return there && *there != *drag->Index && p.Count == bag->GetStacks()[*drag->Index].Count;
@@ -221,7 +243,7 @@ void InventoryScreen::ShowGridItems()
         view.ZOrder    = 5;
         view.Offset    = origin->second + Vec2{ static_cast<f32>(stack.X) * (_cellSize + _cellGap), static_cast<f32>(stack.Y) * (_cellSize + _cellGap) };
         view.Size      = { static_cast<f32>(w) * (_cellSize + _cellGap) - _cellGap, static_cast<f32>(h) * (_cellSize + _cellGap) - _cellGap };
-        view.Opacity   = std::ranges::find(kept, i) != kept.end() ? 1.0f : 0.3f;
+        view.Opacity   = _dimmed == i ? 0.35f : std::ranges::find(kept, i) != kept.end() ? 1.0f : 0.3f;
         if (auto* panel = dynamic_cast<Panel*>(&view))
             panel->SkinOverride.PanelBg = _selected == i ? SelectedTint : Color{ 0.26f, 0.32f, 0.50f, 0.85f };
         if (auto* icon = view.FindDescendant("icon")) {
@@ -237,18 +259,26 @@ void InventoryScreen::ShowGridItems()
 // green if it fits, red if not.
 void InventoryScreen::ShowDropPreview()
 {
-    for (GridCell& cell : _cells) cell.Widget->TintNormal = CellTint;
+    for (GridCell& cell : _cells) cell.Widget->TintNormal = CellTint, cell.Widget->TintHovered = CellHover;
     const DragPayload* p      = GetDrag();
     const UIWidget*    target = GetDropTarget();
     const ItemDrag*    drag   = p ? AsItemDrag(*p) : nullptr;
+    // What's held dims where it lies (its cell is the drag's source, under it).
+    const std::optional<u32> held = drag ? drag->Index : std::nullopt;
+    if (held != _dimmed) {
+        _dimmed = held;
+        ShowGridItems();
+    }
     const auto         over   = std::ranges::find_if(_cells, [&](const GridCell& c) { return c.Widget == target; });
     if (!drag || !drag->Index || over == _cells.end() || !Host.Items) return;
     const ItemDef* def = Host.Items->Find(drag->Item);
     if (!def) return;
+    const auto at = AnchorFor(*p, *over);
+    if (!at) return;
     const u32   w = p->Rotated ? def->Height : def->Width, h = p->Rotated ? def->Width : def->Height;
     const Color tint = CanPlace(*p, *over) ? FitsTint : NoFitTint;
     for (GridCell& cell : _cells)
-        if (cell.Section == over->Section && cell.X >= over->X && cell.X < over->X + w && cell.Y >= over->Y && cell.Y < over->Y + h)
-            cell.Widget->TintNormal = tint;
+        if (cell.Section == at->Section && cell.X >= at->X && cell.X < at->X + w && cell.Y >= at->Y && cell.Y < at->Y + h)
+            cell.Widget->TintNormal = cell.Widget->TintHovered = tint; // hovered or focused, it still shows
 }
 } // namespace Arcbit

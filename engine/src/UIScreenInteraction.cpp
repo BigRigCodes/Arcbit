@@ -295,18 +295,20 @@ void UIScreen::CollectGhost(FramePacket& packet, const UISkin& skin, const Textu
 {
     if (!_drag.Active) return;
     const DragPayload& p      = _drag.Payload;
+    const Vec2         held   = p.HeldSize();
     Vec2               center = _pointer.Pos;
     if (_drag.Keyboard)
-        if (const auto rect = RectOf(GetFocusedWidget(), _screenRect)) center = { rect->X + rect->W * 0.5f, rect->Y + rect->H * 0.5f };
+        if (const auto rect = RectOf(GetFocusedWidget(), _screenRect))
+            center = { rect->X + std::max(0.0f, (rect->W - held.X) * 0.5f) + held.X * 0.5f,
+                       rect->Y + std::max(0.0f, (rect->H - held.Y) * 0.5f) + held.Y * 0.5f };
     const UIRect box{ center.X - p.Size.X * 0.5f, center.Y - p.Size.Y * 0.5f, p.Size.X, p.Size.Y };
     const bool   textured = p.Texture.IsValid();
     Color        tint     = p.Tint;
-    tint.A *= 0.8f;
+    tint.A *= 0.6f; // see-through: a target's own highlight (where it would land) shows under it
     Quad(packet, box, tint, textured ? p.Texture : whiteTex, textured && p.Sampler.IsValid() ? p.Sampler : whiteSampler,
          LayerAt(skin, GhostZ, UILayerFill), p.UV, p.Rotated ? std::numbers::pi_v<f32> * 0.5f : 0.0f);
     if (p.Text.empty() || !skin.Font) return;
     const TextLayout layout = LayoutRichText(*skin.Font, p.Text, { .Scale = skin.FontScale, .Style = skin.Text });
-    const Vec2       held   = p.HeldSize();
     DrawRichText(packet, *skin.Font, layout,
                  { .Position = { center.X + held.X * 0.5f - layout.Size.X - 2.0f, center.Y + held.Y * 0.5f - layout.Size.Y },
                    .Color = skin.TextNormal, .Layer = LayerAt(skin, GhostZ, UILayerText), .Style = skin.Text,

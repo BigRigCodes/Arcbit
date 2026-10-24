@@ -216,6 +216,7 @@ private:
     std::string                 _gridShape;   // what the cells were built for
     f32                         _cellSize = 48.0f;
     f32                         _cellGap  = 4.0f;
+    std::optional<u32>          _dimmed;  // the entry being dragged, drawn faint where it lies
     bool                        _gridView = true;
     void BuildGrid();
     void BuildCells(const InventoryRules& rules);
@@ -223,7 +224,8 @@ private:
     void ShowGridItems();
     void ShowDropPreview();
     [[nodiscard]] std::optional<DragPayload> GridPayload(u32 index, const DragStart& how) const;
-    [[nodiscard]] bool                       CanPlace(const DragPayload& p, const GridCell& cell) const;
+    [[nodiscard]] bool                       CanPlace(const DragPayload& p, const GridCell& over) const;
+    [[nodiscard]] std::optional<GridCell>    AnchorFor(const DragPayload& p, const GridCell& over) const;
 
     ScrollPanel*                   _list = nullptr;
     std::vector<NineSliceButton*>  _rows;

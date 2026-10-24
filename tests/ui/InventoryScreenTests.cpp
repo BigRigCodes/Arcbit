@@ -295,14 +295,24 @@ TEST_CASE("Grid drops move, turn, split, merge and swap - or say it doesn't fit"
     CHECK(f.screen->PlaceAt(single, section, x, y, false, 1)); // back onto the rest: merged
     CHECK(bag.GetStacks().size() == 3);
 
-    // A drop on a cell goes through the same: the cell takes what fits.
-    UIWidget* cell = f.screen->FindWidget<UIWidget>("cell-hotbar-2-0");
-    REQUIRE(cell);
-    const DragPayload key{ .Kind = "item", .Data = ItemDrag{ "key", IndexOf(bag, "key") } };
-    CHECK(cell->Accepts(key));
-    cell->OnDrop(key);
-    f.Tick();
-    CHECK(at("key") == std::tuple{ std::string("hotbar"), 2u, 0u, false });
+    // A real drag lands where its ghost is drawn - centered on the pointer -
+    // not on the cell under the pointer: the turned sword (two cells across)
+    // held by its right half, let go with the pointer in a cell's left part,
+    // takes that cell's left neighbor and that cell.
+    CHECK(f.screen->PlaceAt(IndexOf(bag, "sword"), "", 0, 2, true, 1));
+    const UIRect screenRect{ 0.0f, 0.0f, 1280.0f, 720.0f };
+    const UISkin skin;
+    const auto   point = [&](const char* cell, const f32 across) {
+        const UIRect r = *f.screen->GetWidgetRect(f.screen->FindWidget<UIWidget>(cell));
+        return Vec2{ r.X + r.W * across, r.Y + r.H * 0.5f };
+    };
+    (void)f.screen->Interact(1.0f / 60.0f, screenRect, { .Pos = point("cell-main-1-2", 0.5f), .Down = true, .JustDown = true }, skin);
+    (void)f.screen->Interact(1.0f / 60.0f, screenRect, { .Pos = point("cell-main-2-1", 0.25f), .Down = true }, skin);
+    REQUIRE(f.screen->IsDragging());
+    CHECK(f.screen->GetDrag()->Rotated);
+    (void)f.screen->Interact(1.0f / 60.0f, screenRect, { .Pos = point("cell-main-2-1", 0.25f), .JustUp = true }, skin);
+    f.Tick(); // the drop's work runs at the next tick
+    CHECK(at("sword") == std::tuple{ std::string{}, 1u, 1u, true }); // cells (1,1) and (2,1)
 }
 
 TEST_CASE("Number keys on the inventory screen put the selected item on a quick slot", "[ui][inventory][hotbar]")

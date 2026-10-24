@@ -204,6 +204,16 @@ public:
     [[nodiscard]] const DragPayload* GetDrag() const { return _drag.Active ? &_drag.Payload : nullptr; }
     [[nodiscard]] UIWidget*          GetDropTarget() const { return Resolve(_drag.Target); }
 
+    // A drag carried by the grab key (it goes where focus is), and where the
+    // pointer is - for a target placing what's dropped by the ghost, not just
+    // by the widget under the pointer.
+    [[nodiscard]] bool IsKeyboardDrag() const { return _drag.Active && _drag.Keyboard; }
+    [[nodiscard]] Vec2 GetPointerPos() const { return _pointer.Pos; }
+
+    // Where one of this screen's widgets is, as last laid out; nullopt if it
+    // isn't in the tree.
+    [[nodiscard]] std::optional<UIRect> GetWidgetRect(const UIWidget* widget) const { return RectOf(widget, _screenRect); }
+
     // Focus moved by keys or the D-pad: its tooltip shows under it, after
     // the delay, until the pointer moves.
     void FocusMovedByKeys();

@@ -147,7 +147,7 @@ void UIWidget::CollectTree(FramePacket&        packet, const UIRect          par
     const UISkin effectiveSkin  = GetEffectiveSkin(skin);
 
     OnCollect(packet, myRect, effectiveAlpha, whiteTex, whiteSampler, effectiveSkin);
-    if (_dragOver) CollectDropOutline(packet, myRect, effectiveAlpha, whiteTex, whiteSampler, effectiveSkin);
+    if (_dragOver && DropOutline) CollectDropOutline(packet, myRect, effectiveAlpha, whiteTex, whiteSampler, effectiveSkin);
 
     // Children sorted by ascending ZOrder so higher values render on top.
     // Children receive the original skin — overrides are per-widget, not cascading.

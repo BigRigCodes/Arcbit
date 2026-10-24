@@ -121,6 +121,10 @@ public:
     std::function<bool(const DragPayload&)> CanDrop;
     std::function<void(const DragPayload&)> OnDrop;
 
+    // Outlined while a payload is over it; off for a target that shows where
+    // a drop lands its own way (the inventory grid lights the cells).
+    bool DropOutline = true;
+
     [[nodiscard]] bool IsDragSource() const { return static_cast<bool>(OnDragStart); }
     [[nodiscard]] bool IsDropTarget() const { return static_cast<bool>(OnDrop); }
     [[nodiscard]] bool Accepts(const DragPayload& payload) const { return IsDropTarget() && (!CanDrop || CanDrop(payload)); }
